@@ -1,0 +1,9 @@
+cluster.name: forensic-cluster
+network.host: 0.0.0.0
+http.port: 9200
+bootstrap.memory_lock: true
+plugins.security.disabled: true
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+http.cors.allow-headers: "X-Requested-With,Content-Type,Content-Length,Authorization"
+indices.query.bool.max_clause_count: 4096

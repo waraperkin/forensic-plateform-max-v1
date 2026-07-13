@@ -1,0 +1,38 @@
+{
+  "policy": {
+    "description": "Threat intelligence & IOC matches — retain 180d",
+    "default_state": "hot",
+    "ism_template": [
+      {
+        "index_patterns": [
+          "forensic-ti*",
+          "fp-ti*"
+        ],
+        "priority": 95
+      }
+    ],
+    "states": [
+      {
+        "name": "hot",
+        "actions": [],
+        "transitions": [
+          {
+            "state_name": "delete",
+            "conditions": {
+              "min_index_age": "180d"
+            }
+          }
+        ]
+      },
+      {
+        "name": "delete",
+        "actions": [
+          {
+            "delete": {}
+          }
+        ],
+        "transitions": []
+      }
+    ]
+  }
+}

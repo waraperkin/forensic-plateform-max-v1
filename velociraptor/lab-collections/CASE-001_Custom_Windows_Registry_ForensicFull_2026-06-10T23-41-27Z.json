@@ -1,0 +1,50 @@
+{
+  "case_id": "CASE-001",
+  "artifact": "Custom.Windows.Registry.ForensicFull",
+  "events": [
+    {
+      "Hive": "HKLM",
+      "KeyPath": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "ValueName": "SecurityHealth",
+      "ValueData": "C:\\Windows\\System32\\SecurityHealthSystray.exe",
+      "LastWriteTime": "2024-05-20T12:00:00Z",
+      "Computer": "lab-win01",
+      "@timestamp": "2026-06-10T23:41:27Z",
+      "artifact": "Custom.Windows.Registry.ForensicFull",
+      "collection_mode": "offline-lab"
+    },
+    {
+      "Hive": "HKCU",
+      "KeyPath": "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "ValueName": "Updater",
+      "ValueData": "C:\\Users\\Public\\stage.exe",
+      "LastWriteTime": "2024-06-01T08:18:30Z",
+      "Computer": "lab-win01",
+      "@timestamp": "2026-06-10T23:41:27Z",
+      "artifact": "Custom.Windows.Registry.ForensicFull",
+      "collection_mode": "offline-lab"
+    },
+    {
+      "Hive": "HKLM",
+      "KeyPath": "SYSTEM\\CurrentControlSet\\Services\\SuspiciousSvc",
+      "ValueName": "ImagePath",
+      "ValueData": "\\??\\C:\\Windows\\Temp\\svc.exe",
+      "LastWriteTime": "2024-06-01T07:55:00Z",
+      "Computer": "lab-win01",
+      "@timestamp": "2026-06-10T23:41:27Z",
+      "artifact": "Custom.Windows.Registry.ForensicFull",
+      "collection_mode": "offline-lab"
+    },
+    {
+      "Hive": "HKLM",
+      "KeyPath": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+      "ValueName": "Userinit",
+      "ValueData": "C:\\Windows\\system32\\userinit.exe",
+      "LastWriteTime": "2024-01-10T09:00:00Z",
+      "Computer": "lab-win01",
+      "@timestamp": "2026-06-10T23:41:27Z",
+      "artifact": "Custom.Windows.Registry.ForensicFull",
+      "collection_mode": "offline-lab"
+    }
+  ]
+}

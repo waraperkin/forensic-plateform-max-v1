@@ -1,0 +1,41 @@
+name: Custom.Server.Lab.ScheduledCollections
+description: |
+  Monitoring lab — lance des collectes ForensicMinimal toutes les 15 minutes
+  sur les clients Windows/Linux du lab (label lab ou hostname lab-*).
+author: CYBERCORP Forensic Platform
+type: SERVER
+parameters:
+  - name: period_sec
+    default: "900"
+    type: int
+  - name: WindowsArtifact
+    default: Custom.Windows.Sysmon.ForensicMinimal
+  - name: LinuxArtifact
+    default: Custom.Linux.Logs.ForensicMinimal
+sources:
+  - name: LabWindowsCollection
+    query: |
+      LET period <= int(period_sec)
+      LET clients <= SELECT client_id, os_info.system AS OS, os_info.hostname AS Hostname
+        FROM clients(search='label:lab OR Hostname=~''lab-.*''')
+        WHERE OS = 'windows'
+      LET _ <= foreach(row=clients,
+        x={ SELECT collect_client(
+          client_id=client_id,
+          artifacts=[WindowsArtifact],
+          urgent=TRUE
+        ) AS Collection FROM scope() })
+      SELECT * FROM clients(search='label:lab')
+
+  - name: LabLinuxCollection
+    query: |
+      LET clients <= SELECT client_id, os_info.system AS OS
+        FROM clients(search='label:lab OR Hostname=~''lab-.*''')
+        WHERE OS = 'linux'
+      LET _ <= foreach(row=clients,
+        x={ SELECT collect_client(
+          client_id=client_id,
+          artifacts=[LinuxArtifact],
+          urgent=TRUE
+        ) AS Collection FROM scope() })
+      SELECT client_id, OS FROM clients

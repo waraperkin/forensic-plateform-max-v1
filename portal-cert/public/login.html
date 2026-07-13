@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark" data-portal="cert" data-edition="cybercorp">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connexion — CERT CYBERCORP</title>
+<link rel="stylesheet" href="shared/css/forensic-ui.css">
+<link rel="stylesheet" href="shared/css/cybercorp-theme.css">
+<link rel="stylesheet" href="shared/css/portal-cybercorp-stable.css">
+</head>
+<body class="fp-login-page">
+<div class="cc-login-bg" aria-hidden="true"></div>
+<div class="fp-login-card">
+  <div class="fp-login-brand">
+    <img class="cc-logo-login" src="shared/assets/cybercorp-logo.svg" alt="CYBERCORP" width="56" height="56">
+    <div>
+      <h1 id="login-title">CERT CYBERCORP</h1>
+      <p id="login-banner" class="fp-muted">Cyber Defense Operations Center</p>
+      <span class="fp-badge fp-badge-cert cc-badge-edition" style="margin-top:0.5rem;display:inline-block">CERT CYBERCORP</span>
+    </div>
+  </div>
+  <form id="login-form" class="fp-login-form">
+    <label class="fp-label">Identifiant
+      <input class="fp-input" id="login-user" name="username" autocomplete="username" required>
+    </label>
+    <label class="fp-label">Mot de passe
+      <input class="fp-input" id="login-pass" name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <div id="mfa-block" class="fp-login-mfa" hidden>
+      <label class="fp-label">Code MFA (Google Authenticator)
+        <input class="fp-input" id="login-totp" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="123456">
+      </label>
+    </div>
+    <p id="login-err" class="fp-alert fp-alert-err" hidden role="alert"></p>
+    <button type="submit" class="fp-btn fp-btn-primary fp-btn-block" id="login-submit">Se connecter</button>
+  </form>
+  <p class="fp-login-foot fp-muted">Accès réservé — équipe CERT CYBERCORP / SOC</p>
+  <p class="cc-footer" style="margin-top:1rem;border:none;background:none;padding:0">© <strong>CYBERCORP</strong> — Platform engineered by <strong>Siaka</strong></p>
+</div>
+<script src="shared/js/login-app.js"></script>
+</body>
+</html>

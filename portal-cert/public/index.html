@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark" data-portal="cert" data-edition="cybercorp">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Cybercorp Forensic Platform — SOC, SIEM, digital forensics and threat intelligence laboratory for authorized cybersecurity professionals.">
+<meta name="keywords" content="cybersecurity, SOC, SIEM, DFIR, digital forensics, incident response, threat intelligence, security operations center">
+<meta name="classification" content="Computer Security, Business, Information Technology">
+<title data-i18n="cert_index.page_title">CERT CYBERCORP</title>
+<link rel="stylesheet" href="shared/css/forensic-ui.css">
+<link rel="stylesheet" href="shared/css/cybercorp-theme.css">
+<link rel="stylesheet" href="shared/css/portal-layout-v2.css">
+<link rel="stylesheet" href="shared/css/portal-hub-premium.css">
+<link rel="stylesheet" href="shared/css/portal-v6.css">
+<link rel="stylesheet" href="shared/css/portal-design-system.css">
+<link rel="stylesheet" href="css/cert-shell.css">
+<link rel="stylesheet" href="shared/css/portal-cybercorp-stable.css">
+<link rel="stylesheet" href="shared/css/panel-detail.css">
+<link rel="stylesheet" href="shared/css/portal-doc.css">
+<link rel="stylesheet" href="shared/css/global-health.css">
+<link rel="stylesheet" href="shared/css/global-error.css">
+<link rel="stylesheet" href="shared/css/forensic-report.css">
+<link rel="stylesheet" href="shared/css/portal-ai.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
+</head>
+<body class="app-shell portal-v6 portal-cybercorp-stable">
+<div class="fp-cert-wrap app-shell">
+<header class="fp-header cc-topbar">
+  <button type="button" class="fp-menu-toggle" id="menu-toggle" aria-label="Menu">☰</button>
+  <div class="cc-brand">
+    <img src="shared/assets/cybercorp-logo.svg" alt="CYBERCORP" width="40" height="40">
+    <div>
+      <h1 id="portal-title">CERT CYBERCORP</h1>
+      <p class="cc-brand-sub" data-i18n="header.brand_sub"></p>
+    </div>
+  </div>
+  <span class="fp-badge fp-badge-cert cc-badge-edition" data-i18n="header.edition_badge"></span>
+  <div class="fp-header-actions" style="margin-left:auto">
+    <span id="cc-soc-clock" class="cc-soc-clock" aria-live="polite"></span>
+    <div id="fp-user-bar" class="fp-user-bar cc-user-menu"></div>
+    <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost pv6-lang-switch" id="lang-switch" data-i18n="ui.switch_to_en"></button>
+    <button type="button" class="fp-theme-btn" id="theme-toggle" title="Thème clair/sombre" data-i18n-aria="header.theme_toggle" aria-label="Theme">☀️</button>
+  </div>
+</header>
+
+<div class="app-body cc-cert-body">
+  <aside class="fp-sidebar cc-sidebar cc-cert-sidebar" id="fp-sidebar">
+    <nav class="cc-sidebar-nav cc-sidebar-ultra" aria-label="Navigation CYBERCORP">
+      <div class="cc-nav-section">
+        <p class="cc-nav-section-title" data-i18n="nav.dashboard"></p>
+        <ul class="fp-sidebar-nav">
+          <li><button type="button" class="cc-nav-btn active" data-tab-btn="overview" data-cc-icon="dash"><span data-i18n="sidebar.overview"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="health" data-cc-icon="health"><span data-i18n="sidebar.health"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="access-center" data-cc-icon="access"><span data-i18n="sidebar.access_center"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="threat-intel" data-cc-icon="ti"><span data-i18n="sidebar.threat_intel"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="ingest-evidence" data-cc-icon="ingest"><span data-i18n="sidebar.ingest_evidence"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="helk-hunting" data-cc-icon="helk"><span data-i18n="sidebar.helk_hunting"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="velociraptor-dfir" data-cc-icon="velociraptor"><span data-i18n="sidebar.velociraptor_dfir"></span></button></li>
+        </ul>
+      </div>
+      <div class="cc-nav-section">
+        <p class="cc-nav-section-title" data-i18n="nav.operations"></p>
+        <ul class="fp-sidebar-nav">
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="tokens" data-cc-icon="key"><span data-i18n="sidebar.tokens"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="upload" data-cc-icon="upload"><span data-i18n="sidebar.upload"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="cert-ops" data-cc-icon="situation"><span data-i18n="sidebar.cert_ops"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="it-ops" data-cc-icon="exposure"><span data-i18n="sidebar.it_ops"></span></button></li>
+        </ul>
+      </div>
+      <div class="cc-nav-section">
+        <p class="cc-nav-section-title" data-i18n="nav.references"></p>
+        <ul class="fp-sidebar-nav">
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="cases" data-cc-icon="incident"><span data-i18n="sidebar.cases"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="forensic-reports" data-cc-icon="kb"><span data-i18n="sidebar.forensic_reports"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="kb" data-cc-icon="kb"><span data-i18n="sidebar.kb"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="hist" data-cc-icon="log"><span data-i18n="sidebar.activity_log"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="portal-documentation" data-cc-icon="kb"><span data-i18n="sidebar.documentation"></span></button></li>
+        </ul>
+      </div>
+      <div class="cc-nav-section">
+        <p class="cc-nav-section-title" data-i18n="nav.admin"></p>
+        <ul class="fp-sidebar-nav">
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="users" data-cc-icon="users"><span data-i18n="sidebar.users"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="settings-admin" data-cc-icon="settings" data-admin-only><span data-i18n="sidebar.settings_admin"></span></button></li>
+        </ul>
+      </div>
+      <ul class="cc-nav-legacy" hidden aria-hidden="true">
+        <li><button type="button" data-tab-btn="overview-cert"></button></li>
+        <li><button type="button" data-tab-btn="overview-health"></button></li>
+        <li><button type="button" data-tab-btn="overview-ingest"></button></li>
+        <li><button type="button" data-tab-btn="overview-ti"></button></li>
+        <li><button type="button" data-tab-btn="upload"></button></li>
+        <li><button type="button" data-tab-btn="tokens"></button></li>
+        <li><button type="button" data-tab-btn="cert"></button></li>
+        <li><button type="button" data-tab-btn="it"></button></li>
+        <li><button type="button" data-tab-btn="svcs"></button></li>
+        <li><button type="button" data-tab-btn="dashboard-cert"></button></li>
+        <li><button type="button" data-tab-btn="dashboard-it"></button></li>
+        <li><button type="button" data-tab-btn="incidents"></button></li>
+        <li><button type="button" data-tab-btn="tickets"></button></li>
+        <li><button type="button" data-tab-btn="assets"></button></li>
+        <li><button type="button" data-tab-btn="vulnerabilities"></button></li>
+        <li><button type="button" data-tab-btn="notifications"></button></li>
+        <li><button type="button" data-tab-btn="integrations"></button></li>
+        <li><button type="button" data-tab-btn="workflows"></button></li>
+        <li><button type="button" data-tab-btn="purge" data-admin-only></button></li>
+        <li><button type="button" data-tab-btn="ti-overview"></button></li>
+        <li><button type="button" data-tab-btn="ti-ioc"></button></li>
+        <li><button type="button" data-tab-btn="ti-heatmap"></button></li>
+        <li><button type="button" data-tab-btn="hist-legacy"></button></li>
+        <li><button type="button" data-tab-btn="master-users"></button></li>
+        <li><button type="button" data-tab-btn="soc-tools"></button></li>
+        <li><button type="button" data-tab-btn="references"></button></li>
+        <li><button type="button" data-tab-btn="cti-detail"></button></li>
+        <li><button type="button" data-tab-btn="ingest-detail"></button></li>
+        <li><button type="button" data-tab-btn="certops-detail"></button></li>
+        <li><button type="button" data-tab-btn="itops-detail"></button></li>
+        <li><button type="button" data-tab-btn="incidents-detail"></button></li>
+        <li><button type="button" data-tab-btn="kb-detail"></button></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <main class="fp-main cc-cert-main">
+    <section id="tab-overview" class="fp-panel active fp-ds-animate-in">
+      <div class="fp-card fp-card-premium cc-pro-panel fp-ds-panel-surface">
+        <div class="fp-ds-page">
+          <header class="fp-ds-page-header">
+            <h2 class="fp-ds-page-title" data-i18n="cert_index.overview_title"></h2>
+            <p class="fp-ds-page-lead fp-ds-muted" data-i18n="cert_index.overview_lead"></p>
+          </header>
+          <div id="gh-overview-strip" class="fp-ds-section fp-section-spaced"></div>
+          <div id="ov-cert-root" class="fp-ds-section"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+          <div id="ov-soc-tools-bottom" class="fp-ds-section"></div>
+        </div>
+      </div>
+    </section>
+    <section id="tab-access-center" class="fp-panel">
+      <div class="fp-card fp-card-premium cc-pro-panel">
+        <h2 class="fp-section-title" data-i18n="cert_index.access_title"></h2>
+        <p class="fp-muted" data-i18n="cert_index.access_lead"></p>
+        <div id="access-center-root"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+      </div>
+    </section>
+    <section id="tab-soc-tools" class="fp-panel" hidden aria-hidden="true">
+      <div class="fp-card cc-pro-panel">
+        <h2 class="fp-section-title" data-i18n="cert_index.soc_tools_title"></h2>
+        <div id="soc-tools-root"></div>
+      </div>
+    </section>
+    <section id="tab-overview-cert" class="fp-panel" hidden aria-hidden="true"></section>
+    <section id="tab-health" class="fp-panel">
+      <div class="fp-card fp-card-premium cc-glass-panel">
+        <h2 class="fp-section-title" data-i18n="cert_index.health_title"></h2>
+        <div id="ov-health-root"></div>
+      </div>
+    </section>
+    <section id="tab-threat-intel" class="fp-panel">
+      <div class="fp-card fp-card-premium cc-glass-panel">
+        <h2 class="fp-section-title" data-i18n="cert_index.cti_title"></h2>
+        <p class="fp-muted" data-i18n="cert_index.cti_lead"></p>
+        <div id="threat-intel-root"></div>
+      </div>
+    </section>
+    <section id="tab-ingest-evidence" class="fp-panel">
+      <div class="fp-card fp-card-premium cc-glass-panel">
+        <h2 class="fp-section-title" data-i18n="cert_index.ingest_title"></h2>
+        <p class="fp-muted" data-i18n="cert_index.ingest_lead"></p>
+        <div id="ingest-evidence-root"></div>
+      </div>
+    </section>
+    <section id="tab-helk-hunting" class="fp-panel">
+      <div class="fp-card fp-card-premium cc-glass-panel">
+        <h2 class="fp-section-title" data-i18n="helk.module_title"></h2>
+        <p class="fp-muted" data-i18n="helk.module_lead"></p>
+        <div id="helk-hunting-root"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+      </div>
+    </section>
+    <section id="tab-velociraptor-dfir" class="fp-panel">
+      <div class="fp-card fp-card-premium cc-glass-panel">
+        <h2 class="fp-section-title" data-i18n="velociraptor.module_title"></h2>
+        <p class="fp-muted" data-i18n="velociraptor.module_lead"></p>
+        <div id="velociraptor-dfir-root"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+      </div>
+    </section>
+    <section id="tab-cert-ops" class="fp-panel">
+      <div class="fp-card fp-card-premium cc-glass-panel">
+        <h2 class="fp-section-title" data-i18n="cert_index.cert_ops_title"></h2>
+        <p class="fp-muted" data-i18n="cert_index.cert_ops_lead"></p>
+        <div id="cert-ops-root"></div>
+      </div>
+    </section>
+    <section id="tab-it-ops" class="fp-panel">
+      <div class="fp-card fp-card-premium cc-glass-panel">
+        <h2 class="fp-section-title" data-i18n="cert_index.it_ops_title"></h2>
+        <p class="fp-muted" data-i18n="cert_index.it_ops_lead"></p>
+        <div id="it-ops-root"></div>
+      </div>
+    </section>
+    <section id="tab-cases" class="fp-panel" data-zone="incidents">
+      <div class="fp-card cc-glass-panel">
+        <h2 class="fp-section-title" data-i18n="cert_index.cases_title"></h2>
+        <p class="fp-muted" data-i18n="cert_index.cases_lead"></p>
+        <div id="cases-hub-root" class="fp-section-spaced"></div>
+        <div id="zone-incidents" class="fp-zone-body fp-table-wrap"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+      </div>
+    </section>
+    <section id="tab-forensic-reports" class="fp-panel">
+      <div class="fp-card cc-glass-panel">
+        <h2 class="fp-section-title" data-i18n="report.builder_title"></h2>
+        <p class="fp-muted" data-i18n="report.panel_lead"></p>
+        <div id="fp-report-root" class="fp-section-spaced"></div>
+      </div>
+    </section>
+    <section id="tab-references" class="fp-panel">
+      <div class="fp-card fp-card-premium cc-glass-panel">
+        <h2 class="fp-section-title" data-i18n="cert_index.refs_title"></h2>
+        <p class="fp-muted" data-i18n="cert_index.refs_lead"></p>
+        <div id="references-root"></div>
+      </div>
+    </section>
+    <section id="tab-overview-health" class="fp-panel" hidden aria-hidden="true"></section>
+    <section id="tab-overview-ingest" class="fp-panel">
+      <div class="fp-card fp-card-premium">
+        <h2 class="fp-section-title" data-i18n="cert_index.ingest_stats_title"></h2>
+        <div id="ov-ingest-root"></div>
+      </div>
+    </section>
+    <section id="tab-overview-ti" class="fp-panel">
+      <div class="fp-card fp-card-premium">
+        <h2 class="fp-section-title" data-i18n="cert_index.siem_volume_title"></h2>
+        <div id="ov-ti-root"></div>
+      </div>
+    </section>
+    <section id="tab-ti-overview" class="fp-panel">
+      <div class="fp-card fp-card-premium">
+        <h2 class="fp-section-title" data-i18n="cert_index.cti_summary_title"></h2>
+        <div id="ti-overview-root"></div>
+      </div>
+    </section>
+    <section id="tab-ti-ioc" class="fp-panel">
+      <div class="fp-card fp-card-premium">
+        <h2 class="fp-section-title" data-i18n="cert_index.cti_ioc_title"></h2>
+        <div id="ti-ioc-root"></div>
+      </div>
+    </section>
+    <section id="tab-ti-heatmap" class="fp-panel">
+      <div class="fp-card fp-card-premium">
+        <h2 class="fp-section-title" data-i18n="cert_index.cti_connectors_title"></h2>
+        <div id="ti-heatmap-root"></div>
+      </div>
+    </section>
+    <section id="tab-settings-admin" class="fp-panel" data-admin-only>
+      <div class="fp-card fp-card-premium">
+        <h2 class="fp-section-title" data-i18n="cert_index.admin_title"></h2>
+        <div id="settings-root"><p class="fp-muted" data-i18n="cert_index.admin_reserved"></p></div>
+      </div>
+    </section>
+    <section id="tab-upload" class="fp-panel fp-ds-upload-panel">
+      <div class="fp-grid-2">
+        <div class="fp-card fp-ds-upload-card">
+          <h2 class="fp-section-title" data-i18n="cert_index.upload_forensic_title"></h2>
+          <p id="upload-limits-hint" class="fp-hint" data-i18n="cert_index.loading_limits"></p>
+          <div class="fp-dropzone fp-ds-dropzone-bridge" id="dz" role="button" tabindex="0" aria-label="File drop zone" data-i18n-aria="cert_index.zone_drop_aria">
+            <div class="fp-dropzone-icon">📂</div>
+            <p><strong class="fp-dropzone-title" data-i18n="upload.drop_title"></strong> <span data-i18n="cert_index.drop_or_click"></span></p>
+            <p class="fp-dropzone-sub" data-i18n="cert_index.drop_formats"></p>
+            <input type="file" id="fi" multiple hidden>
+          </div>
+          <p class="fp-ds-upload-queue-label fp-ds-muted" data-i18n="upload.queue_title"></p>
+          <div class="fp-file-queue fp-ds-scroll fp-ds-upload-queue" id="q" role="list" aria-label="File queue"></div>
+          <div class="fp-grid-3 fp-form-row">
+            <label class="fp-label fp-autocomplete"><span data-i18n="cert_index.case_id_label"></span>
+              <input class="fp-input" id="cid" value="CASE-001" placeholder="IR-2024-001" autocomplete="off">
+              <div class="fp-ac-list" id="case-ac-list"></div>
+            </label>
+            <label class="fp-label"><span data-i18n="cert_index.analyst_label"></span>
+              <input class="fp-input" id="ana" placeholder="j.doe" list="analyst-suggestions">
+              <datalist id="analyst-suggestions">
+                <option value="cert-analyst"><option value="ir-lead"><option value="soc-tier2">
+              </datalist>
+            </label>
+            <label class="fp-label"><span data-i18n="cert_index.priority_label"></span>
+              <select class="fp-select" id="prio">
+                <option value="low">🟢 Low</option>
+                <option value="medium" selected>🟡 Medium</option>
+                <option value="high">🟠 High</option>
+                <option value="critical">🔴 Critical</option>
+              </select>
+            </label>
+          </div>
+          <label class="fp-label"><span data-i18n="cert_index.os_source_label"></span>
+            <select class="fp-select" id="ost">
+              <option value="unknown" data-i18n="upload.select_os"></option>
+              <option value="windows">🪟 Windows</option>
+              <option value="linux">🐧 Linux</option>
+              <option value="macos">🍎 macOS</option>
+              <option value="cloud-aws">☁️ AWS</option>
+              <option value="cloud-azure">☁️ Azure</option>
+              <option value="k8s">☸️ Kubernetes</option>
+              <option value="network" data-i18n="upload.os_network"></option>
+            </select>
+          </label>
+          <label class="fp-label fp-label-checkbox">
+            <input type="checkbox" id="helk-send" checked>
+            <span data-i18n="helk.send_to_helk"></span>
+          </label>
+          <p class="fp-hint"><span id="helk-status-badge" class="cc-badge cc-badge-muted" aria-live="polite"></span></p>
+          <p class="fp-hint"><span id="vr-status-badge" class="cc-badge cc-badge-muted" aria-live="polite"></span></p>
+          <div class="fp-actions-row">
+            <button type="button" class="fp-btn fp-btn-primary" id="ubtn" disabled onclick="doUpload()" data-analyst-hide-write>⬆ UPLOAD</button>
+          </div>
+          <div class="fp-upload-progress">
+            <div class="fp-progress-bar"><div class="fp-progress-fill" id="pf"></div></div>
+            <div class="fp-progress-meta" id="pf-meta"></div>
+          </div>
+        </div>
+        <div class="fp-card fp-card-stats">
+          <h2 class="fp-section-title" data-i18n="cert_index.stats_realtime_title"></h2>
+          <p class="fp-hint" data-i18n="cert_index.stats_cumul_hint"></p>
+          <div class="fp-grid-3 fp-stats-row">
+            <div class="fp-stat"><div class="fp-stat-value" id="su">—</div><div class="fp-stat-label" data-i18n="stats.uploads_cert"></div></div>
+            <div class="fp-stat"><div class="fp-stat-value fp-stat-warn" id="si">—</div><div class="fp-stat-label" data-i18n="stats.received_it"></div></div>
+            <div class="fp-stat"><div class="fp-stat-value fp-stat-ok" id="st">—</div><div class="fp-stat-label" data-i18n="stats.tokens_active"></div></div>
+          </div>
+          <h2 class="fp-section-title" data-i18n="cert_index.parsing_title"></h2>
+          <div class="fp-grid-3 fp-stats-row">
+            <div class="fp-stat"><div class="fp-stat-value" id="ps-win">—</div><div class="fp-stat-label"><span data-i18n="stats_os.windows"></span> <span class="fp-hint" data-i18n="stats.cumul_index"></span></div></div>
+            <div class="fp-stat"><div class="fp-stat-value" id="ps-lin">—</div><div class="fp-stat-label"><span data-i18n="stats_os.linux_macos"></span> <span class="fp-hint" data-i18n="stats.cumul_index"></span></div></div>
+            <div class="fp-stat"><div class="fp-stat-value" id="ps-web">—</div><div class="fp-stat-label"><span data-i18n="stats_os.web"></span> <span class="fp-hint" data-i18n="stats.cumul_index"></span></div></div>
+          </div>
+          <div class="fp-grid-3 fp-stats-row">
+            <div class="fp-stat"><div class="fp-stat-value fp-stat-accent" id="ps-net">—</div><div class="fp-stat-label" data-i18n="stats_os.network"></div></div>
+            <div class="fp-stat"><div class="fp-stat-value fp-stat-accent" id="ps-cld">—</div><div class="fp-stat-label" data-i18n="stats_os.cloud"></div></div>
+            <div class="fp-stat"><div class="fp-stat-value fp-stat-accent" id="ps-ep">—</div><div class="fp-stat-label"><span data-i18n="stats_os.endpoint"></span> <span class="fp-hint" data-i18n="stats.cumul_index"></span></div></div>
+          </div>
+          <h2 class="fp-section-title fp-section-spaced" data-i18n="cert_index.console_title"></h2>
+          <div class="fp-console" id="con"><div class="log-info" data-i18n="cert_index.sys_boot"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-tokens" class="fp-panel">
+      <div class="fp-grid-2">
+        <div class="fp-card">
+          <h2 class="fp-section-title" data-i18n="cert_index.token_gen_title"></h2>
+          <label class="fp-label fp-autocomplete"><span data-i18n="cert_index.case_id_label"></span>
+            <input class="fp-input" id="tk-case" placeholder="IR-2024-001" required>
+            <div class="fp-ac-list" id="tk-case-ac-list"></div>
+          </label>
+          <label class="fp-label"><span data-i18n="cert_index.description_label"></span>
+            <textarea class="fp-textarea" id="tk-desc" rows="2" data-i18n-placeholder="cert_index.token_instructions_ph" placeholder=""></textarea>
+          </label>
+          <div class="fp-grid-2">
+            <label class="fp-label"><span data-i18n="token_form.expiration"></span>
+              <select class="fp-select" id="tk-exp">
+                <option value="1" data-i18n="time_range.1h"></option><option value="4" data-i18n="time_range.4h"></option>
+                <option value="8" data-i18n="time_range.8h"></option><option value="24" selected data-i18n="time_range.24h"></option>
+                <option value="48" data-i18n="time_range.48h"></option><option value="168" data-i18n="time_range.7d"></option>
+              </select>
+            </label>
+            <label class="fp-label"><span data-i18n="token_form.max_uses"></span>
+              <select class="fp-select" id="tk-uses">
+                <option value="1" selected>1 (unique)</option>
+                <option value="3">3</option><option value="5">5</option><option value="10">10</option>
+              </select>
+            </label>
+          </div>
+          <label class="fp-label"><span data-i18n="cert_index.analyst_label"></span>
+            <input class="fp-input" id="tk-analyst" placeholder="j.doe">
+          </label>
+          <button type="button" class="fp-btn fp-btn-primary fp-btn-block" onclick="genToken()" data-analyst-hide-write data-i18n="ui.generate_token_btn"></button>
+          <div id="tok-result" class="fp-tok-result" hidden></div>
+        </div>
+        <div class="fp-card">
+          <h2 class="fp-section-title">🗂 Tokens actifs
+            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm fp-btn-inline" onclick="loadTokens()">↻</button>
+          </h2>
+          <div id="tok-list"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-cert" class="fp-panel">
+      <!-- panel: CERT Requests (reçus IT) -->
+      <div class="fp-card">
+        <div class="fp-card-toolbar">
+          <h2 class="fp-section-title fp-section-title-inline" data-i18n="token_form.it_requests_title"></h2>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" onclick="loadCertUploads()" data-i18n="ui.refresh"></button>
+        </div>
+        <div class="fp-table-wrap">
+          <table class="fp-table">
+            <thead><tr>
+              <th data-i18n="table_cols.date"></th><th data-i18n="table_cols.file"></th><th data-i18n="table_cols.case"></th><th data-i18n="table_cols.analyst"></th><th data-i18n="table_cols.priority"></th><th data-i18n="table_cols.bucket"></th><th data-i18n="table_cols.size"></th><th data-i18n="table_cols.ingest"></th><th data-i18n="table_cols.action"></th>
+            </tr></thead>
+            <tbody id="cert-recus-tbl"><tr><td colspan="9" class="fp-table-empty" data-i18n="ui.loading"></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-it" class="fp-panel">
+      <div class="fp-card">
+        <div class="fp-card-toolbar">
+          <h2 class="fp-section-title fp-section-title-inline" data-i18n="token_form.it_uploads_title"></h2>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" onclick="loadItUploads()" data-i18n="ui.refresh"></button>
+        </div>
+        <div class="fp-table-wrap">
+          <table class="fp-table">
+            <thead><tr>
+              <th data-i18n="table_cols.date"></th><th data-i18n="table_cols.file"></th><th data-i18n="table_cols.case"></th><th data-i18n="table_cols.it_team"></th><th data-i18n="table_cols.contact"></th><th data-i18n="table_cols.bucket"></th><th data-i18n="table_cols.size"></th><th data-i18n="table_cols.action"></th>
+            </tr></thead>
+            <tbody id="it-tbl"><tr><td colspan="8" class="fp-table-empty" data-i18n="ui.loading"></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-hist" class="fp-panel fp-ds-activity-panel">
+      <div class="fp-card cc-glass-panel fp-ds-activity-card">
+        <h2 class="fp-section-title" data-i18n="activity.audit_title"></h2>
+        <div id="activity-log-root" class="fp-ds-activity-root"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+      </div>
+    </section>
+    <section id="tab-hist-legacy" class="fp-panel">
+      <div class="fp-card cc-glass-panel">
+        <div class="fp-card-toolbar">
+          <h2 class="fp-section-title fp-section-title-inline" data-i18n="token_form.history_title"></h2>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" onclick="loadHistory()" data-i18n="ui.refresh"></button>
+        </div>
+        <div class="fp-table-wrap">
+          <table class="fp-table">
+            <thead><tr>
+              <th data-i18n="table_cols.date"></th><th data-i18n="table_cols.file"></th><th data-i18n="table_cols.case"></th><th data-i18n="table_cols.analyst"></th><th data-i18n="table_cols.priority"></th><th data-i18n="table_cols.bucket"></th><th data-i18n="table_cols.size"></th><th data-i18n="table_cols.action"></th>
+            </tr></thead>
+            <tbody id="cert-tbl"><tr><td colspan="8" class="fp-table-empty" data-i18n="ui.loading"></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-svcs" class="fp-panel">
+      <div class="fp-grid-2">
+        <div class="fp-card">
+          <h2 class="fp-section-title"><span data-i18n="health.it_systems_title"></span>
+            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm fp-btn-inline" onclick="checkSvcs()" data-i18n="ui.verify"></button>
+          </h2>
+          <div class="fp-svc-grid">
+            <a class="fp-svc-row" href="/dashboards/" target="_blank" rel="noopener"><span class="fp-dot loading" id="d-osd"></span>OpenSearch Dashboards</a>
+            <a class="fp-svc-row" href="/grafana/" target="_blank" rel="noopener"><span class="fp-dot loading" id="d-gf"></span>Grafana</a>
+            <a class="fp-svc-row" href="/timesketch/" target="_blank" rel="noopener"><span class="fp-dot loading" id="d-ts"></span>Timesketch</a>
+            <a class="fp-svc-row" href="/cti/" target="_blank" rel="noopener"><span class="fp-dot loading" id="d-cti"></span>OpenCTI</a>
+            <a class="fp-svc-row" href="/thehive/" target="_blank" rel="noopener"><span class="fp-dot loading" id="d-th"></span>TheHive</a>
+            <a class="fp-svc-row" href="/misp/" target="_blank" rel="noopener"><span class="fp-dot loading" id="d-misp"></span>MISP</a>
+            <a class="fp-svc-row" href="/cortex/" target="_blank" rel="noopener"><span class="fp-dot loading" id="d-cx"></span>Cortex</a>
+            <a class="fp-svc-row" href="/minio/" target="_blank" rel="noopener"><span class="fp-dot loading" id="d-minio"></span>MinIO</a>
+            <a class="fp-svc-row" href="/it/" target="_blank" rel="noopener"><span class="fp-dot loading" id="d-it"></span><span data-i18n="health.portal_it"></span></a>
+          </div>
+          <div class="fp-table-wrap fp-table-spaced">
+            <table class="fp-table"><thead><tr><th data-i18n="table_cols.service"></th><th data-i18n="table_cols.status"></th><th data-i18n="table_cols.detail"></th></tr></thead>
+            <tbody id="svc-tbl"></tbody></table>
+          </div>
+        </div>
+        <div class="fp-card">
+          <h2 class="fp-section-title" data-i18n="cert_index.credentials_title"></h2>
+          <p id="cred-hint" class="fp-cred-hint" data-i18n="cert_index.loading_credentials"></p>
+          <div class="fp-table-wrap">
+            <table class="fp-table fp-cred-table">
+              <thead><tr><th data-i18n="table_cols.service"></th><th>URL</th><th data-i18n="table_cols.login"></th><th data-i18n="table_cols.password"></th><th data-i18n="table_cols.role"></th></tr></thead>
+              <tbody id="cred-tbl">
+                <tr><td colspan="5" class="fp-table-empty" data-i18n="ui.loading"></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 class="fp-section-title fp-section-spaced" data-i18n="cert_index.ssl_fp_title"></h2>
+          <div id="ssl-fp" class="fp-ssl-fp" data-i18n="ui.loading"></div>
+          <a id="dl-cert" class="fp-link-cert" href="/api/ssl-cert" data-i18n="ui.download_cert"></a>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-dashboard-cert" class="fp-panel" data-zone="dashboard-cert"><div class="fp-card"><h2 class="fp-section-title" data-i18n="cert_index.overview_title"></h2><div id="zone-dashboard-cert" class="fp-zone-body"><p class="fp-muted" data-i18n="ui.loading"></p></div></div></section>
+    <section id="tab-dashboard-it" class="fp-panel" data-zone="dashboard-it"><div class="fp-card"><h2 class="fp-section-title" data-i18n="tools.exposure_it_title"></h2><div id="zone-dashboard-it" class="fp-zone-body"><p class="fp-muted" data-i18n="ui.loading"></p></div></div></section>
+    <section id="tab-incidents" class="fp-panel" data-zone="incidents"><div class="fp-card"><h2 class="fp-section-title" data-i18n="tools.incidents_cert_title"></h2><p class="fp-muted" data-i18n="tools.incidents_cert_lead"></p><div class="fp-zone-body fp-table-wrap"><p class="fp-muted" data-i18n="tools.incidents_cert_hint"></p></div></div></section>
+    <section id="tab-tickets" class="fp-panel" data-zone="tickets"><div class="fp-card"><h2 class="fp-section-title" data-i18n="cert_index.tickets_title"></h2><div id="zone-tickets" class="fp-zone-body fp-table-wrap"></div></div></section>
+    <section id="tab-kb" class="fp-panel" data-zone="kb">
+      <div class="fp-card">
+        <h2 class="fp-section-title" data-i18n="sidebar.kb"></h2>
+        <p class="fp-muted" data-i18n="kb.lead"></p>
+        <div id="kb-hub-root" class="fp-section-spaced"></div>
+      </div>
+    </section>
+    <section id="tab-assets" class="fp-panel" data-zone="assets"><div class="fp-card"><h2 class="fp-section-title" data-i18n="cert_index.assets_title">Carte d'exposition CERT</h2><div id="zone-assets" class="fp-zone-body fp-table-wrap"></div></div></section>
+    <section id="tab-vulnerabilities" class="fp-panel" data-zone="vulnerabilities"><div class="fp-card"><h2 class="fp-section-title" data-i18n="hubs.it_vulns.title"></h2><div id="zone-vulnerabilities" class="fp-zone-body fp-table-wrap"></div></div></section>
+    <section id="tab-notifications" class="fp-panel" data-zone="notifications"><div class="fp-card"><h2 class="fp-section-title" data-i18n="cert_index.notifications_title"></h2><div id="zone-notifications" class="fp-zone-body fp-table-wrap"></div></div></section>
+    <section id="tab-integrations" class="fp-panel" data-zone="integrations"><div class="fp-card"><h2 class="fp-section-title" data-i18n="cert_index.integrations_title"></h2><div id="zone-integrations" class="fp-zone-body"></div></div></section>
+    <section id="tab-users" class="fp-panel">
+      <div class="fp-card cc-pro-panel">
+        <h2 class="fp-section-title" data-i18n="sidebar.users"></h2>
+        <div id="portal-users-root"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+      </div>
+    </section>
+    <section id="tab-master-users" class="fp-panel" data-zone="users" hidden aria-hidden="true">
+      <div class="fp-card"><h2 class="fp-section-title">Master users (legacy)</h2><div id="zone-users" class="fp-zone-body fp-table-wrap"></div></div>
+    </section>
+    <section id="tab-workflows" class="fp-panel" data-zone="workflows"><div class="fp-card"><h2 class="fp-section-title" data-i18n="cert_index.workflows_title"></h2><div id="zone-workflows" class="fp-zone-body fp-table-wrap"></div></div></section>
+    <section id="tab-purge" class="fp-panel" data-zone="purge"><div class="fp-card"><h2 class="fp-section-title" data-i18n="cert_index.purge_title">Purge / nettoyage</h2><div id="zone-purge" class="fp-zone-body"></div></div></section>
+
+    <!-- ═══ THREAT PLATFORMS — Sekoia.IO + SentinelOne (panneaux ajoutés) ═══ -->
+    <section id="tab-sekoia-assets" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.sekoia_assets"></h2>
+        <p class="fp-muted" data-i18n="tp.sekoia_assets_lead"></p>
+        <div id="sekoia-assets-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-sekoia-rules" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.sekoia_rules"></h2>
+        <p class="fp-muted" data-i18n="tp.sekoia_rules_lead"></p>
+        <div id="sekoia-rules-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-sekoia-apikeys" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.sekoia_apikeys"></h2>
+        <p class="fp-muted" data-i18n="tools.apikeys_lead"></p>
+        <div id="sekoia-apikeys-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-sekoia-fetch" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.sekoia_fetch"></h2>
+        <p class="fp-muted" data-i18n="tools.telemetry_lead"></p>
+        <div id="sekoia-fetch-root" class="cc-tp-root"></div></div>
+    </section>
+    <section id="tab-s1-endpoints" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.s1_endpoints"></h2>
+        <p class="fp-muted" data-i18n="tp.s1_endpoints_lead"></p>
+        <div id="s1-endpoints-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-s1-policies" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.s1_policies"></h2>
+        <p class="fp-muted" data-i18n="tp.s1_policies_lead"></p>
+        <div id="s1-policies-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-s1-apikeys" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title">SentinelOne - API Tokens</h2>
+        <p class="fp-muted" data-i18n="threat.s1_tokens_desc">Comptes / tokens API SentinelOne.</p>
+        <div id="s1-apikeys-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-s1-fetch" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.s1_fetch"></h2>
+        <p class="fp-muted" data-i18n="tp.s1_fetch_lead"></p>
+        <div id="s1-fetch-root" class="cc-tp-root"></div></div>
+    </section>
+    <section id="tab-tp-config" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="cert_index.platform_config_title"></h2>
+        <p class="fp-muted" data-i18n="tp.config_secrets_lead"></p>
+        <div id="tp-config-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+
+    <!-- ═══ GOVERNANCE — inventaires consolidés ═══ -->
+    <section id="tab-gov-assets" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="gov.assets_title"></h2>
+        <p class="fp-muted" data-i18n="gov.assets_lead"></p>
+        <div id="gov-assets-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-gov-rules" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="gov.rules_title"></h2>
+        <p class="fp-muted" data-i18n="gov.rules_lead"></p>
+        <div id="gov-rules-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-gov-views" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="gov.views_title"></h2>
+        <p class="fp-muted" data-i18n="gov.views_lead"></p>
+        <div id="gov-views-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-gov-apikeys" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="gov.apikeys_title"></h2>
+        <p class="fp-muted" data-i18n="gov.apikeys_lead"></p>
+        <div id="gov-apikeys-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+
+    <!-- ═══ CONTROL CENTER (Phase 3) ═══ -->
+    <section id="tab-sekoia-cc" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title">Sekoia Control Center</h2>
+        <p class="fp-muted" data-i18n="tp.sekoia_cc_lead"></p>
+        <div id="sekoia-hub-root" class="cc-sekoia-hub-wrap"></div>
+        <div id="sekoia-cc-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-xdr-view" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.xdr_view"></h2>
+        <p class="fp-muted" data-i18n="tp.xdr_lead"></p>
+        <div id="xdr-view-root" class="cc-tp-root"></div></div>
+    </section>
+    <section id="tab-audit-center" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.audit_center"></h2>
+        <p class="fp-muted" data-i18n="audit.lead"></p>
+        <div id="audit-center-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+
+    <!-- ═══ CERT TOOLS ═══ -->
+    <section id="tab-cert-asset-investigation" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.asset_investigation"></h2>
+        <p class="fp-muted" data-i18n="tools.asset_investigation_lead"></p>
+        <div id="cert-asset-investigation-root" class="cc-tp-root"></div></div>
+    </section>
+    <section id="tab-cert-timeline-builder" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="cert_index.timeline_build">Construction timeline</h2>
+        <p class="fp-muted" data-i18n="tools.timeline_lead"></p>
+        <div id="cert-timeline-builder-root" class="cc-tp-root"></div></div>
+    </section>
+    <section id="tab-cert-ioc-correlation" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.ioc_correlation"></h2>
+        <p class="fp-muted" data-i18n="tools.ioc_lead"></p>
+        <div id="cert-ioc-correlation-root" class="cc-tp-root"></div></div>
+    </section>
+    <section id="tab-soc-investigation-assisted" class="fp-panel">
+      <div class="fp-card cc-pro-panel">        <h2 class="fp-section-title" data-i18n="sidebar.soc_investigation"></h2>
+        <p class="fp-muted" data-i18n="soc.investigation_lead"></p>
+        <div id="soc-investigation-assisted-root" class="cc-tp-root"></div></div>
+    </section>
+    <section id="tab-soc-autonomous" class="fp-panel">
+      <div class="fp-card cc-pro-panel">        <h2 class="fp-section-title" data-i18n="sidebar.soc_autonomous"></h2>
+        <p class="fp-muted" data-i18n="soc.autonomous_lead"></p>
+        <div id="soc-autonomous-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-portal-documentation" class="fp-panel">
+      <div class="fp-card cc-pro-panel">        <h2 class="fp-section-title" data-i18n="sidebar.documentation"></h2>
+        <p class="fp-muted" data-i18n="doc.lead"></p>
+        <div id="portal-documentation-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-cti-detail" class="fp-panel"><div id="cti-detail-root" class="cc-panel-root fp-card cc-glass-panel"></div></section>
+    <section id="tab-ingest-detail" class="fp-panel"><div id="ingest-detail-root" class="cc-panel-root fp-card cc-glass-panel"></div></section>
+    <section id="tab-certops-detail" class="fp-panel"><div id="certops-detail-root" class="cc-panel-root fp-card cc-glass-panel"></div></section>
+    <section id="tab-itops-detail" class="fp-panel"><div id="itops-detail-root" class="cc-panel-root fp-card cc-glass-panel"></div></section>
+    <section id="tab-incidents-detail" class="fp-panel"><div id="incidents-detail-root" class="cc-panel-root fp-card cc-glass-panel"></div></section>
+    <section id="tab-kb-detail" class="fp-panel fp-ds-kb-panel"><div id="kb-detail-root" class="cc-panel-root fp-card cc-glass-panel fp-ds-kb-root"></div></section>
+    <section id="tab-sekoia-volume-detail" class="fp-panel"><div id="sekoia-volume-detail-root" class="cc-panel-root fp-card cc-glass-panel"></div></section>
+    <section id="tab-sekoia-ingest" class="fp-panel"><div id="sekoia-ingest-root" class="cc-panel-root fp-card cc-glass-panel"></div></section>
+  </main>
+</div>
+
+<footer class="fp-footer cc-footer" data-i18n="footer.line"></footer>
+</div>
+
+<script src="shared/js/portal-config.js"></script>
+<script src="shared/js/header.js"></script>
+<script src="shared/js/cybercorp-charts.js"></script>
+<script src="shared/js/cybercorp-ultra.js"></script>
+<script src="shared/js/portal-panel-guide.js"></script>
+<script src="shared/js/i18n.js"></script>
+<script src="shared/js/portal-units.js"></script>
+<script src="shared/js/portal-v6.js"></script>
+<script src="shared/js/panel-detail-core.js"></script>
+<script src="shared/js/panel-cti-detail.js"></script>
+<script src="shared/js/panel-ingest-detail.js"></script>
+<script src="shared/js/panel-certops-detail.js"></script>
+<script src="shared/js/panel-itops-detail.js"></script>
+<script src="shared/js/panel-incidents-detail.js"></script>
+<script src="shared/js/panel-kb-detail.js"></script>
+<script src="shared/js/portal-hub-premium.js"></script>
+<script src="shared/js/sekoia-ingest.js"></script>
+<script src="shared/js/sekoia-volume.js"></script>
+<script src="shared/js/sekoia-heatmap.js"></script>
+<script src="shared/js/sekoia-correlation.js"></script>
+<script src="shared/js/portal-alerting.js"></script>
+<script src="shared/js/cybercorp-hub.js"></script>
+<script src="shared/js/cybercorp-shell.js"></script>
+<script src="shared/js/cert-activity-log.js"></script>
+<script src="shared/js/forensic-utils.js"></script>
+<script src="shared/js/api-client.js"></script>
+<script src="shared/js/ui-error-logger.js"></script>
+<script src="shared/js/global-error-boundary.js"></script>
+<script src="shared/js/proxy-frame.js"></script>
+<script src="shared/js/forensic-api.js"></script>
+<script src="shared/js/forensic-ui.js"></script>
+<script src="shared/js/forensic-validation.js"></script>
+<script src="shared/js/forensic-components.js"></script>
+<script src="shared/js/incident-workflow.js"></script>
+<script src="shared/js/portal-master-zones.js"></script>
+<script src="shared/js/cert-session.js"></script>
+<script src="shared/js/soc-tools.js"></script>
+<script src="shared/js/soc-pivot-links.js"></script>
+<script src="shared/js/helk-integration.js"></script>
+<script src="shared/js/velociraptor-integration.js"></script>
+<script src="shared/js/access-center.js"></script>
+<script src="shared/js/global-health-service.js"></script>
+<script src="shared/js/global-health-dashboard.js"></script>
+<script src="shared/js/cert-overview.js"></script>
+<script src="shared/js/cert-users.js"></script>
+<script src="shared/js/cert-settings.js"></script>
+<script src="shared/js/portal-perf.js"></script>
+<script src="shared/js/forensic-report.js"></script>
+<script src="shared/js/cert-app.js"></script>
+<script src="shared/js/threat-common.js"></script>
+<script src="shared/js/portal-v2-perf.js"></script>
+<script src="shared/js/portal-lazy.js"></script>
+<script src="shared/js/portal-v2-lazy.js"></script>
+<script src="shared/js/portal-ai.js"></script>
+<script src="shared/js/portal-ai-autonomous.js"></script>
+<script src="shared/js/portal-doc-inventory.js"></script>
+<script src="shared/js/portal-doc.js"></script>
+<script src="shared/js/portal-ux-v22.js"></script>
+<script src="shared/js/portal-nav.js"></script>
+<script src="shared/js/portal-nav-fluid.js"></script>
+</body>
+</html>

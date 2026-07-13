@@ -1,0 +1,30 @@
+apiVersion: 1
+
+datasources:
+  - name: OpenSearch-Timesketch-Events
+    type: grafana-opensearch-datasource
+    uid: forensic-timesketch
+    access: proxy
+    url: http://opensearch-node1:9200
+    jsonData:
+      database: "*, -forensic-*, -opencti_*"
+      timeField: "datetime"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+      maxConcurrentShardRequests: 5
+      logMessageField: message
+      logLevelField: log.level
+
+  - name: OpenSearch-Timesketch-Metrics
+    type: grafana-opensearch-datasource
+    uid: forensic-timesketch-metrics
+    access: proxy
+    url: http://opensearch-node1:9200
+    jsonData:
+      database: "forensic-timesketch-metrics*"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+      maxConcurrentShardRequests: 2

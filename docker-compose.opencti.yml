@@ -1,0 +1,357 @@
+# OpenCTI connectors — version alignée sur opencti/platform:6.2.18
+# Connecteurs TI (API keys) : docker compose --profile connectors-ti up -d
+# Mode turbo (cadence max) : bash scripts/opencti-ti-turbo.sh
+
+services:
+
+  connector-export-report-pdf:
+    image: opencti/connector-export-report-pdf:6.2.18
+    container_name: forensic-connector-export-pdf
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_EXPORT_REPORT_PDF_ID}
+      - CONNECTOR_NAME=ExportReportPdf
+      - CONNECTOR_SCOPE=report
+      - CONNECTOR_LOG_LEVEL=error
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-export-file-stix:
+    image: opencti/connector-export-file-stix:6.2.18
+    container_name: forensic-connector-export-stix
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_EXPORT_FILE_STIX_ID}
+      - CONNECTOR_NAME=ExportFileStix2
+      - CONNECTOR_SCOPE=application/json
+      - CONNECTOR_LOG_LEVEL=error
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-export-file-csv:
+    image: opencti/connector-export-file-csv:6.2.18
+    container_name: forensic-connector-export-csv
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_EXPORT_FILE_CSV_ID}
+      - CONNECTOR_NAME=ExportFileCsv
+      - CONNECTOR_SCOPE=text/csv
+      - CONNECTOR_LOG_LEVEL=error
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-export-file-txt:
+    image: opencti/connector-export-file-txt:6.2.18
+    container_name: forensic-connector-export-txt
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_EXPORT_FILE_TXT_ID}
+      - CONNECTOR_NAME=ExportFileTxt
+      - CONNECTOR_SCOPE=text/plain
+      - CONNECTOR_LOG_LEVEL=error
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-import-file-stix:
+    image: opencti/connector-import-file-stix:6.2.18
+    container_name: forensic-connector-import-stix
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_IMPORT_FILE_STIX_ID}
+      - CONNECTOR_NAME=ImportFileStix
+      - CONNECTOR_SCOPE=application/json
+      - CONNECTOR_LOG_LEVEL=error
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-import-document:
+    image: opencti/connector-import-document:6.2.18
+    container_name: forensic-connector-import-document
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_IMPORT_DOCUMENT_ID}
+      - CONNECTOR_NAME=ImportDocument
+      - CONNECTOR_SCOPE=application/pdf,text/plain,text/html
+      - CONNECTOR_LOG_LEVEL=error
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-mitre-atlas:
+    image: opencti/connector-mitre-atlas:6.2.18
+    container_name: forensic-connector-mitre-atlas
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_MITRE_ATLAS_ID}
+      - CONNECTOR_NAME=MITRE ATLAS
+      - CONNECTOR_SCOPE=attack-pattern,course-of-action,x-mitre-tactic,x-mitre-matrix
+      - CONNECTOR_LOG_LEVEL=info
+      - MITRE_ATLAS_INTERVAL=7
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-disarm:
+    image: opencti/connector-disarm-framework:6.2.18
+    container_name: forensic-connector-disarm
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_DISARM_ID}
+      - CONNECTOR_NAME=DISARM Framework
+      - CONNECTOR_SCOPE=attack-pattern,course-of-action
+      - CONNECTOR_LOG_LEVEL=error
+      - DISARM_INTERVAL=7
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  # ImportDocumentAnalysis = connecteur interne OpenCTI (worker opencti, pas d'image Docker dédiée)
+  # L'ID ${CONNECTOR_ANALYSIS_ID} doit être enregistré dans l'UI OpenCTI.
+
+  # ── Threat intelligence (nécessite clés API dans .env) ─────────
+  connector-alienvault:
+    profiles: [connectors-ti]
+    image: opencti/connector-alienvault:6.2.18
+    container_name: forensic-connector-alienvault
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_ALIENVAULT_ID}
+      - CONNECTOR_NAME=AlienVault
+      - CONNECTOR_SCOPE=alienvault
+      - CONNECTOR_LOG_LEVEL=info
+      - CONNECTOR_DURATION_PERIOD=${OPENCTI_TI_TURBO_CONNECTOR_PERIOD:-PT30M}
+      - ALIENVAULT_BASE_URL=https://otx.alienvault.com
+      - ALIENVAULT_API_KEY=${ALIENVAULT_API_KEY}
+      - ALIENVAULT_TLP=White
+      - ALIENVAULT_CREATE_OBSERVABLES=true
+      - ALIENVAULT_CREATE_INDICATORS=true
+      - ALIENVAULT_PULSE_START_TIMESTAMP=${ALIENVAULT_PULSE_START_TIMESTAMP:-2024-02-28T04:00:00}
+      - ALIENVAULT_REPORT_TYPE=threat-report
+      - ALIENVAULT_REPORT_STATUS=New
+      - ALIENVAULT_GUESS_MALWARE=true
+      - ALIENVAULT_GUESS_CVE=true
+      - ALIENVAULT_EXCLUDED_PULSE_INDICATOR_TYPES=FileHash-MD5,FileHash-SHA1
+      - ALIENVAULT_ENABLE_RELATIONSHIPS=true
+      - ALIENVAULT_ENABLE_ATTACK_PATTERNS_INDICATES=true
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-abuseipdb:
+    profiles: [connectors-ti]
+    image: opencti/connector-abuseipdb:6.2.18
+    container_name: forensic-connector-abuseipdb
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_ABUSEIPDB_ID}
+      - CONNECTOR_NAME=AbuseIPDB
+      - CONNECTOR_SCOPE=ipv4-addr,indicator
+      - CONNECTOR_LOG_LEVEL=info
+      - ABUSEIPDB_API_KEY=${ABUSEIPDB_API_KEY}
+      - ABUSEIPDB_INTERVAL=${ABUSEIPDB_INTERVAL:-2}
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-shodan:
+    profiles: [connectors-ti]
+    image: opencti/connector-shodan:6.2.18
+    container_name: forensic-connector-shodan
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_SHODAN_ID}
+      - CONNECTOR_NAME=Shodan
+      - CONNECTOR_SCOPE=ipv4-addr,indicator
+      - CONNECTOR_LOG_LEVEL=info
+      - SHODAN_API_KEY=${SHODAN_API_KEY:-${SHODAN_TOKEN}}
+      - SHODAN_TOKEN=${SHODAN_TOKEN:-${SHODAN_API_KEY}}
+      - SHODAN_INTERVAL=${SHODAN_INTERVAL:-1}
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-ipinfo:
+    profiles: [connectors-ti]
+    image: opencti/connector-ipinfo:6.2.18
+    container_name: forensic-connector-ipinfo
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_IPINFO_ID}
+      - CONNECTOR_NAME=IPInfo
+      - CONNECTOR_SCOPE=ipv4-addr,indicator
+      - CONNECTOR_LOG_LEVEL=info
+      - IPINFO_TOKEN=${IPINFO_TOKEN}
+      - IPINFO_INTERVAL=${IPINFO_INTERVAL:-1}
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-malwarebazaar:
+    image: opencti/connector-malwarebazaar-recent-additions:6.2.18
+    container_name: forensic-connector-malwarebazaar
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_MALWAREBAZAAR_ID}
+      - CONNECTOR_NAME=MalwareBazaar Recent Additions
+      - CONNECTOR_SCOPE=StixFile
+      - CONNECTOR_LOG_LEVEL=info
+      - MALWAREBAZAAR_RECENT_ADDITIONS_API_URL=https://mb-api.abuse.ch/api/v1/
+      - MALWAREBAZAAR_RECENT_ADDITIONS_COOLDOWN_SECONDS=300
+      - MALWAREBAZAAR_RECENT_ADDITIONS_INCLUDE_TAGS=exe,dll,docm,docx,doc,xls,xlsx,xlsm,js
+      - MALWAREBAZAAR_RECENT_ADDITIONS_INCLUDE_REPORTERS=
+      - MALWAREBAZAAR_RECENT_ADDITIONS_LABELS=malware-bazaar
+      - MALWAREBAZAAR_RECENT_ADDITIONS_LABELS_COLOR=#54483b
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-urlhaus:
+    image: opencti/connector-urlhaus:6.2.18
+    container_name: forensic-connector-urlhaus
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_URLHAUS_ID}
+      - CONNECTOR_NAME=URLhaus
+      - CONNECTOR_SCOPE=ipv4-addr,domain-name,url,indicator
+      - CONNECTOR_LOG_LEVEL=info
+      - URLHAUS_INTERVAL=${URLHAUS_INTERVAL:-1}
+      - URLHAUS_CSV_URL=${URLHAUS_CSV_URL:-https://urlhaus.abuse.ch/downloads/csv_recent/}
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-vxvault:
+    image: opencti/connector-vxvault:6.2.18
+    container_name: forensic-connector-vxvault
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_VXVAULT_ID}
+      - CONNECTOR_NAME=VXVault
+      - CONNECTOR_SCOPE=ipv4-addr,url,indicator
+      - CONNECTOR_LOG_LEVEL=info
+      - VXVAULT_INTERVAL=${VXVAULT_INTERVAL:-1}
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.112
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-apt-campaign:
+    profiles: [connectors-ti]
+    image: opencti/connector-cyber-campaign-collection:6.2.18
+    container_name: forensic-connector-apt-campaign
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_APT_CAMPAIGN_ID}
+      - CONNECTOR_NAME=Cyber Campaign Collection
+      - CONNECTOR_SCOPE=cyber-monitor
+      - CONNECTOR_LOG_LEVEL=info
+      - CYBER_MONITOR_GITHUB_TOKEN=${CYBER_MONITOR_GITHUB_TOKEN:-}
+      - CYBER_MONITOR_FROM_YEAR=${CYBER_MONITOR_FROM_YEAR:-2020}
+      - CYBER_MONITOR_INTERVAL=${CYBER_MONITOR_INTERVAL:-7}
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-threatfox:
+    image: opencti/connector-threatfox:6.2.18
+    container_name: forensic-connector-threatfox
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_THREATFOX_ID}
+      - CONNECTOR_NAME=ThreatFox
+      - CONNECTOR_SCOPE=threatfox
+      - CONNECTOR_LOG_LEVEL=info
+      - THREATFOX_INTERVAL=${THREATFOX_INTERVAL:-3}
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-abuse-ssl:
+    image: opencti/connector-abuse-ssl:6.2.18
+    container_name: forensic-connector-abuse-ssl
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_ABUSE_SSL_ID}
+      - CONNECTOR_NAME=Abuse.ch SSL Blacklist
+      - CONNECTOR_SCOPE=abusessl
+      - CONNECTOR_LOG_LEVEL=info
+      - ABUSESSL_URL=${ABUSESSL_URL:-https://sslbl.abuse.ch/blacklist/sslipblacklist.csv}
+      - ABUSESSL_INTERVAL=${ABUSESSL_INTERVAL:-360}
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-cisa-known-exploited-vulnerabilities:
+    image: opencti/connector-cisa-known-exploited-vulnerabilities:6.2.18
+    container_name: forensic-connector-cisa-kev
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_CISA_KEV_ID}
+      - CONNECTOR_NAME=CISA Known Exploited Vulnerabilities
+      - CONNECTOR_SCOPE=vulnerability,software,identity
+      - CONNECTOR_LOG_LEVEL=info
+      - CISA_KEV_INTERVAL=${CISA_KEV_INTERVAL:-1}
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }
+
+  connector-dns-twist:
+    profiles: [connectors-ti]
+    image: opencti/connector-dns-twist:6.2.18
+    container_name: forensic-connector-dns-twist
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_DNS_TWIST_ID}
+      - CONNECTOR_NAME=DNS Twist
+      - CONNECTOR_SCOPE=domain-name,indicator
+      - CONNECTOR_LOG_LEVEL=error
+      - DNS_TWIST_INTERVAL=1
+    networks: [forensic-net]
+    depends_on:
+      opencti: { condition: service_healthy }

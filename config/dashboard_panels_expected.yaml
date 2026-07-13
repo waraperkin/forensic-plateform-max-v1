@@ -1,0 +1,101 @@
+# Attentes panels / pages — mode pessimiste (doute = FAIL)
+meta:
+  pessimistic: true
+  human_validation_required: true
+  min_dom_nodes: 200
+  min_body_text: 300
+  forbid_phrases:
+    - "server error"
+    - "could not locate field"
+    - "request failed"
+    - "internal error"
+    - "panel error"
+    - "application error"
+
+targets:
+  osd.security_events:
+    min_panels: 6
+    min_panel_with_content: 4
+    min_body_text: 1500
+    js_profile: osd
+
+  osd.ti_overview:
+    min_panels: 5
+    min_panel_with_content: 3
+    min_body_text: 600
+    js_profile: osd
+
+  osd.incident_commander:
+    min_panels: 4
+    min_panel_with_content: 2
+    min_body_text: 1200
+    js_profile: osd
+
+  osd.purple_team:
+    min_panels: 4
+    min_panel_with_content: 2
+    min_body_text: 1200
+    js_profile: osd
+
+  osd.platform_health:
+    min_panels: 4
+    min_panel_with_content: 2
+    min_body_text: 1200
+    js_profile: osd
+
+  grafana.platform_health:
+    min_panels: 4
+    min_panel_with_content: 1
+    min_body_text: 350
+    js_profile: grafana
+
+  grafana.opensearch_metrics:
+    min_panels: 3
+    min_panel_with_content: 1
+    min_body_text: 350
+    js_profile: grafana
+
+  grafana.timesketch_metrics:
+    min_panels: 5
+    min_panel_with_content: 3
+    min_body_text: 350
+    js_profile: grafana
+
+  ts.overview:
+    min_cards: 3
+    min_body_text: 300
+    min_dom_nodes: 150
+    js_profile: ts_overview
+
+  ts.explore:
+    min_aggregations: 2
+    min_body_text: 2000
+    js_profile: ts_explore
+
+  ts.intelligence:
+    min_body_text: 300
+    min_dom_nodes: 150
+    js_profile: ts_intelligence
+
+  ts.stories:
+    min_stories: 1
+    min_body_text: 250
+    min_dom_nodes: 150
+    js_profile: ts_stories
+
+  portal.cert_home:
+    min_body_text: 400
+    min_dom_nodes: 100
+    js_profile: portal
+
+  portal.cert_dashboard:
+    min_incidents: 1
+    min_body_text: 80
+    min_panels: 2
+    js_profile: portal_zone
+
+  portal.it_dashboard:
+    min_assets: 1
+    min_body_text: 80
+    min_panels: 3
+    js_profile: portal_zone

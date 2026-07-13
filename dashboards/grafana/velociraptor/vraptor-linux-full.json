@@ -1,0 +1,27 @@
+{
+  "uid": "vraptor-linux-full",
+  "title": "Velociraptor Linux (Full)",
+  "tags": ["velociraptor", "linux", "full", "dfir"],
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Auth events",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "forensic-all" },
+      "targets": [{ "refId": "A", "query": "_index:velociraptor-linux-* AND artifact:Custom.Linux.Auth.ForensicFull" }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Network connections",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "forensic-all" },
+      "targets": [{ "refId": "A", "query": "_index:velociraptor-linux-* AND artifact:Custom.Linux.Network.ForensicFull" }]
+    },
+    {
+      "id": 3, "type": "logs", "title": "Linux DFIR (Full)",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "forensic-all" },
+      "targets": [{ "refId": "A", "query": "_index:velociraptor-linux-*" }]
+    }
+  ]
+}

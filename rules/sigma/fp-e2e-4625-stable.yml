@@ -1,0 +1,17 @@
+title: FP E2E Failed Logon 4625
+id: fp-e2e-4625-stable-0001
+status: stable
+description: Règle E2E Forensic Platform — event_type 4625 (échec authentification)
+author: Forensic Platform
+date: 2024/03/15
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event_type: "4625"
+  condition: selection
+level: medium
+tags:
+  - attack.credential_access
+  - attack.t1110

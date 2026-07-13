@@ -1,0 +1,36 @@
+/* Heatmaps ingestion Sekoia — additif */
+.sh-heatmap-block {
+  margin-bottom: 1.5rem;
+}
+
+.sh-heatmap-block h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--fp-muted, #8b9cb3);
+  font-weight: 600;
+}
+
+.sh-heatmap-chart {
+  width: 100%;
+  min-height: 300px;
+  height: 320px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 229, 255, 0.12);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.sh-heatmap-anomaly .sh-heatmap-chart {
+  min-height: 280px;
+}
+
+.pd-detail .sh-heatmap-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sh-heatmap-hint {
+  font-size: 0.75rem;
+  color: var(--fp-muted, #8b9cb3);
+  margin: 0 0 0.5rem;
+}

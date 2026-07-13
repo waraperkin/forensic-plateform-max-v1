@@ -1,0 +1,53 @@
+{
+  "index_patterns": ["forensic-*","logs-*","winlogbeat-*","filebeat-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.refresh_interval": "5s",
+      "index.mapping.total_fields.limit": 2000
+    },
+    "mappings": {
+      "dynamic_templates": [
+        {"strings_as_keyword": {"match_mapping_type": "string","mapping": {"type": "keyword","ignore_above": 1024,"fields": {"text": {"type": "text"}}}}}
+      ],
+      "properties": {
+        "@timestamp":           {"type": "date"},
+        "event.code":           {"type": "keyword"},
+        "event.category":       {"type": "keyword"},
+        "event.type":           {"type": "keyword"},
+        "event.action":         {"type": "keyword"},
+        "event.outcome":        {"type": "keyword"},
+        "event.module":         {"type": "keyword"},
+        "event.dataset":        {"type": "keyword"},
+        "event.severity":       {"type": "long"},
+        "host.name":            {"type": "keyword"},
+        "host.ip":              {"type": "ip"},
+        "host.os.family":       {"type": "keyword"},
+        "user.name":            {"type": "keyword"},
+        "source.ip":            {"type": "ip"},
+        "source.port":          {"type": "long"},
+        "destination.ip":       {"type": "ip"},
+        "destination.port":     {"type": "long"},
+        "network.transport":    {"type": "keyword"},
+        "network.protocol":     {"type": "keyword"},
+        "process.name":         {"type": "keyword"},
+        "process.pid":          {"type": "long"},
+        "process.executable":   {"type": "keyword"},
+        "process.command_line": {"type": "text","fields": {"keyword": {"type": "keyword","ignore_above": 1024}}},
+        "process.hash.md5":     {"type": "keyword"},
+        "process.hash.sha256":  {"type": "keyword"},
+        "file.name":            {"type": "keyword"},
+        "file.path":            {"type": "keyword"},
+        "file.hash.md5":        {"type": "keyword"},
+        "file.hash.sha256":     {"type": "keyword"},
+        "threat.technique.id":  {"type": "keyword"},
+        "threat.technique.name":{"type": "keyword"},
+        "tags":                 {"type": "keyword"},
+        "message":              {"type": "text"}
+      }
+    }
+  },
+  "priority": 100,
+  "version": 1
+}

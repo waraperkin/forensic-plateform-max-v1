@@ -1,0 +1,17 @@
+# Forensic Platform — liste blanche analyzers Timesketch
+# Une entrée par ligne : nom court (NAME) et/ou nom de classe Python (__name__)
+# Lignes vides et commentaires (#) ignorés.
+
+# Sigma (RulesSigmaPlugin — règles + tagger)
+sigma
+RulesSigmaPlugin
+
+# Extraction / domaines
+feature_extraction
+FeatureExtractionSketchPlugin
+domain
+DomainSketchPlugin
+
+# Threat Intelligence (MISP — équivalent ThreatIntelAnalyzer)
+misp_analyzer
+MispAnalyzer

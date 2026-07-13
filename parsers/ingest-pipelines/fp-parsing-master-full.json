@@ -1,0 +1,52 @@
+{
+  "description": "FP Parsing Master Full Spectrum — Windows/Linux/Web/Network/DFIR/Cloud/EDR/TI",
+  "processors": [
+    {
+      "pipeline": {
+        "name": "fp-win-csv",
+        "if": "ctx.csv_EventID != null || ctx.os_type == 'windows' || (ctx.tags != null && ctx.tags.contains('windows')) || (ctx.message != null && ctx.message.contains('Microsoft-Windows'))"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "linux-ecs",
+        "if": "ctx.tags != null && ctx.tags.contains('linux')"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "web-ecs",
+        "if": "(ctx.tags != null && (ctx.tags.contains('nginx') || ctx.tags.contains('apache') || ctx.tags.contains('web'))) || (ctx.message != null && ctx.message.contains('HTTP/'))"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "windows-ecs",
+        "if": "ctx.winlog != null || (ctx.tags != null && ctx.tags.contains('windows') && ctx.message != null && ctx.message.contains('EventID'))"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "fp-ti-normalize",
+        "if": "ctx.ioc_value != null || ctx.feed != null"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "fp-parsing-normalize-full"
+      }
+    },
+    {
+      "set": {
+        "field": "event.ingested",
+        "value": "{{{_ingest.timestamp}}}",
+        "override": false
+      }
+    },
+    {
+      "pipeline": {
+        "name": "fp-ti-match"
+      }
+    }
+  ]
+}

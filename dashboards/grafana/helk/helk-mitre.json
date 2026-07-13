@@ -1,0 +1,13 @@
+{
+  "uid": "helk-mitre",
+  "title": "MITRE Overview",
+  "tags": ["helk", "mitre", "attack"],
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {"id": 1, "type": "stat", "title": "MITRE enriched events", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "threat.technique.id:*", "metrics": [{"type": "count"}]}]},
+    {"id": 2, "type": "stat", "title": "Sigma detections", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "_index:helk-detections-*", "metrics": [{"type": "count"}]}]},
+    {"id": 3, "type": "stat", "title": "Credential Access", "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "threat.tactic.name:Credential*", "metrics": [{"type": "count"}]}]},
+    {"id": 4, "type": "logs", "title": "MITRE timeline (technique + tactic)", "gridPos": {"h": 14, "w": 24, "x": 0, "y": 4}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "threat.technique.id:* OR rule.mitre:*"}]}
+  ]
+}

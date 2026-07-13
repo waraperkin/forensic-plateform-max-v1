@@ -1,0 +1,17 @@
+title: Failed Logon Windows Security 4625
+id: fp-example-4625-0001
+status: stable
+description: Exemple Forensic Platform — échec d'authentification Windows
+author: Forensic Platform
+date: 2024/03/15
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4625
+  condition: selection
+level: medium
+tags:
+  - attack.credential_access
+  - attack.t1110

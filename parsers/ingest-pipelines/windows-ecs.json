@@ -1,0 +1,11 @@
+{
+  "description": "Windows ECS normalization",
+  "processors": [
+    {"set": {"field": "event.ingested", "value": "{{{_ingest.timestamp}}}"}},
+    {"set": {"field": "host.os.family", "value": "windows", "override": false}},
+    {"rename": {"field": "winlog.computer_name", "target_field": "host.name", "ignore_missing": true}},
+    {"rename": {"field": "winlog.event_id", "target_field": "event.code", "ignore_missing": true}},
+    {"date": {"field": "winlog.time_created", "target_field": "@timestamp", "formats": ["ISO8601"], "ignore_failure": true}},
+    {"remove": {"field": ["@metadata", "ecs"], "ignore_missing": true}}
+  ]
+}

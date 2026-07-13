@@ -1,0 +1,21 @@
+name: Custom.Linux.Logs.ForensicMinimal
+description: |
+  Collecte journald, auth.log et syslog pour forensic-minimal.
+author: CYBERCORP Forensic Platform
+type: CLIENT
+parameters: []
+sources:
+  - name: Journald
+    precondition: SELECT OS FROM info() WHERE OS = 'linux'
+    query: |
+      SELECT * FROM execve(argv=["journalctl", "--no-pager", "-o", "json", "-n", "5000"], length=10000000)
+  - name: AuthLog
+    precondition: SELECT OS FROM info() WHERE OS = 'linux'
+    query: |
+      LET f <= "/var/log/auth.log"
+      SELECT Line, OSPath FROM parse_lines(filename=f) WHERE log(message=Line)
+  - name: Syslog
+    precondition: SELECT OS FROM info() WHERE OS = 'linux'
+    query: |
+      LET f <= "/var/log/syslog"
+      SELECT Line, OSPath FROM parse_lines(filename=f) WHERE log(message=Line)

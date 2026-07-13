@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark" data-portal="cert" data-edition="cybercorp">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Activation compte — CERT CYBERCORP</title>
+<link rel="stylesheet" href="shared/css/forensic-ui.css">
+<link rel="stylesheet" href="shared/css/cybercorp-theme.css">
+<link rel="stylesheet" href="shared/css/cybercorp-ultra.css">
+</head>
+<body class="fp-login-page">
+<div class="fp-login-card cc-pro-panel" style="max-width:520px">
+  <div class="fp-login-brand">
+    <img src="shared/assets/cybercorp-logo.svg" alt="CYBERCORP" width="48" height="48">
+    <div>
+      <h1>Activation compte</h1>
+      <p id="act-user" class="fp-muted">—</p>
+    </div>
+  </div>
+  <p id="act-err" class="fp-alert fp-alert-err" hidden></p>
+  <form id="act-form" class="fp-login-form">
+    <input type="hidden" id="act-token">
+    <label class="fp-label">Mot de passe (min. 10 caractères)
+      <input class="fp-input" id="act-pass" type="password" autocomplete="new-password" required minlength="10">
+    </label>
+    <label class="fp-label">Confirmer le mot de passe
+      <input class="fp-input" id="act-pass2" type="password" autocomplete="new-password" required>
+    </label>
+    <div id="mfa-block">
+      <p class="fp-muted">MFA obligatoire — scannez le QR avec Google Authenticator, puis saisissez un code.</p>
+      <button type="button" class="fp-btn fp-btn-ghost" id="act-mfa-setup">Générer le QR code MFA</button>
+      <div id="act-qr" class="fp-mfa-qr"></div>
+      <label class="fp-label">Code MFA
+        <input class="fp-input" id="act-totp" inputmode="numeric" maxlength="8" placeholder="123456">
+      </label>
+    </div>
+    <button type="submit" class="fp-btn fp-btn-primary fp-btn-block" id="act-submit">Activer le compte</button>
+  </form>
+  <p class="fp-login-foot fp-muted"><a href="/login.html">Retour connexion</a></p>
+</div>
+<script src="shared/js/activate-app.js"></script>
+</body>
+</html>

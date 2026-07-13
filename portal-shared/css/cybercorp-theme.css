@@ -1,0 +1,932 @@
+/* CERT CYBERCORP EDITION — enterprise SOC theme (Elastic / Grafana / Defender XDR) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+[data-edition="cybercorp"],
+[data-edition="cybercorp"] [data-theme="dark"] {
+  /* Design system CYBERCORP PRO */
+  --bg-main: #0E1117;
+  --bg-panel: #161B22;
+  --bg-hover: #1F2937;
+  --accent-soft: #1E3A8A;
+  --ti-accent: #00E5FF;
+
+  --cc-blue: #0A84FF;
+  --cc-blue-deep: #0a2b4a;
+  --cc-cyan: #00E5FF;
+  --cc-dark: #0E1117;
+  --cc-panel: #161B22;
+  --bg: #0E1117;
+  --bg-elevated: #161B22;
+  --bg-surface: #1F2937;
+  --border: #2D3748;
+  --border-focus: #0A84FF;
+  --text: #F3F4F6;
+  --text-muted: #9CA3AF;
+  --accent: #0A84FF;
+  --accent-hover: #0969D6;
+  --accent-muted: rgba(10, 132, 255, 0.14);
+  --accent-2: #0A84FF;
+  --success: #10b981;
+  --danger: #EF4444;
+  --warning: #F59E0B;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --radius: 8px;
+  --radius-sm: 6px;
+  --font-sans: 'Inter', 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --sidebar-w: 248px;
+  line-height: 1.55;
+}
+
+/* Boutons enterprise : accent plein + hover foncé */
+[data-edition="cybercorp"] .fp-btn-primary {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+[data-edition="cybercorp"] .fp-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+[data-edition="cybercorp"] .fp-btn {
+  border-radius: var(--radius-sm);
+}
+[data-edition="cybercorp"] .fp-btn-ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-focus);
+  color: var(--text);
+}
+[data-edition="cybercorp"] .fp-table th {
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+[data-edition="cybercorp"] .fp-table td {
+  color: var(--text);
+}
+
+[data-edition="cybercorp"] body,
+[data-edition="cybercorp"].fp-login-page,
+[data-edition="cybercorp"] body.app-shell {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Typographie enterprise : titres 18–22px, texte 14–15px, plus d'air */
+[data-edition="cybercorp"] { font-size: 14px; }
+[data-edition="cybercorp"] .fp-section-title { font-size: 1.3rem; font-weight: 600; letter-spacing: 0; }
+[data-edition="cybercorp"] .fp-section-sub { font-size: 1.0rem; font-weight: 600; }
+[data-edition="cybercorp"] .fp-card,
+[data-edition="cybercorp"] .cc-pro-panel,
+[data-edition="cybercorp"] .fp-card-premium { padding: 1.15rem 1.25rem; }
+[data-edition="cybercorp"] .fp-panel.active { padding-top: 0.25rem; }
+
+[data-edition="cybercorp"] .cc-topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--header-h);
+  padding: 0 1rem 0 0.75rem;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+[data-edition="cybercorp"] .cc-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+[data-edition="cybercorp"] .cc-brand img {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  filter: none;
+}
+[data-edition="cybercorp"] .cc-brand h1 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: 0;
+  color: var(--text);
+}
+[data-edition="cybercorp"] .cc-brand-sub {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+[data-edition="cybercorp"] .fp-badge-cert,
+[data-edition="cybercorp"] .cc-badge-edition {
+  background: var(--accent-muted);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  border: 1px solid rgba(10, 132, 255, 0.35);
+  box-shadow: none;
+}
+
+[data-edition="cybercorp"] .fp-nav-links a {
+  font-size: 0.72rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+[data-edition="cybercorp"] .fp-nav-links a:hover {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+[data-edition="cybercorp"] .fp-sidebar,
+[data-edition="cybercorp"] .cc-sidebar {
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+[data-edition="cybercorp"] .cc-sidebar-nav {
+  padding: 0.5rem 0 1rem;
+}
+[data-edition="cybercorp"] .cc-nav-section {
+  margin-bottom: 0.35rem;
+}
+[data-edition="cybercorp"] .cc-nav-section-title {
+  margin: 0.65rem 0.75rem 0.35rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+[data-edition="cybercorp"] .cc-nav-section .fp-sidebar-nav {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+[data-edition="cybercorp"] .cc-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: calc(100% - 1rem);
+  margin: 2px 0.5rem;
+  padding: 0.45rem 0.55rem 0.45rem 0.4rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s, border-color 0.15s;
+}
+[data-edition="cybercorp"] .cc-nav-btn span {
+  flex: 1;
+  line-height: 1.25;
+}
+[data-edition="cybercorp"] .cc-nav-btn::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  background: var(--text-muted);
+  opacity: 0.85;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="dash"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="health"]::before,
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="heatmap"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 21s-6-4.35-9-9a5.25 5.25 0 0 1 9-3 5.25 5.25 0 0 1 9 3c-3 4.65-9 9-9 9z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 21s-6-4.35-9-9a5.25 5.25 0 0 1 9-3 5.25 5.25 0 0 1 9 3c-3 4.65-9 9-9 9z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="tools"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M22.7 19.3l-1.4-1.4c.4-.9.7-1.9.7-2.9 0-3.3-2.7-6-6-6-.5 0-1 .1-1.4.2l-1.5-1.5C13.8 6.8 14.4 6 15 6c1.7 0 3 1.3 3 3 0 .6-.2 1.2-.5 1.7l1.4 1.4c.4-.3.9-.5 1.4-.5 1.7 0 3 1.3 3 3s-1.3 3-3 3c-.5 0-1-.2-1.4-.5zM15 8c-2.2 0-4 1.8-4 4 0 .7.2 1.4.5 2L3 22.6 1.4 21l8.5-8.5c.6.3 1.3.5 2 .5 2.2 0 4-1.8 4-4s-1.8-4-4-4z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M22.7 19.3l-1.4-1.4c.4-.9.7-1.9.7-2.9 0-3.3-2.7-6-6-6-.5 0-1 .1-1.4.2l-1.5-1.5C13.8 6.8 14.4 6 15 6c1.7 0 3 1.3 3 3 0 .6-.2 1.2-.5 1.7l1.4 1.4c.4-.3.9-.5 1.4-.5 1.7 0 3 1.3 3 3s-1.3 3-3 3c-.5 0-1-.2-1.4-.5zM15 8c-2.2 0-4 1.8-4 4 0 .7.2 1.4.5 2L3 22.6 1.4 21l8.5-8.5c.6.3 1.3.5 2 .5 2.2 0 4-1.8 4-4s-1.8-4-4-4z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="access"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6 10h4v-4h-4v4zm0-6h4v-4h-4v4z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6 10h4v-4h-4v4zm0-6h4v-4h-4v4z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="helk"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="velociraptor"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.92 6-4.72 7.28L13 17v5h-2v-5l-2.28-.72C5.92 19.98 4 17.19 4 14c0-4.08 3.05-7.44 7-7.93V2.05c-5.05.5-9 4.76-9 9.95 0 5.52 4.48 10 10 10s10-4.48 10-10c0-5.19-3.95-9.45-9-9.95z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.92 6-4.72 7.28L13 17v5h-2v-5l-2.28-.72C5.92 19.98 4 17.19 4 14c0-4.08 3.05-7.44 7-7.93V2.05c-5.05.5-9 4.76-9 9.95 0 5.52 4.48 10 10 10s10-4.48 10-10c0-5.19-3.95-9.45-9-9.95z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="key"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12.65 10A5.99 5.99 0 0 0 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6a5.99 5.99 0 0 0 5.65-4H17v4h3v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12.65 10A5.99 5.99 0 0 0 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6a5.99 5.99 0 0 0 5.65-4H17v4h3v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="ti"]::before,
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="ioc"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="ingest"]::before,
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="upload"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="incident"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="inbox"]::before,
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="ticket"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="map"]::before,
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="exposure"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="inventory"]::before,
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="users"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="situation"]::before,
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="connector"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="kb"]::before,
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="log"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="auto"]::before,
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="settings"]::before,
+[data-edition="cybercorp"] .cc-nav-btn[data-cc-icon="purge"]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81a.488.488 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.203.0.113.67.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81a.488.488 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.203.0.113.67.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z'/%3E%3C/svg%3E");
+}
+[data-edition="cybercorp"] .cc-nav-btn:hover {
+  background: var(--bg-surface);
+  border-color: var(--border);
+}
+[data-edition="cybercorp"] .cc-nav-btn.active {
+  background: var(--accent-muted);
+  border-color: transparent;
+  box-shadow: inset 3px 0 0 var(--accent);
+  color: var(--text);
+}
+[data-edition="cybercorp"] .cc-nav-btn.active::before {
+  opacity: 1;
+  background: var(--accent);
+}
+[data-edition="cybercorp"] .fp-sidebar-nav button.active,
+[data-edition="cybercorp"] .cc-nav-btn.active {
+  font-weight: 600;
+}
+
+[data-edition="cybercorp"] .cc-user-menu {
+  position: relative;
+}
+[data-edition="cybercorp"] .cc-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--accent-muted);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+[data-edition="cybercorp"] .cc-user-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 200px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.5rem;
+  z-index: 200;
+}
+[data-edition="cybercorp"] .cc-user-dropdown button,
+[data-edition="cybercorp"] .cc-user-dropdown a {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  text-decoration: none;
+}
+[data-edition="cybercorp"] .cc-user-dropdown button:hover,
+[data-edition="cybercorp"] .cc-user-dropdown a:hover {
+  background: var(--accent-muted);
+}
+
+[data-edition="cybercorp"] .fp-card-premium,
+[data-edition="cybercorp"] .cc-dash-panel {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  border-radius: var(--radius);
+}
+[data-edition="cybercorp"] .cc-dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+@media (max-width: 960px) {
+  [data-edition="cybercorp"] .cc-dash-grid { grid-template-columns: 1fr; }
+}
+[data-edition="cybercorp"] .cc-chart-wrap {
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+}
+[data-edition="cybercorp"] .cc-chart-wrap canvas {
+  width: 100%;
+  height: 140px;
+  display: block;
+}
+
+[data-edition="cybercorp"] .cc-heat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.5rem;
+}
+[data-edition="cybercorp"] .cc-heat-cell {
+  padding: 0.55rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  text-align: center;
+  border: 1px solid var(--border);
+  transition: transform 0.1s;
+}
+[data-edition="cybercorp"] .cc-heat-cell:hover { transform: scale(1.03); }
+[data-edition="cybercorp"] .cc-heat-up { background: rgba(16, 185, 129, 0.2); border-color: #10b981; }
+[data-edition="cybercorp"] .cc-heat-warn { background: rgba(245, 158, 11, 0.2); border-color: #f59e0b; }
+[data-edition="cybercorp"] .cc-heat-down { background: rgba(239, 68, 68, 0.2); border-color: #ef4444; }
+
+[data-edition="cybercorp"] .cc-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-left: 2px solid var(--border);
+  margin-left: 0.5rem;
+}
+[data-edition="cybercorp"] .cc-timeline-item {
+  position: relative;
+  padding: 0.5rem 0 0.5rem 1.25rem;
+  font-size: 0.85rem;
+}
+[data-edition="cybercorp"] .cc-timeline-dot {
+  position: absolute;
+  left: -0.45rem;
+  top: 0.75rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: none;
+}
+[data-edition="cybercorp"] .cc-timeline-meta {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+[data-edition="cybercorp"] .fp-footer,
+[data-edition="cybercorp"] .cc-footer {
+  text-align: center;
+  padding: 0.85rem 1rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  background: var(--cc-panel);
+}
+[data-edition="cybercorp"] .cc-footer strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Login premium */
+[data-edition="cybercorp"].fp-login-page,
+[data-edition="cybercorp"] body.fp-login-page {
+  position: relative;
+  overflow: hidden;
+}
+[data-edition="cybercorp"] .cc-login-bg {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 0;
+}
+[data-edition="cybercorp"] .cc-login-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+[data-edition="cybercorp"] .fp-login-card {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+[data-edition="cybercorp"] .fp-login-brand .cc-logo-login {
+  width: 56px;
+  height: 56px;
+}
+
+/* Settings premium */
+[data-edition="cybercorp"] .cc-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+[data-edition="cybercorp"] .cc-settings-header img {
+  width: 48px;
+  height: 48px;
+}
+
+[data-portal="it"][data-edition="cybercorp"] {
+  --accent: var(--cc-blue);
+  --border-focus: var(--cc-blue);
+  --accent-muted: rgba(10, 132, 255, 0.14);
+}
+[data-portal="it"][data-edition="cybercorp"] .fp-header {
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+}
+[data-portal="it"][data-edition="cybercorp"] .fp-badge-it {
+  background: var(--accent-muted);
+  color: var(--accent);
+  border: 1px solid rgba(10, 132, 255, 0.35);
+}
+[data-portal="it"][data-edition="cybercorp"] .cc-it-body {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  min-height: calc(100vh - var(--header-h));
+}
+[data-portal="it"][data-edition="cybercorp"] .cc-it-main {
+  padding: 1rem;
+  overflow: auto;
+}
+[data-portal="it"][data-edition="cybercorp"] a.cc-nav-link {
+  text-decoration: none;
+  color: inherit;
+}
+[data-portal="it"][data-edition="cybercorp"] .cc-it-sidebar {
+  position: sticky;
+  top: var(--header-h);
+  height: calc(100vh - var(--header-h));
+}
+@media (max-width: 900px) {
+  [data-portal="it"][data-edition="cybercorp"] .cc-it-body {
+    grid-template-columns: 1fr;
+  }
+  [data-portal="it"][data-edition="cybercorp"] .cc-it-sidebar {
+    display: none;
+  }
+}
+
+/* Enterprise pro panels */
+[data-edition="cybercorp"] .cc-pro-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  padding: 1rem;
+  box-shadow: none;
+}
+[data-edition="cybercorp"] .cc-soc-tools-block {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+[data-edition="cybercorp"] .cc-url-cell {
+  font-size: 0.78rem;
+  word-break: break-all;
+  color: var(--text);
+}
+[data-edition="cybercorp"] .cc-soc-actions {
+  white-space: nowrap;
+}
+[data-edition="cybercorp"] .cc-users-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+[data-edition="cybercorp"] .cc-url-copy-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+[data-edition="cybercorp"] .cc-url-copy-row .fp-input {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+[data-edition="cybercorp"] .cc-invite-result {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+[data-edition="cybercorp"] .cc-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* Access Center */
+[data-edition="cybercorp"] .cc-ac-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+[data-edition="cybercorp"] .cc-method {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+[data-edition="cybercorp"] .cc-method-get { color: #4db8d9; border-color: #2f6f86; }
+[data-edition="cybercorp"] .cc-method-post { color: #6fbf73; border-color: #3c6b3f; }
+[data-edition="cybercorp"] .cc-cred-pw {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+/* Danger / confirmation panel */
+[data-edition="cybercorp"] .cc-danger-panel {
+  border-color: var(--danger);
+  border-left: 3px solid var(--danger);
+}
+[data-edition="cybercorp"] .fp-btn-danger-ghost {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #ef6b6b;
+}
+[data-edition="cybercorp"] .fp-btn-danger-ghost:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: var(--danger);
+}
+
+/* ── Threat Platforms / Governance / CERT Tools (panneaux ajoutés) ── */
+[data-edition="cybercorp"] .cc-tp-root { margin-top: 0.5rem; }
+[data-edition="cybercorp"] .cc-tp-toolbar {
+  display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.25rem 0 1rem;
+}
+[data-edition="cybercorp"] .cc-tp-banner { margin-bottom: 1rem; }
+[data-edition="cybercorp"] .cc-tp-grid {
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
+  gap: 1rem; align-items: start; margin-bottom: 1.25rem;
+}
+[data-edition="cybercorp"] .cc-tp-chart {
+  min-height: 240px; width: 100%;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.5rem;
+}
+[data-edition="cybercorp"] .cc-tp-stats {
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+[data-edition="cybercorp"] .cc-tp-dashgrid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.85rem; margin-bottom: 1.25rem;
+}
+[data-edition="cybercorp"] .cc-tp-stat {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.9rem 1rem;
+}
+[data-edition="cybercorp"] .cc-tp-stat .fp-stat-value { color: var(--text); font-size: 1.6rem; }
+[data-edition="cybercorp"] .cc-tp-stat-accent .fp-stat-value { color: var(--accent); }
+[data-edition="cybercorp"] .cc-tp-stat-danger .fp-stat-value { color: var(--danger); }
+[data-edition="cybercorp"] .cc-tp-stat-warn .fp-stat-value { color: var(--warning); }
+[data-edition="cybercorp"] .cc-tp-result { margin-top: 1.25rem; }
+[data-edition="cybercorp"] .cc-tp-fetchform {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.1rem 1.2rem; margin-bottom: 1rem;
+}
+[data-edition="cybercorp"] .fp-checkbox-inline {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  color: var(--text-muted); font-size: 0.9rem;
+}
+@media (max-width: 860px) {
+  [data-edition="cybercorp"] .cc-tp-grid { grid-template-columns: 1fr; }
+}
+[data-edition="cybercorp"] .cc-tp-subnav {
+  display: flex; gap: 0.4rem; flex-wrap: wrap; margin: 0.5rem 0 1rem;
+  border-bottom: 1px solid var(--border); padding-bottom: 0.6rem;
+}
+[data-edition="cybercorp"] .cc-subtab.active {
+  background: var(--accent-muted); border-color: var(--accent); color: var(--text);
+}
+[data-edition="cybercorp"] .cc-tp-detail { margin-top: 1rem; }
+[data-edition="cybercorp"] .cc-tp-detail-card {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.1rem 1.2rem;
+}
+[data-edition="cybercorp"] .cc-kv th {
+  width: 200px; text-align: left; color: var(--text-muted); font-weight: 500;
+}
+[data-edition="cybercorp"] .cc-tp-querybox {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.75rem 0.9rem; margin-bottom: 0.9rem;
+  font-size: 0.85rem; line-height: 1.6;
+}
+[data-edition="cybercorp"] .cc-tp-querybox code { color: var(--ti-accent); word-break: break-all; }
+[data-edition="cybercorp"] .cc-tp-filterbar {
+  display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+  margin: 0.6rem 0 0.9rem; padding: 0.6rem 0.7rem;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius);
+}
+[data-edition="cybercorp"] .cc-tp-filterbar .fp-input-sm,
+[data-edition="cybercorp"] .cc-tp-filterbar .fp-select.fp-input-sm {
+  height: 32px; padding: 0 0.5rem; font-size: 0.85rem; min-width: 120px;
+}
+[data-edition="cybercorp"] .cc-tp-filterbar .cc-flt-num { min-width: 90px; width: 90px; }
+[data-edition="cybercorp"] .cc-tp-filter-actions { margin-left: auto; display: flex; gap: 0.4rem; }
+[data-edition="cybercorp"] .cc-payload {
+  max-height: 320px; overflow: auto; background: #0B0F16; border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.8rem 1rem; margin: 0.4rem 0 0.8rem;
+  font-family: 'JetBrains Mono', 'Roboto Mono', monospace; font-size: 0.82rem;
+  line-height: 1.55; color: #C9D1D9; white-space: pre; tab-size: 2;
+}
+[data-edition="cybercorp"] .cc-payload code { color: inherit; background: none; }
+[data-edition="cybercorp"] .cc-send-bar { align-items: center; gap: 0.5rem; margin: 0.5rem 0 0.8rem; }
+[data-edition="cybercorp"] .cc-send-status { font-size: 0.85rem; }
+[data-edition="cybercorp"] .cc-send-status code { color: var(--ti-accent); }
+/* Cartes de statistiques cliquables (filtre au clic) */
+[data-edition="cybercorp"] .cc-card-click {
+  cursor: pointer; text-align: left; width: 100%;
+  border: 1px solid var(--border); background: var(--bg-elevated);
+  transition: border-color .15s ease, transform .1s ease, box-shadow .15s ease;
+}
+[data-edition="cybercorp"] .cc-card-click:hover {
+  border-color: var(--ti-accent); transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0,0,0,.25);
+}
+[data-edition="cybercorp"] .cc-card-click:active { transform: translateY(0); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   PHASE 1 — Refonte visuelle / organisationnelle Sekoia.IO (ADDITIF)
+   100% cosmétique : aucune classe, ID, route ou logique JS existante n'est
+   modifiée. Renforce la hiérarchie cartes → graphiques → filtres → tableau
+   → détail, et matérialise l'interactivité des cartes.
+   ════════════════════════════════════════════════════════════════════════ */
+/* Cartes statistiques cliquables : liseré d'accent en tête (selon le ton) +
+   indice « filtrer » au survol, pour signaler qu'un clic applique un filtre. */
+[data-edition="cybercorp"] .cc-card-click {
+  position: relative; overflow: hidden; padding-top: 1.05rem;
+}
+[data-edition="cybercorp"] .cc-card-click::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--border); transition: background .15s ease, filter .15s ease;
+}
+[data-edition="cybercorp"] .cc-tp-stat-accent.cc-card-click::before { background: var(--accent); }
+[data-edition="cybercorp"] .cc-tp-stat-warn.cc-card-click::before { background: var(--warning); }
+[data-edition="cybercorp"] .cc-tp-stat-danger.cc-card-click::before { background: var(--danger); }
+[data-edition="cybercorp"] .cc-card-click::after {
+  content: "filtrer"; position: absolute; top: .3rem; right: .55rem;
+  font-size: .66rem; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--text-muted); opacity: 0; transition: opacity .15s ease;
+}
+[data-edition="cybercorp"] .cc-card-click:hover::after { opacity: .8; }
+[data-edition="cybercorp"] .cc-card-click:hover::before { filter: brightness(1.4); }
+
+/* Barre de filtres : libellé contextuel discret « Filtres ». */
+[data-edition="cybercorp"] .cc-tp-filterbar { position: relative; padding-top: 1.5rem; }
+[data-edition="cybercorp"] .cc-tp-filterbar::before {
+  content: "Filtres"; position: absolute; top: .4rem; left: .75rem;
+  font-size: .66rem; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-muted);
+}
+
+/* Carte de détail (intake / connecteur / règle) : accent latéral repérable. */
+[data-edition="cybercorp"] .cc-tp-detail-card { border-left: 3px solid var(--accent); }
+
+/* Encart « requête exécutée » (On-demand Telemetry) : accent latéral. */
+[data-edition="cybercorp"] .cc-tp-querybox { border-left: 3px solid var(--ti-accent); }
+
+/* Sous-navigation : onglet actif plus lisible. */
+[data-edition="cybercorp"] .cc-subtab { transition: background .15s ease, border-color .15s ease; }
+[data-edition="cybercorp"] .cc-subtab.active { font-weight: 600; }
+
+/* Dialogue modal maison (création de vue, confirmation) — sans window.prompt */
+[data-edition="cybercorp"] .cc-modal-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(2, 6, 12, 0.62); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+[data-edition="cybercorp"] .cc-modal {
+  width: 100%; max-width: 420px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.2rem 1.3rem;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+[data-edition="cybercorp"] .cc-modal .fp-input { width: 100%; margin-top: 0.3rem; }
+[data-edition="cybercorp"] .cc-modal-msg { margin: 0 0 0.4rem; color: var(--text); }
+[data-edition="cybercorp"] .cc-modal-actions { margin-top: 1rem; justify-content: flex-end; gap: 0.5rem; }
+/* Aide contextuelle du panneau Configuration */
+[data-edition="cybercorp"] .cc-cfg-help { display: block; margin-top: 0.25rem; font-size: 0.78rem; color: var(--text-muted); }
+[data-edition="cybercorp"] .cc-cfg-card .fp-label { margin-bottom: 0.7rem; }
+[data-edition="cybercorp"] .cc-cfg-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+[data-edition="cybercorp"] .cc-cfg-intro { margin: 0 0 1rem; line-height: 1.45; max-width: 72ch; }
+[data-edition="cybercorp"] .cc-cfg-field-required { border-left: 3px solid var(--accent); padding-left: 0.75rem; margin-bottom: 0.85rem; }
+[data-edition="cybercorp"] .cc-cfg-badge { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.2rem 0.55rem; border-radius: 999px; border: 1px solid var(--border); }
+[data-edition="cybercorp"] .cc-cfg-badge-ok { background: rgba(16,185,129,.15); border-color: rgba(16,185,129,.5); color: #10b981; }
+[data-edition="cybercorp"] .cc-cfg-badge-off { background: var(--bg-elevated); color: var(--text-muted); }
+[data-edition="cybercorp"] .cc-cfg-badge-expired { background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.5); color: #ef4444; }
+[data-edition="cybercorp"] .cc-tp-banner-info { background: rgba(10,132,255,.1); border-color: rgba(10,132,255,.35); color: var(--text); }
+[data-edition="cybercorp"] .cc-filter-active-hint {
+  margin: 0.35rem 0 0.65rem; padding: 0.35rem 0.65rem; font-size: 0.82rem;
+  border-left: 3px solid var(--accent); background: var(--bg-elevated); border-radius: var(--radius);
+}
+[data-edition="cybercorp"] .cc-card-click.cc-card-active {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+  box-shadow: 0 0 0 1px var(--accent-muted);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   PHASE 2 — Explorers avancés Sekoia.IO (ADDITIF)
+   Telemetry Explorer (vues), Rule Explorer (diff/impact), API Keys Manager.
+   ════════════════════════════════════════════════════════════════════════ */
+/* Bloc de filtres avancés repliable */
+[data-edition="cybercorp"] .cc-tp-adv {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.4rem 0.8rem; margin: 0.6rem 0 0.9rem; background: var(--bg);
+}
+[data-edition="cybercorp"] .cc-tp-adv summary {
+  cursor: pointer; font-size: 0.85rem; color: var(--accent); font-weight: 500; padding: 0.2rem 0;
+}
+
+/* Telemetry — Timeline */
+[data-edition="cybercorp"] .cc-timeline { list-style: none; margin: 0.5rem 0; padding: 0; }
+[data-edition="cybercorp"] .cc-timeline li {
+  display: grid; grid-template-columns: 180px 160px 1fr; gap: 0.6rem; align-items: baseline;
+  padding: 0.35rem 0.5rem; border-left: 2px solid var(--border);
+}
+[data-edition="cybercorp"] .cc-timeline li:hover { border-left-color: var(--accent); background: var(--bg-elevated); }
+[data-edition="cybercorp"] .cc-tl-ts { color: var(--ti-accent); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+[data-edition="cybercorp"] .cc-tl-host { color: var(--text-muted); font-size: 0.82rem; }
+[data-edition="cybercorp"] .cc-tl-msg { color: var(--text); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Telemetry — Top fields */
+[data-edition="cybercorp"] .cc-tp-topgrid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.85rem; margin-top: 0.5rem;
+}
+[data-edition="cybercorp"] .cc-top-card {
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.6rem 0.8rem;
+}
+[data-edition="cybercorp"] .cc-top-card h4 { margin: 0 0 0.4rem; }
+[data-edition="cybercorp"] .cc-top-n { text-align: right; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* Rule Explorer — Diff Viewer */
+[data-edition="cybercorp"] .cc-diff-card { border-left: 3px solid var(--warning); }
+[data-edition="cybercorp"] .cc-diff-changed { background: rgba(245, 158, 11, 0.08); }
+[data-edition="cybercorp"] .cc-diff-before { color: var(--text-muted); text-decoration: line-through; }
+[data-edition="cybercorp"] .cc-diff-after { color: var(--text); font-weight: 600; }
+
+/* Rule Explorer — Impact Analyzer */
+[data-edition="cybercorp"] .cc-impact-card { border-left: 3px solid var(--accent); }
+[data-edition="cybercorp"] .cc-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.3rem 0 0.4rem; }
+
+/* API Keys Manager — tags cliquables */
+[data-edition="cybercorp"] .cc-tag-toggles { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
+[data-edition="cybercorp"] .cc-tag-chip {
+  cursor: pointer; font-size: 0.7rem; letter-spacing: 0.03em; padding: 0.12rem 0.45rem;
+  border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-muted);
+  transition: all .12s ease;
+}
+[data-edition="cybercorp"] .cc-tag-chip:hover { border-color: var(--accent); color: var(--text); }
+[data-edition="cybercorp"] .cc-tag-chip.on { background: var(--accent-muted); border-color: var(--accent); color: var(--text); font-weight: 600; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   PHASE 3 — Control Center + XDR View + Audit Center (ADDITIF)
+   ════════════════════════════════════════════════════════════════════════ */
+/* Modificateurs de tag colorés (réutilisés aussi par les phases précédentes). */
+[data-edition="cybercorp"] .fp-tag-ok { background: rgba(16,185,129,.15); border-color: rgba(16,185,129,.5); color: #10b981; }
+[data-edition="cybercorp"] .fp-tag-warn { background: rgba(245,158,11,.15); border-color: rgba(245,158,11,.5); color: #f59e0b; }
+[data-edition="cybercorp"] .fp-tag-danger { background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.5); color: #ef4444; }
+
+/* Cockpit Control Center */
+[data-edition="cybercorp"] .cc-cc-subnav { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .6rem; }
+[data-edition="cybercorp"] .cc-cc-quick {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+  padding: .5rem .7rem; margin-bottom: .8rem; border: 1px dashed var(--border); border-radius: var(--radius);
+}
+[data-edition="cybercorp"] .cc-cc-body { margin-top: .4rem; }
+[data-edition="cybercorp"] .cc-cc-statline { margin: .4rem 0; }
+[data-edition="cybercorp"] .cc-tp-grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: .9rem; }
+[data-edition="cybercorp"] .cc-stat-block { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius); padding: .6rem .8rem; }
+[data-edition="cybercorp"] .cc-stat-block h4 { margin: 0 0 .4rem; }
+
+/* XDR — badges de source dans la timeline fusionnée */
+[data-edition="cybercorp"] .cc-xdr-src {
+  display: inline-block; min-width: 84px; text-align: center; font-size: .66rem; font-weight: 600;
+  letter-spacing: .04em; text-transform: uppercase; padding: .1rem .4rem; border-radius: 4px; border: 1px solid var(--border);
+}
+[data-edition="cybercorp"] .cc-src-sek { background: rgba(10,132,255,.16); border-color: rgba(10,132,255,.5); color: #0A84FF; }
+[data-edition="cybercorp"] .cc-src-s1 { background: rgba(168,85,247,.16); border-color: rgba(168,85,247,.5); color: #a855f7; }
+[data-edition="cybercorp"] .cc-timeline-xdr li { grid-template-columns: 180px 96px 150px 1fr; }
+
+/* Audit — libellés de filtre date */
+[data-edition="cybercorp"] .cc-flt-date { display: inline-flex; align-items: center; gap: .3rem; font-size: .72rem; color: var(--text-muted); }
+[data-edition="cybercorp"] .cc-flt-date input { width: 190px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   PHASE 3 — Sekoia Enterprise++ (ADDITIF)
+   Query Builder, Dashboard Builder, Asset Profile, offline, polish UX
+   ════════════════════════════════════════════════════════════════════════ */
+[data-edition="cybercorp"] .cc-cc-toolbar {
+  display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem;
+  padding: 0.35rem 0.6rem; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+[data-edition="cybercorp"] .cc-offline-badge-wrap {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: 0.35rem 0 0.75rem;
+}
+[data-edition="cybercorp"] .cc-offline-badge {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 0.2rem 0.55rem; border-radius: 999px;
+  background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.55); color: #ef4444;
+}
+[data-edition="cybercorp"] .cc-table-loading {
+  position: relative; min-height: 4rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem;
+}
+[data-edition="cybercorp"] .cc-spinner {
+  width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: cc-spin 0.75s linear infinite;
+}
+@keyframes cc-spin { to { transform: rotate(360deg); } }
+[data-edition="cybercorp"] .cc-qb-panel,
+[data-edition="cybercorp"] .cc-dash-panel,
+[data-edition="cybercorp"] .cc-ap-panel {
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 0.85rem 1rem; background: var(--bg-elevated);
+}
+[data-edition="cybercorp"] .cc-qb-row {
+  display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-bottom: 0.45rem;
+}
+[data-edition="cybercorp"] .cc-qb-preview code { display: block; padding: 0.5rem; background: var(--bg); border-radius: var(--radius); word-break: break-all; }
+[data-edition="cybercorp"] .cc-dash-palette {
+  display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.6rem 0;
+  padding: 0.5rem; border: 1px dashed var(--border); border-radius: var(--radius);
+}
+[data-edition="cybercorp"] .cc-dash-canvas {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.75rem;
+  min-height: 120px; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg);
+}
+[data-edition="cybercorp"] .cc-dash-widget {
+  position: relative; border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.5rem; background: var(--bg-elevated);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+[data-edition="cybercorp"] .cc-dash-widget:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28); transform: translateY(-1px);
+}
+[data-edition="cybercorp"] .cc-dash-dropzone { text-align: center; padding: 1.5rem; color: var(--text-muted); }
+[data-edition="cybercorp"] .cc-tp-stat,
+[data-edition="cybercorp"] .cc-card-click {
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+[data-edition="cybercorp"] .cc-tp-stat:hover,
+[data-edition="cybercorp"] .cc-card-click:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}

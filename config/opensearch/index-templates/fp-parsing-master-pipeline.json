@@ -1,0 +1,53 @@
+{
+  "index_patterns": [
+    "forensic-linux*",
+    "forensic-windows*",
+    "forensic-web*",
+    "forensic-nginx*",
+    "forensic-uploads*",
+    "forensic-network*",
+    "forensic-cloud*",
+    "forensic-endpoint*",
+    "forensic-macos*",
+    "forensic-firewall*",
+    "fp-platform-logs*"
+  ],
+  "template": {
+    "settings": {
+      "index.default_pipeline": "fp-parsing-master"
+    },
+    "mappings": {
+      "properties": {
+        "event": {
+          "properties": {
+            "dataset": { "type": "keyword" },
+            "category": { "type": "keyword" },
+            "type": { "type": "keyword" },
+            "ingested": { "type": "date" }
+          }
+        },
+        "log": {
+          "properties": {
+            "level": { "type": "keyword" },
+            "source": { "type": "keyword" }
+          }
+        },
+        "fp": {
+          "properties": {
+            "parsing_version": { "type": "keyword" }
+          }
+        },
+        "ti": {
+          "properties": {
+            "ioc_value": { "type": "keyword" },
+            "ioc_type": { "type": "keyword" },
+            "tags": { "type": "keyword" }
+          }
+        }
+      }
+    }
+  },
+  "priority": 215,
+  "version": 2,
+  "_meta": { "description": "Pipeline Parsing Master par défaut sur événements FP" }
+}

@@ -1,0 +1,12 @@
+{
+  "uid": "helk-linux",
+  "title": "Linux Overview",
+  "tags": ["helk", "linux"],
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Auth events", "gridPos": {"h": 4, "w": 8, "x": 0, "y": 0}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "_index:helk-linux-* AND source_type:linux-auth", "metrics": [{"type": "count"}]}]},
+    {"id": 2, "type": "stat", "title": "Syslog events", "gridPos": {"h": 4, "w": 8, "x": 8, "y": 0}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "_index:helk-linux-* AND source_type:linux-syslog", "metrics": [{"type": "count"}]}]},
+    {"id": 3, "type": "logs", "title": "Linux DFIR logs", "gridPos": {"h": 14, "w": 24, "x": 0, "y": 4}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "_index:helk-linux-*"}]}
+  ]
+}

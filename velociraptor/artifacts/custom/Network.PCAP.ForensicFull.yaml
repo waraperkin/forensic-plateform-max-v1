@@ -1,0 +1,24 @@
+name: Custom.Network.PCAP.ForensicFull
+description: |
+  Analyse PCAP lab — flux, DNS, alertes (offline). Complète ForensicMinimal.
+author: CYBERCORP Forensic Platform
+type: CLIENT
+parameters: []
+sources:
+  - name: LabPcapSummaryOffline
+    query: |
+      LET raw <= read_file(filename="/lab-data/network/pcap-summary.json")
+      LET data <= parse_json(data=raw)
+      SELECT flow.src AS Src, flow.dst AS Dst, flow.proto AS Proto,
+             flow.sport AS Sport, flow.dport AS Dport, flow.bytes AS Bytes, flow.dns AS DNS
+      FROM foreach(row=data.flows, query={
+        SELECT _value AS flow FROM scope()
+      })
+  - name: LabPcapAlerts
+    query: |
+      LET raw <= read_file(filename="/lab-data/network/pcap-summary.json")
+      LET data <= parse_json(data=raw)
+      SELECT alert.severity AS Severity, alert.rule AS Rule, alert.flow AS FlowIndex
+      FROM foreach(row=data.alerts, query={
+        SELECT _value AS alert FROM scope()
+      })

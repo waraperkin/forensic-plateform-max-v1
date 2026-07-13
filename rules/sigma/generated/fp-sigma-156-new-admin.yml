@@ -1,0 +1,14 @@
+title: FP-SIGMA-156-new-admin
+id: fp-sigma-156
+status: stable
+description: New admin group member
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: 4625
+  condition: selection
+tags:
+  - attack.t1110
+level: high

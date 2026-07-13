@@ -1,0 +1,14 @@
+title: FP-SIGMA-047-service-install
+id: fp-sigma-047
+status: stable
+description: New service installed
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: 4625
+  condition: selection
+tags:
+  - attack.t1110
+level: high

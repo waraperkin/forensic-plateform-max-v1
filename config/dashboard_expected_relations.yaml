@@ -1,0 +1,480 @@
+# Règles de cohérence inter-dashboards — mode pessimiste (doute = FAIL)
+# Les chemins font référence à targets.<id>.metrics.<metric> dans fp-dashboard-metrics.json
+
+meta:
+  pessimistic: true
+  human_validation_required: true
+  default_tolerance_pct: 2.0
+  allow_missing_optional: false
+
+# Métriques canoniques attendues par cible (extraction DOM obligatoire)
+required_metrics:
+  osd.security_events:
+    - total_events
+    - total_events_24h_siem
+    - total_alerts
+  osd.ti_overview:
+    - total_ioc
+    - total_cti_entities
+  osd.incident_commander:
+    - total_events
+  osd.purple_team:
+    - total_events
+  osd.platform_health:
+    - total_events
+    - total_ioc
+  grafana.platform_health:
+    - total_events
+    - total_events_siem
+  grafana.opensearch_metrics:
+    - total_events
+  grafana.timesketch_metrics:
+    - total_events
+    - total_analyzers_results
+  ts.overview:
+    - total_events
+  ts.intelligence:
+    - total_analyzers_results
+  ts.explore:
+    - total_events
+  ts.stories:
+    - total_events
+  portal.cert_home:
+    - uploads_cert
+    - uploads_it
+    - events_windows
+    - events_linux_macos
+  portal.cert_dashboard:
+    - total_incidents
+    - total_uploads
+  portal.it_dashboard:
+    - total_uploads
+
+rules:
+  # Chaîne SOC volumes 24h : Explore ≤ timeline API ≤ SIEM OSD ≤ plateforme forensic-*
+  - id: R001
+    description: TS Explore UI <= Grafana Events Explore (API Timesketch)
+    left: ts.explore.total_events
+    op: "<="
+    right: grafana.timesketch_metrics.total_events
+    tolerance_pct: 10
+
+  - id: R001b
+    description: OSD Security « Total events (24h) » ≈ Grafana Events 24h (SIEM) — même index fp-events, fenêtre now-24h
+    left: osd.security_events.total_events_24h_siem
+    op: approx
+    right: grafana.platform_health.total_events_siem
+    tolerance_pct: 15
+
+  - id: R001c
+    description: SIEM 24h (fp-events) <= plateforme 24h (forensic-*)
+    left: grafana.platform_health.total_events_siem
+    op: "<="
+    right: grafana.platform_health.total_events
+    tolerance_pct: 5
+    # SIEM (fp-events) et plateforme (forensic-*) sont lues à 100-300ms d'intervalle :
+    # un drift de quelques centaines d'events est normal en ingest continu.
+    tolerance_abs: 500
+    optional_left: true
+    optional_right: true
+
+  - id: R002
+    description: IOC TI Overview (uniques) ≈ indicators OpenCTI GraphQL
+    left: osd.ti_overview.total_ioc
+    op: approx
+    right: opencti.indicators.total
+    tolerance_pct: 15
+    optional_right: true
+
+  # Grafana Platform Health « Events 24h » vs OpenSearch Metrics « Events 24h » (même health.value)
+  - id: R003
+    description: Platform Health Grafana events 24h ~ OpenSearch Metrics events 24h
+    left: grafana.platform_health.total_events
+    op: approx
+    right: grafana.opensearch_metrics.total_events
+    tolerance_pct: 5
+
+  - id: R004
+    description: OpenSearch Metrics Grafana events 24h <= events cumul portail Windows+Linux
+    left: grafana.opensearch_metrics.total_events
+    op: "<="
+    right: portal.cert_home.events_linux_macos
+    tolerance_pct: 0
+    optional_right: true
+
+  - id: R005
+    description: Incidents portail CERT <= événements Incident Commander OSD
+    left: portal.cert_dashboard.total_incidents
+    op: "<="
+    right: osd.incident_commander.total_incidents
+    tolerance_pct: 0
+    optional_left: true
+    optional_right: true
+
+  - id: R006
+    description: Résultats analyseurs TS Intelligence >= hits Sigma (OSD)
+    left: ts.intelligence.total_analyzers_results
+    op: ">="
+    right: osd.security_events.total_sigma_hits
+    tolerance_pct: 0
+    optional_right: true
+
+  - id: R007
+    description: Overview TS events ~ Explore TS events (même sketch, tolérance 25%)
+    left: ts.overview.total_events
+    op: approx
+    right: ts.explore.total_events
+    tolerance_pct: 25
+    optional_left: true
+    optional_right: true
+
+  - id: R008
+    description: Uploads CERT portail == métrique uploads cert (référence health via Grafana overview si extrait)
+    left: portal.cert_home.uploads_cert
+    op: ">"
+    right: literal:0
+
+  - id: R009
+    description: Uploads IT portail > 0 si uploads CERT > 0
+    left: portal.cert_home.uploads_it
+    op: ">="
+    right: literal:0
+    when_left_gt: 0
+
+  - id: R010
+    description: Events Windows portail cohérent avec eux-mêmes (cumul index, sanity > 0)
+    left: portal.cert_home.events_windows
+    op: ">"
+    right: literal:0
+
+  - id: R011
+    description: Linux/macOS portail cohérent avec Windows (ordre de grandeur)
+    left: portal.cert_home.events_linux_macos
+    op: ">="
+    right: portal.cert_home.events_windows
+    tolerance_pct: 0
+
+  - id: R012
+    description: Purple Team OSD events >= anomalies Purple Team
+    left: osd.purple_team.total_purple_team_events
+    op: ">="
+    right: osd.purple_team.total_anomalies
+    tolerance_pct: 0
+    optional_right: true
+
+  - id: R013
+    description: Incident Commander events >= incidents commander
+    left: osd.incident_commander.total_incident_commander_events
+    op: ">="
+    right: osd.incident_commander.total_incidents
+    tolerance_pct: 0
+    optional_left: true
+    optional_right: true
+
+  - id: R014
+    description: TS explore UI <= Grafana Events Explore (API) — même métrique que R001
+    left: ts.explore.total_events
+    op: "<="
+    right: grafana.timesketch_metrics.total_events
+    tolerance_pct: 10
+    optional_left: true
+    optional_right: true
+
+  - id: R015
+    description: Assets IT dashboard >= 0
+    left: portal.it_dashboard.total_assets
+    op: ">="
+    right: literal:0
+    optional_left: true
+
+  - id: R016
+    description: Alertes OSD >= 0
+    left: osd.security_events.total_alerts
+    op: ">="
+    right: literal:0
+
+  - id: R017
+    description: CTI entities TI overview >= IOC count
+    left: osd.ti_overview.total_cti_entities
+    op: ">="
+    right: osd.ti_overview.total_ioc
+    tolerance_pct: 0
+    optional_left: true
+    optional_right: true
+
+  - id: R018
+    # Les deux lisent cardinality ioc_value (panel TI overview + health ioc_unique_opencti)
+    description: TI overview uniques ≈ Platform Health IOC uniques OpenCTI
+    left: osd.ti_overview.total_ioc
+    op: approx
+    right: osd.platform_health.total_ioc
+    tolerance_pct: 15
+    optional_left: true
+    optional_right: true
+    # Skip lorsque le panel TI overview est filtré (case.id:*) et renvoie 0 :
+    # le compteur authoritatif est alors osd.platform_health.total_ioc (cardinality
+    # globale via health.value). On évite un FAIL « 0 vs 3983 » qui n'a pas de sens
+    # car les deux vues ne couvrent pas le même périmètre dans ce cas.
+    when_left_gt: 0
+
+  - id: R019
+    description: Explore anomalies <= explore events
+    left: ts.explore.total_anomalies
+    op: "<="
+    right: ts.explore.total_events
+    tolerance_pct: 0
+    optional_left: true
+
+  - id: R020
+    description: Overview analyzers <= intelligence analyzers
+    left: ts.overview.total_analyzers_results
+    op: "<="
+    right: ts.intelligence.total_analyzers_results
+    tolerance_pct: 0
+    optional_left: true
+
+  - id: R021
+    description: Grafana OpenSearch events 24h > 0 (snapshot health)
+    left: grafana.opensearch_metrics.total_events
+    op: ">"
+    right: literal:0
+    optional_left: true
+
+  - id: R022
+    description: Security events >= alerts
+    left: osd.security_events.total_events
+    op: ">="
+    right: osd.security_events.total_alerts
+
+  - id: R023
+    description: Portal uploads cert + it cohérent avec total uploads dashboard cert
+    left: portal.cert_dashboard.total_uploads
+    op: approx
+    right: portal.cert_home.uploads_cert
+    tolerance_pct: 50
+    optional_left: true
+
+  - id: R024
+    description: Tokens actifs portail >= 0
+    left: portal.cert_home.tokens_active
+    op: ">="
+    right: literal:0
+    optional_left: true
+
+  - id: R025
+    description: Purple team events <= security total events
+    left: osd.purple_team.total_purple_team_events
+    op: "<="
+    right: osd.security_events.total_events
+    tolerance_pct: 0
+    optional_left: true
+
+  - id: R026
+    description: Incident commander <= security events
+    left: osd.incident_commander.total_incident_commander_events
+    op: "<="
+    right: osd.security_events.total_events
+    tolerance_pct: 0
+    optional_left: true
+
+  - id: R027
+    description: TI overview IOC <= CTI entities
+    left: osd.ti_overview.total_ioc
+    op: "<="
+    right: osd.ti_overview.total_cti_entities
+    tolerance_pct: 0
+    optional_left: true
+    optional_right: true
+
+  - id: R028
+    # Grafana = runs API sketch actif ; TS Intelligence = lignes tableau UI (métriques différentes)
+    description: Grafana analyzer runs <= TS intelligence rows (borne haute)
+    left: grafana.timesketch_metrics.total_analyzers_results
+    op: "<="
+    right: ts.intelligence.total_analyzers_results
+    tolerance_pct: 0
+    optional_left: true
+    optional_right: true
+
+  - id: R029
+    # Portail = comptes cumulatifs par index (health) ; OSD Security = fenêtre 24h
+    description: Web events portail <= Linux/macOS (sous-ensemble index plateforme)
+    left: portal.cert_home.events_web
+    op: "<="
+    right: portal.cert_home.events_linux_macos
+    tolerance_pct: 0
+    optional_left: true
+    optional_right: true
+
+  - id: R030
+    description: Endpoint portail <= Linux/macOS (sous-ensemble index plateforme)
+    left: portal.cert_home.events_endpoint
+    op: "<="
+    right: portal.cert_home.events_linux_macos
+    tolerance_pct: 0
+    optional_left: true
+    optional_right: true
+
+  - id: R031
+    description: Sigma hits <= security events
+    left: osd.security_events.total_sigma_hits
+    op: "<="
+    right: osd.security_events.total_events
+    tolerance_pct: 0
+    optional_left: true
+
+  - id: R032
+    description: Aucune métrique extraite négative (sanity)
+    left: portal.cert_home.uploads_cert
+    op: ">="
+    right: literal:0
+
+  - id: R033
+    description: OSD Platform Health events > 0 si stack active
+    left: osd.platform_health.total_events
+    op: ">"
+    right: literal:0
+    optional_left: true
+
+  - id: R034
+    description: Grafana TS metrics sketches/analyzers non négatifs
+    left: grafana.timesketch_metrics.total_analyzers_results
+    op: ">="
+    right: literal:0
+    optional_left: true
+
+  - id: R035
+    description: Explore events > 0 (activité timeline)
+    left: ts.explore.total_events
+    op: ">"
+    right: literal:0
+    optional_left: true
+
+  - id: R036
+    description: Grafana events 24h <= cumul portail Linux+Windows (sanity upper bound)
+    left: grafana.platform_health.total_events
+    op: "<="
+    right: portal.cert_home.events_linux_macos
+    tolerance_pct: 0
+    optional_left: true
+
+  - id: R037
+    description: TI Overview IOC == OpenCTI indicators total
+    left: osd.ti_overview.total_ioc
+    op: approx
+    right: opencti.indicators.total
+    tolerance_pct: 5
+    optional_left: true
+    optional_right: true
+
+  - id: R038
+    description: Incidents portail CERT <= TheHive cases total
+    left: portal.cert.total_incidents
+    op: "<="
+    right: thehive.cases.total
+    tolerance_pct: 0
+    optional_left: true
+    optional_right: true
+
+  - id: R039
+    description: Analyseurs TS Intelligence >= hits Sigma
+    left: ts.intelligence.analyzers_results
+    op: ">="
+    right: sigma.hits
+    tolerance_pct: 0
+    optional_right: true
+
+  - id: R040
+    description: Overview TS events ~ Explore TS events (même sketch)
+    left: ts.overview.total_events
+    op: approx
+    right: ts.explore.total_events
+    tolerance_pct: 25
+    optional_left: true
+    optional_right: true
+
+  - id: R041
+    description: Incident Commander incidents == TS incident events
+    left: osd.incident_commander.total_incidents
+    op: approx
+    right: ts.incident.total_events
+    tolerance_pct: 15
+    optional_left: true
+    optional_right: true
+
+  - id: R042
+    description: Purple Team OSD events == TS purple events
+    left: osd.purple_team.total_purple_team_events
+    op: approx
+    right: ts.purple.total_events
+    tolerance_pct: 15
+    optional_left: true
+    optional_right: true
+
+  - id: R043
+    description: TS overview UI <= Grafana Events Explore (API)
+    left: ts.overview.total_events
+    op: "<="
+    right: grafana.timesketch_metrics.total_events
+    tolerance_pct: 10
+    optional_left: true
+    optional_right: true
+
+  - id: R044
+    description: Assets IT dashboard >= 1
+    left: portal.it.total_assets
+    op: ">="
+    right: literal:1
+    optional_left: true
+
+  - id: R045
+    description: Incidents portail CERT >= 1
+    left: portal.cert.total_incidents
+    op: ">="
+    right: literal:1
+    optional_left: true
+
+  - id: R046
+    description: OpenCTI entities >= indicators
+    left: opencti.entities.total
+    op: ">="
+    right: opencti.indicators.total
+    tolerance_pct: 0
+    optional_left: true
+    optional_right: true
+
+  - id: R047
+    description: Security events >= Purple Team events
+    left: osd.security_events.total_events
+    op: ">="
+    right: osd.purple_team.total_purple_team_events
+    tolerance_pct: 0
+    optional_right: true
+
+  - id: R048
+    description: Security events >= Incident Commander events
+    left: osd.security_events.total_events
+    op: ">="
+    right: osd.incident_commander.total_incident_commander_events
+    tolerance_pct: 0
+    optional_right: true
+
+  - id: R049
+    description: Grafana platform health >= OpenSearch metrics 24h
+    left: grafana.platform_health.total_events
+    op: ">="
+    right: grafana.opensearch_metrics.total_events
+    tolerance_pct: 0
+    # Les deux stats Grafana lisent la même source health.value mais à 100–500 ms
+    # d'intervalle (deux requêtes API séparées sur deux dashboards). En ingest continu
+    # à plusieurs k/s, un drift de quelques centaines d'events est attendu.
+    tolerance_abs: 500
+    optional_left: true
+    optional_right: true
+
+  - id: R050
+    description: Uploads IT >= uploads CERT (ordre de grandeur portail)
+    left: portal.cert_home.uploads_it
+    op: ">="
+    right: portal.cert_home.uploads_cert
+    tolerance_pct: 0

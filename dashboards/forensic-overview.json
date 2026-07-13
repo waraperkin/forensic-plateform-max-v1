@@ -1,0 +1,733 @@
+{
+  "id": null,
+  "uid": "forensic-overview",
+  "title": "Forensic Platform — Overview",
+  "tags": [
+    "forensic",
+    "security"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Uploads CERT (cumul)",
+      "description": "Cumul index OpenSearch — aligné portail CERT (snapshot health, indépendant de la période du dashboard).",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-opensearch-datasource",
+        "uid": "fp-platform-health"
+      },
+      "targets": [
+        {
+          "refId": "h1",
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "fp-platform-health"
+          },
+          "query": "health.metric: \"uploads_cert\" AND health.category: \"portal\"",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "health.value"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "1d",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Reçus IT (cumul)",
+      "description": "Cumul index OpenSearch — aligné portail CERT (snapshot health, indépendant de la période du dashboard).",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-opensearch-datasource",
+        "uid": "fp-platform-health"
+      },
+      "targets": [
+        {
+          "refId": "h2",
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "fp-platform-health"
+          },
+          "query": "health.metric: \"uploads_it\" AND health.category: \"portal\"",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "health.value"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "1d",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Events Windows (cumul)",
+      "description": "Cumul index OpenSearch — aligné portail CERT (snapshot health, indépendant de la période du dashboard).",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-opensearch-datasource",
+        "uid": "fp-platform-health"
+      },
+      "targets": [
+        {
+          "refId": "h3",
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "fp-platform-health"
+          },
+          "query": "health.metric: \"events_windows\" AND health.category: \"portal\"",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "health.value"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "1d",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Linux/macOS (cumul)",
+      "description": "Cumul index OpenSearch — aligné portail CERT (snapshot health, indépendant de la période du dashboard).",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-opensearch-datasource",
+        "uid": "fp-platform-health"
+      },
+      "targets": [
+        {
+          "refId": "h4",
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "fp-platform-health"
+          },
+          "query": "health.metric: \"events_linux_macos\" AND health.category: \"portal\"",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "health.value"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "1d",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Events Web (cumul)",
+      "description": "Cumul index OpenSearch — aligné portail CERT (snapshot health, indépendant de la période du dashboard).",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-opensearch-datasource",
+        "uid": "fp-platform-health"
+      },
+      "targets": [
+        {
+          "refId": "h5",
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "fp-platform-health"
+          },
+          "query": "health.metric: \"events_web\" AND health.category: \"portal\"",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "health.value"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "1d",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Endpoint (cumul)",
+      "description": "Cumul index OpenSearch — aligné portail CERT (snapshot health, indépendant de la période du dashboard).",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-opensearch-datasource",
+        "uid": "fp-platform-health"
+      },
+      "targets": [
+        {
+          "refId": "h6",
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "fp-platform-health"
+          },
+          "query": "health.metric: \"events_endpoint\" AND health.category: \"portal\"",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "max",
+              "field": "health.value"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "1d",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 4
+      },
+      "type": "timeseries",
+      "title": "Volume d'événements dans le temps",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "reduceOptions": {}
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "forensic-windows"
+          },
+          "alias": "Windows",
+          "query": "*",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        },
+        {
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "forensic-linux"
+          },
+          "alias": "Linux",
+          "query": "*",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        },
+        {
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "forensic-uploads"
+          },
+          "alias": "Uploads",
+          "query": "*",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 4
+      },
+      "type": "barchart",
+      "title": "Répartition par portail (CERT / IT)",
+      "options": {
+        "orientation": "horizontal",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "C",
+          "alias": "CERT",
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "forensic-uploads"
+          },
+          "query": "portal:cert",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        },
+        {
+          "refId": "I",
+          "alias": "IT",
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "forensic-uploads"
+          },
+          "query": "portal:it",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "datasource": {
+        "type": "grafana-opensearch-datasource",
+        "uid": "forensic-uploads"
+      }
+    },
+    {
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "type": "table",
+      "title": "Derniers uploads forensics",
+      "options": {
+        "showHeader": true,
+        "reduceOptions": {}
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "forensic-uploads"
+          },
+          "query": "_exists_:case_id",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "raw_document"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp",
+          "size": 20
+        }
+      ],
+      "datasource": {
+        "type": "grafana-opensearch-datasource",
+        "uid": "forensic-uploads"
+      }
+    },
+    {
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "type": "table",
+      "title": "Alertes de sécurité (CERT)",
+      "options": {
+        "showHeader": true,
+        "reduceOptions": {}
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-opensearch-datasource",
+            "uid": "forensic-all"
+          },
+          "query": "tags:ALERT",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "raw_document"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "1d",
+                "min_doc_count": "0"
+              }
+            }
+          ],
+          "timeField": "@timestamp",
+          "size": 20
+        }
+      ],
+      "datasource": {
+        "type": "grafana-opensearch-datasource",
+        "uid": "forensic-all"
+      }
+    }
+  ],
+  "description": "Compteurs du haut = cumul portail (health). Graphiques = période sélectionnée en haut à droite."
+}

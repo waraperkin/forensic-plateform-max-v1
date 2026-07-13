@@ -1,0 +1,112 @@
+# Attentes minimales QA — mode pessimiste (doute = FAIL)
+# Utilisé par fp_browser_qa_*.py et fp_ui_tests_verify.py
+
+meta:
+  pessimistic: true
+  min_body_text_length: 500
+  require_screenshot_critical: true
+
+critical_views:
+  - timesketch.explore
+  - timesketch.overview
+  - timesketch.intelligence
+  - timesketch.stories
+  - osd.fp_security_events_ti
+  - osd.fp_ti_overview
+  - osd.fp_incident_commander
+  - osd.fp_purple_team
+  - osd.fp_platform_health
+  - osd.discover
+  - grafana.platform_health
+  - portal_cert.dashboard_cert
+  - portal_cert.dashboard_it
+  - portal_cert.home
+
+timesketch:
+  login:
+    min_body_text: 200
+    must_contain: ["timesketch", "username"]
+  explore:
+    min_body_text: 2000
+    min_timelines: 1
+    min_panels: 1
+    must_contain: ["timeline", "search"]
+    forbid_phrases: ["server error", "could not locate"]
+  overview:
+    min_body_text: 300
+    require_cards: false
+    min_stat_labels: 1
+    must_contain: ["timesketch"]
+  stories:
+    min_body_text: 250
+    min_story_links: 1
+    must_contain: ["timesketch"]
+  intelligence:
+    min_body_text: 300
+    min_analyzer_mentions: 1
+    must_contain: ["analyzer"]
+
+osd:
+  fp_security_events_ti:
+    dashboard_id: fp-opensearch-security
+    min_panels: 5
+    min_panel_with_content: 3
+    min_body_text: 1500
+    must_contain: ["opensearch"]
+  fp_ti_overview:
+    dashboard_id: fp-ti-overview
+    min_panels: 4
+    min_panel_with_content: 2
+    min_body_text: 600
+  fp_incident_commander:
+    dashboard_id: fp-incident-commander-playbook
+    min_panels: 4
+    min_panel_with_content: 2
+    min_body_text: 1200
+  fp_purple_team:
+    dashboard_id: fp-purple-team-playbook
+    min_panels: 4
+    min_panel_with_content: 2
+    min_body_text: 1200
+  fp_platform_health:
+    dashboard_id: fp-platform-health
+    min_panels: 4
+    min_panel_with_content: 2
+    min_body_text: 1200
+  discover:
+    min_hits_indicator: 1
+    min_body_text: 1000
+    must_contain: ["discover", "opensearch"]
+
+grafana:
+  platform_health:
+    dashboard_uid: fp-platform-health-gf
+    min_panels: 2
+    min_panels_with_numeric: 1
+    min_numeric_tokens: 3
+    min_body_text: 180
+    must_contain: ["grafana"]
+    forbid_zero_only_dashboard: true
+
+portal_cert:
+  home:
+    min_body_text: 800
+    must_contain: ["forensic", "portail cert"]
+  dashboard_cert:
+    min_incidents: 1
+    min_body_text: 400
+    api_path: "/api/master/incidents"
+  dashboard_it:
+    min_assets: 1
+    min_body_text: 400
+    api_path: "/api/master/assets"
+
+portal_it:
+  home:
+    min_body_text: 400
+    must_contain: ["portail it"]
+
+e2e:
+  case_id_visible_osd: true
+  case_id_visible_timesketch: false
+  min_opensearch_docs_for_case: 1

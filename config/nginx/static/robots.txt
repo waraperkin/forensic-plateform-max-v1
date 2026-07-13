@@ -1,0 +1,6 @@
+# Forensic Minimal Platform — allow categorization crawlers
+User-agent: *
+Allow: /
+Allow: /site-info.html
+Allow: /.well-known/security.txt
+Sitemap: https://203.0.113.99/site-info.html

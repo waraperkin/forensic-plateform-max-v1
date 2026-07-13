@@ -1,0 +1,90 @@
+{
+  "index_patterns": [
+    "forensic-*",
+    "fp-platform-logs*",
+    "fp-observability-*"
+  ],
+  "template": {
+    "settings": {
+      "index.default_pipeline": "fp-parsing-master-full"
+    },
+    "mappings": {
+      "properties": {
+        "event": {
+          "properties": {
+            "dataset": { "type": "keyword" },
+            "category": { "type": "keyword" },
+            "type": { "type": "keyword" },
+            "code": { "type": "keyword" },
+            "provider": { "type": "keyword" },
+            "ingested": { "type": "date" }
+          }
+        },
+        "log": {
+          "properties": {
+            "level": { "type": "keyword" },
+            "source": { "type": "keyword" }
+          }
+        },
+        "host": {
+          "properties": {
+            "name": { "type": "keyword" },
+            "os": { "properties": { "family": { "type": "keyword" } } }
+          }
+        },
+        "user": { "properties": { "name": { "type": "keyword" } } },
+        "source": { "properties": { "ip": { "type": "ip" }, "port": { "type": "long" } } },
+        "destination": { "properties": { "ip": { "type": "ip" }, "port": { "type": "long" } } },
+        "process": {
+          "properties": {
+            "name": { "type": "keyword" },
+            "pid": { "type": "long" },
+            "command_line": { "type": "text" }
+          }
+        },
+        "file": { "properties": { "name": { "type": "keyword" }, "path": { "type": "keyword" } } },
+        "registry": { "properties": { "key": { "type": "keyword" }, "value": { "type": "keyword" } } },
+        "dns": { "properties": { "question": { "properties": { "name": { "type": "keyword" } } } } },
+        "http": {
+          "properties": {
+            "request": { "properties": { "method": { "type": "keyword" } } },
+            "response": { "properties": { "status_code": { "type": "long" } } }
+          }
+        },
+        "url": {
+          "properties": {
+            "full": { "type": "keyword", "ignore_above": 2048 },
+            "path": { "type": "keyword" },
+            "domain": { "type": "keyword" }
+          }
+        },
+        "fp": {
+          "properties": {
+            "parsing_version": { "type": "keyword" },
+            "ingest": { "type": "keyword" }
+          }
+        },
+        "ti": {
+          "properties": {
+            "ioc_value": { "type": "keyword" },
+            "ioc_type": { "type": "keyword" },
+            "tags": { "type": "keyword" },
+            "threat_score": { "type": "long" }
+          }
+        },
+        "dfir": {
+          "properties": {
+            "artifact": { "type": "keyword" },
+            "tool": { "type": "keyword" }
+          }
+        },
+        "ir": { "properties": { "case_id": { "type": "keyword" } } },
+        "os_type": { "type": "keyword" },
+        "csv_EventID": { "type": "keyword" }
+      }
+    }
+  },
+  "priority": 220,
+  "version": 1,
+  "_meta": { "description": "Parsing Master Full Spectrum — tous forensic-* et fp-platform-logs" }
+}

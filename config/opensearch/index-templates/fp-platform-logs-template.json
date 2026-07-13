@@ -1,0 +1,29 @@
+{
+  "index_patterns": ["fp-platform-logs-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.refresh_interval": "10s",
+      "plugins.index_state_management.policy_id": "fp-logs-policy"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "service": { "type": "keyword" },
+        "component": { "type": "keyword" },
+        "level": { "type": "keyword" },
+        "message": { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 512 } } },
+        "host": { "properties": { "name": { "type": "keyword" } } },
+        "trace_id": { "type": "keyword" },
+        "case_id": { "type": "keyword" },
+        "upload_id": { "type": "keyword" },
+        "error": { "type": "text" },
+        "duration_ms": { "type": "long" }
+      }
+    }
+  },
+  "priority": 210,
+  "version": 1,
+  "_meta": { "description": "FP platform service logs (nginx, ingest, timesketch, misp, etc.)" }
+}

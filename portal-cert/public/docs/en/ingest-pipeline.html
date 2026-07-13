@@ -1,0 +1,79 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">Forensic ingestion pipeline: upload via CERT/IT portals, MinIO storage, Redis queue, <code>ingest-worker</code> processing, OpenSearch indexing and Timesketch import. Optional: push to HELK for hunting.</p>
+
+  <h3>Pipeline diagram</h3>
+  <pre class="mermaid">flowchart TB
+    classDef portal fill:#0d47a1,stroke:#00e5ff,color:#fff
+    classDef queue fill:#f57f17,stroke:#ffca28,color:#000
+    classDef worker fill:#2e7d32,stroke:#a5d6a7,color:#fff
+    classDef store fill:#1b5e20,stroke:#81c784,color:#e8f5e9
+
+    CERT["CERT portal<br/>POST /api/upload"]:::portal
+    IT["IT portal<br/>token + upload"]:::portal
+    VAL["upload-limits.js<br/>ext + size"]:::portal
+    MINIO[("MinIO buckets<br/>logs-windows, pcap…")]:::store
+    REDIS[("Redis<br/>ingest-queue")]:::queue
+    WORKER["ingest-worker<br/>worker.py"]:::worker
+    PARSE["Parsers<br/>evtx, csv, plaso…"]:::worker
+    OS[("OpenSearch<br/>forensic-*")]:::store
+    TS["Timesketch<br/>timesketch_io.py"]:::store
+    HELK["pushToHelk()<br/>upload option"]:::worker
+    ERR["/api/master/ingest-errors"]:::portal
+
+    CERT & IT --> VAL --> MINIO & REDIS
+    REDIS --> WORKER --> PARSE
+    PARSE --> OS & TS
+    CERT -.-> HELK
+    WORKER -.-> ERR</pre>
+
+  <h3>Detailed steps</h3>
+  <ol>
+    <li><strong>Reception</strong> — <code>portal-cert/server.js</code> or <code>portal-it/server.js</code> receives files (multer). Metadata: <code>case_id</code>, analyst, priority, source OS.</li>
+    <li><strong>Validation</strong> — <code>lib/upload-limits.js</code>: allowed extensions, max 5.4 GB, max 100 files.</li>
+    <li><strong>Storage</strong> — MinIO bucket by type (logs-windows, timesketch, pcap, iocs, kape…).</li>
+    <li><strong>Enqueue</strong> — <code>lib/ingest-queue.js</code> pushes JSON job to Redis.</li>
+    <li><strong>Processing</strong> — <code>ingest-worker/worker.py</code> consumes queue, parses and bulk-indexes.</li>
+    <li><strong>Enrichment</strong> — <code>ti_enrichment.py</code> may enrich with OpenCTI/MISP context.</li>
+    <li><strong>Timesketch</strong> — <code>timesketch_pipeline.py</code> + strict 9-column CSV.</li>
+    <li><strong>HELK (optional)</strong> — if checked on upload, <code>lib/helk-connector.js</code> POST to HELK Logstash.</li>
+  </ol>
+
+  <h3>Supported file types</h3>
+  <table class="portal-doc-table">
+    <thead><tr><th>Extension</th><th>Parser</th><th>Destination</th><th>Index / output</th></tr></thead>
+    <tbody>
+      <tr><td><code>.evtx</code>, <code>.evt</code></td><td>evtx_parser.py</td><td>logs-windows + OS</td><td>forensic-windows-*</td></tr>
+      <tr><td><code>.plaso</code></td><td>timesketch pipeline</td><td>timesketch bucket</td><td>Timesketch sketch</td></tr>
+      <tr><td><code>.csv</code>, <code>.jsonl</code></td><td>timesketch_csv.py</td><td>TS + OS</td><td>9-column timeline</td></tr>
+      <tr><td><code>.log</code>, <code>.txt</code>, syslog</td><td>text_parser.py</td><td>logs-linux</td><td>forensic-linux-*</td></tr>
+      <tr><td><code>.pcap</code>, <code>.pcapng</code></td><td>binary storage</td><td>MinIO pcap</td><td>Upload metadata</td></tr>
+      <tr><td><code>.stix</code></td><td>stix / IOC</td><td>iocs bucket</td><td>CTI correlation</td></tr>
+      <tr><td><code>.zip</code> (KAPE)</td><td>archive</td><td>kape bucket</td><td>Manual extraction</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Logstash &amp; Filebeat (network flow)</h3>
+  <p>In parallel with portal upload, <strong>FP Logstash</strong> listens on:</p>
+  <ul>
+    <li><code>:5044</code> — Beats (agents/Filebeat)</li>
+    <li><code>:5045</code> — JSON lines</li>
+    <li><code>:5140/udp</code> — Syslog</li>
+    <li><code>:5555</code> — HEC (HTTP Event Collector)</li>
+  </ul>
+  <p>Pipelines: <code>config/logstash/pipeline/00-inputs.conf</code>, <code>10-windows.conf</code>, <code>20-linux-macos.conf</code>, <code>40-multi-source.conf</code>. <strong>Filebeat</strong> collects Docker container logs to OpenSearch.</p>
+
+  <h3>Monitoring &amp; APIs</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Interface</th><th>Location</th></tr></thead>
+    <tbody>
+      <tr><td>Ingestion &amp; Evidences tab</td><td>Volumes, CERT/IT upload history</td></tr>
+      <tr><td>Ingest Total KPI</td><td>Portal overview</td></tr>
+      <tr><td>Grafana fp-platform-health</td><td>OpenSearch document cumulative</td></tr>
+      <tr><td><code>GET /api/stats</code></td><td>Real-time parsing stats</td></tr>
+      <tr><td><code>GET /api/master/ingest_status</code></td><td>Ingest queue status</td></tr>
+      <tr><td><code>GET /api/master/ingest_errors</code></td><td>Detailed parsing errors</td></tr>
+    </tbody>
+  </table>
+
+  <p class="fp-muted">Key files: <code>ingest-worker/worker.py</code>, <code>lib/ingest-queue.js</code>, <code>docs/PORTAL/FLOWS.md</code>.</p>
+</div>

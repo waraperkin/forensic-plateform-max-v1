@@ -1,0 +1,57 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">Sécurité opérationnelle du portail et de la plateforme : authentification, sessions, accès IT par token, audit et mode formation.</p>
+
+  <h3>Authentification portail CERT</h3>
+  <table class="portal-doc-table">
+    <thead><tr><th>Mécanisme</th><th>Endpoint</th><th>Détail</th></tr></thead>
+    <tbody>
+      <tr><td>Login local</td><td><code>POST /api/auth/login</code></td><td>Session cookie HttpOnly, durée configurable</td></tr>
+      <tr><td>MFA TOTP</td><td><code>POST /api/auth/mfa</code></td><td>Activation/validation pour comptes sensibles</td></tr>
+      <tr><td>Rôles</td><td>—</td><td><code>admin</code> (administration, credentials) vs analyste</td></tr>
+      <tr><td>Déconnexion</td><td><code>POST /api/auth/logout</code></td><td>Invalidation session serveur</td></tr>
+    </tbody>
+  </table>
+  <p>Fichiers : <code>portal-cert/lib/auth-mount.js</code>, <code>auth-routes.js</code>, <code>auth-session.js</code>, <code>auth-store.js</code>.</p>
+
+  <h3>Portail IT — modèle token</h3>
+  <ul>
+    <li>L'analyste CERT génère un token via <code>POST /api/tokens/generate</code> (case_id, expiration, max utilisations)</li>
+    <li>L'équipe IT accède à <code>/it/?token=…</code> sans compte permanent</li>
+    <li>Upload limité au périmètre du token ; traçabilité dans <code>forensic-tokens*</code></li>
+    <li>Révocation : <code>DELETE /api/tokens/:id</code></li>
+  </ul>
+
+  <h3>TLS &amp; réseau</h3>
+  <ul>
+    <li>TLS terminé sur <strong>Nginx</strong> — certificats dans <code>config/nginx/certs/</code></li>
+    <li>Header <code>Strict-Transport-Security</code> activé</li>
+    <li>Fingerprint SSL affiché dans Santé IT pour vérification équipes distantes</li>
+    <li>Services internes (OpenSearch, Redis) non exposés hors réseau Docker</li>
+  </ul>
+
+  <h3>Audit &amp; traçabilité</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Journal</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>Journal d'activité portail</td><td>Onglet Références → audit CYBERCORP</td></tr>
+      <tr><td><code>GET /api/audit/events</code></td><td>API filtrable (login, upload, master CRUD)</td></tr>
+      <tr><td>Centre d'audit</td><td>Historique modifications configuration</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Mode démo (formation)</h3>
+  <p>Activable depuis Documentation portail :</p>
+  <ul>
+    <li>Bloque les actions <code>delete</code>, <code>purge</code>, <code>regenerate</code></li>
+    <li>Implémenté dans <code>portal-doc.js</code> (<code>blockDemoDestructive</code>)</li>
+    <li>Utile pour démonstrations sans risque d'écriture destructive</li>
+  </ul>
+
+  <h3>Bonnes pratiques analyste</h3>
+  <ol>
+    <li>Ne jamais partager les credentials du Centre d'accès hors canal sécurisé</li>
+    <li>Relire tout export IOC/rapport avant envoi externe</li>
+    <li>Utiliser des tokens IT à expiration courte pour les dépôts urgents</li>
+    <li>Vérifier le mode démo avant une session de formation</li>
+  </ol>
+</div>

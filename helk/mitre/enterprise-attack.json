@@ -1,0 +1,16 @@
+{
+  "version": "14.1-lab-subset",
+  "type": "bundle",
+  "techniques": [
+    {"id": "T1059", "name": "Command and Scripting Interpreter", "tactic": "execution", "tactic_id": "TA0002", "severity": "medium", "description": "Adversaries may abuse command and script interpreters to execute commands."},
+    {"id": "T1059.001", "name": "PowerShell", "tactic": "execution", "tactic_id": "TA0002", "severity": "high", "description": "Adversaries may abuse PowerShell commands and scripts for execution."},
+    {"id": "T1003", "name": "OS Credential Dumping", "tactic": "credential-access", "tactic_id": "TA0006", "severity": "high", "description": "Adversaries may attempt to dump credentials."},
+    {"id": "T1003.001", "name": "LSASS Memory", "tactic": "credential-access", "tactic_id": "TA0006", "severity": "critical", "description": "Adversaries may attempt to access credential material in LSASS."},
+    {"id": "T1110", "name": "Brute Force", "tactic": "credential-access", "tactic_id": "TA0006", "severity": "medium", "description": "Adversaries may use brute force techniques to gain access."},
+    {"id": "T1110.001", "name": "Password Guessing", "tactic": "credential-access", "tactic_id": "TA0006", "severity": "medium", "description": "Adversaries may guess passwords to obtain access."},
+    {"id": "T1071", "name": "Application Layer Protocol", "tactic": "command-and-control", "tactic_id": "TA0011", "severity": "medium", "description": "Adversaries may communicate using application layer protocols."},
+    {"id": "T1071.004", "name": "DNS", "tactic": "command-and-control", "tactic_id": "TA0011", "severity": "medium", "description": "Adversaries may use DNS for C2."},
+    {"id": "T1548.003", "name": "Sudo and Sudo Caching", "tactic": "privilege-escalation", "tactic_id": "TA0004", "severity": "medium", "description": "Adversaries may abuse sudo for privilege escalation."},
+    {"id": "T1571", "name": "Non-Standard Port", "tactic": "command-and-control", "tactic_id": "TA0011", "severity": "high", "description": "Adversaries may use non-standard ports for C2."}
+  ]
+}

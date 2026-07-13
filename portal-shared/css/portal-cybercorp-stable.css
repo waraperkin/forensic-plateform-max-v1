@@ -1,0 +1,471 @@
+/**
+ * CYBERCORP Portal — couche STABILITÉ fonctionnelle (layout / scroll / responsive)
+ * Identité visuelle : cybercorp-theme.css (palette, typo, composants)
+ * Ce fichier ne change PAS l’ADN CyberCorp — il corrige layout, scroll, menus, alignements.
+ */
+
+/* ── Variables alignées sur cybercorp-theme ── */
+body.portal-cybercorp-stable {
+  --ccs-sidebar-w: var(--sidebar-w, 248px);
+  --ccs-header-h: var(--header-h, 56px);
+  --ccs-ease: 0.12s ease;
+}
+
+/* Annule portal-layout-v2 : main doit remplir la hauteur dispo (scroll interne) */
+html[data-edition="cybercorp"] body.portal-cybercorp-stable .fp-main,
+html[data-edition="cybercorp"] body.portal-cybercorp-stable .cc-it-main {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+}
+
+html[data-edition="cybercorp"] body.portal-cybercorp-stable .app-body {
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+/* ── Shell : une seule colonne de scroll (main) ── */
+body.portal-cybercorp-stable.app-shell,
+body.portal-cybercorp-stable .fp-it-wrap.app-shell {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  overflow: hidden !important;
+}
+
+body.portal-cybercorp-stable .app-body,
+[data-edition="cybercorp"] body.portal-cybercorp-stable .app-body {
+  display: grid !important;
+  grid-template-columns: var(--ccs-sidebar-w) minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  align-items: stretch !important;
+}
+
+/* Zone scroll unique : main contraint au viewport (corrige align-self:start de portal-v6) */
+body.portal-cybercorp-stable .fp-main,
+body.portal-cybercorp-stable .cc-it-main,
+body.portal-v6.portal-cybercorp-stable .fp-main,
+body.portal-v6.portal-cybercorp-stable .cc-it-main,
+[data-edition="cybercorp"] body.portal-cybercorp-stable .fp-main,
+[data-edition="cybercorp"] body.portal-cybercorp-stable .cc-it-main {
+  align-self: stretch !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 20px 24px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  box-sizing: border-box !important;
+}
+
+/* ── Panels : un seul visible, pas de décalage ── */
+body.portal-cybercorp-stable .fp-panel {
+  display: none !important;
+  pointer-events: none !important;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+body.portal-cybercorp-stable .fp-panel.active {
+  display: flex !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+}
+
+body.portal-cybercorp-stable .fp-panel.active > .fp-card,
+body.portal-cybercorp-stable .fp-panel.active > .fp-card.cc-pro-panel {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+}
+
+/* ── Header : alignement stable ── */
+body.portal-cybercorp-stable .fp-header,
+body.portal-cybercorp-stable .cc-topbar {
+  flex: 0 0 var(--ccs-header-h) !important;
+  height: var(--ccs-header-h) !important;
+  min-height: var(--ccs-header-h) !important;
+  max-height: var(--ccs-header-h) !important;
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 10px !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+}
+
+body.portal-cybercorp-stable .cc-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+body.portal-cybercorp-stable .cc-topbar .fp-nav-links {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  gap: 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+body.portal-cybercorp-stable .cc-topbar .fp-nav-links::-webkit-scrollbar {
+  display: none;
+  height: 0;
+}
+
+body.portal-cybercorp-stable .fp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+body.portal-cybercorp-stable .fp-menu-toggle {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+/* ── Sidebar desktop ── */
+body.portal-cybercorp-stable .fp-sidebar,
+body.portal-cybercorp-stable .cc-sidebar,
+body.portal-cybercorp-stable .cc-it-sidebar {
+  width: var(--ccs-sidebar-w) !important;
+  min-width: var(--ccs-sidebar-w) !important;
+  max-width: var(--ccs-sidebar-w) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  align-self: stretch !important;
+}
+
+body.portal-cybercorp-stable .cc-nav-btn {
+  display: flex;
+  align-items: center;
+  width: calc(100% - 12px);
+  margin: 0 6px;
+  box-sizing: border-box;
+  transform: none !important;
+  will-change: auto;
+}
+
+body.portal-cybercorp-stable .cc-nav-btn:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Tables : scroll interne, header sticky ── */
+body.portal-cybercorp-stable .fp-table-wrap,
+body.portal-cybercorp-stable .fp-ds-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  max-height: min(55vh, 520px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.portal-cybercorp-stable table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+body.portal-cybercorp-stable .cc-soc-tools-table th:nth-child(1),
+body.portal-cybercorp-stable .cc-soc-tools-table td:nth-child(1) {
+  min-width: 120px;
+  white-space: nowrap;
+}
+
+body.portal-cybercorp-stable .cc-url-cell {
+  word-break: break-all;
+  max-width: 360px;
+}
+
+body.portal-cybercorp-stable .cc-soc-actions {
+  white-space: nowrap;
+  width: 1%;
+}
+
+/* ── Actions rapides overview (CyberCorp) ── */
+body.portal-cybercorp-stable .fl-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+
+body.portal-cybercorp-stable .fl-quick-actions .fl-qa-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: calc(33.33% - 6px);
+  padding: 8px 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: var(--radius, 6px);
+  background: var(--bg-surface, #161b22);
+  color: var(--text-muted, #8b949e);
+  cursor: pointer;
+  transition: background var(--ccs-ease), border-color var(--ccs-ease), color var(--ccs-ease);
+}
+
+body.portal-cybercorp-stable .fl-quick-actions .fl-qa-btn:hover {
+  border-color: var(--border-focus, rgba(10, 132, 255, 0.5));
+  color: var(--text, #e6edf3);
+  background: var(--accent-muted, rgba(10, 132, 255, 0.12));
+}
+
+body.portal-cybercorp-stable .fl-quick-actions .fl-qa-btn--primary {
+  border-color: var(--border-focus, rgba(10, 132, 255, 0.5));
+  background: var(--accent-muted, rgba(10, 132, 255, 0.12));
+  color: var(--accent, #0a84ff);
+}
+
+@media (max-width: 600px) {
+  body.portal-cybercorp-stable .fl-quick-actions .fl-qa-btn {
+    max-width: 100%;
+    flex: 1 1 100%;
+  }
+}
+
+/* ── Toolbars / boutons alignés ── */
+body.portal-cybercorp-stable .fp-toolbar,
+body.portal-cybercorp-stable .cc-tp-toolbar,
+body.portal-cybercorp-stable .cc-filter-bar,
+body.portal-cybercorp-stable .fp-ds-activity-toolbar,
+body.portal-cybercorp-stable .fp-ds-kb-toolbar,
+body.portal-cybercorp-stable .fp-ds-it-ops-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+body.portal-cybercorp-stable .fp-btn,
+body.portal-cybercorp-stable .fp-ds-chip {
+  vertical-align: middle;
+  transform: none !important;
+}
+
+body.portal-cybercorp-stable .fp-btn:hover,
+body.portal-cybercorp-stable .fp-table tbody tr:hover {
+  transform: none !important;
+}
+
+/* ── Scroll zones dédiées ── */
+body.portal-cybercorp-stable .fp-ds-kb-scroll,
+body.portal-cybercorp-stable .fp-ds-scroll-panel,
+body.portal-cybercorp-stable .fp-ds-upload-queue,
+body.portal-cybercorp-stable #activity-log-root .fp-ds-table-wrap {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.portal-cybercorp-stable .fp-console {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ── KPI / grilles : pas de débordement ── */
+body.portal-cybercorp-stable .fp-ds-kpi-grid,
+body.portal-cybercorp-stable .cc-dash-grid,
+body.portal-cybercorp-stable .cc-heat-grid,
+body.portal-cybercorp-stable .fp-ds-action-grid {
+  width: 100%;
+  min-width: 0;
+}
+
+body.portal-cybercorp-stable .cc-dash-panel,
+body.portal-cybercorp-stable .fp-ds-card {
+  min-width: 0;
+}
+
+/* ── Neutraliser glass / glow legacy ── */
+body.portal-cybercorp-stable .cc-glass-panel,
+body.portal-cybercorp-stable .fp-card-premium {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ── Footer hors flux scroll main ── */
+body.portal-cybercorp-stable .fp-footer,
+body.portal-cybercorp-stable .cc-footer {
+  flex-shrink: 0;
+}
+
+body.portal-cybercorp-stable .fp-it-wrap {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 100vh;
+  height: 100vh;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+body.portal-cybercorp-stable .fp-it-wrap > .app-body.cc-it-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ── Overlay menu mobile : backdrop ── */
+body.portal-cybercorp-stable.cc-sidebar-open::before {
+  content: "";
+  position: fixed;
+  inset: var(--ccs-header-h) 0 0 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 199;
+  pointer-events: auto;
+}
+
+body.portal-cybercorp-stable.cc-sidebar-open .fp-main,
+body.portal-cybercorp-stable.cc-sidebar-open .cc-it-main {
+  overflow: hidden !important;
+}
+
+@media (max-width: 900px) {
+  body.portal-cybercorp-stable .fp-menu-toggle {
+    display: inline-flex !important;
+  }
+
+  body.portal-cybercorp-stable .cc-topbar .fp-nav-links {
+    display: none !important;
+  }
+
+  /* Mobile : sidebar en overlay — le main prend 100 % (CERT + IT) */
+  body.portal-cybercorp-stable .app-body,
+  body.portal-cybercorp-stable .app-body.cc-it-body {
+    display: block !important;
+    grid-template-columns: none !important;
+    position: relative !important;
+  }
+
+  body.portal-cybercorp-stable .fp-sidebar,
+  body.portal-cybercorp-stable .cc-sidebar,
+  body.portal-cybercorp-stable .cc-it-sidebar {
+    position: fixed !important;
+    top: var(--ccs-header-h) !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: min(280px, 88vw) !important;
+    min-width: 0 !important;
+    max-width: min(280px, 88vw) !important;
+    height: auto !important;
+    max-height: none !important;
+    transform: translateX(-100%) !important;
+    transition: transform var(--ccs-ease) !important;
+    z-index: 200 !important;
+    background: var(--bg-elevated, #161b22) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.35);
+  }
+
+  body.portal-cybercorp-stable .fp-sidebar.open,
+  body.portal-cybercorp-stable .fp-sidebar.is-open,
+  body.portal-cybercorp-stable .cc-sidebar.open,
+  body.portal-cybercorp-stable .cc-it-sidebar.open {
+    transform: translateX(0) !important;
+  }
+
+  body.portal-cybercorp-stable .fp-main,
+  body.portal-cybercorp-stable .cc-it-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 14px 16px !important;
+    box-sizing: border-box !important;
+  }
+
+  body.portal-cybercorp-stable .fp-it-wrap > .app-body.cc-it-body {
+    width: 100% !important;
+  }
+
+  html[data-edition="cybercorp"] body.portal-cybercorp-stable .app-body,
+  html[data-edition="cybercorp"] body.portal-cybercorp-stable .app-body.cc-it-body,
+  html[data-portal="it"] body.portal-cybercorp-stable .app-body.cc-it-body {
+    display: block !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
+  }
+
+  html[data-portal="it"] body.portal-cybercorp-stable .cc-it-sidebar {
+    position: fixed !important;
+    transform: translateX(-100%) !important;
+  }
+
+  html[data-portal="it"] body.portal-cybercorp-stable .cc-it-sidebar.open {
+    transform: translateX(0) !important;
+  }
+
+  body.portal-cybercorp-stable .cc-badge-edition {
+    display: none;
+  }
+
+  body.portal-cybercorp-stable .cc-brand h1 {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.portal-cybercorp-stable .fp-ds-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.portal-cybercorp-stable .fp-ds-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 390px) {
+  body.portal-cybercorp-stable .fp-ds-kpi-grid,
+  body.portal-cybercorp-stable .fp-ds-action-grid,
+  body.portal-cybercorp-stable .cc-heat-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.portal-cybercorp-stable .fp-ds-activity-toolbar,
+  body.portal-cybercorp-stable .fp-ds-kb-toolbar,
+  body.portal-cybercorp-stable .fp-ds-it-ops-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

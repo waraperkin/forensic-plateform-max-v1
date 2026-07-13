@@ -1,0 +1,5 @@
+Contact: mailto:security@forensic.local
+Preferred-Languages: fr, en
+Canonical: https://203.0.113.99/
+Policy: https://203.0.113.99/site-info.html
+Acknowledgments: Cybercorp Forensic Platform — authorized internal SOC/DFIR lab only

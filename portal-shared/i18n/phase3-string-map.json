@@ -1,0 +1,77 @@
+[
+  {
+    "fr": "Comptes / tokens API SentinelOne.",
+    "en": "Comptes / tokens API SentinelOne.",
+    "key": "threat.s1_tokens_desc"
+  },
+  {
+    "fr": ">📋 Copier",
+    "en": "📋 Copier",
+    "key": "msg.copier"
+  },
+  {
+    "fr": "Aucun IOC indexé",
+    "en": "No IOC indexed",
+    "key": "cti.no_ioc"
+  },
+  {
+    "fr": "ouvrez l",
+    "en": "ouvrez l",
+    "key": "msg.ouvrez_l"
+  },
+  {
+    "fr": "scripts admin, SCCM",
+    "en": "scripts admin, SCCM",
+    "key": "msg.scripts_admin_sccm"
+  },
+  {
+    "fr": "comptes de service, scans AD",
+    "en": "comptes of service, scans AD",
+    "key": "msg.comptes_de_service_scans_ad"
+  },
+  {
+    "fr": "gérer les intakes, règles Sigma, clés API et lancer une collecte ciblée sur un hôte.",
+    "en": "gérer the intakes, rules Sigma, clés API and lancer une collection ciblée on un hôte.",
+    "key": "msg.gerer_les_intakes_regles_sigma_cles_api_et_lance"
+  },
+  {
+    "fr": "consulter les agents, politiques, tokens API et récupérer threats/activities sur une cible.",
+    "en": "consulter the agents, politiques, tokens API and récupérer threats/activities on une cible.",
+    "key": "msg.consulter_les_agents_politiques_tokens_api_et_re"
+  },
+  {
+    "fr": "accès. Ne pas exposer les tokens hors session portail.</p>`,",
+    "en": "accès. Ne pas exposer les tokens hors session portail. `,",
+    "key": "msg.acces_ne_pas_exposer_les_tokens_hors_session_por"
+  },
+  {
+    "fr": "renseignez hostname, IP ou agent ID pour corréler les threats/activities S1.",
+    "en": "renseignez hostname, IP or agent ID for corréler the threats/activities S1.",
+    "key": "msg.renseignez_hostname_ip_ou_agent_id_pour_correler"
+  },
+  {
+    "fr": "valider dans l’onglet SOC Autonome.",
+    "en": "valider in l’onglet SOC Autonome.",
+    "key": "msg.valider_dans_longlet_soc_autonome"
+  },
+  {
+    "fr": "intakes en baisse ou silencieux, incidents",
+    "en": "intakes en drop or silent, incidents",
+    "key": "msg.intakes_en_baisse_ou_silencieux_incidents"
+  },
+  {
+    "fr": "intakes en baisse ou silencieux, incidents /api/master/incidents , anomalies PortalAI SOC autonome.",
+    "en": "intakes en drop or silent, incidents /api/master/incidents, anomalies PortalAI SOC autonome.",
+    "key": "msg.intakes_en_baisse_ou_silencieux_incidents_api_ma"
+  },
+  {
+    "fr": "⚠️ Token expiré —",
+    "en": "Token expiré",
+    "key": "msg.token_expire"
+  },
+  {
+    "fr": "il est requis pour charger les inventaires.",
+    "en": "il est requis for charger the inventaires.",
+    "key": "msg.il_est_requis_pour_charger_les_inventaires"
+  }
+]

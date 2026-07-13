@@ -1,0 +1,10 @@
+MYSQLDATETIME %{YEAR}-%{MONTHNUM}-%{MONTHDAY}[T ]%{HOUR}:%{MINUTE}:%{SECOND}
+WINPATH ([A-Za-z]:\\|\\\\)([^\\\"<>|:*?\n\r]+(\\[^\\\"<>|:*?\n\r]+)*)
+MD5HASH [0-9A-Fa-f]{32}
+SHA1HASH [0-9A-Fa-f]{40}
+SHA256HASH [0-9A-Fa-f]{64}
+NETPROTO (tcp|udp|icmp|TCP|UDP|ICMP)
+HAPROXYDATE %{MONTHDAY}/%{MONTH}/%{YEAR}:%{HOUR}:%{MINUTE}:%{SECOND}\s[+-][0-9]{4}
+IISDATE %{YEAR}-%{MONTHNUM}-%{MONTHDAY}
+IISTIME %{HOUR}:%{MINUTE}:%{SECOND}
+PS_ENCODED [A-Za-z0-9+/]{20,}={0,2}

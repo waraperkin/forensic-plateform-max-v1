@@ -1,0 +1,24 @@
+/* Panneaux hub / zones — intros analyste (ADDITIF) */
+[data-edition="cybercorp"] .cc-hub-lead,
+[data-edition="cybercorp"] .cc-panel-lead {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--accent, #00d4ff);
+  background: var(--bg-elevated);
+  border-radius: var(--radius, 8px);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+[data-edition="cybercorp"] .cc-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.85rem;
+}
+
+[data-edition="cybercorp"] .cc-hub-quicklinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}

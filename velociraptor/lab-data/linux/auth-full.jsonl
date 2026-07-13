@@ -1,0 +1,4 @@
+{"timestamp":"2024-06-01T09:00:01Z","hostname":"lab-linux01","source":"auth.log","message":"Accepted publickey for analyst from 10.78.0.20 port 52234 ssh2"}
+{"timestamp":"2024-06-01T09:05:12Z","hostname":"lab-linux01","source":"auth.log","message":"sudo: analyst : TTY=pts/0 ; PWD=/home/analyst ; USER=root ; COMMAND=/usr/bin/cat /etc/shadow"}
+{"timestamp":"2024-06-01T09:10:00Z","hostname":"lab-linux01","source":"secure","message":"Failed password for invalid user scanner from 192.0.2.99 port 4444 ssh2"}
+{"timestamp":"2024-06-01T09:12:30Z","hostname":"lab-linux01","source":"journald","message":"systemd-logind: New session 42 of user root"}

@@ -1,0 +1,51 @@
+# Velociraptor DFIR sidecar — réseau dédié forensic-minimal
+# Usage: docker compose -f docker-compose.velociraptor.yml up -d
+
+name: velociraptor-sidecar
+
+networks:
+  velociraptor_net:
+    name: velociraptor_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+
+volumes:
+  velociraptor-data:
+
+services:
+  velociraptor-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: forensic-velociraptor:latest
+    container_name: velociraptor-server
+    restart: unless-stopped
+    environment:
+      - VR_CONFIG=/config/server.config.yaml
+      - VR_DATA=/data
+      - VELOCIRAPTOR_ADMIN_USER=${VELOCIRAPTOR_ADMIN_USER:-admin}
+      - VELOCIRAPTOR_ADMIN_PASSWORD=${VELOCIRAPTOR_ADMIN_PASSWORD:-F0r3ns1c_VR_2024!}
+    command: ["frontend", "-v"]
+    volumes:
+      - ./config/server.config.yaml:/config/server.config.yaml:ro
+      - ./config/api.config.yaml:/config/api.config.yaml:ro
+      - ./artifacts/custom:/artifacts/custom:ro
+      - ./artifacts/official:/artifacts/official:ro
+      - ./lab-data:/lab-data:ro
+      - velociraptor-data:/data
+      - ./clients:/clients
+    ports:
+      - "${FP_VR_GUI_PORT:-18000}:8000"
+      - "${FP_VR_FRONTEND_PORT:-18001}:8001"
+      - "${FP_VR_API_PORT:-18002}:8002"
+    networks:
+      velociraptor_net:
+        ipv4_address: 172.31.0.10
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8000/velociraptor/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 45s

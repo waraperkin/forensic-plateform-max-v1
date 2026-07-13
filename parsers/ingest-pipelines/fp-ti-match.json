@@ -1,0 +1,44 @@
+{
+  "description": "FP SIEM — geoip, user-agent, champs TI (enrichissement IOC via ingest-worker)",
+  "processors": [
+    {
+      "set": {
+        "field": "ti_match",
+        "value": false,
+        "override": false
+      }
+    },
+    {
+      "geoip": {
+        "field": "source.ip",
+        "target_field": "source.geo",
+        "ignore_missing": true,
+        "ignore_failure": true
+      }
+    },
+    {
+      "geoip": {
+        "field": "destination.ip",
+        "target_field": "destination.geo",
+        "ignore_missing": true,
+        "ignore_failure": true
+      }
+    },
+    {
+      "geoip": {
+        "field": "host.ip",
+        "target_field": "host.geo",
+        "ignore_missing": true,
+        "ignore_failure": true
+      }
+    },
+    {
+      "user_agent": {
+        "field": "user_agent.original",
+        "target_field": "user_agent",
+        "ignore_missing": true,
+        "ignore_failure": true
+      }
+    }
+  ]
+}

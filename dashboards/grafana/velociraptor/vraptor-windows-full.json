@@ -1,0 +1,33 @@
+{
+  "uid": "vraptor-windows-full",
+  "title": "Velociraptor Windows (Full)",
+  "tags": ["velociraptor", "windows", "full", "dfir"],
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Events Windows (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "forensic-all" },
+      "targets": [{ "refId": "A", "query": "_index:velociraptor-windows-*" }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Sysmon EID 1",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "forensic-all" },
+      "targets": [{ "refId": "A", "query": "_index:velociraptor-windows-* AND EventID:1" }]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Registry persistence",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "forensic-all" },
+      "targets": [{ "refId": "A", "query": "_index:velociraptor-windows-* AND artifact:Custom.Windows.Registry.ForensicFull" }]
+    },
+    {
+      "id": 4, "type": "logs", "title": "Sysmon + Registry (Full)",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "forensic-all" },
+      "targets": [{ "refId": "A", "query": "_index:velociraptor-windows-*" }]
+    }
+  ]
+}

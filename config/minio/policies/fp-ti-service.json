@@ -1,0 +1,15 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:*"],
+      "Resource": ["arn:aws:s3:::fp-ti", "arn:aws:s3:::fp-ti/*", "arn:aws:s3:::iocs", "arn:aws:s3:::iocs/*", "arn:aws:s3:::opencti", "arn:aws:s3:::opencti/*"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::fp-logs", "arn:aws:s3:::fp-logs/*", "arn:aws:s3:::logs-*", "arn:aws:s3:::logs-*/*"]
+    }
+  ]
+}

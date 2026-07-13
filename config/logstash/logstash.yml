@@ -1,0 +1,10 @@
+node.name: forensic-logstash
+path.data: /usr/share/logstash/data
+path.logs: /var/log/logstash
+http.port: 9700
+http.host: 0.0.0.0
+pipeline.workers: 2
+pipeline.batch.size: 250
+pipeline.batch.delay: 50
+config.reload.automatic: true
+config.reload.interval: 30s

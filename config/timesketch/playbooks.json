@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "sketch": "[FP] Timesketch Master",
+  "roles": {
+    "dfir_senior": {
+      "title": "DFIR Senior",
+      "saved_searches": [
+        {"name": "Plaso process timeline", "query": "tag:fp.plaso OR message:*dfir.plaso*"},
+        {"name": "KAPE artifacts", "query": "tag:fp.kape OR message:*dfir.kape*"},
+        {"name": "Evtx failed logon", "query": "event_type:4625 OR message:*4625*"},
+        {"name": "MFT suspicious files", "query": "message:*dfir.mft* OR message:*file.path*"}
+      ],
+      "aggregations": [
+        {"name": "Events by host", "query": "*", "field": "hostname"},
+        {"name": "Events by user", "query": "*", "field": "user"}
+      ],
+      "pivots": ["hostname:WIN-MASTER01", "user:analyst", "message:*203.0.113*"]
+    },
+    "incident_commander": {
+      "title": "Incident Commander",
+      "saved_searches": [
+        {"name": "Fusion timeline", "query": "tag:fusion OR message:*dfir.fusion*"},
+        {"name": "Critical hosts", "query": "hostname:* AND event_type:4625"}
+      ],
+      "stories": ["Incident timeline overview"]
+    },
+    "soc_manager": {
+      "title": "SOC Manager",
+      "saved_searches": [
+        {"name": "Web/nginx anomalies", "query": "message:*web.nginx* OR message:*/admin*"},
+        {"name": "Auth failures", "query": "event_type:4625 OR message:*denied*"}
+      ]
+    },
+    "purple_team": {
+      "title": "Purple Team",
+      "saved_searches": [
+        {"name": "Sigma credential access", "query": "tag:attack.t1110 OR message:*credential_access*"},
+        {"name": "Sysmon network", "query": "message:*Sysmon* OR message:*network*"}
+      ]
+    },
+    "threat_hunting_lead": {
+      "title": "Threat Hunting Lead",
+      "saved_searches": [
+        {"name": "TI IOC matches", "query": "tag:ti.ioc OR message:*ti.ioc_value*"},
+        {"name": "CTI enrichment", "query": "tag:APT OR tag:C2 OR message:*ti.enrichment*"},
+        {"name": "IOC domain pivot", "query": "message:*malicious.example.com*"}
+      ],
+      "pivots": ["message:*malicious.example.com*", "message:*203.0.113*"]
+    }
+  },
+  "views": [
+    {"name": "All events", "query": "*"},
+    {"name": "DFIR sources", "query": "tag:dfir OR tag:fp.plaso OR tag:fp.kape"},
+    {"name": "Threat intel", "query": "tag:ti OR tag:MISP OR tag:APT"}
+  ],
+  "dashboard_pack": "dashboard_pack.json"
+}

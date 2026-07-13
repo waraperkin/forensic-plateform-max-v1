@@ -1,0 +1,21 @@
+winlogbeat.event_logs:
+  - name: Microsoft-Windows-Sysmon/Operational
+    tags: [sysmon]
+  - name: Security
+    ignore_older: 72h
+  - name: System
+    ignore_older: 72h
+
+processors:
+  - add_host_metadata: ~
+  - add_fields:
+      target: event
+      fields:
+        module: sysmon
+        dataset: windows.sysmon
+
+output.logstash:
+  hosts: ["localhost:15514"]
+
+logging.level: info
+logging.to_files: false

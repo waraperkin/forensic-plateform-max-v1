@@ -1,0 +1,14 @@
+title: FP-SIGMA-040-auth-failed
+id: fp-sigma-040
+status: stable
+description: Multiple failed logons
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: 4625
+  condition: selection
+tags:
+  - attack.t1110
+level: high

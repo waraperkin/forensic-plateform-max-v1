@@ -1,0 +1,20 @@
+name: Custom.Windows.Registry.ForensicFull
+description: |
+  Persistance et clés sensibles — Run keys, services, Winlogon (offline lab + live registry).
+author: CYBERCORP Forensic Platform
+type: CLIENT
+parameters: []
+sources:
+  - name: LabRegistryOffline
+    precondition: SELECT OS FROM info() WHERE OS = 'windows'
+    query: |
+      LET lab <= "/lab-data/windows/registry-full.jsonl"
+      SELECT Hive, KeyPath, ValueName, ValueData, LastWriteTime, Computer
+      FROM parse_jsonl(filename=lab)
+      WHERE log(message="lab offline registry")
+  - name: RunKeysLive
+    precondition: SELECT OS FROM info() WHERE OS = 'windows'
+    query: |
+      SELECT FullPath, Data.value AS ValueData, Mtime AS LastWriteTime
+      FROM glob(globs="HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\\*")
+      LIMIT 500

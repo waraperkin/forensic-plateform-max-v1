@@ -1,0 +1,14 @@
+title: FP-SIGMA-044-suspicious-port
+id: fp-sigma-044
+status: stable
+description: Suspicious outbound port
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: 4625
+  condition: selection
+tags:
+  - attack.t1110
+level: high

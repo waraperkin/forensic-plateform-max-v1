@@ -1,0 +1,34 @@
+{
+  "index_patterns": ["forensic-ti*", "fp-ti-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.refresh_interval": "15s",
+      "plugins.index_state_management.policy_id": "fp-ti-policy"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "ioc_type": { "type": "keyword" },
+        "ioc_value": { "type": "keyword" },
+        "match_field": { "type": "keyword" },
+        "source": { "type": "keyword" },
+        "first_seen": { "type": "date" },
+        "last_seen": { "type": "date" },
+        "feed": { "type": "keyword" },
+        "confidence": { "type": "float" },
+        "tags": { "type": "keyword" },
+        "case_id": { "type": "keyword" },
+        "sketch_id": { "type": "long" },
+        "event_id": { "type": "keyword" },
+        "message": { "type": "text" },
+        "misp_event_id": { "type": "keyword" },
+        "opencti_id": { "type": "keyword" }
+      }
+    }
+  },
+  "priority": 205,
+  "version": 1,
+  "_meta": { "description": "Threat intelligence matches and IOC enrichments" }
+}

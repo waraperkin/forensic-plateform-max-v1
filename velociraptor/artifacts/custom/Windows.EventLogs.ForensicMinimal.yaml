@@ -1,0 +1,25 @@
+name: Custom.Windows.EventLogs.ForensicMinimal
+description: |
+  Collecte Security / System / Application EVTX pour forensic-minimal.
+author: CYBERCORP Forensic Platform
+type: CLIENT
+parameters: []
+sources:
+  - name: SecurityLog
+    precondition: SELECT OS FROM info() WHERE OS = 'windows'
+    query: |
+      SELECT EventID, System.TimeCreated.SystemTime AS EventTime, EventData, Message
+      FROM parse_evtx(filename="C:/Windows/System32/Winevt/Logs/Security.evtx")
+      LIMIT 20000
+  - name: SystemLog
+    precondition: SELECT OS FROM info() WHERE OS = 'windows'
+    query: |
+      SELECT EventID, System.TimeCreated.SystemTime AS EventTime, EventData, Message
+      FROM parse_evtx(filename="C:/Windows/System32/Winevt/Logs/System.evtx")
+      LIMIT 10000
+  - name: ApplicationLog
+    precondition: SELECT OS FROM info() WHERE OS = 'windows'
+    query: |
+      SELECT EventID, System.TimeCreated.SystemTime AS EventTime, EventData, Message
+      FROM parse_evtx(filename="C:/Windows/System32/Winevt/Logs/Application.evtx")
+      LIMIT 10000

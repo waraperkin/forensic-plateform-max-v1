@@ -1,0 +1,333 @@
+/* Hubs analyste premium V2.2 — additif */
+
+[data-edition="cybercorp"] .cc-hub-grid-premium {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+  margin-top: 0.85rem;
+}
+
+[data-edition="cybercorp"] .cc-hub-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.65rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+[data-edition="cybercorp"] .cc-hub-kpi-tile {
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(0, 212, 255, 0.08), rgba(99, 102, 241, 0.06));
+  border: 1px solid rgba(0, 212, 255, 0.18);
+  min-height: 4.5rem;
+}
+
+[data-edition="cybercorp"] .cc-hub-kpi-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.2;
+}
+
+[data-edition="cybercorp"] .cc-hub-kpi-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 0.2rem;
+  color: var(--text, #f1f5f9);
+}
+
+[data-edition="cybercorp"] .cc-hub-intro-premium {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin: 0 0 0.5rem;
+  padding: 1rem 1.1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  background: linear-gradient(120deg, rgba(0, 212, 255, 0.06), rgba(15, 23, 42, 0.5));
+}
+
+[data-edition="cybercorp"] .cc-hub-intro-icon {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(0, 212, 255, 0.12);
+  color: var(--accent, #00e5ff);
+}
+
+[data-edition="cybercorp"] .cc-hub-intro-icon svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+[data-edition="cybercorp"] .cc-hub-intro-title {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text, #f8fafc);
+}
+
+[data-edition="cybercorp"] .cc-hub-intro-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--text-muted, #cbd5e1);
+  max-width: 52rem;
+}
+
+[data-edition="cybercorp"] .cc-hub-card-wrap.cc-hub-premium-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 11.5rem;
+}
+
+[data-edition="cybercorp"] .fp-hub-card {
+  min-height: 11.5rem;
+}
+
+[data-edition="cybercorp"] .fp-hub-card .fp-ds-card-label {
+  margin-top: 0.2rem;
+}
+
+[data-edition="cybercorp"] .fp-hub-card .fp-ds-card-meta {
+  min-width: 0;
+}
+
+[data-edition="cybercorp"] .fp-hub-card .fp-hub-card-spark {
+  margin-top: 0.45rem;
+  opacity: 0.85;
+}
+
+[data-edition="cybercorp"] .fp-hub-card .fp-hub-card-spark svg {
+  width: 100%;
+  height: 32px;
+  display: block;
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  min-height: 10.5rem;
+  padding: 1rem 1.05rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.55);
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  color: inherit;
+  font: inherit;
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-card:hover {
+  border-color: rgba(0, 212, 255, 0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 212, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-card:focus {
+  outline: none;
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-card:focus-visible {
+  outline: 2px solid var(--accent, #6eb5ff);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(110, 181, 255, 0.25);
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-bottom: 0.5rem;
+}
+
+[data-edition="cybercorp"] .cc-hub-card-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.35rem;
+  border-radius: var(--fp-radius-sm, 6px);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-text {
+  min-width: 0;
+  flex: 1;
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-icon {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 212, 255, 0.1);
+  color: var(--accent, #00e5ff);
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-title {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text, #f8fafc);
+  margin: 0;
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-meta {
+  display: block;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: var(--text-muted, #b8c5d6);
+  margin: 0.2rem 0 0;
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-kpi {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--accent, #00e5ff);
+  margin: 0.35rem 0 0.15rem;
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-kpi-label {
+  font-size: 0.72rem;
+  color: var(--text-muted, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-spark {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  height: 36px;
+  width: 100%;
+}
+
+[data-edition="cybercorp"] .cc-hub-premium-spark svg {
+  width: 100%;
+  height: 36px;
+  display: block;
+}
+
+[data-edition="cybercorp"] .cc-hub-voir-plus {
+  align-self: flex-start;
+}
+
+[data-edition="cybercorp"] .cc-hub-loading {
+  padding: 1.5rem;
+  font-size: 0.9rem;
+}
+
+/* Documentation premium */
+[data-edition="cybercorp"] .portal-doc-layout.portal-doc-premium .portal-doc-nav .fp-btn {
+  justify-content: flex-start;
+  text-align: left;
+  min-height: 2.25rem;
+  font-size: 0.88rem;
+}
+
+[data-edition="cybercorp"] .portal-doc-layout.portal-doc-premium .portal-doc-content h3 {
+  font-size: 1.15rem;
+  margin-top: 1.25rem;
+}
+
+[data-edition="cybercorp"] .portal-doc-hub-banner {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  background: rgba(0, 212, 255, 0.05);
+}
+
+[data-edition="cybercorp"] .portal-doc-section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+[data-edition="cybercorp"] .portal-doc-section-tile.portal-doc-tile-inventory {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(0, 212, 255, 0.06));
+}
+
+[data-edition="cybercorp"] .portal-doc-section-tile {
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+[data-edition="cybercorp"] .portal-doc-section-tile:hover {
+  border-color: rgba(0, 212, 255, 0.35);
+}
+
+[data-edition="cybercorp"] .portal-doc-section-tile {
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 0.88rem;
+}
+
+[data-edition="cybercorp"] .portal-doc-tile-arch {
+  border-color: rgba(0, 229, 255, 0.35);
+  background: rgba(0, 229, 255, 0.06);
+}
+[data-edition="cybercorp"] .portal-doc-section-tile strong {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+  color: var(--accent, #00e5ff);
+}
+
+[data-edition="cybercorp"] .cc-hub-live-board {
+  margin-top: 1.25rem;
+  padding: 1rem 1.15rem;
+}
+
+[data-edition="cybercorp"] .cc-hub-live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+[data-edition="cybercorp"] .cc-hub-mini-table {
+  max-height: 220px;
+  overflow: auto;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 720px) {
+  [data-edition="cybercorp"] .cc-hub-grid-premium {
+    grid-template-columns: 1fr;
+  }
+  [data-edition="cybercorp"] .cc-hub-live-grid {
+    grid-template-columns: 1fr;
+  }
+}

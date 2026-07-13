@@ -1,0 +1,64 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">SOC observability: Prometheus metrics, Loki logs, Tempo traces and provisioned Grafana dashboards — complemented by the integrated health heatmap in the CERT portal.</p>
+
+  <h3>Observability stack</h3>
+  <pre class="mermaid">flowchart LR
+    classDef mon fill:#4a148c,stroke:#ce93d8,color:#f3e5f5
+    classDef portal fill:#0d47a1,stroke:#42a5f5,color:#fff
+    classDef ds fill:#e65100,stroke:#ffb74d,color:#fff
+
+    PROM["Prometheus :9090"]:::mon
+    LOKI["Loki"]:::mon
+    TEMPO["Tempo"]:::mon
+    GRAF["Grafana /grafana/"]:::mon
+    FB["Filebeat"]:::mon
+    PORT["Portal<br/>global-health-dashboard"]:::portal
+    DS_OS["OpenSearch datasource"]:::ds
+    DS_HELK["HELK datasource"]:::ds
+    DS_PROM["Prometheus datasource"]:::ds
+
+    PROM --> GRAF
+    LOKI --> GRAF
+    TEMPO --> GRAF
+    DS_OS & DS_HELK & DS_PROM --> GRAF
+    FB --> LOKI
+    PORT -->|"GET /api/health/global"| PROM</pre>
+
+  <h3>Components</h3>
+  <table class="portal-doc-table">
+    <thead><tr><th>Tool</th><th>Access</th><th>SOC usage</th></tr></thead>
+    <tbody>
+      <tr><td>Grafana</td><td><code>/grafana/</code></td><td>Health, HELK, Velociraptor, ingest, CTI dashboards</td></tr>
+      <tr><td>Prometheus</td><td>internal :9090</td><td>Docker container metrics scrape</td></tr>
+      <tr><td>Loki</td><td>via Grafana Explore</td><td>Aggregated forensic stack logs</td></tr>
+      <tr><td>Tempo</td><td>via Grafana</td><td>Distributed traces (optional)</td></tr>
+      <tr><td>OpenSearch Dashboards</td><td><code>/dashboards/</code></td><td>Event search, not infra metrics</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Provisioned Grafana dashboards</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>UID / folder</th><th>Content</th></tr></thead>
+    <tbody>
+      <tr><td><code>fp-platform-health-gf</code></td><td>Global health: 11+ services, OpenSearch cumulative</td></tr>
+      <tr><td><code>helk-overview</code>, <code>helk-mitre</code>, <code>helk-detections</code></td><td>HELK hunting</td></tr>
+      <tr><td><code>vraptor-windows-full</code>, <code>vraptor-linux-full</code></td><td>Velociraptor DFIR</td></tr>
+      <tr><td><code>fp-opensearch-metrics</code>, <code>fp-cti-metrics</code></td><td>FP-Master metrics</td></tr>
+    </tbody>
+  </table>
+  <p>Provisioning: <code>config/grafana/provisioning/dashboards/</code>. Activation: <code>scripts/grafana_master_setup.py</code>.</p>
+
+  <h3>Integrated portal health</h3>
+  <ul>
+    <li><strong>Overview</strong> — service heatmap (UP/DOWN), operational timeline</li>
+    <li><strong>Health tab</strong> — per-SOC-service detail with direct links</li>
+    <li><strong>API</strong> — <code>GET /api/health/global</code> aggregates cert-portal, OpenSearch, Grafana, CTI…</li>
+    <li><strong>JS module</strong> — <code>portal-shared/js/global-health-dashboard.js</code></li>
+    <li><strong>Validation</strong> — <code>python3 scripts/global_health_dashboard_verify.py</code></li>
+  </ul>
+
+  <h3>Alerting</h3>
+  <p>Grafana rules in <code>config/grafana/provisioning/alerting/</code>. Portal module <code>portal-alerting.js</code> for ingest alerts (volume drop). <strong>OPENSEARCH CLUSTER</strong> KPI: GREEN/YELLOW/RED on overview.</p>
+
+  <p class="fp-muted">Docs: <code>docs/PORTAL/GRAFANA.md</code>, dashboard JSON in <code>dashboards/grafana/</code>.</p>
+</div>

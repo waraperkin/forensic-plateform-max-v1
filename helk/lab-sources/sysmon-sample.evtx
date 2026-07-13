@@ -1,0 +1,2 @@
+# Placeholder lab — événements Sysmon réels dans sysmon-sample.jsonl
+# Le simulateur lab_ingest.py utilise le JSONL (pas de parsing EVTX live).

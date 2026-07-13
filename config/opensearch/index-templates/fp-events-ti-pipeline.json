@@ -1,0 +1,33 @@
+{
+  "index_patterns": [
+    "forensic-linux*",
+    "forensic-windows*",
+    "forensic-web*",
+    "forensic-nginx*",
+    "forensic-uploads*",
+    "forensic-network*",
+    "forensic-cloud*",
+    "forensic-endpoint*",
+    "forensic-macos*",
+    "forensic-firewall*",
+    "forensic-endpoint*"
+  ],
+  "template": {
+    "settings": {
+      "index.default_pipeline": "fp-ti-match"
+    },
+    "mappings": {
+      "properties": {
+        "ti_match": { "type": "boolean" },
+        "ti_sources": { "type": "keyword" },
+        "ti_tags": { "type": "keyword" },
+        "ti_ioc_value": { "type": "keyword" },
+        "ti_ioc_type": { "type": "keyword" },
+        "case_id": { "type": "keyword" }
+      }
+    }
+  },
+  "priority": 210,
+  "version": 1,
+  "_meta": { "description": "Default ingest pipeline TI + champs corrélation IOC" }
+}

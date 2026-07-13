@@ -1,0 +1,42 @@
+{
+  "description": "FP Parsing Master — parsers spécialisés + normalisation ECS-like + TI",
+  "processors": [
+    {
+      "pipeline": {
+        "name": "linux-ecs",
+        "if": "ctx.tags != null && ctx.tags.contains('linux')"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "web-ecs",
+        "if": "(ctx.tags != null && (ctx.tags.contains('nginx') || ctx.tags.contains('apache') || ctx.tags.contains('web'))) || (ctx.log != null && ctx.log.file != null && ctx.log.file.path != null && (ctx.log.file.path.contains('nginx') || ctx.log.file.path.contains('access')))"
+      }
+    },
+    {
+      "pipeline": {
+        "name": "windows-ecs",
+        "if": "ctx.tags != null && ctx.tags.contains('windows')"
+      }
+    },
+    {
+      "script": {
+        "lang": "painless",
+        "description": "Normalisation event.dataset / category / type / log.*",
+        "source": "if (ctx.event == null) { ctx.event = new HashMap(); } if (ctx.log == null) { ctx.log = new HashMap(); } String ds = ctx.event.containsKey('dataset') ? ctx.event.dataset : null; if (ds == null || ds.length() == 0) { if (ctx.tags != null) { for (def t : ctx.tags) { if (t == 'linux') { String p = (ctx.log != null && ctx.log.file != null && ctx.log.file.path != null) ? ctx.log.file.path : ''; if (p.contains('auth')) { ctx.event.dataset = 'system.auth'; } else { ctx.event.dataset = 'system.syslog'; } break; } if (t == 'nginx' || t == 'apache' || t == 'web') { ctx.event.dataset = 'web.nginx'; break; } if (t == 'windows') { ctx.event.dataset = 'system.windows'; break; } } } if ((ctx.event.dataset == null || ctx.event.dataset.length() == 0) && ctx.service != null) { ctx.event.dataset = 'fp.platform'; } if ((ctx.event.dataset == null || ctx.event.dataset.length() == 0) && ctx.feed != null) { ctx.event.dataset = 'ti.' + ctx.feed; } if ((ctx.event.dataset == null || ctx.event.dataset.length() == 0) && ctx.ioc_value != null) { ctx.event.dataset = 'ti.ioc'; } if ((ctx.event.dataset == null || ctx.event.dataset.length() == 0) && ctx.message != null && ctx.message.contains('FP-DET')) { ctx.event.dataset = 'security.detection'; } if ((ctx.event.dataset == null || ctx.event.dataset.length() == 0) && ctx.message != null && ctx.message.contains('FP-TI-Match')) { ctx.event.dataset = 'security.ti_match'; } } if (ctx.event.category == null || ctx.event.category.length() == 0) { String d = ctx.event.dataset; if (d != null) { if (d.startsWith('web.')) { ctx.event.category = 'web'; } else if (d.startsWith('system.')) { ctx.event.category = 'host'; } else if (d.startsWith('security.')) { ctx.event.category = 'intrusion_detection'; } else if (d.startsWith('ti.')) { ctx.event.category = 'threat'; } else if (d.startsWith('fp.')) { ctx.event.category = 'process'; } } } if (ctx.event.type == null || ctx.event.type.length() == 0) { ctx.event.type = 'info'; } if (ctx.log.level == null && ctx.level != null) { ctx.log.level = ctx.level; } if (ctx.log.source == null && ctx.log.file != null && ctx.log.file.path != null) { ctx.log.source = ctx.log.file.path; } if (ctx.host == null) { ctx.host = new HashMap(); } if (ctx.host.name == null && ctx.agent != null && ctx.agent.name != null) { ctx.host.name = ctx.agent.name; } ctx.fp = ctx.fp != null ? ctx.fp : new HashMap(); ctx.fp.parsing_version = '1.0';"
+      }
+    },
+    {
+      "set": {
+        "field": "event.ingested",
+        "value": "{{{_ingest.timestamp}}}",
+        "override": false
+      }
+    },
+    {
+      "pipeline": {
+        "name": "fp-ti-match"
+      }
+    }
+  ]
+}

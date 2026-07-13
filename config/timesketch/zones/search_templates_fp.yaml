@@ -1,0 +1,13 @@
+---
+fp_template_0:
+  query_string: 'event_type:4625 OR message:*4625*'
+  short_name: 'FP DFIR Auth Failures'
+fp_template_1:
+  query_string: 'message:*malicious.example.com* OR tag:ti.ioc'
+  short_name: 'FP CTI IOC Domain'
+fp_template_2:
+  query_string: 'message:*web.nginx* OR message:*/admin*'
+  short_name: 'FP SOC Web Admin'
+fp_template_3:
+  query_string: 'tag:fusion OR message:*dfir.fusion*'
+  short_name: 'FP Incident Fusion'

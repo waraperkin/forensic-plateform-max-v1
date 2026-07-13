@@ -1,0 +1,514 @@
+/**
+ * CYBERCORP Portal V6 — harmonisation visuelle CERT + IT (additif).
+ */
+
+/* ══ V6 Layout reset — neutralise offsets verticaux hérités (CERT + IT) ══
+   Sources neutralisées : portal-layout-v2.css (sidebar top:56px),
+   cybercorp-theme.css (IT sidebar top:--header-h), forensic-ui.css, premium. */
+
+html:not(.i18n-ready) [data-i18n] {
+  visibility: hidden;
+}
+
+html,
+body,
+body.portal-v6,
+[data-edition="cybercorp"] body,
+[data-portal="it"] body {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow-x: hidden;
+  overflow-y: auto !important;
+}
+
+[data-edition="cybercorp"] .app-shell,
+body.app-shell,
+.fp-it-wrap.app-shell,
+body.portal-v6.app-shell,
+body.portal-v6 .fp-it-wrap.app-shell {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  max-height: 100vh !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Header (.cc-header = alias .cc-topbar / .fp-header) */
+.cc-header,
+[data-edition="cybercorp"] .cc-header,
+.fp-header,
+.cc-topbar,
+[data-edition="cybercorp"] .cc-topbar,
+body.portal-v6 .fp-header,
+body.portal-v6 .cc-topbar {
+  flex: 0 0 var(--header-h, 56px) !important;
+  height: var(--header-h, 56px) !important;
+  min-height: var(--header-h, 56px) !important;
+  max-height: var(--header-h, 56px) !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  transform: none !important;
+  translate: none !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 100 !important;
+}
+
+.app-body,
+[data-edition="cybercorp"] .app-body,
+.cc-it-body,
+[data-portal="it"] .cc-it-body,
+body.portal-v6 .app-body,
+body.portal-v6 .app-body.cc-it-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  padding: 0 !important;
+  padding-top: 0 !important;
+  overflow: hidden !important;
+  align-items: stretch !important;
+}
+
+/* Sidebar : top 0 dans app-body (pas de second offset sous le header) */
+.cc-sidebar,
+[data-edition="cybercorp"] .fp-sidebar,
+[data-edition="cybercorp"] .fp-sidebar.cc-sidebar,
+[data-edition="cybercorp"] .cc-sidebar,
+[data-portal="it"][data-edition="cybercorp"] .cc-it-sidebar,
+.fp-sidebar.cc-sidebar,
+.fp-sidebar.cc-it-sidebar,
+body.portal-v6 .fp-sidebar,
+body.portal-v6 .fp-sidebar.cc-sidebar,
+body.portal-v6 .cc-sidebar,
+body.portal-v6 .cc-it-sidebar {
+  position: sticky !important;
+  top: 0 !important;
+  align-self: start !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  transform: none !important;
+  translate: none !important;
+  height: calc(100vh - var(--header-h, 56px)) !important;
+  max-height: calc(100vh - var(--header-h, 56px)) !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+body.portal-v6 .fp-sidebar::-webkit-scrollbar,
+body.portal-v6 .cc-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+body.portal-v6 .fp-sidebar::-webkit-scrollbar-thumb,
+body.portal-v6 .cc-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 4px;
+}
+
+/* Zone principale (.cc-main = alias .fp-main / .cc-it-main) */
+.cc-main,
+.fp-main,
+.cc-it-main,
+[data-edition="cybercorp"] .fp-main,
+[data-portal="it"][data-edition="cybercorp"] .cc-it-main,
+body.portal-v6:not(.portal-cybercorp-stable) .fp-main,
+body.portal-v6:not(.portal-cybercorp-stable) .cc-it-main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  padding-top: var(--cc-main-padding, 24px) !important;
+  transform: none !important;
+  translate: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  align-self: start !important;
+}
+
+body.portal-v6.portal-cybercorp-stable .fp-main,
+body.portal-v6.portal-cybercorp-stable .cc-it-main {
+  align-self: stretch !important;
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
+.fp-it-wrap.app-shell {
+  min-height: 100vh !important;
+}
+
+/* Pas d’animation / translateY au changement de panneau */
+[data-edition="cybercorp"] .fp-panel.active,
+body.portal-v6[data-edition="cybercorp"] .fp-panel.active,
+body.portal-v6 .fp-panel.active {
+  animation: none !important;
+  transform: none !important;
+  translate: none !important;
+  opacity: 1 !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+/* Mobile : sidebar overlay — top 0 (header déjà au-dessus de app-body) */
+@media (max-width: 900px) {
+  [data-edition="cybercorp"] .fp-sidebar.cc-sidebar,
+  .fp-sidebar {
+    top: 0 !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+  }
+}
+
+:root {
+  --pv6-accent: #00e5ff;
+  --pv6-accent-dim: rgba(0, 229, 255, 0.12);
+  --pv6-ok: #34c759;
+  --pv6-warn: #ffd60a;
+  --pv6-down: #ff6b6b;
+  --pv6-crit: #ff2d55;
+  --pv6-radius: 10px;
+  --pv6-shadow: 0 4px 22px rgba(0, 0, 0, 0.28);
+  --pv6-transition: 0.15s ease;
+  --pv6-table-fs: 13px;
+  --pv6-table-row: 32px;
+}
+
+body.portal-v6 {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+body.portal-v6 .cc-topbar h1,
+body.portal-v6 #portal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+[data-edition="cybercorp"] .cc-brand > div {
+  min-width: 0;
+  overflow: hidden;
+}
+[data-edition="cybercorp"] .cc-brand h1 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(22vw, 280px);
+}
+[data-edition="cybercorp"] .cc-badge-edition {
+  flex-shrink: 0;
+  margin-left: 0.15rem;
+}
+[data-edition="cybercorp"] .cc-topbar .fp-nav-links {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+body.portal-v6 .fp-section-title,
+body.portal-v6 .pd-detail-title,
+body.portal-v6 .cc-detail-section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+}
+
+body.portal-v6 .fp-section-sub,
+body.portal-v6 .cc-hub-lead,
+body.portal-v6 .cc-detail-section-head .fp-muted {
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--fp-muted, #8b9cb3);
+}
+
+/* Sidebar */
+body.portal-v6 .cc-sidebar-nav .cc-nav-section {
+  margin-bottom: 0.65rem;
+}
+
+body.portal-v6 .cc-nav-btn {
+  padding: 0.5rem 0.65rem 0.5rem 0.5rem;
+  gap: 0.45rem;
+  border-radius: 8px;
+  transition: background var(--pv6-transition), color var(--pv6-transition), border-color var(--pv6-transition);
+}
+
+body.portal-v6 .cc-nav-btn:hover,
+body.portal-v6 .cc-nav-btn.active {
+  background: var(--pv6-accent-dim);
+}
+
+body.portal-v6 .cc-nav-btn span {
+  line-height: 1.35;
+}
+
+/* KPI & stats */
+body.portal-v6 .sv-kpi,
+body.portal-v6 .si-kpi,
+body.portal-v6 .fp-stat,
+body.portal-v6 .ph-kpi-card,
+body.portal-v6 .fp-premium-card {
+  border-radius: var(--pv6-radius);
+  box-shadow: var(--pv6-shadow);
+  transition: border-color var(--pv6-transition), box-shadow var(--pv6-transition), transform var(--pv6-transition);
+}
+
+body.portal-v6 .sv-kpi:hover,
+body.portal-v6 .si-kpi:hover,
+body.portal-v6 .fp-stat:hover,
+body.portal-v6 .fp-premium-card:hover {
+  border-color: rgba(0, 229, 255, 0.35);
+  box-shadow: 0 6px 26px rgba(0, 229, 255, 0.1);
+}
+
+body.portal-v6 .sv-kpi-label,
+body.portal-v6 .fp-stat-label,
+body.portal-v6 .fp-premium-card-meta {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--fp-muted, #8b9cb3);
+}
+
+body.portal-v6 .sv-kpi-value,
+body.portal-v6 .fp-stat-value,
+body.portal-v6 .fp-premium-card-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+body.portal-v6 .fp-premium-card-title {
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fp-muted, #8b9cb3);
+  line-height: 1.35;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
+body.portal-v6 .pv6-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+/* Badges */
+body.portal-v6 .sv-badge,
+body.portal-v6 .pa-sev-down,
+body.portal-v6 .pa-sev-warning,
+body.portal-v6 .pa-sev-critique,
+body.portal-v6 .fp-badge {
+  transition: opacity var(--pv6-transition);
+}
+
+body.portal-v6 .sv-badge-ok {
+  color: #b8f5d0;
+  background: rgba(52, 199, 89, 0.22);
+  border: 1px solid rgba(52, 199, 89, 0.5);
+}
+
+body.portal-v6 .sv-badge-warning {
+  color: #ffe566;
+  background: rgba(255, 214, 10, 0.18);
+  border: 1px solid rgba(255, 214, 10, 0.45);
+}
+
+body.portal-v6 .sv-badge-down {
+  color: #ffb3b3;
+  background: rgba(255, 69, 58, 0.22);
+  border: 1px solid rgba(255, 69, 58, 0.5);
+}
+
+body.portal-v6 .sv-badge-critique {
+  color: #fff;
+  background: rgba(255, 45, 85, 0.5);
+  border: 1px solid rgba(255, 45, 85, 0.75);
+  box-shadow: 0 0 10px rgba(255, 45, 85, 0.25);
+}
+
+/* Tables */
+body.portal-v6 .fp-table {
+  font-size: var(--pv6-table-fs);
+}
+
+body.portal-v6 .fp-table th,
+body.portal-v6 .fp-table td {
+  padding: 0.35rem 0.65rem;
+  min-height: var(--pv6-table-row);
+  line-height: 1.35;
+  vertical-align: middle;
+}
+
+body.portal-v6 .fp-table thead th {
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+body.portal-v6 .sv-table-wrap,
+body.portal-v6 .cc-table-wrap {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Cards & hubs */
+body.portal-v6 .cc-card-click,
+body.portal-v6 .cc-glass-card,
+body.portal-v6 .cc-hub-card-wrap .cc-card-click {
+  border-radius: var(--pv6-radius);
+  transition: transform var(--pv6-transition), border-color var(--pv6-transition), box-shadow var(--pv6-transition);
+}
+
+body.portal-v6 .cc-card-click:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 229, 255, 0.4);
+}
+
+body.portal-v6 .cc-hub-grid {
+  gap: 1rem;
+}
+
+body.portal-v6 .pv6-open-panel-btn,
+body.portal-v6 .si-hub-ingest-open,
+body.portal-v6 .cc-hub-voir-plus {
+  margin-top: 0.4rem;
+  font-weight: 600;
+  transition: background var(--pv6-transition), color var(--pv6-transition), border-color var(--pv6-transition);
+}
+
+body.portal-v6 .pv6-open-panel-btn:hover,
+body.portal-v6 .si-hub-ingest-open:hover {
+  border-color: var(--pv6-accent);
+  color: var(--pv6-accent);
+}
+
+/* Detail panels */
+body.portal-v6 .pv6-detail,
+body.portal-v6 .pd-detail {
+  transition: opacity var(--pv6-transition);
+}
+
+body.portal-v6 .fp-panel {
+  transition: opacity var(--pv6-transition);
+}
+
+body.portal-v6 .fp-panel.active {
+  animation: none;
+  transform: none;
+}
+
+body.portal-v6 [data-pd-back],
+body.portal-v6 .si-back-cc-btn {
+  font-weight: 600;
+  transition: background var(--pv6-transition), border-color var(--pv6-transition);
+}
+
+body.portal-v6 .pu-unit {
+  cursor: help;
+  border-bottom: 1px dotted rgba(0, 229, 255, 0.35);
+}
+
+/* IT portal */
+body.portal-v6.fp-it-wrap .fp-card-premium,
+body.portal-v6 .fp-it-wrap .fp-premium-card {
+  border-radius: var(--pv6-radius);
+  box-shadow: var(--pv6-shadow);
+}
+
+body.portal-v6 .fp-it-wrap .cc-nav-btn {
+  width: 100%;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  body.portal-v6 .pv6-kpi-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Mobile : sidebar hors flux (corrige conflit sticky + flex row) */
+  body.portal-v6 .fp-sidebar,
+  body.portal-v6 .fp-sidebar.cc-sidebar,
+  body.portal-v6 .cc-sidebar,
+  body.portal-v6 .cc-it-sidebar,
+  [data-edition="cybercorp"] .fp-sidebar,
+  [data-edition="cybercorp"] .fp-sidebar.cc-sidebar {
+    position: fixed !important;
+    top: var(--header-h, 56px) !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: min(280px, 88vw) !important;
+    min-width: 0 !important;
+    max-width: min(280px, 88vw) !important;
+    height: calc(100vh - var(--header-h, 56px)) !important;
+    max-height: calc(100vh - var(--header-h, 56px)) !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.22s ease !important;
+    z-index: 200 !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45);
+  }
+
+  body.portal-v6 .fp-sidebar.open,
+  body.portal-v6 .fp-sidebar.is-open,
+  body.portal-v6 .cc-sidebar.open,
+  body.portal-v6 .cc-it-sidebar.open {
+    transform: translateX(0) !important;
+  }
+
+  body.portal-v6.portal-cybercorp-stable .app-body,
+  body.portal-v6.portal-cybercorp-stable .app-body.cc-it-body {
+    display: block !important;
+    grid-template-columns: none !important;
+  }
+
+  body.portal-v6:not(.portal-cybercorp-stable) .app-body,
+  html[data-edition="cybercorp"] body.portal-v6:not(.portal-cybercorp-stable) .app-body {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  body.portal-v6 .fp-main,
+  body.portal-v6 .cc-main,
+  body.portal-v6 .cc-it-main,
+  [data-edition="cybercorp"] .fp-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    padding: 16px !important;
+  }
+
+  body.portal-v6 .fp-panel,
+  body.portal-v6 .fp-panel.active,
+  [data-edition="cybercorp"] .fp-panel,
+  [data-edition="cybercorp"] .fp-panel.active {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  body.portal-v6 .fp-panel.active > .fp-card,
+  [data-edition="cybercorp"] .fp-panel.active > .fp-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}

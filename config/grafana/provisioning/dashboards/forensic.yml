@@ -1,0 +1,11 @@
+apiVersion: 1
+providers:
+  - name: Forensic Legacy
+    orgId: 1
+    folder: Forensic
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/forensic-legacy

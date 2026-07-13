@@ -1,0 +1,19 @@
+name: Custom.Linux.Network.ForensicFull
+description: |
+  Connexions réseau enrichies Linux (offline lab + netstat live).
+author: CYBERCORP Forensic Platform
+type: CLIENT
+parameters: []
+sources:
+  - name: LabNetworkOffline
+    precondition: SELECT OS FROM info() WHERE OS = 'linux'
+    query: |
+      LET lab <= "/lab-data/linux/network-full.jsonl"
+      SELECT timestamp, hostname, proto, local_addr, local_port, remote_addr, remote_port, state, process
+      FROM parse_jsonl(filename=lab)
+      WHERE log(message="lab offline network")
+  - name: NetstatLive
+    precondition: SELECT OS FROM info() WHERE OS = 'linux'
+    query: |
+      SELECT * FROM Artifact.Linux.Network.NetstatEnriched()
+      LIMIT 50000

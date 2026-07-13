@@ -1,0 +1,37 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">Seven end-to-end forensic scenarios for an experienced CERT team: Windows ransomware, Linux webshell, C2, lateral movement, 360° exfiltration, AWS CloudTrail (IT), Zeek network (IT).</p>
+
+  <h3>Automated validation</h3>
+  <pre><code>python scripts/cert_forensic_use_cases_e2e.py --bootstrap-only
+python scripts/cert_forensic_use_cases_e2e.py
+node tests/scripts/cert-analyst-7uc-browser.mjs</code></pre>
+  <p>Report: <code>reports/cert-use-cases-e2e.json</code> — screenshots: <code>tests/artifacts/cert-analyst-7uc/</code></p>
+
+  <h3>Seven cases</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>UC</th><th>case_id</th><th>OS index</th><th>HELK</th></tr></thead>
+    <tbody>
+      <tr><td>UC1 Ransomware</td><td><code>CASE-UC01-RANSOM</code></td><td>forensic-windows*</td><td>windows.sysmon</td></tr>
+      <tr><td>UC2 Linux web</td><td><code>CASE-UC02-WEB</code></td><td>forensic-linux*</td><td>linux.syslog</td></tr>
+      <tr><td>UC3 C2 TI</td><td><code>CASE-UC03-C2</code></td><td>forensic-windows*</td><td>windows.events</td></tr>
+      <tr><td>UC4 Lateral</td><td><code>CASE-UC04-LATMOVE</code></td><td>forensic-windows*</td><td>windows.events</td></tr>
+      <tr><td>UC5 360°</td><td><code>CASE-UC05-EXFIL</code></td><td>forensic-windows*</td><td>windows.events</td></tr>
+      <tr><td>UC6 Cloud</td><td><code>CASE-UC06-CLOUD</code></td><td>forensic-cloud*</td><td>cloud.aws.cloudtrail</td></tr>
+      <tr><td>UC7 Network</td><td><code>CASE-UC07-NETWORK</code></td><td>forensic-network*</td><td>network.zeek</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Portal workflow (analyst)</h3>
+  <ol>
+    <li><strong>Incidents</strong> — filter by <code>case_id</code>, open detail, generate report</li>
+    <li><strong>Ingest &amp; evidence</strong> — parsing status, target index</li>
+    <li><strong>Threat Intel</strong> — OpenCTI/MISP IOC + <code>ti_match</code> correlation</li>
+    <li><strong>HELK / Velociraptor</strong> — hunting, playbook collection, TS export</li>
+    <li><strong>Forensic reports</strong> — collect, local AI, HTML/MD export</li>
+  </ol>
+
+  <h3>IOCs &amp; bootstrap</h3>
+  <p>12 IOCs are loaded into OpenSearch TI, OpenCTI, and MISP via <code>--bootstrap-only</code>. Without it, TI correlations may be missing after a CTI reset.</p>
+
+  <p class="fp-muted">Full guide: <code>docs/PORTAL/FORENSIC-INVESTIGATION-GUIDE.md</code></p>
+</div>

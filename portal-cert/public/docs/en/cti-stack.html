@@ -1,0 +1,73 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">Cyber Threat Intelligence and incident response stack: <strong>OpenCTI</strong> as STIX hub, <strong>MISP</strong> for IOC sharing, <strong>TheHive</strong> for case management and <strong>Cortex</strong> for observable analyzer execution.</p>
+
+  <h3>CTI architecture</h3>
+  <pre class="mermaid">flowchart TB
+    classDef cti fill:#880e4f,stroke:#f48fb1,color:#fce4ec
+    classDef portal fill:#0d47a1,stroke:#42a5f5,color:#fff
+    classDef data fill:#1b5e20,stroke:#81c784,color:#e8f5e9
+
+    PORT["CERT portal<br/>CTI tab + IOC Correlation"]:::portal
+    OCTI["OpenCTI :8080<br/>/cti/"]:::cti
+    MISP["MISP<br/>/misp/"]:::cti
+    HIVE["TheHive :9000<br/>/thehive/"]:::cti
+    CORTEX["Cortex :9001<br/>/cortex/"]:::cti
+    PG[("PostgreSQL")]:::data
+    OS[("OpenSearch<br/>fp-ti-opencti-*<br/>fp-ti-misp-*")]:::data
+    HELK["HELK export<br/>POST /api/helk/export-cti"]:::portal
+    WH["Webhook<br/>POST /api/webhook/thehive"]:::portal
+
+    PORT --> OCTI & MISP & HIVE
+    OCTI --> PG & OS
+    MISP --> OS
+    OCTI &lt;--&gt; MISP
+    HIVE --> CORTEX
+    HELK --> OCTI
+    HIVE -.-> WH</pre>
+
+  <h3>Tool roles</h3>
+  <table class="portal-doc-table">
+    <thead><tr><th>Tool</th><th>URL</th><th>Analyst use case</th><th>Key data</th></tr></thead>
+    <tbody>
+      <tr><td>OpenCTI</td><td><code>/cti/</code></td><td>Knowledge graph, campaigns, vulnerabilities, STIX relations</td><td>Entities, relations, indicators, reports</td></tr>
+      <tr><td>MISP</td><td><code>/misp/</code></td><td>IOC events, MITRE galaxy, community sharing</td><td>Hash/IP/domain attributes, tags, galaxies</td></tr>
+      <tr><td>TheHive</td><td><code>/thehive/</code></td><td>IR cases, observables, tasks, playbooks</td><td>Cases, observables, procedures</td></tr>
+      <tr><td>Cortex</td><td><code>/cortex/</code></td><td>Analyzers (VirusTotal, AbuseIPDB, sandbox…)</td><td>Analysis jobs on observables</td></tr>
+    </tbody>
+  </table>
+
+  <h3>OpenCTI connectors</h3>
+  <p>Defined in <code>docker-compose.opencti.yml</code>:</p>
+  <ul>
+    <li><strong>MITRE ATT&amp;CK</strong> — matrices and techniques</li>
+    <li><strong>CVE</strong> — vulnerability feeds</li>
+    <li><strong>OpenCTI datasets</strong> — official datasets</li>
+    <li>Third-party connectors: AbuseIPDB, AlienVault, MalwareBazaar, URLhaus, ThreatFox, CISA KEV, Shodan…</li>
+  </ul>
+  <p>Activation: <code>scripts/opencti_master_setup.py</code> during <code>./forensic.sh full-start</code>.</p>
+
+  <h3>CERT portal integration</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Portal feature</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>Threat intelligence (CTI) tab</td><td>IOC summary, connector status, volume</td></tr>
+      <tr><td>IOC Total KPI</td><td>OpenCTI + MISP index cumulative in OpenSearch</td></tr>
+      <tr><td>IOC Correlation</td><td>IP / domain / hash search across platforms</td></tr>
+      <tr><td>HELK → CTI export</td><td>HELK panel button, bridge <code>/export/cti</code></td></tr>
+      <tr><td>Topbar links</td><td>OpenCTI, MISP, TheHive, Cortex one-click</td></tr>
+      <tr><td>ti_enrichment on ingest</td><td>Automatic enrichment on indexing</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Typical IR workflow</h3>
+  <ol>
+    <li>HELK hunting detection or ingest alert → master incident creation</li>
+    <li>IOC extraction → <code>/api/helk/export-cti</code> or manual OpenCTI entry</li>
+    <li>TheHive case creation, observables added</li>
+    <li>Cortex analyzer launch (hash, URL, IP)</li>
+    <li>Share relevant IOCs to MISP (community / internal)</li>
+    <li>Document in portal KB + case closure</li>
+  </ol>
+
+  <p class="fp-muted">Config: <code>config/opencti/ti-turbo.env</code>, <code>config/thehive/application.conf</code>, <code>config/cortex/application.conf</code>. Docs: <code>docs/PORTAL/CTI.md</code>, <code>docs/PORTAL/IR.md</code>.</p>
+</div>

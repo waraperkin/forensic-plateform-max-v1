@@ -1,0 +1,27 @@
+{
+  "uid": "vraptor-network-full",
+  "title": "Velociraptor Network (Full)",
+  "tags": ["velociraptor", "network", "full", "dfir"],
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "PCAP flows",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "forensic-all" },
+      "targets": [{ "refId": "A", "query": "_index:velociraptor-network-* AND type:flow" }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "PCAP alerts",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "forensic-all" },
+      "targets": [{ "refId": "A", "query": "_index:velociraptor-network-* AND type:alert" }]
+    },
+    {
+      "id": 3, "type": "logs", "title": "Network forensics (Full)",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "forensic-all" },
+      "targets": [{ "refId": "A", "query": "_index:velociraptor-network-* OR _index:velociraptor-linux-* AND proto:*" }]
+    }
+  ]
+}

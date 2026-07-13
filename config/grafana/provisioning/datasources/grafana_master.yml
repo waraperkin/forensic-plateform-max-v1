@@ -1,0 +1,88 @@
+apiVersion: 1
+
+datasources:
+  - name: FP-Platform-Health
+    type: grafana-opensearch-datasource
+    uid: fp-platform-health
+    access: proxy
+    url: http://opensearch-node1:9200
+    jsonData:
+      database: "forensic-platform-health"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+
+  - name: FP-Internal-Metrics
+    type: grafana-opensearch-datasource
+    uid: fp-internal-metrics
+    access: proxy
+    url: http://opensearch-node1:9200
+    jsonData:
+      database: "forensic-fusion-metrics*,forensic-timesketch-metrics*"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+
+  - name: Prometheus
+    type: prometheus
+    uid: fp-prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    jsonData:
+      timeInterval: 30s
+
+  - name: Loki
+    type: loki
+    uid: fp-loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      maxLines: 1000
+
+  - name: Tempo
+    type: tempo
+    uid: fp-tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      tracesToLogs:
+        datasourceUid: fp-loki
+        tags: ["job", "instance"]
+      serviceMap:
+        datasourceUid: fp-prometheus
+      nodeGraph:
+        enabled: true
+
+  - name: MISP-API
+    type: yesoreyeram-infinity-datasource
+    uid: fp-misp-api
+    access: proxy
+    url: http://forensic-misp
+    jsonData:
+      auth_method: none
+      allowedHosts:
+        - http://forensic-misp
+        - http://forensic-misp:80
+
+  - name: OpenCTI-API
+    type: yesoreyeram-infinity-datasource
+    uid: fp-opencti-api
+    access: proxy
+    url: http://forensic-opencti:3000
+    jsonData:
+      auth_method: none
+      allowedHosts:
+        - http://forensic-opencti:3000
+
+  - name: Timesketch-API
+    type: yesoreyeram-infinity-datasource
+    uid: fp-timesketch-api
+    access: proxy
+    url: http://forensic-timesketch-web:5000
+    jsonData:
+      auth_method: none
+      allowedHosts:
+        - http://forensic-timesketch-web:5000

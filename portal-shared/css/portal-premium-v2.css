@@ -1,0 +1,224 @@
+/* ════════════════════════════════════════════════════════════════════════
+   CERT CYBERCORP V2 — Polish Premium Global 2.0 (ADDITIF)
+   ════════════════════════════════════════════════════════════════════════ */
+
+[data-edition="cybercorp"] {
+  --cc2-accent: #3dffb8;
+  --cc2-accent-dim: rgba(61, 255, 184, 0.35);
+  --cc2-surface: rgba(12, 18, 28, 0.92);
+  --cc2-glow: 0 0 24px rgba(61, 255, 184, 0.12);
+  --cc2-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --cc2-dur: 0.08s;
+}
+
+[data-edition="cybercorp"] .fp-panel,
+[data-edition="cybercorp"] .cc-tp-root,
+[data-edition="cybercorp"] .cc-dash-grid {
+  contain: layout style paint;
+}
+
+[data-edition="cybercorp"] .fp-btn,
+[data-edition="cybercorp"] .cc-nav-btn,
+[data-edition="cybercorp"] .cc-subtab,
+[data-edition="cybercorp"] .cc-card-click,
+[data-edition="cybercorp"] .cc-tp-stat,
+[data-edition="cybercorp"] .fp-stat,
+[data-edition="cybercorp"] .cc-tp-detail-card,
+[data-edition="cybercorp"] .cc-dash-widget,
+[data-edition="cybercorp"] .fp-table tbody tr {
+  transition: transform var(--cc2-dur) var(--cc2-ease),
+    box-shadow var(--cc2-dur) var(--cc2-ease),
+    opacity var(--cc2-dur) var(--cc2-ease);
+  will-change: transform;
+}
+
+[data-edition="cybercorp"] .cc-nav-btn:hover,
+[data-edition="cybercorp"] .fp-btn:hover,
+[data-edition="cybercorp"] .cc-card-click:hover {
+  transform: translate3d(0, -2px, 0);
+  box-shadow: var(--cc2-glow), var(--pp-shadow-md, 0 8px 24px rgba(0, 0, 0, 0.22));
+}
+
+[data-edition="cybercorp"] .fp-table tbody tr:hover {
+  transform: translate3d(0, 0, 0);
+  background: rgba(61, 255, 184, 0.04);
+}
+
+/* Skeleton GPU 2.0 */
+@keyframes cc2-skel-gpu {
+  0% { opacity: 0.45; transform: translate3d(-8%, 0, 0); }
+  50% { opacity: 0.85; }
+  100% { opacity: 0.45; transform: translate3d(8%, 0, 0); }
+}
+
+[data-edition="cybercorp"] .pp-v2-skel-chart,
+[data-edition="cybercorp"] .fp-skeleton .fp-skel-cell,
+[data-edition="cybercorp"] .fp-skel-card {
+  animation: cc2-skel-gpu 1s var(--cc2-ease) infinite;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+[data-edition="cybercorp"] .pp-v2-skel-chart {
+  min-height: 300px;
+  height: 300px;
+  border-radius: var(--pp-radius-lg, 10px);
+  background: linear-gradient(135deg, var(--bg-elevated), rgba(61, 255, 184, 0.08));
+}
+
+[data-edition="cybercorp"] .fp-skeleton .fp-skel-cell {
+  min-height: 48px;
+  height: 48px;
+}
+
+[data-edition="cybercorp"] .fp-skel-card {
+  min-height: 120px;
+  height: 120px;
+}
+
+[data-edition="cybercorp"] .fp-skeleton-table .fp-skel-row {
+  min-height: 48px;
+}
+
+[data-edition="cybercorp"] .fp-vtable-wrap.pp-v2-vtbody,
+[data-edition="cybercorp"] .fp-vtable-body tbody.pp-v2-vtbody {
+  contain: strict;
+}
+
+/* Uniformisation cartes / filtres / tableaux */
+[data-edition="cybercorp"] .cc-tp-toolbar,
+[data-edition="cybercorp"] .cc-filter-bar,
+[data-edition="cybercorp"] .fp-toolbar {
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+[data-edition="cybercorp"] .cc-tp-stat,
+[data-edition="cybercorp"] .fp-stat,
+[data-edition="cybercorp"] .cc-dash-widget {
+  border-radius: var(--pp-radius-lg, 10px);
+  box-shadow: var(--pp-shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.18));
+}
+
+[data-edition="cybercorp"] .fp-table-wrap {
+  border-radius: var(--pp-radius-lg, 10px);
+  overflow: hidden;
+}
+
+/* 4K / 8K */
+@media (min-width: 2560px) {
+  [data-edition="cybercorp"] .app-body {
+    max-width: 2400px;
+    margin-inline: auto;
+  }
+  [data-edition="cybercorp"] .fp-sidebar.cc-sidebar {
+    width: 280px;
+  }
+  [data-edition="cybercorp"] .cc-dash-grid {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+}
+
+@media (min-width: 3840px) {
+  [data-edition="cybercorp"] .app-body {
+    max-width: 3200px;
+  }
+  [data-edition="cybercorp"] #portal-title {
+    font-size: 1.35rem;
+  }
+}
+
+/* Feedback tactile (pointer coarse) */
+@media (pointer: coarse) {
+  [data-edition="cybercorp"] .cc-nav-btn,
+  [data-edition="cybercorp"] .fp-btn {
+    min-height: 44px;
+    padding-block: 0.65rem;
+  }
+}
+
+[data-edition="cybercorp"] .cc-tp-export,
+[data-edition="cybercorp"] .fp-btn-secondary {
+  border-color: var(--cc2-accent-dim);
+}
+
+[data-edition="cybercorp"] .cc-tp-export:active,
+[data-edition="cybercorp"] .fp-btn:active {
+  transform: scale(0.98);
+}
+
+/* ── Harmonisation panneaux Sekoia / S1 / Governance / CERT Tools (V2.1) ── */
+[data-edition="cybercorp"] .cc-panel-root {
+  width: 100%;
+  max-width: 1920px;
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
+  gap: var(--cc-ux-gap, 16px);
+}
+
+[data-edition="cybercorp"] .cc-section-title,
+[data-edition="cybercorp"] .fp-panel.active > .fp-card > h2,
+[data-edition="cybercorp"] .cc-tp-root h2,
+[data-edition="cybercorp"] .cc-tp-root .fp-section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.25;
+  min-height: 2rem;
+  margin: 0 0 0.75rem;
+  display: flex;
+  align-items: center;
+}
+
+[data-edition="cybercorp"] .cc-card,
+[data-edition="cybercorp"] .cc-tp-stat,
+[data-edition="cybercorp"] .fp-stat.cc-tp-stat,
+[data-edition="cybercorp"] .cc-dash-widget,
+[data-edition="cybercorp"] .fp-premium-card.cc-card-click {
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  margin: 0;
+  box-shadow: var(--pp-shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.18));
+  box-sizing: border-box;
+}
+
+[data-edition="cybercorp"] .cc-table,
+[data-edition="cybercorp"] .fp-table,
+[data-edition="cybercorp"] .cc-tp-root .fp-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+[data-edition="cybercorp"] .cc-table thead th,
+[data-edition="cybercorp"] .cc-tp-root .fp-table thead th {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  vertical-align: middle;
+}
+
+[data-edition="cybercorp"] .cc-table tbody td,
+[data-edition="cybercorp"] .cc-tp-root .fp-table tbody td {
+  height: 48px;
+  min-height: 48px;
+  padding: 0 12px;
+  vertical-align: middle;
+}
+
+[data-edition="cybercorp"] .cc-filter-bar,
+[data-edition="cybercorp"] .cc-tp-toolbar,
+[data-edition="cybercorp"] .cc-tp-root .cc-tp-toolbar,
+[data-edition="cybercorp"] .cc-tp-root .fp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 36px;
+  margin: 0 0 1rem;
+  padding: 0.25rem 0;
+}
+
+[data-edition="cybercorp"] .cc-tp-chart {
+  min-height: 300px;
+}

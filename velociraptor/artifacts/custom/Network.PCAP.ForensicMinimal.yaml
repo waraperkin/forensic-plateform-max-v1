@@ -1,0 +1,17 @@
+name: Custom.Network.PCAP.ForensicMinimal
+description: |
+  Collecte fichiers PCAP dans un répertoire cible.
+author: CYBERCORP Forensic Platform
+type: CLIENT
+parameters:
+  - name: PcapDirectory
+    default: /var/capture
+    type: str
+    description: Répertoire contenant les fichiers .pcap / .pcapng
+sources:
+  - name: PcapFiles
+    query: |
+      LET dir <= PcapDirectory
+      SELECT OSPath, Size, Mtime
+      FROM glob(globs=dir + "/**/*.pcap*")
+      LIMIT 500

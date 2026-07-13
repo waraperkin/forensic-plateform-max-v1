@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark" data-portal="it" data-edition="cybercorp">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title data-i18n="it.brand_title">IT CYBERCORP — Forensic Upload</title>
+<link rel="stylesheet" href="shared/css/forensic-ui.css">
+<link rel="stylesheet" href="shared/css/cybercorp-theme.css">
+<link rel="stylesheet" href="shared/css/portal-layout-v2.css">
+<link rel="stylesheet" href="shared/css/portal-v6.css">
+<link rel="stylesheet" href="shared/css/portal-design-system.css">
+<link rel="stylesheet" href="css/it-shell.css">
+<link rel="stylesheet" href="shared/css/portal-cybercorp-stable.css">
+<link rel="stylesheet" href="shared/css/global-health.css">
+<link rel="stylesheet" href="shared/css/global-error.css">
+</head>
+<body class="app-shell portal-v6 portal-cybercorp-stable">
+<div class="fp-it-wrap app-shell">
+  <header class="fp-header cc-topbar">
+    <button type="button" class="fp-menu-toggle" id="menu-toggle" aria-label="Menu">☰</button>
+    <div class="cc-brand">
+      <img src="shared/assets/cybercorp-logo.svg" alt="CYBERCORP" width="40" height="40">
+      <div>
+        <h1 data-i18n="it.brand_title">IT CYBERCORP</h1>
+        <p class="cc-brand-sub" data-i18n="it.brand_sub"></p>
+      </div>
+    </div>
+    <span class="fp-badge fp-badge-it cc-badge-edition" data-i18n="it.edition_badge"></span>
+    <div class="fp-header-actions" style="margin-left:auto">
+      <span id="cc-soc-clock" class="cc-soc-clock"></span>
+      <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost pv6-lang-switch" id="lang-switch" data-i18n="ui.switch_to_en"></button>
+      <button type="button" class="fp-theme-btn" id="theme-toggle" data-i18n-title="header.theme_toggle" data-i18n-aria="header.theme_toggle" aria-label="Thème">☀️</button>
+    </div>
+  </header>
+
+  <div class="app-body cc-it-body">
+  <aside class="fp-sidebar cc-sidebar cc-it-sidebar" id="fp-sidebar-it" aria-label="Navigation IT CYBERCORP">
+    <nav class="cc-sidebar-nav cc-sidebar-ultra">
+      <div class="cc-nav-section">
+        <p class="cc-nav-section-title" data-i18n="nav.dashboard"></p>
+        <ul class="fp-sidebar-nav">
+          <li><a class="cc-nav-btn cc-nav-link" href="#it-dashboard" data-cc-icon="dash"><span data-i18n="it.nav_overview"></span></a></li>
+          <li><a class="cc-nav-btn cc-nav-link" href="#it-health" data-cc-icon="health"><span data-i18n="sidebar.health"></span></a></li>
+        </ul>
+      </div>
+      <div class="cc-nav-section">
+        <p class="cc-nav-section-title" data-i18n="nav.operations"></p>
+        <ul class="fp-sidebar-nav">
+          <li><a class="cc-nav-btn cc-nav-link" href="#it-operations" data-cc-icon="log"><span data-i18n="it.nav_operations"></span></a></li>
+          <li><a class="cc-nav-btn cc-nav-link" href="#it-agents" data-cc-icon="exposure"><span data-i18n="it.nav_agents"></span></a></li>
+          <li><a class="cc-nav-btn cc-nav-link" href="#it-upload" data-cc-icon="upload"><span data-i18n="it.nav_evidence"></span></a></li>
+        </ul>
+      </div>
+      <div class="cc-nav-section">
+        <p class="cc-nav-section-title" data-i18n="nav.references"></p>
+        <ul class="fp-sidebar-nav">
+          <li><a class="cc-nav-btn cc-nav-link" href="#it-activity-log" data-cc-icon="log"><span data-i18n="sidebar.activity_log"></span></a></li>
+          <li><a class="cc-nav-btn cc-nav-link" href="#it-documentation" data-cc-icon="kb"><span data-i18n="sidebar.documentation"></span></a></li>
+        </ul>
+      </div>
+      <div class="cc-nav-section">
+        <p class="cc-nav-section-title" data-i18n="nav.admin"></p>
+        <ul class="fp-sidebar-nav">
+          <li><a class="cc-nav-btn cc-nav-link" href="#it-admin" data-cc-icon="settings"><span data-i18n="nav.admin"></span></a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="fp-main cc-it-main">
+  <section id="it-dashboard" class="fp-card fp-card-premium fp-it-overview cc-dash-panel fp-ds-it-dashboard fp-ds-panel-surface" data-i18n-aria="it.dashboard_title">
+    <h2 class="fp-section-title fp-ds-page-title" data-i18n="it.dashboard_title"></h2>
+    <p class="fp-muted fp-ds-page-lead" data-i18n="it.dashboard_lead"></p>
+    <div id="gh-it-overview" class="fp-section-spaced"></div>
+    <div id="it-kpi-root"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+    <div id="it-actions-root"></div>
+    <div id="it-no-token-banner" class="fp-alert fp-alert-warn fp-ds-animate-in" style="display:none;margin-top:1rem" role="alert" data-i18n="it.no_token_message"></div>
+  </section>
+
+  <section id="it-health" class="fp-card fp-card-premium fp-ds-panel-surface">
+    <h2 class="fp-section-title" data-i18n="sidebar.health"></h2>
+    <p class="fp-muted fp-ds-page-lead" data-i18n="it.health_lead"></p>
+    <div id="it-health-root"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+  </section>
+
+  <div id="loading" class="fp-card" style="text-align:center;padding:2rem">
+    <span class="fp-inline-spin"></span> <span data-i18n="it.loading_token"></span>
+  </div>
+  <div id="invalid" class="fp-alert fp-alert-err" style="display:none" role="alert" data-i18n="it.no_token_message"></div>
+  <div id="exhausted" class="fp-alert fp-alert-warn" style="display:none" role="alert"></div>
+  <div id="success" class="fp-alert fp-alert-ok" style="display:none" role="status"></div>
+
+  <div id="main" style="display:none">
+    <div id="it-upload" class="fp-card fp-card-premium fp-ds-upload-panel">
+      <div class="token-box fp-ds-it-token-box" id="token-box"></div>
+      <p id="upload-limits-hint" class="fp-hint fp-ds-muted" data-i18n="ui.loading"></p>
+
+      <h2 class="fp-section-title" data-i18n="it.upload_title"></h2>
+      <div class="fp-dropzone fp-ds-dropzone-bridge" id="dz" role="button" tabindex="0" data-i18n-aria="it.upload_drop">
+        <div class="fp-dropzone-icon">📂</div>
+        <p><strong class="fp-dropzone-title" data-i18n="it.upload_drop"></strong></p>
+        <p class="fp-dropzone-sub" data-i18n="it.upload_hint"></p>
+        <input type="file" id="fi" multiple hidden>
+      </div>
+      <p class="fp-ds-muted fp-ds-upload-queue-label" data-i18n="it.upload_queue_label"></p>
+      <div class="fp-file-queue fp-ds-scroll fp-ds-upload-queue" id="queue" role="list"></div>
+
+      <h2 class="fp-section-title" data-i18n="it.info_title"></h2>
+      <label class="fp-label"><span data-i18n="it.label_name"></span>
+        <input class="fp-input" id="submitter" placeholder="Jean Dupont / Infrastructure">
+      </label>
+      <label class="fp-label"><span data-i18n="it.label_email"></span>
+        <input class="fp-input" id="email" type="email" placeholder="jean.dupont@entreprise.com">
+      </label>
+      <label class="fp-label"><span data-i18n="it.label_notes"></span>
+        <textarea class="fp-textarea" id="notes" rows="3" data-i18n-placeholder="it.notes_placeholder" placeholder=""></textarea>
+      </label>
+      <label class="fp-label fp-label-checkbox">
+        <input type="checkbox" id="helk-sync-it" checked>
+        <span data-i18n="helk.sync_assets_logs"></span>
+      </label>
+      <p class="fp-hint"><span id="helk-it-badge" class="cc-badge cc-badge-muted" data-i18n="helk.status_loading"></span></p>
+      <p class="fp-hint"><span id="vr-it-badge" class="cc-badge cc-badge-muted" data-i18n="velociraptor.status_loading"></span></p>
+      <button type="button" class="fp-btn fp-btn-primary" id="ubtn" disabled onclick="doUpload()" style="width:100%" data-i18n="it.submit"></button>
+      <div class="fp-upload-progress">
+        <div class="fp-progress-bar"><div class="fp-progress-fill" id="pf"></div></div>
+        <div class="fp-progress-meta" id="pf-meta"></div>
+      </div>
+    </div>
+
+    <section id="it-operations" class="fp-card fp-card-premium fp-ds-ops-panel">
+      <h2 class="fp-section-title" data-i18n="it.ops_title"></h2>
+      <p class="fp-muted fp-ds-page-lead" data-i18n="it.ops_lead"></p>
+      <div class="fp-ds-it-ops-toolbar">
+        <input type="search" class="fp-input fp-ds-input-inline" id="it-ops-search"
+          placeholder="" data-i18n-placeholder="it.ops_search" autocomplete="off">
+        <div class="fp-ds-filter-chips" id="it-ops-chips" role="group">
+          <button type="button" class="fp-ds-chip active" data-ops="all" data-i18n="it.ops_chip_all"></button>
+          <button type="button" class="fp-ds-chip" data-ops="done" data-i18n="it.ops_chip_done"></button>
+          <button type="button" class="fp-ds-chip" data-ops="pending" data-i18n="it.ops_chip_pending"></button>
+        </div>
+      </div>
+      <p class="fp-ds-muted" id="it-ops-count" aria-live="polite"></p>
+      <div class="fp-ds-scroll-list" id="it-ops-list"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+    </section>
+
+    <section id="it-agents" class="fp-card fp-card-premium fp-ds-panel-surface">
+      <h2 class="fp-section-title" data-i18n="it.nav_agents"></h2>
+      <p class="fp-muted fp-ds-page-lead" data-i18n="it.agents_lead"></p>
+      <div id="it-agents-root"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+    </section>
+
+    <section id="it-activity-log" class="fp-card fp-card-premium">
+      <h2 class="fp-section-title" data-i18n="sidebar.activity_log"></h2>
+      <div class="fp-console" id="con"><div class="log-info" data-i18n="it.sys_boot"></div></div>
+    </section>
+
+    <section id="it-documentation" class="fp-card fp-card-premium fp-ds-panel-surface">
+      <h2 class="fp-section-title" data-i18n="sidebar.documentation"></h2>
+      <p class="fp-muted fp-ds-page-lead" data-i18n="it.doc_lead"></p>
+      <div id="it-doc-root"></div>
+    </section>
+
+    <section id="it-admin" class="fp-card fp-card-premium fp-ds-panel-surface">
+      <h2 class="fp-section-title" data-i18n="nav.admin"></h2>
+      <p class="fp-muted fp-ds-page-lead" data-i18n="it.admin_lead"></p>
+      <div id="it-admin-root"><p class="fp-muted" data-i18n="ui.loading"></p></div>
+    </section>
+  </div>
+
+  </main>
+  </div>
+  <footer class="fp-footer cc-footer" data-i18n="it.footer"></footer>
+</div>
+
+<script src="shared/js/portal-config.js"></script>
+<script src="shared/js/header.js"></script>
+<script src="shared/js/forensic-utils.js"></script>
+<script src="shared/js/api-client.js"></script>
+<script src="shared/js/ui-error-logger.js"></script>
+<script src="shared/js/global-error-boundary.js"></script>
+<script src="shared/js/proxy-frame.js"></script>
+<script src="shared/js/forensic-api.js"></script>
+<script src="shared/js/forensic-ui.js"></script>
+<script src="shared/js/forensic-validation.js"></script>
+<script src="shared/js/forensic-components.js"></script>
+<script src="shared/js/cybercorp-ultra.js"></script>
+<script src="shared/js/i18n.js"></script>
+<script src="shared/js/portal-units.js"></script>
+<script src="shared/js/portal-v6.js"></script>
+<script src="shared/js/it-dashboard.js"></script>
+<script src="shared/js/it-operations.js"></script>
+<script src="shared/js/global-health-service.js"></script>
+<script src="shared/js/global-health-dashboard.js"></script>
+<script src="shared/js/it-app.js"></script>
+<script src="shared/js/it-minimal-pages.js"></script>
+<script src="shared/js/portal-nav.js"></script>
+<script src="shared/js/portal-nav-fluid.js"></script>
+<script>document.addEventListener('DOMContentLoaded',async()=>{if(window.i18n)await i18n.init();if(window.CybercorpUltra)CybercorpUltra.initSocClock();if(window.PortalV6)PortalV6.init();if(window.ItMinimalPages)ItMinimalPages.init();});</script>
+</body>
+</html>

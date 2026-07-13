@@ -1,0 +1,73 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">Stack Cyber Threat Intelligence et réponse à incident : <strong>OpenCTI</strong> comme hub STIX, <strong>MISP</strong> pour le partage IOC, <strong>TheHive</strong> pour la gestion de cas et <strong>Cortex</strong> pour l'exécution d'analyseurs sur les observables.</p>
+
+  <h3>Architecture CTI</h3>
+  <pre class="mermaid">flowchart TB
+    classDef cti fill:#880e4f,stroke:#f48fb1,color:#fce4ec
+    classDef portal fill:#0d47a1,stroke:#42a5f5,color:#fff
+    classDef data fill:#1b5e20,stroke:#81c784,color:#e8f5e9
+
+    PORT["Portail CERT<br/>Onglet CTI + IOC Correlation"]:::portal
+    OCTI["OpenCTI :8080<br/>/cti/"]:::cti
+    MISP["MISP<br/>/misp/"]:::cti
+    HIVE["TheHive :9000<br/>/thehive/"]:::cti
+    CORTEX["Cortex :9001<br/>/cortex/"]:::cti
+    PG[("PostgreSQL")]:::data
+    OS[("OpenSearch<br/>fp-ti-opencti-*<br/>fp-ti-misp-*")]:::data
+    HELK["Export HELK<br/>POST /api/helk/export-cti"]:::portal
+    WH["Webhook<br/>POST /api/webhook/thehive"]:::portal
+
+    PORT --> OCTI & MISP & HIVE
+    OCTI --> PG & OS
+    MISP --> OS
+    OCTI &lt;--&gt; MISP
+    HIVE --> CORTEX
+    HELK --> OCTI
+    HIVE -.-> WH</pre>
+
+  <h3>Rôles par outil</h3>
+  <table class="portal-doc-table">
+    <thead><tr><th>Outil</th><th>URL</th><th>Cas d'usage analyste</th><th>Données clés</th></tr></thead>
+    <tbody>
+      <tr><td>OpenCTI</td><td><code>/cti/</code></td><td>Knowledge graph, campagnes, vulnérabilités, relations STIX</td><td>Entités, relations, indicateurs, rapports</td></tr>
+      <tr><td>MISP</td><td><code>/misp/</code></td><td>Events IOC, galaxie MITRE, partage communautaire</td><td>Attributs hash/IP/domaine, tags, galaxies</td></tr>
+      <tr><td>TheHive</td><td><code>/thehive/</code></td><td>Cas IR, observables, tâches, playbooks</td><td>Cases, observables, procédures</td></tr>
+      <tr><td>Cortex</td><td><code>/cortex/</code></td><td>Analyseurs (VirusTotal, AbuseIPDB, sandbox…)</td><td>Jobs d'analyse sur observables</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Connecteurs OpenCTI</h3>
+  <p>Définis dans <code>docker-compose.opencti.yml</code> :</p>
+  <ul>
+    <li><strong>MITRE ATT&amp;CK</strong> — matrices et techniques</li>
+    <li><strong>CVE</strong> — flux vulnérabilités</li>
+    <li><strong>OpenCTI datasets</strong> — jeux de données officiels</li>
+    <li>Connecteurs tiers : AbuseIPDB, AlienVault, MalwareBazaar, URLhaus, ThreatFox, CISA KEV, Shodan…</li>
+  </ul>
+  <p>Activation : <code>scripts/opencti_master_setup.py</code> lors du <code>./forensic.sh full-start</code>.</p>
+
+  <h3>Intégration portail CERT</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Fonction portail</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>Onglet Renseignement menace (CTI)</td><td>Synthèse IOC, statut connecteurs, volumétrie</td></tr>
+      <tr><td>KPI IOC Total</td><td>Cumul index OpenCTI + MISP dans OpenSearch</td></tr>
+      <tr><td>IOC Correlation</td><td>Recherche IP / domaine / hash multi-plateformes</td></tr>
+      <tr><td>Export HELK → CTI</td><td>Bouton panneau HELK, bridge <code>/export/cti</code></td></tr>
+      <tr><td>Topbar liens</td><td>OpenCTI, MISP, TheHive, Cortex en un clic</td></tr>
+      <tr><td>ti_enrichment on ingest</td><td>Enrichissement automatique à l'indexation</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Workflow IR type</h3>
+  <ol>
+    <li>Détection hunting HELK ou alerte ingest → création incident master</li>
+    <li>Extraction IOC → export <code>/api/helk/export-cti</code> ou saisie manuelle OpenCTI</li>
+    <li>Création cas TheHive, ajout observables</li>
+    <li>Lancement analyseurs Cortex (hash, URL, IP)</li>
+    <li>Partage IOC pertinents vers MISP (communauté / interne)</li>
+    <li>Documentation dans KB portail + clôture cas</li>
+  </ol>
+
+  <p class="fp-muted">Config : <code>config/opencti/ti-turbo.env</code>, <code>config/thehive/application.conf</code>, <code>config/cortex/application.conf</code>. Doc : <code>docs/PORTAL/CTI.md</code>, <code>docs/PORTAL/IR.md</code>.</p>
+</div>

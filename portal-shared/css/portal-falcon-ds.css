@@ -1,0 +1,805 @@
+/**
+ * CYBERCORP Portal — Falcon DS (CrowdStrike inspiré)
+ * Sombre · compact · SOC · zéro glow · zéro glassmorphism
+ */
+
+:root {
+  --fl-bg: #0a0d12;
+  --fl-bg-elevated: #11151c;
+  --fl-bg-card: #161b24;
+  --fl-bg-input: #0d1016;
+  --fl-bg-hover: #1a2029;
+  --fl-border: rgba(255, 255, 255, 0.07);
+  --fl-border-strong: rgba(255, 255, 255, 0.12);
+  --fl-text: #e8ecf1;
+  --fl-text-muted: #8b95a5;
+  --fl-text-dim: #5c6675;
+  --fl-red: #ee0000;
+  --fl-red-hover: #ff1a1a;
+  --fl-red-dim: rgba(238, 0, 0, 0.1);
+  --fl-red-line: rgba(238, 0, 0, 0.35);
+  --fl-steel: #5b8db8;
+  --fl-steel-bright: #7aaed4;
+  --fl-steel-dim: rgba(91, 141, 184, 0.1);
+  --fl-steel-line: rgba(91, 141, 184, 0.3);
+  --fl-ok: #3daa6d;
+  --fl-warn: #d4a017;
+  --fl-danger: #ee0000;
+  --fl-radius: 4px;
+  --fl-radius-md: 6px;
+  --fl-font: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --fl-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  --fl-ease: 0.1s ease;
+  --fl-ease-panel: 0.08s ease-out;
+  --fl-sidebar-w: 240px;
+  --fl-header-h: 48px;
+  --fl-row-h: 30px;
+  --fl-toolbar-h: 36px;
+  --fl-kpi-h: 72px;
+}
+
+/* ── Base ── */
+body.portal-falcon {
+  font-family: var(--fl-font);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--fl-text);
+  background: var(--fl-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+body.portal-falcon * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 149, 165, 0.25) transparent;
+}
+
+/* ── Layout ── */
+body.portal-falcon .app-body,
+[data-edition="cybercorp"].portal-falcon .app-body {
+  display: grid !important;
+  grid-template-columns: var(--fl-sidebar-w) minmax(0, 1fr) !important;
+  background: var(--fl-bg);
+}
+
+body.portal-falcon .fp-main,
+body.portal-falcon .cc-it-main {
+  background: var(--fl-bg);
+  padding: 16px 20px !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+body.portal-falcon .fp-panel,
+body.portal-falcon .fp-panel.active {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+body.portal-falcon .fp-panel {
+  display: none !important;
+  flex-direction: column;
+  gap: 12px;
+  animation: none !important;
+  content-visibility: hidden;
+}
+
+body.portal-falcon .fp-panel.active {
+  display: flex !important;
+  animation: fl-panel-in var(--fl-ease-panel) !important;
+  content-visibility: visible;
+}
+
+@keyframes fl-panel-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.portal-falcon .fp-panel.active { animation: none !important; }
+}
+
+/* ── Header Falcon ── */
+body.portal-falcon .fp-header,
+body.portal-falcon .cc-topbar {
+  background: var(--fl-bg-elevated) !important;
+  border-bottom: 1px solid var(--fl-border) !important;
+  box-shadow: none !important;
+  height: var(--fl-header-h) !important;
+  min-height: var(--fl-header-h) !important;
+  max-height: var(--fl-header-h) !important;
+  gap: 8px !important;
+}
+
+body.portal-falcon .cc-brand h1,
+body.portal-falcon #portal-title {
+  font-size: 0.88rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  color: var(--fl-text);
+}
+
+body.portal-falcon .cc-brand-sub {
+  font-size: 0.68rem;
+  color: var(--fl-text-dim);
+}
+
+body.portal-falcon .cc-badge-edition,
+body.portal-falcon .fp-badge-cert {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 2px 8px;
+  border-radius: 2px;
+  background: var(--fl-red-dim);
+  color: var(--fl-red);
+  border: 1px solid var(--fl-red-line);
+}
+
+body.portal-falcon .fp-badge-it {
+  background: var(--fl-steel-dim);
+  color: var(--fl-steel-bright);
+  border-color: var(--fl-steel-line);
+}
+
+body.portal-falcon .cc-topbar .fp-nav-links a {
+  font-size: 0.7rem;
+  padding: 3px 7px;
+  border-radius: var(--fl-radius);
+  color: var(--fl-text-muted);
+  transition: color var(--fl-ease), background var(--fl-ease);
+}
+
+body.portal-falcon .cc-topbar .fp-nav-links a:hover {
+  color: var(--fl-steel-bright);
+  background: var(--fl-steel-dim);
+}
+
+body.portal-falcon .cc-soc-clock {
+  font-size: 0.68rem;
+  color: var(--fl-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Sidebar ── */
+body.portal-falcon .fp-sidebar,
+body.portal-falcon .cc-sidebar,
+body.portal-falcon .cc-it-sidebar {
+  background: var(--fl-bg-elevated) !important;
+  border-right: 1px solid var(--fl-border) !important;
+  width: var(--fl-sidebar-w) !important;
+  min-width: var(--fl-sidebar-w) !important;
+  max-width: var(--fl-sidebar-w) !important;
+}
+
+body.portal-falcon .cc-nav-section-title {
+  color: var(--fl-text-dim);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 10px 12px 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--fl-border);
+}
+
+body.portal-falcon .cc-nav-btn {
+  font-size: 0.78rem;
+  padding: 7px 12px;
+  margin: 0 6px;
+  border-radius: var(--fl-radius);
+  color: var(--fl-text-muted);
+  transition: background var(--fl-ease), color var(--fl-ease);
+}
+
+body.portal-falcon .cc-nav-btn:hover {
+  background: var(--fl-bg-hover);
+  color: var(--fl-text);
+}
+
+body.portal-falcon .cc-nav-btn.active {
+  background: var(--fl-red-dim) !important;
+  color: var(--fl-text) !important;
+  box-shadow: inset 3px 0 0 var(--fl-red) !important;
+}
+
+[data-portal="it"] body.portal-falcon .cc-nav-btn.active {
+  box-shadow: inset 3px 0 0 var(--fl-steel) !important;
+  background: var(--fl-steel-dim) !important;
+}
+
+/* ── Cards / panels ── */
+body.portal-falcon .fp-card,
+body.portal-falcon .fp-card-premium,
+body.portal-falcon .cc-pro-panel,
+body.portal-falcon .cc-glass-panel,
+body.portal-falcon .fp-ds-card,
+body.portal-falcon .cc-dash-panel,
+body.portal-falcon .fp-premium-card {
+  background: var(--fl-bg-card) !important;
+  border: 1px solid var(--fl-border) !important;
+  border-radius: var(--fl-radius-md) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.portal-falcon .fp-ds-panel-surface {
+  padding: 16px 18px;
+}
+
+body.portal-falcon .fp-panel.active > .fp-card {
+  padding: 16px 18px;
+}
+
+/* ── Page headers ── */
+body.portal-falcon .fp-section-title,
+body.portal-falcon .fp-ds-page-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fl-text);
+  margin: 0 0 6px;
+}
+
+body.portal-falcon .fp-ds-page-header {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--fl-border);
+}
+
+body.portal-falcon .fp-ds-page-lead,
+body.portal-falcon .fp-muted,
+body.portal-falcon .fp-hint {
+  color: var(--fl-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+body.portal-falcon .fp-section-sub {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fl-text-dim);
+  margin: 0 0 8px;
+}
+
+/* ── KPI compacts Falcon ── */
+body.portal-falcon .fp-ds-kpi-grid,
+body.portal-falcon .fp-premium-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+body.portal-falcon .fp-ds-kpi-grid .fp-ds-card,
+body.portal-falcon .fp-ds-kpi-grid .fp-premium-card,
+body.portal-falcon .fp-premium-grid .fp-premium-card {
+  padding: 10px 12px;
+  min-height: var(--fl-kpi-h);
+  border-radius: var(--fl-radius-md);
+  transition: border-color var(--fl-ease), background var(--fl-ease);
+}
+
+body.portal-falcon .fp-ds-card-interactive:hover,
+body.portal-falcon .cc-card-click:hover {
+  border-color: var(--fl-steel-line) !important;
+  background: var(--fl-bg-hover) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+body.portal-falcon .fp-ds-card-label,
+body.portal-falcon .fp-premium-card-title {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fl-text-dim);
+  margin-bottom: 2px;
+}
+
+body.portal-falcon .fp-ds-card-value,
+body.portal-falcon .fp-premium-card-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--fl-steel-bright);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+body.portal-falcon .fp-ds-card--up .fp-ds-card-value,
+body.portal-falcon .fp-ds-card--up .fp-premium-card-value { color: var(--fl-ok); }
+body.portal-falcon .fp-ds-card--warn .fp-ds-card-value { color: var(--fl-warn); }
+body.portal-falcon .fp-ds-card--down .fp-ds-card-value { color: var(--fl-danger); }
+
+body.portal-falcon .fp-ds-card-meta {
+  font-size: 0.68rem;
+  color: var(--fl-text-dim);
+  margin-top: 2px;
+}
+
+/* ── Tags / chips état ── */
+body.portal-falcon .fp-ds-tag {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 2px;
+  border: 1px solid var(--fl-border);
+}
+
+body.portal-falcon .fp-ds-tag--ok {
+  color: var(--fl-ok);
+  border-color: rgba(61, 170, 109, 0.35);
+  background: rgba(61, 170, 109, 0.08);
+}
+
+body.portal-falcon .fp-ds-tag--warn {
+  color: var(--fl-warn);
+  border-color: rgba(212, 160, 23, 0.35);
+  background: rgba(212, 160, 23, 0.08);
+}
+
+body.portal-falcon .fp-ds-tag--down {
+  color: var(--fl-danger);
+  border-color: var(--fl-red-line);
+  background: var(--fl-red-dim);
+}
+
+body.portal-falcon .fp-ds-chip,
+body.portal-falcon .fp-ds-filter-chips button {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 2px;
+  border: 1px solid var(--fl-border);
+  background: var(--fl-bg-input);
+  color: var(--fl-text-muted);
+  cursor: pointer;
+  transition: background var(--fl-ease), border-color var(--fl-ease), color var(--fl-ease);
+}
+
+body.portal-falcon .fp-ds-chip.active,
+body.portal-falcon .fp-ds-filter-chips .fp-ds-chip.active {
+  background: var(--fl-red-dim);
+  border-color: var(--fl-red-line);
+  color: var(--fl-text);
+}
+
+/* ── Actions rapides (max 3) ── */
+body.portal-falcon .fl-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--fl-border);
+}
+
+body.portal-falcon .fl-quick-actions .fl-qa-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: calc(33.33% - 6px);
+  padding: 8px 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  background: var(--fl-bg-input);
+  color: var(--fl-text-muted);
+  cursor: pointer;
+  transition: background var(--fl-ease), border-color var(--fl-ease), color var(--fl-ease);
+}
+
+body.portal-falcon .fl-quick-actions .fl-qa-btn:hover {
+  border-color: var(--fl-red-line);
+  color: var(--fl-text);
+  background: var(--fl-red-dim);
+}
+
+body.portal-falcon .fl-quick-actions .fl-qa-btn--primary {
+  border-color: var(--fl-red-line);
+  background: var(--fl-red-dim);
+  color: var(--fl-red);
+}
+
+/* ── Action grid IT (4 max) ── */
+body.portal-falcon .fp-ds-action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.portal-falcon .fp-ds-action-cell {
+  padding: 8px 10px;
+  min-height: 36px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+  border-radius: var(--fl-radius);
+  border: 1px solid var(--fl-border);
+  background: var(--fl-bg-input);
+  transition: border-color var(--fl-ease), background var(--fl-ease);
+}
+
+body.portal-falcon .fp-ds-action-cell.fp-ds-action-up {
+  border-color: rgba(61, 170, 109, 0.3);
+  color: var(--fl-ok);
+}
+
+body.portal-falcon .fp-ds-action-cell.fp-ds-action-warn {
+  border-color: rgba(212, 160, 23, 0.3);
+  color: var(--fl-warn);
+}
+
+body.portal-falcon .fp-ds-action-cell.fp-ds-action-link:hover {
+  border-color: var(--fl-steel-line);
+  background: var(--fl-steel-dim);
+  color: var(--fl-steel-bright);
+}
+
+/* ── Tables SOC denses ── */
+body.portal-falcon .fp-table-wrap,
+body.portal-falcon .fp-ds-table-wrap {
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius-md);
+  overflow: auto;
+  background: var(--fl-bg-input);
+  width: 100%;
+}
+
+body.portal-falcon table,
+body.portal-falcon .fp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+}
+
+body.portal-falcon table th,
+body.portal-falcon .fp-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--fl-bg-elevated);
+  color: var(--fl-text-dim);
+  font-weight: 600;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--fl-border-strong);
+  white-space: nowrap;
+  text-align: left;
+  height: var(--fl-row-h);
+}
+
+body.portal-falcon table td,
+body.portal-falcon .fp-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--fl-border);
+  vertical-align: middle;
+  min-height: var(--fl-row-h);
+  color: var(--fl-text-muted);
+}
+
+body.portal-falcon table tbody tr,
+body.portal-falcon .fp-table tbody tr {
+  transition: background var(--fl-ease);
+}
+
+body.portal-falcon table tbody tr:hover,
+body.portal-falcon .fp-table tbody tr:hover {
+  background: var(--fl-bg-hover);
+}
+
+body.portal-falcon table code,
+body.portal-falcon .fp-table code {
+  font-family: var(--fl-mono);
+  font-size: 0.72rem;
+  color: var(--fl-steel-bright);
+}
+
+body.portal-falcon .cc-soc-tools-table th:nth-child(1),
+body.portal-falcon .cc-soc-tools-table td:nth-child(1) { min-width: 110px; }
+body.portal-falcon .cc-url-cell {
+  font-family: var(--fl-mono);
+  font-size: 0.7rem;
+  word-break: break-all;
+  color: var(--fl-text-dim);
+  max-width: 280px;
+}
+body.portal-falcon .cc-soc-actions { white-space: nowrap; width: 1%; }
+
+/* ── Boutons ── */
+body.portal-falcon .fp-btn {
+  font-size: 0.76rem;
+  font-weight: 600;
+  border-radius: var(--fl-radius);
+  padding: 6px 12px;
+  transition: background var(--fl-ease), border-color var(--fl-ease), color var(--fl-ease);
+}
+
+body.portal-falcon .fp-btn-primary {
+  background: var(--fl-red) !important;
+  color: #fff !important;
+  border: 1px solid var(--fl-red) !important;
+}
+
+body.portal-falcon .fp-btn-primary:hover {
+  background: var(--fl-red-hover) !important;
+  filter: none;
+}
+
+body.portal-falcon .fp-btn-ghost,
+body.portal-falcon .fp-btn-sm.fp-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--fl-border);
+  color: var(--fl-text-muted);
+}
+
+body.portal-falcon .fp-btn-ghost:hover {
+  border-color: var(--fl-steel-line);
+  color: var(--fl-steel-bright);
+  background: var(--fl-steel-dim);
+}
+
+/* ── Inputs ── */
+body.portal-falcon .fp-input,
+body.portal-falcon .fp-textarea,
+body.portal-falcon .fp-select,
+body.portal-falcon select.fp-input {
+  background: var(--fl-bg-input);
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  color: var(--fl-text);
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  transition: border-color var(--fl-ease);
+}
+
+body.portal-falcon .fp-input:focus,
+body.portal-falcon .fp-textarea:focus {
+  outline: none;
+  border-color: var(--fl-steel-line);
+  box-shadow: 0 0 0 1px var(--fl-steel-dim);
+}
+
+body.portal-falcon .fp-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--fl-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Toolbars ── */
+body.portal-falcon .fp-toolbar,
+body.portal-falcon .cc-tp-toolbar,
+body.portal-falcon .cc-filter-bar,
+body.portal-falcon .fp-ds-it-ops-toolbar,
+body.portal-falcon .fp-ds-kb-toolbar,
+body.portal-falcon .fp-ds-activity-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--fl-toolbar-h);
+  padding: 6px 10px;
+  background: var(--fl-bg-input);
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius-md);
+  margin-bottom: 10px;
+}
+
+/* ── Heatmap / dash grid ── */
+body.portal-falcon .cc-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+body.portal-falcon .cc-heat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 6px;
+}
+
+body.portal-falcon .cc-heat-cell {
+  padding: 8px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: var(--fl-radius);
+  border: 1px solid var(--fl-border);
+  background: var(--fl-bg-input);
+  transition: background var(--fl-ease);
+}
+
+body.portal-falcon .cc-heat-cell:hover {
+  background: var(--fl-bg-hover);
+}
+
+/* ── Dropzone Falcon ── */
+body.portal-falcon .fp-dropzone,
+body.portal-falcon .fp-ds-dropzone-bridge {
+  border: 1px dashed var(--fl-border-strong);
+  border-radius: var(--fl-radius-md);
+  background: var(--fl-bg-input);
+  padding: 20px 16px;
+  text-align: center;
+  transition: border-color var(--fl-ease), background var(--fl-ease);
+}
+
+body.portal-falcon .fp-dropzone:hover,
+body.portal-falcon .fp-dropzone.fl-drop-active {
+  border-color: var(--fl-red-line);
+  background: var(--fl-red-dim);
+}
+
+body.portal-falcon .fp-ds-upload-queue {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  background: var(--fl-bg-input);
+}
+
+/* ── Console monospace ── */
+body.portal-falcon .fp-console {
+  font-family: var(--fl-mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  background: #06080c;
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius-md);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  color: var(--fl-text-muted);
+}
+
+body.portal-falcon .fp-console .fp-console-line--ok { color: var(--fl-ok); }
+body.portal-falcon .fp-console .fp-console-line--err { color: var(--fl-danger); }
+body.portal-falcon .fp-console .fp-console-line--warn { color: var(--fl-warn); }
+
+/* ── Drawers ── */
+body.portal-falcon .fp-ai-drawer,
+body.portal-falcon .portal-ai-panel,
+body.portal-falcon .fp-doc-drawer,
+body.portal-falcon .pd-detail-drawer {
+  background: var(--fl-bg-elevated) !important;
+  border-left: 1px solid var(--fl-border) !important;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: none !important;
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+/* ── Alerts ── */
+body.portal-falcon .fp-alert {
+  border-radius: var(--fl-radius);
+  font-size: 0.78rem;
+  padding: 8px 12px;
+  border: 1px solid var(--fl-border);
+}
+
+body.portal-falcon .fp-alert-ok { border-color: rgba(61, 170, 109, 0.3); background: rgba(61, 170, 109, 0.06); color: var(--fl-ok); }
+body.portal-falcon .fp-alert-warn { border-color: rgba(212, 160, 23, 0.3); background: rgba(212, 160, 23, 0.06); color: var(--fl-warn); }
+body.portal-falcon .fp-alert-err { border-color: var(--fl-red-line); background: var(--fl-red-dim); color: var(--fl-danger); }
+
+/* ── Footer ── */
+body.portal-falcon .fp-footer,
+body.portal-falcon .cc-footer {
+  background: var(--fl-bg-elevated);
+  border-top: 1px solid var(--fl-border);
+  font-size: 0.68rem;
+  color: var(--fl-text-dim);
+  padding: 8px 16px;
+}
+
+/* ── Login ── */
+body.fp-login-page {
+  font-family: var(--fl-font);
+  background: var(--fl-bg);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+body.fp-login-page .cc-login-bg {
+  position: fixed;
+  inset: 0;
+  background: var(--fl-bg);
+  pointer-events: none;
+}
+
+body.fp-login-page .fp-login-card {
+  position: relative;
+  width: min(380px, 100%);
+  background: var(--fl-bg-card);
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius-md);
+  padding: 28px 24px;
+}
+
+body.fp-login-page .fp-login-brand { text-align: center; margin-bottom: 20px; }
+body.fp-login-page .fp-login-brand h1 { font-size: 1rem; font-weight: 700; margin: 10px 0 4px; }
+body.fp-login-page .fp-btn-primary { background: var(--fl-red) !important; border-color: var(--fl-red) !important; }
+
+/* ── IT token box ── */
+[data-portal="it"] body.portal-falcon .fp-ds-it-token-box {
+  border: 1px solid rgba(212, 160, 23, 0.3);
+  background: rgba(212, 160, 23, 0.06);
+  border-radius: var(--fl-radius-md);
+  padding: 12px 14px;
+}
+
+/* ── Neutraliser glow legacy ── */
+body.portal-falcon .cc-nav-btn:hover,
+body.portal-falcon .fp-btn:hover,
+body.portal-falcon .cc-card-click:hover,
+body.portal-falcon .fp-table tbody tr:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+body.portal-falcon .cc-glass-panel,
+body.portal-falcon .cc-pro-panel {
+  backdrop-filter: none !important;
+}
+
+/* ── Mobile ── */
+@media (max-width: 900px) {
+  body.portal-falcon .app-body { grid-template-columns: 1fr !important; }
+
+  body.portal-falcon .fp-sidebar,
+  body.portal-falcon .cc-sidebar,
+  body.portal-falcon .cc-it-sidebar {
+    position: fixed !important;
+    top: var(--fl-header-h) !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: min(260px, 88vw) !important;
+    min-width: 0 !important;
+    max-width: min(260px, 88vw) !important;
+    transform: translateX(-100%) !important;
+    z-index: 200 !important;
+    transition: transform 0.12s ease !important;
+  }
+
+  body.portal-falcon .fp-sidebar.open,
+  body.portal-falcon .cc-sidebar.open,
+  body.portal-falcon .cc-it-sidebar.open {
+    transform: translateX(0) !important;
+  }
+
+  body.portal-falcon .fp-main,
+  body.portal-falcon .cc-it-main {
+    width: 100% !important;
+    padding: 12px !important;
+  }
+
+  body.portal-falcon .cc-topbar .fp-nav-links { display: none !important; }
+  body.portal-falcon .fp-menu-toggle { display: inline-flex !important; }
+  body.portal-falcon .cc-badge-edition { display: none; }
+
+  body.portal-falcon .fl-quick-actions .fl-qa-btn { max-width: 100%; flex: 1 1 100%; }
+  body.portal-falcon .fp-ds-action-grid { grid-template-columns: repeat(2, 1fr); }
+  body.portal-falcon .fp-ds-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 390px) {
+  body.portal-falcon .fp-ds-kpi-grid,
+  body.portal-falcon .fp-ds-action-grid,
+  body.portal-falcon .cc-heat-grid { grid-template-columns: 1fr !important; }
+  body.portal-falcon table { font-size: 0.72rem; }
+}

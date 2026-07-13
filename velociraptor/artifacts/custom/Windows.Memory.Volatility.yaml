@@ -1,0 +1,17 @@
+name: Custom.Windows.Memory.Volatility
+description: |
+  Résultats Volatility lab (pslist, netscan, malfind) — pas de dump live requis en lab offline.
+author: CYBERCORP Forensic Platform
+type: CLIENT
+parameters: []
+sources:
+  - name: LabVolatilityOffline
+    precondition: SELECT OS FROM info() WHERE OS = 'windows'
+    query: |
+      LET raw <= read_file(filename="/lab-data/windows/memory-volatility.json")
+      LET data <= parse_json(data=raw)
+      SELECT plugin.name AS Plugin, row AS Row
+      FROM foreach(row=data.plugins, query={
+        SELECT _value.name AS name, _value.rows AS rows FROM scope()
+      }) AS plugin
+      JOIN row=plugin.rows

@@ -1,0 +1,190 @@
+# Nomenclature officielle FP — Premium (Splunk/Elastic/Chronicle/Sentinel) + CERT-FR/ANSSI
+# Règle anti-casse : les IDs techniques (fp-*, uids) NE CHANGENT PAS — titres/labels uniquement.
+
+meta:
+  version: "1.0.0"
+  standard: ["Splunk ES", "Elastic Security", "Chronicle", "Sentinel", "ANSSI CERT-FR"]
+  preserve_ids: true
+  rollback_dir: "backups/nomenclature"
+
+# ── OpenSearch Dashboards — Security Operations ──
+osd_security:
+  fp-opensearch-security:
+    new_title: "Security Operations — Overview"
+    category: "Security Operations"
+  fp-ioc-matches:
+    new_title: "Security Operations — IOC Matches"
+    category: "Security Operations"
+  fp-threat-hunting:
+    new_title: "Security Operations — Threat Hunting"
+    category: "Security Operations"
+  fp-mitre-dashboard:
+    new_title: "Security Operations — Sigma Detections"
+    category: "Security Operations"
+  fp-opensearch-overview:
+    new_title: "Security Operations — Cluster Overview"
+    category: "Security Operations"
+
+# ── Threat Intelligence ──
+osd_threat_intel:
+  fp-ti-overview:
+    new_title: "Threat Intelligence — Overview"
+    category: "Threat Intelligence"
+  fp-ioc-threat-map:
+    new_title: "Threat Intelligence — Campaigns"
+    category: "Threat Intelligence"
+  fp-case-ioc-view:
+    new_title: "Threat Intelligence — Malware & TTPs"
+    category: "Threat Intelligence"
+
+# ── Incident Response ──
+osd_incident:
+  fp-incident-commander-playbook:
+    new_title: "Incident Response — Commander"
+    category: "Incident Response"
+  fp-case-ioc-view:
+    new_title: "Incident Response — Case Summary"
+    category: "Incident Response"
+  fp-ioc-threat-map:
+    new_title: "Incident Response — Evidence Map"
+    category: "Incident Response"
+
+# Note: fp-case-ioc-view et fp-ioc-threat-map ont un rôle dual TI/IR — titre dashboard = TI dans build;
+# IR utilise les playbooks IC pour Case/Evidence.
+
+# ── Purple Teaming ──
+osd_purple:
+  fp-purple-team-playbook:
+    new_title: "Purple Teaming — Operations"
+    category: "Purple Teaming"
+  panel_sections:
+    replay: "Purple Teaming — Replay Results"
+    gaps: "Purple Teaming — Detection Gaps"
+    coverage: "Purple Teaming — Coverage Map"
+
+# ── Platform Health ──
+osd_platform:
+  fp-platform-health:
+    new_title: "Platform Health — System Metrics"
+    category: "Platform Health"
+  fp-observability-pipeline:
+    new_title: "Platform Health — Ingestion Status"
+    category: "Platform Health"
+  panel_aliases:
+    ti_health: "Platform Health — TI Health"
+    ts_health: "Platform Health — Timesketch Health"
+
+# ── Grafana Metrics ──
+grafana:
+  fp-opensearch-metrics:
+    new_title: "Metrics — OpenSearch Cluster"
+  fp-timesketch-metrics:
+    new_title: "Metrics — Timesketch Activity"
+  fp-platform-health-gf:
+    new_title: "Metrics — Platform Overview"
+  fp-cti-metrics:
+    new_title: "Metrics — Connectors Health"
+  fp-misp-metrics:
+    new_title: "Metrics — MISP Connector"
+  fp-thehive-metrics:
+    new_title: "Metrics — TheHive IR"
+  fp-cortex-metrics:
+    new_title: "Metrics — Cortex Analyzers"
+  fp-soc-autonomous-metrics:
+    new_title: "Metrics — SOC Autonomous"
+  fp-pipelines-parsing-metrics:
+    new_title: "Metrics — Ingestion Pipelines"
+  fp-alerts-metrics:
+    new_title: "Metrics — Alerts Pipeline"
+
+# ── Timesketch (labels QA / portail — routes inchangées) ──
+timesketch:
+  explore:
+    new_label: "Forensics — Timeline Explorer"
+  overview:
+    new_label: "Forensics — Overview"
+  intelligence:
+    new_label: "Forensics — Intelligence"
+  stories:
+    new_label: "Forensics — Stories"
+  cti_fusion:
+    new_label: "Forensics — CTI Fusion"
+  incident_fusion:
+    new_label: "Forensics — Incident Fusion"
+  purple_fusion:
+    new_label: "Forensics — Purple Fusion"
+  master_sketch:
+    new_name: "Forensics — Master Investigation"
+
+# ── Portail CERT / IT ──
+portal_cert:
+  page_title: "CERT — National Operations Portal"
+  header: "CERT — Forensic Platform"
+  badge: "CERT NATIONAL"
+  nav:
+    dashboard-cert: "CERT — Situation Overview"
+    dashboard-it: "IT — Exposure Overview"
+    incidents: "CERT — Incident Cases"
+    upload: "CERT — Evidence Uploads"
+    assets: "CERT — Exposure Map"
+    tokens: "IT — Asset Inventory"
+    it: "IT — Uploads"
+    svcs: "IT — System Health"
+  master_prefix: "CERT"
+  master_prefix_old: "FP-Master"
+
+portal_it:
+  page_title: "IT — Forensic Upload Portal"
+  header: "IT — Forensic Upload"
+  badge: "ÉQUIPE IT — ANSSI"
+
+# ── Playbooks — format [Action] — [Object] — [Context] ──
+playbook_title_patterns:
+  - match: "IOC → OpenCTI"
+    replace: "Enrich — IOC — OpenCTI"
+  - match: "IOC → MISP"
+    replace: "Enrich — Domain — MISP"
+  - match: "Timeline"
+    replace: "Analyze — Timeline — Timesketch"
+  - match: "Sigma"
+    replace: "Detect — Sigma — Windows Logon"
+  - match: "Replay"
+    replace: "Replay — Attack — Purple Team"
+  - match: "Alert"
+    replace: "Respond — Alert — SOC"
+  - match: "Case"
+    replace: "Investigate — Incident — Endpoint"
+  - match: "CERT"
+    replace: "Notify — CERT — Escalation"
+  - match: "Report"
+    replace: "Report — Incident — CERT-FR Format"
+
+# Titres playbooks hub (18 rôles)
+playbook_dashboards:
+  fp-analyst-playbook: "SOC Operations — Analyst Playbook"
+  fp-soc-manager-playbook: "SOC Operations — Manager Playbook"
+  fp-incident-commander-playbook: "Incident Response — Commander"
+  fp-soc-director-playbook: "SOC Operations — Director Playbook"
+  fp-soc-director-executive-playbook: "SOC Operations — Executive Playbook"
+  fp-ti-lead-playbook: "Threat Intelligence — Lead Playbook"
+  fp-dfir-senior-playbook: "Forensics — Senior DFIR Playbook"
+  fp-purple-team-playbook: "Purple Teaming — Operations"
+  fp-threat-hunting-lead-playbook: "Security Operations — Threat Hunting Lead"
+  fp-soc-automation-playbook: "SOC Operations — Automation Playbook"
+  fp-cti-fusion-center-playbook: "Threat Intelligence — Fusion Center"
+  fp-cti-fusion-global-playbook: "Threat Intelligence — Global Fusion"
+  fp-global-soc-command-center: "SOC Operations — Command Center"
+  fp-cyber-crisis-management: "CERT — Crisis Management"
+  fp-nation-state-cti-playbook: "CERT — Nation-State CTI"
+  fp-autonomous-soc-playbook: "SOC Operations — Autonomous Mode"
+  fp-red-team-lead-playbook: "Purple Teaming — Red Team Lead"
+  fp-blue-team-lead-playbook: "SOC Operations — Blue Team Lead"
+
+# Index patterns (titres affichés uniquement)
+index_patterns:
+  fp-events: "Security Events — SIEM Index"
+  fp-logs: "Platform — Logs & Alerts"
+  fp-ti: "Threat Intelligence — Indicators"
+  fp-ti-opencti: "Threat Intelligence — OpenCTI"
+  fp-ti-misp: "Threat Intelligence — MISP"
+  fp-timesketch: "Forensics — Timesketch Events"

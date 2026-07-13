@@ -1,0 +1,22 @@
+name: Custom.Windows.Sysmon.ForensicFull
+description: |
+  Collecte Sysmon complète (offline lab + live EVTX). EID 1,3,7,8,10,11,13,22 et étendus.
+author: CYBERCORP Forensic Platform
+type: CLIENT
+parameters: []
+sources:
+  - name: LabSysmonOffline
+    precondition: SELECT OS FROM info() WHERE OS = 'windows'
+    query: |
+      LET lab <= "/lab-data/windows/sysmon-full.jsonl"
+      SELECT EventID, EventTime, Message, Computer, Image, User, DestinationIp
+      FROM parse_jsonl(filename=lab)
+      WHERE log(message="lab offline dataset")
+  - name: SysmonLiveEvtx
+    precondition: SELECT OS FROM info() WHERE OS = 'windows'
+    query: |
+      LET evtx <= "C:/Windows/System32/Winevt/Logs/Microsoft-Windows-Sysmon%4Operational.evtx"
+      SELECT EventID, System.TimeCreated.SystemTime AS EventTime, EventData, Message
+      FROM parse_evtx(filename=evtx)
+      WHERE EventID IN (1, 3, 7, 8, 10, 11, 13, 22)
+      LIMIT 100000

@@ -1,0 +1,5 @@
+# Override — réutilise helk_net créé par forensic-minimal (évite conflit de labels Compose)
+networks:
+  helk_net:
+    external: true
+    name: helk_net

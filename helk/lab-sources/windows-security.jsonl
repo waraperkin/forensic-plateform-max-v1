@@ -1,0 +1,3 @@
+{"EventID":4625,"EventTime":"2026-06-09T14:00:00.000Z","Hostname":"lab-win-01","AccountName":"admin","WorkstationName":"LAB-WIN-01","IpAddress":"10.0.0.99","LogonType":3,"source_type":"windows-security"}
+{"EventID":4688,"EventTime":"2026-06-09T14:01:30.000Z","Hostname":"lab-win-01","NewProcessName":"C:\\Windows\\System32\\cmd.exe","CommandLine":"cmd.exe /c whoami","SubjectUserName":"analyst","source_type":"windows-security"}
+{"EventID":4624,"EventTime":"2026-06-09T14:05:00.000Z","Hostname":"lab-win-01","AccountName":"analyst","IpAddress":"192.0.2.9","LogonType":10,"source_type":"windows-security"}

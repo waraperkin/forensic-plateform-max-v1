@@ -1,0 +1,220 @@
+/* ════════════════════════════════════════════════════════════════════════
+   CERT CYBERCORP V2.1 — UX Analyste Final (ADDITIF)
+   Zéro vibration / shift : hauteurs, paddings, titres, tableaux, graphes.
+   ════════════════════════════════════════════════════════════════════════ */
+
+[data-edition="cybercorp"] {
+  --cc-ux-content-max: 1920px;
+  --cc-ux-padding-x: 24px;
+  --cc-ux-padding-y: 24px;
+  --cc-ux-gap: 16px;
+  --cc-ux-section-gap: 1rem;
+  --cc-ux-panel-min-h: calc(100vh - 80px);
+  --cc-ux-title-lh: 1.25;
+  --cc-ux-btn-h: 36px;
+  --cc-ux-btn-pad-x: 14px;
+  --cc-ux-table-head-h: 44px;
+  --cc-ux-table-row-h: 48px;
+  --cc-ux-card-radius: 10px;
+  --cc-ux-card-pad: 1rem 1.1rem;
+  --cc-ux-chart-min-h: 300px;
+  --cc-ux-skel-row-h: 48px;
+  --cc-ux-skel-card-h: 120px;
+  --cc-ux-skel-chart-h: 300px;
+}
+
+/* Wrappers — largeur stable */
+[data-edition="cybercorp"] .cc-panel-root,
+[data-edition="cybercorp"] .fp-panel.active .cc-tp-root,
+[data-edition="cybercorp"] .fp-panel.active [id$="-root"] {
+  min-height: var(--cc-ux-panel-min-h);
+  padding-top: var(--cc-ux-padding-y);
+  padding-bottom: var(--cc-ux-padding-y);
+  max-width: var(--cc-ux-content-max);
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+[data-edition="cybercorp"] .fp-panel.active {
+  min-height: var(--cc-ux-panel-min-h);
+  gap: var(--cc-ux-section-gap);
+}
+
+/* Sections — gap uniforme */
+[data-edition="cybercorp"] .fp-panel.active > .fp-card,
+[data-edition="cybercorp"] .fp-panel.active .cc-tp-root,
+[data-edition="cybercorp"] .cc-tp-root,
+[data-edition="cybercorp"] .cc-dash-grid,
+[data-edition="cybercorp"] .cc-tp-grid,
+[data-edition="cybercorp"] .cc-tp-dashgrid,
+[data-edition="cybercorp"] .fp-section-spaced {
+  gap: var(--cc-ux-gap);
+}
+
+/* Titres — hauteur de ligne fixe */
+[data-edition="cybercorp"] .fp-panel h1,
+[data-edition="cybercorp"] .fp-panel h2,
+[data-edition="cybercorp"] .fp-panel h3,
+[data-edition="cybercorp"] .fp-card h1,
+[data-edition="cybercorp"] .fp-card h2,
+[data-edition="cybercorp"] .fp-card h3,
+[data-edition="cybercorp"] .cc-section-title,
+[data-edition="cybercorp"] .fp-section-title,
+[data-edition="cybercorp"] .fp-section-sub {
+  line-height: var(--cc-ux-title-lh);
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+[data-edition="cybercorp"] .fp-panel.active > .fp-card > h2,
+[data-edition="cybercorp"] .cc-section-title {
+  min-height: 2rem;
+  display: flex;
+  align-items: center;
+}
+
+/* Boutons — hauteur / padding / alignement */
+[data-edition="cybercorp"] .fp-btn,
+[data-edition="cybercorp"] .fp-btn-primary,
+[data-edition="cybercorp"] .fp-btn-secondary,
+[data-edition="cybercorp"] .fp-btn-ghost,
+[data-edition="cybercorp"] .cc-tp-export,
+[data-edition="cybercorp"] .cc-nav-btn {
+  min-height: var(--cc-ux-btn-h);
+  padding: 0 var(--cc-ux-btn-pad-x);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+/* Toolbars / filtres — hauteur réservée */
+[data-edition="cybercorp"] .cc-tp-toolbar,
+[data-edition="cybercorp"] .cc-filter-bar,
+[data-edition="cybercorp"] .fp-toolbar {
+  min-height: var(--cc-ux-btn-h);
+  padding: 0.25rem 0;
+  margin-bottom: var(--cc-ux-gap);
+  align-items: center;
+}
+
+/* Tableaux — header & lignes */
+[data-edition="cybercorp"] .fp-table thead th {
+  height: var(--cc-ux-table-head-h);
+  min-height: var(--cc-ux-table-head-h);
+  padding: 0 12px;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+[data-edition="cybercorp"] .fp-table tbody td {
+  height: var(--cc-ux-table-row-h);
+  min-height: var(--cc-ux-table-row-h);
+  padding: 0 12px;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+[data-edition="cybercorp"] .fp-vtable-head th,
+[data-edition="cybercorp"] .fp-vtable-body td {
+  min-height: var(--cc-ux-table-row-h);
+  box-sizing: border-box;
+}
+
+[data-edition="cybercorp"] .fp-table-wrap,
+[data-edition="cybercorp"] .fp-vtable-wrap {
+  min-height: calc(var(--cc-ux-table-head-h) + var(--cc-ux-table-row-h) * 3);
+}
+
+/* Cartes */
+[data-edition="cybercorp"] .fp-card,
+[data-edition="cybercorp"] .fp-card.cc-pro-panel,
+[data-edition="cybercorp"] .cc-card,
+[data-edition="cybercorp"] .fp-premium-card,
+[data-edition="cybercorp"] .cc-dash-panel,
+[data-edition="cybercorp"] .cc-glass-card,
+[data-edition="cybercorp"] .cc-tp-stat,
+[data-edition="cybercorp"] .fp-stat {
+  border-radius: var(--cc-ux-card-radius);
+  padding: var(--cc-ux-card-pad);
+  margin-bottom: 0;
+  box-shadow: var(--pp-shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.18));
+  box-sizing: border-box;
+}
+
+/* Graphes ECharts — réserve d'espace */
+[data-edition="cybercorp"] .cc-tp-chart,
+[data-edition="cybercorp"] .cc-chart-wrap,
+[data-edition="cybercorp"] .pp-v2-skel-chart,
+[data-edition="cybercorp"] [id$="-chart"],
+[data-edition="cybercorp"] [id$="-echart"],
+[data-edition="cybercorp"] #xdr-graph {
+  min-height: var(--cc-ux-chart-min-h) !important;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+[data-edition="cybercorp"] .cc-chart-wrap {
+  padding: var(--cc-ux-padding-y) var(--cc-ux-padding-x);
+}
+
+/* Skeletons — dimensions fixes */
+[data-edition="cybercorp"] .fp-skeleton .fp-skel-cell {
+  min-height: var(--cc-ux-skel-row-h);
+  height: var(--cc-ux-skel-row-h);
+}
+
+[data-edition="cybercorp"] .fp-skeleton-table .fp-skel-row {
+  min-height: var(--cc-ux-skel-row-h);
+  margin-bottom: 0.5rem;
+}
+
+[data-edition="cybercorp"] .fp-skel-card {
+  min-height: var(--cc-ux-skel-card-h);
+  height: var(--cc-ux-skel-card-h);
+}
+
+[data-edition="cybercorp"] .pp-v2-skel-chart,
+[data-edition="cybercorp"] .fp-skeleton-chart {
+  min-height: var(--cc-ux-skel-chart-h);
+  height: var(--cc-ux-skel-chart-h);
+}
+
+[data-edition="cybercorp"] .fp-skeleton-cards {
+  min-height: var(--cc-ux-skel-card-h);
+}
+
+[data-edition="cybercorp"] .fp-skeleton,
+[data-edition="cybercorp"] .cc-table-loading {
+  min-height: calc(var(--cc-ux-skel-card-h) + var(--cc-ux-skel-row-h) * 4);
+}
+
+/* Anti-vibration : pas de translate au hover sur panneaux analyste */
+[data-edition="cybercorp"] .fp-panel .cc-nav-btn:hover,
+[data-edition="cybercorp"] .fp-panel .fp-btn:hover,
+[data-edition="cybercorp"] .fp-panel .cc-card-click:hover,
+[data-edition="cybercorp"] .fp-panel .cc-tp-stat:hover,
+[data-edition="cybercorp"] .fp-panel .fp-stat:hover {
+  transform: none !important;
+}
+
+[data-edition="cybercorp"] .fp-panel.active {
+  animation: none !important;
+  transform: none !important;
+}
+
+[data-edition="cybercorp"] .fp-table tbody tr:hover {
+  transform: none !important;
+}
+
+/* Spinner / chargement — zone réservée */
+[data-edition="cybercorp"] .cc-table-loading,
+[data-edition="cybercorp"] .cc-spinner-wrap {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}

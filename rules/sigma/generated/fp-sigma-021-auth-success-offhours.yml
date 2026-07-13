@@ -1,0 +1,14 @@
+title: FP-SIGMA-021-auth-success-offhours
+id: fp-sigma-021
+status: stable
+description: Logon outside business hours
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: 4625
+  condition: selection
+tags:
+  - attack.t1110
+level: high

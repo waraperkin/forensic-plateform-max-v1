@@ -1,0 +1,1263 @@
+# ==============================================================
+#  CYBER FORENSIC PLATFORM v2.1
+
+include:
+  - docker-compose.opencti.yml
+#  Accès:
+#    http://localhost/          → Portail CERT
+#    http://localhost/it/       → Portail IT (token requis)
+#    http://localhost/dashboards/ → OpenSearch Dashboards
+#    http://localhost/grafana/  → Grafana
+#    http://localhost/cti/      → OpenCTI
+#    http://localhost/thehive/  → TheHive
+#    https://localhost/misp/    → MISP (API interne aussi :8090)
+#    http://localhost:5000/     → Timesketch (port dédié)
+#    http://localhost:9001/     → MinIO Console
+#    http://localhost:9003/     → Cortex
+#    https://localhost:9443/    → Portainer
+# ==============================================================
+
+networks:
+  forensic-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.26.0.0/16
+  helk_net:
+    external: true
+    name: helk_net
+  velociraptor_net:
+    external: true
+    name: velociraptor_net
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  minio-data:
+  opensearch-data1:
+  opensearch-data2:
+  logstash-data:
+  timesketch-data:
+  timesketch-uploads:
+  opencti-data:
+  misp-db-data:
+  misp-files:
+  thehive-data:
+  cassandra-data:
+  cortex-jobs:
+  grafana-data:
+  prometheus-data:
+  loki-data:
+  tempo-data:
+  cert-portal-uploads:
+  it-portal-uploads:
+  shared-uploads:
+  velociraptor-sidecar-data:
+    external: true
+    name: velociraptor-sidecar_velociraptor-data
+
+services:
+
+# ═══════════════════════════════════════════════════════════════
+#  INFRASTRUCTURE
+# ═══════════════════════════════════════════════════════════════
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: forensic-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/postgres-init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.10
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: forensic-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --save 300 1
+      --loglevel warning
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.11
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: forensic-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_DEFAULT_VHOST}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.12
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  cassandra:
+    image: cassandra:4.1
+    container_name: forensic-cassandra
+    restart: unless-stopped
+    environment:
+      - CASSANDRA_CLUSTER_NAME=forensic-thp
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_RACK=rack1
+      # Cluster initialisé avec GossipingPropertyFileSnitch — ne pas changer
+      # (un changement de snitch sur un cluster existant cause une corruption).
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=768M
+      - HEAP_NEWSIZE=200M
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.15
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status 2>/dev/null | grep -q '^UN' || cqlsh -e 'SELECT cluster_name FROM system.local' >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 120s
+
+# ═══════════════════════════════════════════════════════════════
+#  MINIO
+# ═══════════════════════════════════════════════════════════════
+
+  minio:
+    image: minio/minio:latest
+    container_name: forensic-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BROWSER_REDIRECT_URL: https://localhost/minio/
+    volumes:
+      - minio-data:/data
+    ports:
+      - "${FP_MINIO_PORT:-9000}:9000"
+      - "${FP_MINIO_CONSOLE_PORT:-9001}:9001"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.20
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: forensic-minio-init
+    restart: on-failure
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./scripts/minio-init.sh:/init.sh:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    networks:
+      - forensic-net
+
+# ═══════════════════════════════════════════════════════════════
+#  OPENSEARCH 2.12.0
+# ═══════════════════════════════════════════════════════════════
+
+  opensearch-node1:
+    image: forensic/opensearch-attachment:2.12.0
+    build:
+      context: ./docker/opensearch
+      dockerfile: Dockerfile
+    container_name: forensic-opensearch-1
+    restart: unless-stopped
+    environment:
+      - cluster.name=forensic-cluster
+      - node.name=opensearch-node1
+      - discovery.seed_hosts=opensearch-node2
+      - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - DISABLE_SECURITY_PLUGIN=true
+      - http.cors.enabled=true
+      - http.cors.allow-origin=*
+      - http.cors.allow-headers=X-Requested-With,Content-Type,Content-Length,Authorization
+      - indices.query.bool.max_clause_count=4096
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data1:/usr/share/opensearch/data
+    ports:
+      - "${FP_OS_PORT:-9200}:9200"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.30
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf --max-time 5 http://localhost:9200/_cluster/health | grep -qvE '\"status\":\"red\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+
+  opensearch-node2:
+    image: forensic/opensearch-attachment:2.12.0
+    build:
+      context: ./docker/opensearch
+      dockerfile: Dockerfile
+    container_name: forensic-opensearch-2
+    restart: unless-stopped
+    environment:
+      - cluster.name=forensic-cluster
+      - node.name=opensearch-node2
+      - discovery.seed_hosts=opensearch-node1
+      - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - DISABLE_SECURITY_PLUGIN=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data2:/usr/share/opensearch/data
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.31
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.12.0
+    container_name: forensic-opensearch-dashboards
+    restart: unless-stopped
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch-node1:9200","http://opensearch-node2:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+      - SERVER_BASEPATH=/dashboards
+      - SERVER_REWRITEBASEPATH=true
+    ports:
+      - "${FP_OSD_PORT:-5601}:5601"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.32
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+
+  opensearch-init:
+    image: curlimages/curl:8.5.0
+    container_name: forensic-opensearch-init
+    restart: on-failure
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+    volumes:
+      - ./scripts/opensearch-init.sh:/init.sh:ro
+      - ./parsers/ingest-pipelines:/pipelines:ro
+      - ./config/opensearch/index-templates:/templates:ro
+      - ./config/opensearch/ism:/ism:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+    environment:
+      - OS_URL=http://opensearch-node1:9200
+    networks:
+      - forensic-net
+
+# ═══════════════════════════════════════════════════════════════
+#  LOGSTASH — Parsing multi-source
+# ═══════════════════════════════════════════════════════════════
+
+  logstash:
+    image: opensearchproject/logstash-oss-with-opensearch-output-plugin:8.9.0
+    container_name: forensic-logstash
+    restart: unless-stopped
+    environment:
+      - LS_JAVA_OPTS=-Xms512m -Xmx512m
+      - OPENSEARCH_HOST=opensearch-node1:9200
+    volumes:
+      - ./config/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./config/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./config/logstash/patterns:/usr/share/logstash/patterns:ro
+      - logstash-data:/usr/share/logstash/data
+    ports:
+      - "5044:5044"
+      - "5045:5045"
+      - "5046:5046"
+      - "5140:5140/udp"
+      - "5555:5555"
+      - "12201:12201/udp"
+      - "${FP_LOGSTASH_METRICS_PORT:-19700}:9700"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.33
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+
+  ingest-worker:
+    build:
+      context: ./ingest-worker
+      dockerfile: Dockerfile
+    container_name: forensic-ingest-worker
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - INGEST_QUEUE_KEY=fp:ingest:queue
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - OPENSEARCH_URL=http://opensearch-node1:9200
+      - TIMESKETCH_URL=http://timesketch-web:5000
+      - TIMESKETCH_USER=${TIMESKETCH_USER}
+      - TIMESKETCH_PASSWORD=${TIMESKETCH_PASSWORD}
+      - TIMESKETCH_IMPORT_TIMEOUT_SEC=120
+      - LOGSTASH_HOST=logstash
+      - LOGSTASH_PORT=5045
+      - INGEST_BULK_CHUNK=500
+      - INGEST_MAX_EVTX_EVENTS=200000
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.35
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      opensearch-node1:
+        condition: service_healthy
+      timesketch-web:
+        condition: service_started
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat-oss:8.9.0
+    container_name: forensic-filebeat
+    restart: unless-stopped
+    user: root
+    environment:
+      - BEAT_STRICT_PERMS=false
+    volumes:
+      - ./config/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/log:/hostlogs:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.34
+    depends_on:
+      - logstash
+    healthcheck:
+      test: ["CMD-SHELL", "filebeat test config -e >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+# ═══════════════════════════════════════════════════════════════
+#  TIMESKETCH — Port 5000 direct (pas de subpath)
+# ═══════════════════════════════════════════════════════════════
+
+  timesketch-web:
+    image: us-docker.pkg.dev/osdfir-registry/timesketch/timesketch:latest
+    container_name: forensic-timesketch-web
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "/opt/fp-timesketch/entrypoint-wrapper.sh"]
+    command: ["timesketch-web"]
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_ADDRESS=postgres
+      - POSTGRES_PORT=5432
+      - OPENSEARCH_HOST=opensearch-node1
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_MEM_USE_SSL=false
+      - REDIS_ADDRESS=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - SECRET_KEY=${TIMESKETCH_SECRET_KEY}
+      - UPLOAD_ENABLED=true
+      - UPLOAD_FOLDER=/usr/share/timesketch/uploads
+      - TIMESKETCH_CONFIG_FILE=/etc/timesketch/timesketch.conf
+      - WORKER_LOG_LEVEL=info
+      - NUM_WSGI_WORKERS=4
+      - MISP_URL=http://misp:80
+      - MISP_API_KEY=${MISP_ADMIN_API_KEY}
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+    volumes:
+      # Config générée dynamiquement par forensic.sh (pre_start → generate-timesketch-conf.sh)
+      # Double-mount : l'image officielle cherche tantôt /etc/timesketch.conf
+      # tantôt /etc/timesketch/timesketch.conf selon le binaire (web/worker/tsctl).
+      - ./config/timesketch/timesketch.conf:/etc/timesketch/timesketch.conf:ro
+      - ./config/timesketch/timesketch.conf:/etc/timesketch.conf:ro
+      - ./config/timesketch/sigma_config.yaml:/etc/timesketch/sigma_config.yaml:ro
+      - ./config/timesketch/ontology.yaml:/etc/timesketch/ontology.yaml:ro
+      - ./config/timesketch/intelligence_tag_metadata.yaml:/etc/timesketch/intelligence_tag_metadata.yaml:ro
+      - ./config/timesketch/context_links.yaml:/etc/timesketch/context_links.yaml:ro
+      - ./config/timesketch/data_finder.yaml:/etc/timesketch/data_finder.yaml:ro
+      - ./config/timesketch/entrypoint-wrapper.sh:/opt/fp-timesketch/entrypoint-wrapper.sh:ro
+      - ./config/timesketch/apply-explore-patch.sh:/opt/fp-timesketch/apply-explore-patch.sh:ro
+      - ./config/timesketch/analyzers_enabled.txt:/opt/fp-timesketch-src/analyzers_enabled.txt:ro
+      - ./rules/sigma:/opt/timesketch/sigma_rules:ro
+      - ./ti:/opt/timesketch/ti:ro
+      - timesketch-data:/var/log/timesketch
+      - timesketch-uploads:/usr/share/timesketch/uploads
+    ports:
+      - "${FP_TIMESKETCH_PORT:-5000}:5000"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.40
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch-node1:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/5000' 2>/dev/null && exit 0 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 180s
+
+  timesketch-worker:
+    build:
+      context: .
+      dockerfile: docker/timesketch/Dockerfile.worker
+      args:
+        BASE_IMAGE: us-docker.pkg.dev/osdfir-registry/timesketch/timesketch:latest
+    image: forensic-timesketch-worker:fp
+    container_name: forensic-timesketch-worker
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "/opt/fp-timesketch/entrypoint-wrapper.sh"]
+    command: ["timesketch-worker"]
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_ADDRESS=postgres
+      - POSTGRES_PORT=5432
+      - OPENSEARCH_HOST=opensearch-node1
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_MEM_USE_SSL=false
+      - REDIS_ADDRESS=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - SECRET_KEY=${TIMESKETCH_SECRET_KEY}
+      - UPLOAD_FOLDER=/usr/share/timesketch/uploads
+      - TIMESKETCH_CONFIG_FILE=/etc/timesketch/timesketch.conf
+      # WORKER_LOG_LEVEL est utilisé par /docker-entrypoint.sh : celery --loglevel="${WORKER_LOG_LEVEL}"
+      # Si vide, Celery crashe avec "Invalid value for '-l' / '--loglevel': ''"
+      - WORKER_LOG_LEVEL=info
+      - NUM_WSGI_WORKERS=4
+      - MISP_URL=http://misp:80
+      - MISP_API_KEY=${MISP_ADMIN_API_KEY}
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+    volumes:
+      - ./config/timesketch/timesketch.conf:/etc/timesketch/timesketch.conf:ro
+      - ./config/timesketch/timesketch.conf:/etc/timesketch.conf:ro
+      - ./config/timesketch/sigma_config.yaml:/etc/timesketch/sigma_config.yaml:ro
+      - ./config/timesketch/ontology.yaml:/etc/timesketch/ontology.yaml:ro
+      - ./config/timesketch/intelligence_tag_metadata.yaml:/etc/timesketch/intelligence_tag_metadata.yaml:ro
+      - ./config/timesketch/context_links.yaml:/etc/timesketch/context_links.yaml:ro
+      - ./config/timesketch/data_finder.yaml:/etc/timesketch/data_finder.yaml:ro
+      - ./config/timesketch/entrypoint-wrapper.sh:/opt/fp-timesketch/entrypoint-wrapper.sh:ro
+      - ./config/timesketch/apply-explore-patch.sh:/opt/fp-timesketch/apply-explore-patch.sh:ro
+      - ./config/timesketch/analyzers_enabled.txt:/opt/fp-timesketch-src/analyzers_enabled.txt:ro
+      - ./rules/sigma:/opt/timesketch/sigma_rules:ro
+      - ./ti:/opt/timesketch/ti:ro
+      - timesketch-uploads:/usr/share/timesketch/uploads
+      - timesketch-data:/var/log/timesketch
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.41
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch-node1:
+        condition: service_healthy
+
+  timesketch-init:
+    image: us-docker.pkg.dev/osdfir-registry/timesketch/timesketch:latest
+    container_name: forensic-timesketch-init
+    restart: "no"
+    entrypoint: ["/bin/bash", "/scripts/timesketch-create-admin.sh"]
+    volumes:
+      - ./scripts/timesketch-create-admin.sh:/scripts/timesketch-create-admin.sh:ro
+      - ./config/timesketch/timesketch.conf:/etc/timesketch/timesketch.conf:ro
+      - ./config/timesketch/timesketch.conf:/etc/timesketch.conf:ro
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_ADDRESS=postgres
+      - POSTGRES_PORT=5432
+      - OPENSEARCH_HOST=opensearch-node1
+      - OPENSEARCH_PORT=9200
+      - OPENSEARCH_MEM_USE_SSL=false
+      - REDIS_ADDRESS=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - SECRET_KEY=${TIMESKETCH_SECRET_KEY}
+      - TIMESKETCH_USER=${TIMESKETCH_USER}
+      - TIMESKETCH_PASSWORD=${TIMESKETCH_PASSWORD}
+      - TIMESKETCH_CONFIG_FILE=/etc/timesketch/timesketch.conf
+    networks:
+      - forensic-net
+    depends_on:
+      timesketch-web:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+# ═══════════════════════════════════════════════════════════════
+#  OPENCTI
+# ═══════════════════════════════════════════════════════════════
+
+  opencti:
+    image: opencti/platform:6.2.18
+    container_name: forensic-opencti
+    restart: unless-stopped
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=4096
+      - APP__PORT=8080
+      - APP__BASE_URL=http://localhost/cti/
+      - APP__BASE_PATH=/cti
+      - APP__ENCRYPTION_KEY=${OPENCTI_ENCRYPTION_KEY}
+      - APP__HEALTH_ACCESS_KEY=${OPENCTI_HEALTHCHECK_ACCESS_KEY}
+      - APP__ADMIN__EMAIL=${OPENCTI_ADMIN_EMAIL}
+      - APP__ADMIN__PASSWORD=${OPENCTI_ADMIN_PASSWORD}
+      - APP__ADMIN__TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - APP__APP_LOGS__LOGS_LEVEL=error
+      - REDIS__HOSTNAME=redis
+      - REDIS__PORT=6379
+      - REDIS__PASSWORD=${REDIS_PASSWORD}
+      - ELASTICSEARCH__URL=http://opensearch-node1:9200
+      - ELASTICSEARCH__ENGINE_SELECTOR=opensearch
+      - ELASTICSEARCH__ENGINE_CHECK=false
+      - MINIO__ENDPOINT=minio
+      - MINIO__PORT=9000
+      - MINIO__USE_SSL=false
+      - MINIO__ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO__SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO__BUCKET_NAME=opencti
+      - RABBITMQ__HOSTNAME=rabbitmq
+      - RABBITMQ__PORT=5672
+      - RABBITMQ__VHOST=${RABBITMQ_DEFAULT_VHOST}
+      - RABBITMQ__USERNAME=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ__PASSWORD=${RABBITMQ_DEFAULT_PASS}
+      - PROVIDERS__LOCAL__STRATEGY=LocalStrategy
+    volumes:
+      - opencti-data:/opt/opencti/sessions
+    ports:
+      - "${FP_OPENCTI_PORT:-8080}:8080"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.50
+    depends_on:
+      redis:
+        condition: service_healthy
+      opensearch-node1:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    # L'image OpenCTI 6.2 contient wget + nc mais ni curl ni bash.
+    # On vérifie juste que le port 8080 répond (le endpoint /cti/health requiert un access key).
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8080 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 300s
+
+  connector-mitre:
+    image: opencti/connector-mitre:6.2.18
+    container_name: forensic-connector-mitre
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_MITRE_ID}
+      - CONNECTOR_NAME=MITRE ATT&CK
+      - CONNECTOR_SCOPE=tool,report,course-of-action,intrusion-set,campaign,malware,attack-pattern
+      - CONNECTOR_LOG_LEVEL=info
+      - MITRE_REMOVE_STATEMENT_MARKING=true
+      - MITRE_INTERVAL=1
+      - MITRE_INTERVAL_TYPE=days
+    networks:
+      - forensic-net
+    depends_on:
+      opencti:
+        condition: service_healthy
+
+  connector-cve:
+    image: opencti/connector-cve:6.2.18
+    container_name: forensic-connector-cve
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_CVE_ID:-a1b2c3d4-0001-0001-0001-cve000000001}
+      - CONNECTOR_NAME=Common Vulnerabilities and Exposures
+      - CONNECTOR_SCOPE=identity,vulnerability
+      - CONNECTOR_LOG_LEVEL=error
+      - CVE_BASE_URL=https://services.nvd.nist.gov/rest/json/cves
+      - CVE_API_KEY=
+      - CVE_INTERVAL=2
+      - CVE_MAINTAIN_DATA=true
+    networks:
+      - forensic-net
+    depends_on:
+      opencti:
+        condition: service_healthy
+
+  connector-opencti-datasets:
+    image: opencti/connector-opencti:6.2.18
+    container_name: forensic-connector-datasets
+    restart: always
+    environment:
+      - OPENCTI_URL=http://opencti:8080/cti
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - CONNECTOR_ID=${CONNECTOR_OPENCTI_DATASETS_ID}
+      - CONNECTOR_NAME=OpenCTI Datasets
+      - CONNECTOR_SCOPE=marking-definition,identity,location
+      - CONNECTOR_LOG_LEVEL=error
+      - CONFIG_SECTORS_FILE_URL=https://raw.githubusercontent.com/OpenCTI-Platform/datasets/master/data/sectors.json
+      - CONFIG_GEOGRAPHY_FILE_URL=https://raw.githubusercontent.com/OpenCTI-Platform/datasets/master/data/geography.json
+      - CONFIG_INTERVAL=7
+    networks:
+      - forensic-net
+    depends_on:
+      opencti:
+        condition: service_healthy
+
+# ═══════════════════════════════════════════════════════════════
+#  MISP — API interne :8090 ; URL publique via Nginx /misp/ (MISP_PUBLIC_BASE_URL)
+# ═══════════════════════════════════════════════════════════════
+
+  misp-db:
+    image: mariadb:10.11
+    container_name: forensic-misp-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - misp-db-data:/var/lib/mysql
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.60
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  misp:
+    image: ghcr.io/misp/misp-docker/misp-core:latest
+    container_name: forensic-misp
+    restart: unless-stopped
+    environment:
+      - BASE_URL=${MISP_PUBLIC_BASE_URL:-https://localhost/misp}
+      - DISABLE_SSL_REDIRECT=true
+      - PHP_SESSION_COOKIE_SECURE=true
+      - PHP_SESSION_COOKIE_SAMESITE=Lax
+      - MISP_ADMIN_EMAIL=${MISP_ADMIN_EMAIL}
+      - MISP_ADMIN_PASSPHRASE=${MISP_ADMIN_PASSWORD}
+      - ADMIN_KEY=${MISP_ADMIN_API_KEY}
+      - ENCRYPTION_KEY=${MISP_ENCRYPTION_KEY}
+      - REDIS_FQDN=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - INIT=true
+      - CRON_USER_ID=1
+      - MYSQL_HOST=misp-db
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - misp-files:/var/www/MISP/app/files
+      - ./scripts/misp-disable-ssl.sh:/scripts/misp-disable-ssl.sh:ro
+      - ./scripts/misp-configure-public-url.sh:/scripts/misp-configure-public-url.sh:ro
+      - ./scripts/misp-apply-bootstrap-fix.sh:/scripts/misp-apply-bootstrap-fix.sh:ro
+      - ./scripts/misp-bootstrap-localhost-fix.php:/scripts/misp-bootstrap-localhost-fix.php:ro
+    ports:
+      - "${FP_MISP_PORT:-8090}:80"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.61
+    depends_on:
+      misp-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sfL --max-time 10 http://127.0.0.1/users/login -o /dev/null -w '%{http_code}' | grep -qE '^(200|302|403)$'"]
+      interval: 30s
+      timeout: 15s
+      retries: 30
+      start_period: 240s
+
+# ═══════════════════════════════════════════════════════════════
+#  THEHIVE 5 + CORTEX
+# ═══════════════════════════════════════════════════════════════
+
+  thehive:
+    image: strangebee/thehive:5.3
+    container_name: forensic-thehive
+    restart: unless-stopped
+    environment:
+      - JVM_OPTS=-Xms512m -Xmx1g
+      - SECRET=${THEHIVE_SECRET}
+    volumes:
+      - thehive-data:/opt/thehive/data
+      - ./config/thehive/application.conf:/etc/thehive/application.conf:ro
+    ports:
+      - "${FP_THEHIVE_PORT:-9002}:9000"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.70
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      opensearch-node1:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf --max-time 20 http://127.0.0.1:9000/thehive/api/status >/dev/null"]
+      interval: 30s
+      timeout: 20s
+      retries: 30
+      start_period: 300s
+
+  cortex:
+    image: thehiveproject/cortex:3.2.1-1
+    container_name: forensic-cortex
+    restart: unless-stopped
+    environment:
+      - SECRET=${CORTEX_SECRET}
+      - JVM_OPTS=-Xms256m -Xmx512m
+    volumes:
+      - cortex-jobs:/tmp/cortex-jobs
+      - ./config/cortex/application.conf:/etc/cortex/application.conf:ro
+      # Pas de montage docker.sock : voir config/cortex/application.conf (runner process-only).
+    ports:
+      - "${FP_CORTEX_PORT:-9003}:9001"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.71
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf --max-time 15 http://127.0.0.1:9001/api/status >/dev/null"]
+      interval: 25s
+      timeout: 20s
+      retries: 25
+      start_period: 180s
+
+  thehive-init:
+    image: curlimages/curl:8.5.0
+    container_name: forensic-thehive-init
+    restart: "no"
+    depends_on:
+      thehive:
+        condition: service_healthy
+      cortex:
+        condition: service_healthy
+    volumes:
+      - ./scripts/thehive-init.sh:/init.sh:ro
+    entrypoint: ["/bin/sh", "/init.sh"]
+    environment:
+      - THEHIVE_URL=http://thehive:9000/thehive
+      - CORTEX_URL=http://cortex:9001
+      - THEHIVE_ADMIN_LOGIN=${THEHIVE_ADMIN_LOGIN}
+      - THEHIVE_ADMIN_PASSWORD=${THEHIVE_ADMIN_PASSWORD}
+      - CORTEX_API_KEY=${CORTEX_API_KEY}
+      - MISP_URL=http://misp:80
+      - MISP_API_KEY=${MISP_ADMIN_API_KEY}
+    networks:
+      - forensic-net
+
+# ═══════════════════════════════════════════════════════════════
+#  GRAFANA
+# ═══════════════════════════════════════════════════════════════
+
+  grafana:
+    image: grafana/grafana-oss:10.4.3
+    container_name: forensic-grafana
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        grafana cli admin reset-admin-password "$$GF_SECURITY_ADMIN_PASSWORD" 2>/dev/null || true
+        exec /run.sh
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_INSTALL_PLUGINS=grafana-opensearch-datasource 2.17.2,yesoreyeram-infinity-datasource
+      - GF_EXPLORE_ENABLED=true
+      - GF_ALERTING_ENABLED=false
+      - GF_UNIFIED_ALERTING_ENABLED=true
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor tempoSearch
+      - GF_SERVER_PROTOCOL=http
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-https://localhost/grafana/}
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN:-localhost}
+      - GF_SERVER_ENFORCE_DOMAIN=false
+      - GF_LIVE_ALLOWED_ORIGINS=${GRAFANA_ALLOWED_ORIGINS:-https://localhost,http://localhost,https://127.0.0.1,http://127.0.0.1}
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_COOKIE_SAMESITE=none
+      - GF_SECURITY_COOKIE_SECURE=true
+      - GF_SECURITY_CSRF_TRUSTED_ORIGINS=${GRAFANA_CSRF_ORIGINS:-https://localhost,http://localhost,https://127.0.0.1,http://127.0.0.1}
+      - GF_CORS_ENABLED=true
+      - GF_CORS_ALLOW_CREDENTIALS=true
+      - GF_CORS_ALLOW_ORIGIN=${GRAFANA_CORS_ORIGIN:-https://localhost,http://localhost}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
+      # Ne monter que les JSON Grafana valides (évite manifest.json / NDJSON OpenSearch Dashboards)
+      - ./dashboards/timesketch:/var/lib/grafana/dashboards/timesketch:ro
+      - ./dashboards/grafana/fp-master:/var/lib/grafana/dashboards/fp-master:ro
+      - ./dashboards/grafana/forensic-legacy:/var/lib/grafana/dashboards/forensic-legacy:ro
+      - ./dashboards/grafana/helk:/var/lib/grafana/dashboards/helk:ro
+      - ./dashboards/grafana/velociraptor:/var/lib/grafana/dashboards/velociraptor:ro
+    ports:
+      - "${FP_GRAFANA_PORT:-3001}:3000"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.80
+      helk_net:
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
+      tempo:
+        condition: service_started
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: forensic-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${FP_PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.81
+
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: forensic-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./config/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.82
+
+  tempo:
+    image: grafana/tempo:2.4.1
+    container_name: forensic-tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./config/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"
+      - "4318:4318"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.83
+
+# ═══════════════════════════════════════════════════════════════
+#  HELK BRIDGE — sync OpenSearch / Timesketch / CTI
+# ═══════════════════════════════════════════════════════════════
+
+  helk-bridge:
+    build:
+      context: ./helk/scripts
+      dockerfile: Dockerfile.bridge
+    container_name: forensic-helk-bridge
+    restart: unless-stopped
+    environment:
+      - HELK_ES_URL=http://helk-elasticsearch:9200
+      - OPENSEARCH_URL=http://opensearch-node1:9200
+      - TIMESKETCH_URL=http://timesketch-web:5000
+      - TIMESKETCH_USER=${TIMESKETCH_USER}
+      - TIMESKETCH_PASSWORD=${TIMESKETCH_PASSWORD}
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - MISP_URL=http://misp:80
+      - MISP_API_KEY=${MISP_ADMIN_API_KEY}
+      - THEHIVE_URL=http://thehive:9000
+      - THEHIVE_API_KEY=${THEHIVE_API_KEY:-}
+      - CORTEX_URL=http://cortex:9001
+      - CORTEX_API_KEY=${CORTEX_SECRET}
+      - SYNC_INTERVAL_SEC=120
+      - HELK_LOGSTASH_HTTP=http://helk-logstash:8080
+      - LAB_SOURCES=/lab-sources
+    volumes:
+      - ./helk/lab-sources:/lab-sources:ro
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.95
+      helk_net:
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+
+  ti-sync:
+    build:
+      context: .
+      dockerfile: docker/ti-sync/Dockerfile
+    container_name: forensic-ti-sync
+    restart: unless-stopped
+    environment:
+      - OPENSEARCH_URL=http://opensearch-node1:9200
+      - OS_URL=http://opensearch-node1:9200
+      - MISP_URL=http://misp:80
+      - MISP_ADMIN_API_KEY=${MISP_ADMIN_API_KEY}
+      - OPENCTI_GRAPHQL_URL=http://opencti:8080/graphql
+      - OPENCTI_ADMIN_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - HELK_BRIDGE_URL=http://helk-bridge:8095
+      - TI_SYNC_INTERVAL_SEC=${TI_SYNC_INTERVAL_SEC:-300}
+      - TI_ENRICH_MAX=8000
+    networks:
+      - forensic-net
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+      misp:
+        condition: service_started
+      opencti:
+        condition: service_started
+      helk-bridge:
+        condition: service_started
+
+  helk-sigma-runner:
+    image: python:3.11-slim
+    container_name: forensic-helk-sigma-runner
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      - HELK_ES_URL=http://helk-elasticsearch:9200
+      - SIGMA_DIR=/sigma
+      - SIGMA_INTERVAL_SEC=300
+      - SIGMA_MAX_RULES=200
+      - MITRE_PATH=/mitre/enterprise-attack.json
+    volumes:
+      - ./helk/scripts/sigma_runner.py:/app/sigma_runner.py:ro
+      - ./helk/sigma:/sigma:ro
+      - ./helk/mitre:/mitre:ro
+    networks:
+      helk_net:
+    command:
+      - bash
+      - -c
+      - pip install -q requests pyyaml && python3 /app/sigma_runner.py
+
+# ═══════════════════════════════════════════════════════════════
+#  VELOCIRAPTOR BRIDGE — export CERT/IT/OS/TS/CTI
+# ═══════════════════════════════════════════════════════════════
+
+  velociraptor-bridge:
+    build:
+      context: ./velociraptor/export
+      dockerfile: Dockerfile.bridge
+    container_name: forensic-velociraptor-bridge
+    restart: unless-stopped
+    environment:
+      - CERT_PORTAL_URL=http://cert-portal:3000
+      - IT_PORTAL_URL=http://it-portal:3001
+      - OPENSEARCH_URL=http://opensearch-node1:9200
+      - TIMESKETCH_URL=http://timesketch-web:5000
+      - TIMESKETCH_USER=${TIMESKETCH_USER}
+      - TIMESKETCH_PASSWORD=${TIMESKETCH_PASSWORD}
+      - THEHIVE_URL=http://thehive:9000
+      - THEHIVE_API_KEY=${THEHIVE_API_KEY:-}
+      - CORTEX_URL=http://cortex:9001
+      - CORTEX_API_KEY=${CORTEX_SECRET}
+      - HELK_LOGSTASH_HTTP=http://helk-logstash:8080
+      - HELK_ENABLED=true
+      - VR_LAB_DATA=/lab-data
+      - VR_LAB_COLLECTIONS=/lab-collections
+      - VR_OFFICIAL_ARTIFACTS=/artifacts/official
+      - VR_CUSTOM_ARTIFACTS=/artifacts/custom
+      - VELOCIRAPTOR_SERVER_CONFIG=/config/server.config.yaml
+      - VELOCIRAPTOR_API_CONFIG=/config/api.config.yaml
+      - VELOCIRAPTOR_API_URL=https://velociraptor-server:8002
+    volumes:
+      - ./velociraptor/config/server.config.yaml:/config/server.config.yaml:ro
+      - ./velociraptor/config/api.config.yaml:/config/api.config.yaml:ro
+      - ./velociraptor/lab-data:/lab-data:ro
+      - ./velociraptor/artifacts/custom:/artifacts/custom:ro
+      - ./velociraptor/artifacts/official:/artifacts/official:ro
+      - ./velociraptor/lab-collections:/lab-collections
+      - velociraptor-sidecar-data:/data:ro
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.96
+      velociraptor_net:
+      helk_net:
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+      cert-portal:
+        condition: service_started
+
+# ═══════════════════════════════════════════════════════════════
+#  PORTAIL CERT — Portail principal CERT/SOC
+# ═══════════════════════════════════════════════════════════════
+
+  cert-portal:
+    build:
+      context: .
+      dockerfile: ./portal-cert/Dockerfile
+    container_name: forensic-cert-portal
+    restart: unless-stopped
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - OPENSEARCH_URL=http://opensearch-node1:9200
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - TIMESKETCH_URL=http://timesketch-web:5000
+      - TIMESKETCH_USER=${TIMESKETCH_USER}
+      - TIMESKETCH_PASSWORD=${TIMESKETCH_PASSWORD}
+      - OPENCTI_URL=http://opencti:8080
+      - OPENCTI_ADMIN_EMAIL=${OPENCTI_ADMIN_EMAIL}
+      - OPENCTI_ADMIN_PASSWORD=${OPENCTI_ADMIN_PASSWORD}
+      - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
+      - OPENCTI_HEALTHCHECK_ACCESS_KEY=${OPENCTI_HEALTHCHECK_ACCESS_KEY}
+      - GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - THEHIVE_ADMIN_LOGIN=${THEHIVE_ADMIN_LOGIN}
+      - THEHIVE_ADMIN_PASSWORD=${THEHIVE_ADMIN_PASSWORD}
+      - MISP_ADMIN_EMAIL=${MISP_ADMIN_EMAIL}
+      - MISP_ADMIN_PASSWORD=${MISP_ADMIN_PASSWORD}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - PORTAINER_ADMIN_PASSWORD=${PORTAINER_ADMIN_PASSWORD}
+      - CORTEX_SECRET=${CORTEX_SECRET}
+      - CORTEX_ADMIN_PASSWORD=${CORTEX_ADMIN_PASSWORD:-}
+      - IT_PORTAL_SECRET=${IT_PORTAL_SECRET}
+      - CERT_PORTAL_SECRET=${CERT_PORTAL_SECRET}
+      - OLLAMA_URL=${OLLAMA_URL:-}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - OLLAMA_TIMEOUT_MS=${OLLAMA_TIMEOUT_MS:-120000}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PUBLIC_HOST=${PUBLIC_HOST:-${GRAFANA_DOMAIN:-localhost}}
+      - FP_HTTPS_PORT=${FP_HTTPS_PORT:-443}
+      - MISP_PUBLIC_BASE_URL=${MISP_PUBLIC_BASE_URL:-https://localhost/misp}
+      - TIMESKETCH_EXTERNAL_URL=${TIMESKETCH_EXTERNAL_URL:-https://localhost/timesketch}
+      - THEHIVE_URL=http://thehive:9000/thehive
+      - MISP_URL=http://misp:80
+      - MISP_API_KEY=${MISP_ADMIN_API_KEY}
+      - LOGSTASH_HOST=logstash
+      - LOGSTASH_PORT=5045
+      - HELK_LOGSTASH_HTTP=http://helk-logstash:8080
+      - HELK_ELASTICSEARCH_URL=http://helk-elasticsearch:9200
+      - HELK_BRIDGE_URL=http://helk-bridge:8095
+      - HELK_ENABLED=true
+      - VR_BRIDGE_URL=http://velociraptor-bridge:8097
+      - VELOCIRAPTOR_ENABLED=true
+      - VELOCIRAPTOR_ADMIN_USER=${VELOCIRAPTOR_ADMIN_USER:-admin}
+      - VELOCIRAPTOR_ADMIN_PASSWORD=${VELOCIRAPTOR_ADMIN_PASSWORD}
+      - UPLOAD_MAX_SIZE=${CERT_PORTAL_UPLOAD_MAX_SIZE}
+      - UPLOAD_MAX_FILES=${UPLOAD_MAX_FILES}
+      - UPLOAD_MAX_SIZE_BYTES=${UPLOAD_MAX_SIZE_BYTES}
+      - SECRET_KEY=${CERT_PORTAL_SECRET}
+      - NODE_ENV=production
+      - PORT=3000
+      - CREDENTIALS_AUTO_SYNC=true
+      - CREDENTIALS_SYNC_INTERVAL_MS=120000
+      - CREDENTIALS_SNAPSHOT_PATH=/shared-uploads/credentials-snapshot.json
+    ports:
+      - "${FP_CERT_PORTAL_PORT:-3000}:3000"
+    volumes:
+      - cert-portal-uploads:/tmp/uploads
+      - shared-uploads:/shared-uploads
+      - ./config/nginx/ssl:/app/ssl:ro
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.90
+      helk_net:
+      velociraptor_net:
+    depends_on:
+      minio:
+        condition: service_healthy
+      opensearch-node1:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+# ═══════════════════════════════════════════════════════════════
+#  PORTAIL IT — Portail équipes IT locales (token-based)
+# ═══════════════════════════════════════════════════════════════
+
+  it-portal:
+    build:
+      context: .
+      dockerfile: ./portal-it/Dockerfile
+    container_name: forensic-it-portal
+    restart: unless-stopped
+    environment:
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - OPENSEARCH_URL=http://opensearch-node1:9200
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - CERT_PORTAL_URL=http://cert-portal:3000
+      - LOGSTASH_HOST=logstash
+      - LOGSTASH_PORT=5045
+      - HELK_LOGSTASH_HTTP=http://helk-logstash:8080
+      - HELK_ELASTICSEARCH_URL=http://helk-elasticsearch:9200
+      - HELK_BRIDGE_URL=http://helk-bridge:8095
+      - HELK_ENABLED=true
+      - VR_BRIDGE_URL=http://velociraptor-bridge:8097
+      - VELOCIRAPTOR_ENABLED=true
+      - UPLOAD_MAX_SIZE=${CERT_PORTAL_UPLOAD_MAX_SIZE}
+      - UPLOAD_MAX_FILES=${UPLOAD_MAX_FILES}
+      - UPLOAD_MAX_SIZE_BYTES=${UPLOAD_MAX_SIZE_BYTES}
+      - SECRET_KEY=${IT_PORTAL_SECRET}
+      - NODE_ENV=production
+      - PORT=3001
+    ports:
+      - "${FP_IT_PORTAL_PORT:-3002}:3001"
+    volumes:
+      - shared-uploads:/shared-uploads
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.91
+      helk_net:
+      velociraptor_net:
+    depends_on:
+      minio:
+        condition: service_healthy
+      opensearch-node1:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      cert-portal:
+        condition: service_started
+
+# ═══════════════════════════════════════════════════════════════
+#  NGINX — Reverse proxy unifié
+# ═══════════════════════════════════════════════════════════════
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: forensic-nginx
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/conf.d/forensic.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./config/nginx/snippets/grafana-proxy.conf:/etc/nginx/snippets/grafana-proxy.conf:ro
+      - ./config/nginx/snippets/velociraptor-proxy.conf:/etc/nginx/snippets/velociraptor-proxy.conf:ro
+      - ./config/nginx/snippets/misp-root-paths.conf:/etc/nginx/snippets/misp-root-paths.conf:ro
+      - ./config/nginx/generated:/etc/nginx/generated:ro
+      - ./config/nginx/static:/etc/nginx/static:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./config/nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "${FP_HTTP_PORT:-80}:80"
+      - "${FP_HTTPS_PORT:-443}:443"
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.100
+      helk_net:
+      velociraptor_net:
+    depends_on:
+      cert-portal:
+        condition: service_started
+      it-portal:
+        condition: service_started
+      opensearch-dashboards:
+        condition: service_started
+      grafana:
+        condition: service_started
+      opencti:
+        condition: service_started
+      thehive:
+        condition: service_started
+      misp:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/nginx-health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s

@@ -1,0 +1,14 @@
+title: FP-SIGMA-005-ti-match
+id: fp-sigma-005
+status: stable
+description: TI IOC match
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: 4625
+  condition: selection
+tags:
+  - attack.t1110
+level: high

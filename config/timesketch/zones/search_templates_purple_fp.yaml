@@ -1,0 +1,22 @@
+---
+fp_purple_template_0:
+  query_string: 'message:*purple.tactic=initial_access* OR message:*TA0001*'
+  short_name: '[FP-Purple-Tpl] Initial Access'
+fp_purple_template_1:
+  query_string: 'message:*purple.tactic=execution* OR message:*T1059*'
+  short_name: '[FP-Purple-Tpl] Execution'
+fp_purple_template_2:
+  query_string: 'message:*purple.tactic=persistence* OR message:*T1547*'
+  short_name: '[FP-Purple-Tpl] Persistence'
+fp_purple_template_3:
+  query_string: 'message:*privilege_escalation* OR message:*T1068*'
+  short_name: '[FP-Purple-Tpl] Privilege Escalation'
+fp_purple_template_4:
+  query_string: 'message:*defense_evasion* OR message:*T1027*'
+  short_name: '[FP-Purple-Tpl] Defense Evasion'
+fp_purple_template_5:
+  query_string: 'message:*purple.tactic=impact* OR message:*T1486*'
+  short_name: '[FP-Purple-Tpl] Impact'
+fp_purple_template_6:
+  query_string: 'tag:purple OR message:*purple.scenario*'
+  short_name: '[FP-Purple-Tpl] Full Attack Chain'

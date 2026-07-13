@@ -1,0 +1,19 @@
+{
+  "name": "forensic-it-portal",
+  "version": "2.1.0",
+  "description": "Portail IT — Upload de logs via token CERT",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@opensearch-project/opensearch": "^2.7.0",
+    "redis": "^4.6.13",
+    "axios": "^1.7.2",
+    "uuid": "^9.0.1",
+    "cors": "^2.8.5",
+    "winston": "^3.13.0",
+    "express-rate-limit": "^7.3.1"
+  }
+}

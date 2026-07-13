@@ -1,0 +1,253 @@
+/* Intelligence SOC globale — ADDITIF */
+[data-edition="cybercorp"] .portal-ai-toggle {
+  margin-right: 0.5rem;
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.12), rgba(99, 102, 241, 0.15));
+  color: var(--accent, #00e5ff);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+[data-edition="cybercorp"] .portal-ai-toggle:hover {
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.25);
+}
+.portal-ai-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 9000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+.portal-ai-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.portal-ai-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(520px, 96vw);
+  height: 100dvh;
+  z-index: 9001;
+  background: linear-gradient(180deg, var(--fp-surface-elevated, #121a22) 0%, var(--fp-surface, #0a0e12) 100%);
+  border-left: 1px solid var(--fp-accent-border, rgba(0, 212, 255, 0.35));
+  box-shadow: -16px 0 48px rgba(0, 0, 0, 0.5), inset 1px 0 0 rgba(0, 212, 255, 0.08);
+  transform: translateX(105%);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.28s ease, box-shadow 0.28s ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+  will-change: transform;
+}
+.portal-ai-drawer.open {
+  transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
+}
+.portal-ai-backdrop:not(.open) {
+  visibility: hidden;
+}
+.portal-ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+.portal-ai-head h2 {
+  margin: 0;
+  font-size: var(--fp-type-page-size, 1.05rem);
+  font-weight: var(--fp-type-page-weight, 700);
+  letter-spacing: var(--fp-type-page-spacing, 0.04em);
+  text-transform: uppercase;
+  color: var(--fp-accent, #00d4ff);
+}
+
+#portal-ai-close {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.55rem;
+}
+.portal-ai-drawer :is(button, textarea, a):focus-visible {
+  outline: 2px solid var(--accent, #00e5ff);
+  outline-offset: 2px;
+}
+.portal-ai-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+.portal-ai-modes .fp-btn.active {
+  border-color: rgba(0, 229, 255, 0.5);
+  background: rgba(0, 229, 255, 0.12);
+}
+.portal-ai-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 1rem 1.5rem;
+}
+.portal-ai-input {
+  width: 100%;
+  min-height: 72px;
+  margin-bottom: 0.65rem;
+}
+.portal-ai-out {
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.portal-ai-out pre {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 0.65rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+}
+.portal-ai-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.55rem;
+  background: rgba(0, 0, 0, 0.2);
+}
+.portal-ai-card h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted, #94a3b8);
+}
+.portal-ai-chart {
+  width: 100%;
+  height: 280px;
+  margin: 0.5rem 0;
+}
+.portal-ai-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+.portal-ai-pill {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  cursor: pointer;
+}
+.portal-ai-au-block {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(0, 229, 255, 0.06));
+  border: 1px solid rgba(0, 229, 255, 0.18);
+}
+.portal-ai-explain {
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.65rem;
+  background: rgba(0, 229, 255, 0.04);
+  font-size: 0.82rem;
+}
+.portal-ai-explain-k {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent, #00e5ff);
+  margin-bottom: 0.2rem;
+}
+.portal-ai-explain-metrics {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.45rem;
+}
+.portal-ai-summary ol {
+  margin: 0.25rem 0 0 1rem;
+  padding: 0;
+}
+body.portal-ai-augmented .cc-topbar::after {
+  content: 'Aide analyste active';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(0, 229, 255, 0.65);
+  pointer-events: none;
+}
+
+/* SOC Autonome 2.0 */
+.portal-ai-auto-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.portal-ai-auto-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+.portal-ai-auto-view {
+  contain: layout style;
+}
+.portal-ai-auto-dashboard .portal-ai-auto-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.portal-ai-stat {
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: rgba(61, 255, 184, 0.06);
+  border: 1px solid rgba(61, 255, 184, 0.15);
+}
+.portal-ai-stat span {
+  display: block;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+.portal-ai-stat strong {
+  font-size: 1.25rem;
+  color: #3dffb8;
+}
+.portal-ai-pri {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.portal-ai-pri.pri-high { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+.portal-ai-pri.pri-med { background: rgba(210, 153, 34, 0.2); color: #d29922; }
+.portal-ai-pri.pri-high.severity,
+.portal-ai-pri.pri-high { background: rgba(248, 81, 73, 0.2); }
+.portal-ai-anom {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.portal-ai-suggest-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.portal-ai-suggest-list li {
+  margin-bottom: 0.65rem;
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "fp.ecs.generic",
+    "timestamp_desc": "FP ECS generic",
+    "query": "message:*event.dataset*"
+  },
+  {
+    "id": "dfir.plaso",
+    "timestamp_desc": "Plaso",
+    "query": "tag:fp.plaso OR message:*dfir.plaso*"
+  },
+  {
+    "id": "dfir.kape",
+    "timestamp_desc": "KAPE",
+    "query": "tag:fp.kape OR message:*dfir.kape*"
+  },
+  {
+    "id": "dfir.evtx",
+    "timestamp_desc": "EVTX",
+    "query": "message:*dfir.evtx* OR event_type:4625"
+  },
+  {
+    "id": "dfir.mft",
+    "timestamp_desc": "MFT",
+    "query": "message:*dfir.mft*"
+  },
+  {
+    "id": "ti.ioc",
+    "timestamp_desc": "TI IOC",
+    "query": "tag:ti OR message:*ti.ioc*"
+  },
+  {
+    "id": "ti.cti",
+    "timestamp_desc": "CTI",
+    "query": "tag:APT OR message:*ti.enrichment*"
+  },
+  {
+    "id": "ir.incident",
+    "timestamp_desc": "IR",
+    "query": "tag:ir OR message:*ir.case*"
+  }
+]

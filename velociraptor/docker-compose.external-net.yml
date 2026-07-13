@@ -1,0 +1,5 @@
+# Override — réutilise velociraptor_net créé par forensic-minimal
+networks:
+  velociraptor_net:
+    external: true
+    name: velociraptor_net

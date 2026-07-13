@@ -1,0 +1,11 @@
+{
+  "description": "Web access log ECS normalization",
+  "processors": [
+    {"set": {"field": "event.ingested", "value": "{{{_ingest.timestamp}}}"}},
+    {"set": {"field": "event.category", "value": "web"}},
+    {"grok": {"field": "message", "patterns": ["%{IPORHOST:source.ip} (?:-|%{USER:user.name}) (?:-|%{USER}) \\[%{HTTPDATE:http_timestamp}\\] \"(?:%{WORD:http.request.method} %{NOTSPACE:url.path}(?:\\?%{NOTSPACE:url.query})? HTTP/%{NUMBER:http.version}|-)\" %{NUMBER:http.response.status_code:long} (?:-|%{NUMBER:http.response.bytes:long})"], "ignore_failure": true}},
+    {"date": {"field": "http_timestamp", "target_field": "@timestamp", "formats": ["dd/MMM/yyyy:HH:mm:ss Z"], "ignore_failure": true}},
+    {"geoip": {"field": "source.ip", "target_field": "source.geo", "ignore_missing": true, "ignore_failure": true}},
+    {"remove": {"field": ["http_timestamp", "@metadata"], "ignore_missing": true}}
+  ]
+}

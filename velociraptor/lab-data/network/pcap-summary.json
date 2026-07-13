@@ -1,0 +1,12 @@
+{
+  "pcap_file": "lab-capture.pcap",
+  "duration_sec": 120,
+  "flows": [
+    {"src": "10.78.0.51", "dst": "192.0.2.9", "proto": "TCP", "sport": 44321, "dport": 443, "bytes": 8420, "dns": null},
+    {"src": "10.78.0.50", "dst": "192.0.2.9", "proto": "TCP", "sport": 49152, "dport": 443, "bytes": 12004, "dns": null},
+    {"src": "10.78.0.51", "dst": "8.8.8.8", "proto": "UDP", "sport": 5353, "dport": 53, "bytes": 128, "dns": "malicious.lab.local"}
+  ],
+  "alerts": [
+    {"severity": "medium", "rule": "ET POLICY DNS Query to Suspicious TLD", "flow": 2}
+  ]
+}

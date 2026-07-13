@@ -1,0 +1,169 @@
+/* ════════════════════════════════════════════════════════════════════════
+   CERT CYBERCORP — Polish premium global + perf UI (ADDITIF)
+   ════════════════════════════════════════════════════════════════════════ */
+
+[data-edition="cybercorp"] {
+  --pp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --pp-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.18);
+  --pp-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.22);
+  --pp-radius-lg: calc(var(--radius, 8px) + 2px);
+}
+
+/* GPU-friendly transitions */
+[data-edition="cybercorp"] .fp-btn,
+[data-edition="cybercorp"] .cc-nav-btn,
+[data-edition="cybercorp"] .cc-subtab,
+[data-edition="cybercorp"] .cc-card-click,
+[data-edition="cybercorp"] .cc-tp-stat,
+[data-edition="cybercorp"] .fp-stat,
+[data-edition="cybercorp"] .cc-tp-detail-card,
+[data-edition="cybercorp"] .cc-dash-widget {
+  transition: transform 0.18s var(--pp-ease), box-shadow 0.18s var(--pp-ease), opacity 0.18s var(--pp-ease);
+  will-change: transform;
+}
+[data-edition="cybercorp"] .fp-btn:hover,
+[data-edition="cybercorp"] .cc-nav-btn:hover,
+[data-edition="cybercorp"] .cc-card-click:hover,
+[data-edition="cybercorp"] .cc-tp-stat:hover {
+  transform: translate3d(0, -1px, 0);
+  box-shadow: var(--pp-shadow-md);
+}
+[data-edition="cybercorp"] .fp-panel {
+  transition: opacity 0.2s var(--pp-ease);
+}
+[data-edition="cybercorp"] .fp-panel.active {
+  opacity: 1;
+}
+
+/* Skeleton loading */
+@keyframes pp-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+[data-edition="cybercorp"] .fp-skeleton .fp-skel-cell,
+[data-edition="cybercorp"] .fp-skel-card {
+  background: linear-gradient(90deg, var(--bg-elevated) 25%, rgba(255, 255, 255, 0.06) 50%, var(--bg-elevated) 75%);
+  background-size: 200% 100%;
+  animation: pp-shimmer 1.2s ease-in-out infinite;
+  border-radius: 4px;
+  min-height: 14px;
+}
+[data-edition="cybercorp"] .fp-skeleton-table .fp-skel-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+[data-edition="cybercorp"] .fp-skeleton-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+[data-edition="cybercorp"] .fp-skel-card { height: 72px; }
+[data-edition="cybercorp"] .cc-load-label {
+  text-align: center;
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+}
+
+/* Virtual tables */
+[data-edition="cybercorp"] .fp-vtable-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--pp-radius-lg);
+  overflow: hidden;
+  background: var(--bg-elevated);
+  box-shadow: var(--pp-shadow-sm);
+}
+[data-edition="cybercorp"] .fp-vtable-head {
+  width: 100%;
+  table-layout: fixed;
+  margin: 0;
+}
+[data-edition="cybercorp"] .fp-vtable-viewport {
+  overflow: auto;
+  position: relative;
+  contain: strict;
+  -webkit-overflow-scrolling: touch;
+  transform: translateZ(0);
+}
+[data-edition="cybercorp"] .fp-vtable-spacer {
+  width: 1px;
+  pointer-events: none;
+}
+[data-edition="cybercorp"] .fp-vtable-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  width: 100%;
+  table-layout: fixed;
+  margin: 0;
+}
+[data-edition="cybercorp"] .fp-vtable-body tbody tr {
+  contain: layout style paint;
+}
+[data-edition="cybercorp"] .fp-vtable-body td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 280px;
+}
+
+/* Filtres & tableaux uniformes */
+[data-edition="cybercorp"] .cc-tp-filterbar,
+[data-edition="cybercorp"] .cc-cc-toolbar {
+  background: var(--bg-elevated);
+  border-radius: var(--pp-radius-lg);
+  box-shadow: var(--pp-shadow-sm);
+}
+[data-edition="cybercorp"] .fp-table-wrap:not(.fp-vtable-wrap) {
+  border-radius: var(--pp-radius-lg);
+  border: 1px solid var(--border);
+  overflow: auto;
+  max-height: min(70vh, 640px);
+  contain: content;
+}
+[data-edition="cybercorp"] .fp-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-elevated);
+}
+
+/* Responsive — laptop → 4K */
+@media (min-width: 1280px) {
+  [data-edition="cybercorp"] .cc-tp-dashgrid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+}
+@media (min-width: 1600px) {
+  [data-edition="cybercorp"] .app-body { max-width: 1920px; margin: 0 auto; }
+  [data-edition="cybercorp"] .fp-vtable-viewport { max-height: min(65vh, 720px) !important; }
+}
+@media (min-width: 2200px) {
+  [data-edition="cybercorp"] .app-body { max-width: 2200px; }
+}
+@media (max-width: 1024px) {
+  [data-edition="cybercorp"] .cc-tp-filterbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  [data-edition="cybercorp"] .cc-tp-filter-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 768px) {
+  [data-edition="cybercorp"] .fp-vtable-body td { max-width: 140px; }
+  [data-edition="cybercorp"] .cc-cc-subnav { overflow-x: auto; flex-wrap: nowrap; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  [data-edition="cybercorp"] .fp-skeleton .fp-skel-cell,
+  [data-edition="cybercorp"] .fp-skel-card { animation: none; }
+  [data-edition="cybercorp"] .fp-btn,
+  [data-edition="cybercorp"] .cc-card-click { transition: none; }
+}

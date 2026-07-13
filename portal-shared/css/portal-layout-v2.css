@@ -1,0 +1,185 @@
+/* ════════════════════════════════════════════════════════════════════════
+   CERT CYBERCORP — Layout fixe V2 (ADDITIF)
+   Sidebar + zone contenu stables sur tous les panneaux.
+   ════════════════════════════════════════════════════════════════════════ */
+
+[data-edition="cybercorp"] {
+  --cc-sidebar-width: 260px;
+  --cc-content-max: 1920px;
+  --cc-layout-gap: 0px;
+  --cc-main-padding: 24px;
+  --sidebar-w: 260px;
+}
+
+[data-edition="cybercorp"] .app-shell {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+/* Grille globale : sidebar fixe + contenu flexible */
+[data-edition="cybercorp"] .app-body {
+  display: grid !important;
+  grid-template-columns: var(--cc-sidebar-width) minmax(0, 1fr) !important;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: var(--cc-layout-gap);
+  box-sizing: border-box;
+}
+
+/* Sidebar — largeur fixe, pas de shift */
+[data-edition="cybercorp"] .fp-sidebar,
+[data-edition="cybercorp"] .fp-sidebar.cc-sidebar,
+[data-edition="cybercorp"] .cc-sidebar {
+  width: var(--cc-sidebar-width) !important;
+  min-width: var(--cc-sidebar-width) !important;
+  max-width: var(--cc-sidebar-width) !important;
+  flex: none !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  position: sticky;
+  top: var(--header-h, 56px);
+  align-self: start;
+  height: calc(100vh - var(--header-h, 56px));
+  max-height: calc(100vh - var(--header-h, 56px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Zone principale — padding uniforme */
+[data-edition="cybercorp"] .fp-main {
+  flex: none !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  margin-left: 0 !important;
+  padding: var(--cc-main-padding) !important;
+  padding-left: var(--cc-main-padding) !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Panneau actif — largeur stable, sans animation de décalage */
+[data-edition="cybercorp"] .fp-panel {
+  width: 100%;
+  max-width: var(--cc-content-max);
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 0 !important;
+  box-sizing: border-box;
+}
+
+[data-edition="cybercorp"] .fp-panel.active {
+  display: flex !important;
+  flex-direction: column;
+  gap: 1rem;
+  animation: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+/* Wrapper contenu panneau */
+[data-edition="cybercorp"] .cc-panel-root {
+  padding: var(--cc-main-padding);
+  width: 100%;
+  max-width: var(--cc-content-max);
+  margin: 0 auto;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box;
+}
+
+[data-edition="cybercorp"] .fp-panel.active > .fp-card,
+[data-edition="cybercorp"] .fp-panel.active > .fp-card.cc-pro-panel {
+  width: 100%;
+  max-width: var(--cc-content-max);
+  margin: 0 auto !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+  box-sizing: border-box;
+}
+
+[data-edition="cybercorp"] .fp-panel.active .cc-tp-root,
+[data-edition="cybercorp"] .fp-panel.active [id$="-root"] {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  box-sizing: border-box;
+}
+
+/* Neutraliser marges parasites dans les panneaux threat / gov */
+[data-edition="cybercorp"] .fp-panel.active .cc-tp-toolbar,
+[data-edition="cybercorp"] .fp-panel.active .cc-filter-bar,
+[data-edition="cybercorp"] .fp-panel.active .fp-toolbar,
+[data-edition="cybercorp"] .fp-panel.active .cc-tp-dashgrid,
+[data-edition="cybercorp"] .fp-panel.active .fp-table-wrap {
+  margin-left: 0 !important;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Tables virtualisées — pas de débordement horizontal */
+[data-edition="cybercorp"] .fp-vtable-wrap {
+  max-width: 100%;
+  margin-left: 0 !important;
+}
+
+/* Annuler les media queries qui redimensionnent app-body / sidebar (premium v1/v2) */
+@media (min-width: 1600px) {
+  [data-edition="cybercorp"] .app-body {
+    max-width: none !important;
+    margin: 0 !important;
+  }
+}
+
+@media (min-width: 2200px) {
+  [data-edition="cybercorp"] .app-body {
+    max-width: none !important;
+  }
+}
+
+@media (min-width: 2560px) {
+  [data-edition="cybercorp"] .app-body {
+    max-width: none !important;
+    margin-inline: 0 !important;
+  }
+  [data-edition="cybercorp"] .fp-sidebar.cc-sidebar {
+    width: var(--cc-sidebar-width) !important;
+    min-width: var(--cc-sidebar-width) !important;
+    max-width: var(--cc-sidebar-width) !important;
+  }
+}
+
+@media (min-width: 3840px) {
+  [data-edition="cybercorp"] .app-body {
+    max-width: none !important;
+  }
+}
+
+/* Mobile : sidebar overlay inchangé, contenu pleine largeur */
+@media (max-width: 900px) {
+  [data-edition="cybercorp"] .app-body {
+    grid-template-columns: 1fr !important;
+  }
+  [data-edition="cybercorp"] .fp-sidebar.cc-sidebar {
+    position: fixed;
+    z-index: 200;
+    height: 100vh;
+    max-height: 100vh;
+  }
+  [data-edition="cybercorp"] .fp-main {
+    padding: 16px !important;
+  }
+}

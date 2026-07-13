@@ -1,0 +1,8 @@
+{"EventID":1,"EventTime":"2024-06-01T08:15:22Z","Computer":"lab-win01","Message":"Process Create: powershell.exe -enc ...","Image":"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe","User":"LAB\\analyst"}
+{"EventID":3,"EventTime":"2024-06-01T08:16:01Z","Computer":"lab-win01","Message":"Network connection: 192.0.2.9:443","DestinationIp":"192.0.2.9","DestinationPort":443}
+{"EventID":7,"EventTime":"2024-06-01T08:16:05Z","Computer":"lab-win01","Message":"Image loaded: amsi.dll","ImageLoaded":"C:\\Windows\\System32\\amsi.dll"}
+{"EventID":8,"EventTime":"2024-06-01T08:17:00Z","Computer":"lab-win01","Message":"CreateRemoteThread detected","TargetImage":"C:\\Windows\\System32\\notepad.exe"}
+{"EventID":10,"EventTime":"2024-06-01T08:17:30Z","Computer":"lab-win01","Message":"ProcessAccess lsass.exe","TargetImage":"C:\\Windows\\System32\\lsass.exe"}
+{"EventID":11,"EventTime":"2024-06-01T08:18:00Z","Computer":"lab-win01","Message":"FileCreate: C:\\Users\\Public\\stage.exe","TargetFilename":"C:\\Users\\Public\\stage.exe"}
+{"EventID":13,"EventTime":"2024-06-01T08:18:30Z","Computer":"lab-win01","Message":"RegistryEvent: Run key","TargetObject":"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\Updater"}
+{"EventID":22,"EventTime":"2024-06-01T08:19:00Z","Computer":"lab-win01","Message":"DNS query: malicious.lab.local","QueryName":"malicious.lab.local"}

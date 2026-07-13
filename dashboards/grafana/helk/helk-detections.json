@@ -1,0 +1,19 @@
+{
+  "uid": "helk-detections",
+  "title": "Sigma Detections",
+  "tags": ["helk", "sigma", "detections"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "logs",
+      "title": "Detections / alertes",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "elasticsearch", "uid": "helk-es" },
+      "targets": [{ "refId": "A", "query": "tags:sigma OR event.module:helk-ingest" }]
+    }
+  ]
+}

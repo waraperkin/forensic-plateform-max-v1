@@ -1,0 +1,12 @@
+{
+  "uid": "helk-zeek",
+  "title": "Zeek Overview",
+  "tags": ["helk", "zeek", "network"],
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Zeek conn events", "gridPos": {"h": 4, "w": 8, "x": 0, "y": 0}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "_index:helk-zeek-*", "metrics": [{"type": "count"}]}]},
+    {"id": 2, "type": "stat", "title": "Non-standard ports", "gridPos": {"h": 4, "w": 8, "x": 8, "y": 0}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "_index:helk-zeek-* AND destination.port:4444", "metrics": [{"type": "count"}]}]},
+    {"id": 3, "type": "logs", "title": "Zeek connections", "gridPos": {"h": 14, "w": 24, "x": 0, "y": 4}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "_index:helk-zeek-*"}]}
+  ]
+}

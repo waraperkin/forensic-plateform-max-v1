@@ -1,0 +1,14 @@
+title: FP-SIGMA-042-powershell-encoded
+id: fp-sigma-042
+status: stable
+description: Encoded PowerShell
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: 4625
+  condition: selection
+tags:
+  - attack.t1110
+level: high

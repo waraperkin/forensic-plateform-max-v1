@@ -1,0 +1,100 @@
+# =============================================================================
+# forensic-minimal — .gitignore professionnel
+# =============================================================================
+
+# --- Secrets & environnement ---
+.env
+.env.*
+!.env.example
+*.env
+!*.env.example
+*.key
+*.pem
+*.crt
+*.csr
+*.srl
+secrets/
+credentials.json
+config/credentials-snapshot.json
+
+# --- Node.js ---
+node_modules/
+dist/
+build/
+.next/
+.nuxt/
+.npm/
+.yarn/
+.pnp.*
+package-lock.json.bak
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+
+# --- Docker / données runtime (bind mounts & volumes locaux) ---
+logs/
+data/
+volumes/
+tmp/
+velociraptor/data/
+**/docker-data/
+**/.docker/
+
+config/local-ports.env
+portal-cert/public/shared
+portal-it/public/shared
+
+# --- Playwright & rapports de tests ---
+tests/node_modules/
+tests/test-results/
+tests/reports/
+tests/playwright-report/
+tests/.auth/
+tests/artifacts/
+playwright-report/
+playwright/.cache/
+.cache/
+
+# --- OS & éditeurs ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/
+*.sublime-*
+
+# --- Archives & fichiers temporaires (racine — pas plugins HELK embarqués) ---
+/*.zip
+/*.tar.gz
+/*.tar
+/*.tgz
+*.tmp
+*.bak
+*.old
+
+# --- QA & inventaires générés ---
+qa-reports/
+qa-results/
+reports/
+
+# --- Logs applicatifs ---
+*.log
+
+# --- Dépôts Git imbriqués (monorepo unique) ---
+helk/.git/
+helk/sigma/.git/
+
+# --- États runtime / caches locaux ---
+*_state.json

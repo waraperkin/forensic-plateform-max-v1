@@ -1,0 +1,12 @@
+[
+  {
+    "type": "domain",
+    "value": "malicious.example.com",
+    "tags": ["APT", "C2", "test"]
+  },
+  {
+    "type": "ip",
+    "value": "10.10.10.10",
+    "tags": ["botnet", "test"]
+  }
+]

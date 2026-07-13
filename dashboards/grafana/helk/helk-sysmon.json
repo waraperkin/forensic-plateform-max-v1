@@ -1,0 +1,12 @@
+{
+  "uid": "helk-sysmon",
+  "title": "Sysmon Overview",
+  "tags": ["helk", "sysmon", "windows"],
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Sysmon events", "gridPos": {"h": 4, "w": 8, "x": 0, "y": 0}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "_index:helk-sysmon-*", "metrics": [{"type": "count"}]}]},
+    {"id": 2, "type": "stat", "title": "Process Create (EID 1)", "gridPos": {"h": 4, "w": 8, "x": 8, "y": 0}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "_index:helk-sysmon-* AND EventID:1", "metrics": [{"type": "count"}]}]},
+    {"id": 3, "type": "logs", "title": "Sysmon timeline", "gridPos": {"h": 14, "w": 24, "x": 0, "y": 4}, "datasource": {"type": "elasticsearch", "uid": "helk-es"}, "targets": [{"refId": "A", "query": "_index:helk-sysmon-*"}]}
+  ]
+}

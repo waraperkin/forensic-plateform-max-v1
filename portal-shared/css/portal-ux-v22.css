@@ -1,0 +1,234 @@
+/* CERT CYBERCORP V2.2 — UX analyste (additif) : focus, overflow, libellés */
+
+[data-edition="cybercorp"] {
+  --cc-v22-focus: #6eb5ff;
+  --cc-v22-focus-ring: 0 0 0 3px rgba(110, 181, 255, 0.28);
+}
+
+/* Pas de scroll horizontal global */
+[data-edition="cybercorp"] .app-body,
+[data-edition="cybercorp"] .fp-main,
+[data-edition="cybercorp"] .fp-panel.active {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* Focus clavier visible */
+[data-edition="cybercorp"] :is(
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  .cc-nav-btn,
+  .cc-card-click,
+  .pd-toc-link,
+  [tabindex="0"]
+):focus {
+  outline: none;
+}
+
+[data-edition="cybercorp"] :is(
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  .cc-nav-btn,
+  .cc-card-click,
+  .pd-toc-link
+):focus-visible {
+  outline: 2px solid var(--cc-v22-focus);
+  outline-offset: 2px;
+  box-shadow: var(--cc-v22-focus-ring);
+}
+
+[data-edition="cybercorp"] .cc-nav-btn.active:focus-visible {
+  outline-offset: 1px;
+}
+
+/* Sidebar — texte non coupé */
+[data-edition="cybercorp"] .cc-nav-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  display: block;
+}
+
+/* Header liens outils */
+[data-edition="cybercorp"] .fp-nav-links {
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  max-width: min(42vw, 520px);
+}
+
+[data-edition="cybercorp"] .fp-nav-links a {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+/* Cartes hub / stats */
+[data-edition="cybercorp"] .cc-card-click-title,
+[data-edition="cybercorp"] .cc-card-click-meta,
+[data-edition="cybercorp"] .fp-premium-card-title,
+[data-edition="cybercorp"] .fp-premium-card-meta,
+[data-edition="cybercorp"] .fp-stat-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-wrap: break-word;
+}
+
+[data-edition="cybercorp"] .cc-hub-card-wrap {
+  min-width: 0;
+}
+
+/* Tableaux — scroll interne, texte lisible */
+[data-edition="cybercorp"] .fp-table-wrap,
+[data-edition="cybercorp"] .fp-vtable-wrap,
+[data-edition="cybercorp"] .cc-tp-tablewrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: min(28rem, 55vh);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+[data-edition="cybercorp"] .fp-table th,
+[data-edition="cybercorp"] .fp-table td,
+[data-edition="cybercorp"] .fp-vtable-body td {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 22rem;
+}
+
+[data-edition="cybercorp"] .fp-table code {
+  word-break: break-all;
+  font-size: 0.78rem;
+}
+
+/* Panneaux threat / governance */
+[data-edition="cybercorp"] .cc-tp-root,
+[data-edition="cybercorp"] .cc-tp-result,
+[data-edition="cybercorp"] .cc-tp-fetchform {
+  min-width: 0;
+  max-width: 100%;
+}
+
+[data-edition="cybercorp"] .cc-tp-toolbar,
+[data-edition="cybercorp"] .fp-actions-row {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Assistant SOC drawer */
+[data-edition="cybercorp"] .portal-ai-drawer {
+  overflow: hidden;
+}
+
+[data-edition="cybercorp"] .portal-ai-body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+[data-edition="cybercorp"] .portal-ai-modes {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+[data-edition="cybercorp"] .portal-ai-modes .fp-btn {
+  flex-shrink: 0;
+}
+
+[data-edition="cybercorp"] .portal-ai-out pre {
+  max-height: min(240px, 40vh);
+}
+
+/* Documentation */
+[data-edition="cybercorp"] .portal-doc-layout {
+  display: grid;
+  grid-template-columns: minmax(10rem, 12rem) minmax(0, 1fr);
+  gap: 1rem;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+[data-edition="cybercorp"] .portal-doc-content {
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: calc(100vh - 12rem);
+  min-width: 0;
+}
+
+[data-edition="cybercorp"] .portal-doc-nav {
+  overflow-y: auto;
+  max-height: calc(100vh - 12rem);
+}
+
+/* SOC autonome */
+[data-edition="cybercorp"] #soc-autonomous-root,
+[data-edition="cybercorp"] .cc-ai-auto-grid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+[data-edition="cybercorp"] .cc-ai-auto-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* Messages d'erreur — lisibles */
+[data-edition="cybercorp"] .fp-alert {
+  word-break: break-word;
+  max-width: 100%;
+}
+
+[data-edition="cybercorp"] .fp-alert-err {
+  border-left: 3px solid var(--danger, #f87171);
+}
+
+[data-edition="cybercorp"] .fp-muted,
+[data-edition="cybercorp"] .fp-hint,
+[data-edition="cybercorp"] .pd-hint {
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
+/* États vides */
+[data-edition="cybercorp"] .cc-empty-state,
+[data-edition="cybercorp"] .pd-empty {
+  padding: 1rem 1.1rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+/* Boutons d'action cohérents */
+[data-edition="cybercorp"] [data-pd-export-json],
+[data-edition="cybercorp"] [data-pd-export-csv],
+[data-edition="cybercorp"] [data-pd-sec-export] {
+  min-height: var(--cc-ux-btn-h, 36px);
+}
+
+/* Tooltips doc */
+[data-edition="cybercorp"] .portal-doc-tooltip {
+  max-width: min(320px, 90vw);
+  word-wrap: break-word;
+}
+
+@media (max-width: 768px) {
+  [data-edition="cybercorp"] .fp-nav-links {
+    display: none;
+  }
+  [data-edition="cybercorp"] .portal-doc-layout {
+    grid-template-columns: 1fr;
+  }
+}

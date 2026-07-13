@@ -1,0 +1,27 @@
+{
+  "uid": "helk-sysmon-zeek",
+  "title": "HELK Sysmon / Zeek Activity",
+  "tags": ["helk", "sysmon", "zeek"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Sysmon events",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "elasticsearch", "uid": "helk-es" },
+      "targets": [{ "refId": "A", "query": "event.dataset:windows.sysmon" }]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Zeek / network",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "elasticsearch", "uid": "helk-es" },
+      "targets": [{ "refId": "A", "query": "event.dataset:network.zeek OR os_type:network" }]
+    }
+  ]
+}

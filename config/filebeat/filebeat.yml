@@ -1,0 +1,43 @@
+filebeat.inputs:
+  - type: log
+    id: syslog
+    enabled: true
+    paths: [/hostlogs/syslog, /hostlogs/messages, /hostlogs/auth.log, /hostlogs/secure]
+    tags: ["syslog", "linux"]
+    fields: {event: {module: syslog}}
+    fields_under_root: true
+
+  - type: log
+    id: nginx
+    enabled: true
+    paths: [/hostlogs/nginx/access.log]
+    tags: ["web", "nginx"]
+    fields: {event: {module: nginx}}
+    fields_under_root: true
+
+  - type: log
+    id: apache
+    enabled: true
+    paths: [/hostlogs/apache2/access.log, /hostlogs/httpd/access_log]
+    tags: ["web", "apache"]
+    fields: {event: {module: apache}}
+    fields_under_root: true
+
+  - type: container
+    id: docker
+    enabled: true
+    paths: [/var/lib/docker/containers/*/*.log]
+    stream: all
+    tags: ["docker"]
+
+processors:
+  - add_host_metadata: {}
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+
+output.logstash:
+  hosts: ["logstash:5044"]
+  bulk_max_size: 1024
+  timeout: 30
+
+logging.level: warning

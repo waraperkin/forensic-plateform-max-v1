@@ -1,0 +1,52 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">Generate complete forensic investigation reports from the CERT portal: automatic evidence collection, customizable sections, local AI enrichment (Ollama), and HTML / Markdown export.</p>
+
+  <h3>UI access</h3>
+  <ul>
+    <li>Sidebar <strong>Forensic reports</strong> — full generator (template, custom blocks, preview, export)</li>
+    <li>From an incident — <strong>Generate report</strong> button (pre-fills <code>case_id</code> / incident)</li>
+  </ul>
+
+  <h3>Recommended workflow</h3>
+  <ol>
+    <li>Identify the <code>case_id</code> (incident, upload, Timesketch sketch)</li>
+    <li><strong>Collect evidence</strong> — MinIO uploads, OpenSearch events, IOC/TI, alerts, aggregations</li>
+    <li>Pick a template: <code>standard-ir</code>, <code>executive-brief</code>, <code>technical-deep</code></li>
+    <li>Add custom blocks (business context, decisions, contacts)</li>
+    <li>Optional: <strong>Enrich with local AI</strong> (Ollama) for narrative summary and recommendations</li>
+    <li>Edit the draft, then export as HTML or Markdown</li>
+  </ol>
+
+  <h3>REST API</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Method</th><th>Route</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>GET</td><td><code>/api/reports/templates</code></td><td>Available templates</td></tr>
+      <tr><td>GET</td><td><code>/api/reports/llm/status</code></td><td>Ollama status / heuristic fallback</td></tr>
+      <tr><td>POST</td><td><code>/api/reports/collect</code></td><td>Evidence collection (<code>case_id</code> or <code>incident_id</code>)</td></tr>
+      <tr><td>POST</td><td><code>/api/reports/generate</code></td><td>Create report + sections</td></tr>
+      <tr><td>PUT</td><td><code>/api/reports/:id</code></td><td>Update draft</td></tr>
+      <tr><td>POST</td><td><code>/api/reports/:id/enrich</code></td><td>Re-run AI enrichment</td></tr>
+      <tr><td>GET</td><td><code>/api/reports/:id/export?format=html|md|json</code></td><td>Final export</td></tr>
+    </tbody>
+  </table>
+  <p>CERT session required (cookie). Full guide: <code>docs/PORTAL/FORENSIC-REPORTS.md</code>.</p>
+
+  <h3>Local AI (Ollama)</h3>
+  <ul>
+    <li>Env: <code>OLLAMA_URL</code>, <code>OLLAMA_MODEL</code> (default <code>llama3.2</code>)</li>
+    <li>If Ollama is unavailable, the engine uses heuristic enrichment (same section structure)</li>
+    <li>Data stays on local infrastructure — no third-party cloud</li>
+  </ul>
+
+  <h3>Verification</h3>
+  <p><code>python scripts/forensic_report_verify.py</code> — templates, collect on <code>CASE-UC01-RANSOM</code>, generate and JSON export.</p>
+
+  <h3>Key files</h3>
+  <ul>
+    <li><code>portal-cert/lib/forensic-report-engine.js</code> — collection &amp; rendering</li>
+    <li><code>portal-cert/lib/forensic-report-llm.js</code> — Ollama enrichment</li>
+    <li><code>portal-cert/routes/forensic-report-routes.js</code> — API routes</li>
+    <li><code>portal-shared/js/forensic-report.js</code> — portal UI</li>
+  </ul>
+</div>

@@ -1,0 +1,17 @@
+<Sysmon schemaversion="4.90">
+  <EventFiltering>
+    <RuleGroup groupRelation="or">
+      <ProcessCreate onmatch="include"/>
+      <NetworkConnect onmatch="include"/>
+      <ImageLoad onmatch="include"/>
+      <CreateRemoteThread onmatch="include"/>
+      <ProcessAccess onmatch="include"/>
+      <FileCreate onmatch="include"/>
+      <RegistryEvent onmatch="include"/>
+      <DnsQuery onmatch="include"/>
+    </RuleGroup>
+    <RuleGroup name="noise" groupRelation="or">
+      <ImageLoad onmatch="exclude" image="C:\Windows\System32\*.dll"/>
+    </RuleGroup>
+  </EventFiltering>
+</Sysmon>

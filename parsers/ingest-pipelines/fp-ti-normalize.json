@@ -1,0 +1,11 @@
+{
+  "description": "FP TI — normalisation champs event.* pour indices forensic-ti-*",
+  "processors": [
+    {
+      "script": {
+        "lang": "painless",
+        "source": "if (ctx.event == null) { ctx.event = new HashMap(); } if (ctx.feed != null) { ctx.event.dataset = 'ti.' + ctx.feed; } else if (ctx.source != null) { ctx.event.dataset = 'ti.' + ctx.source; } else { ctx.event.dataset = 'ti.ioc'; } ctx.event.category = 'threat'; ctx.event.type = 'indicator'; if (ctx.ti == null) { ctx.ti = new HashMap(); } if (ctx.ioc_value != null) { ctx.ti.ioc_value = ctx.ioc_value; } if (ctx.ioc_type != null) { ctx.ti.ioc_type = ctx.ioc_type; } if (ctx.tags != null) { ctx.ti.tags = ctx.tags; } ctx.fp = ctx.fp != null ? ctx.fp : new HashMap(); ctx.fp.parsing_version = '1.0';"
+      }
+    }
+  ]
+}

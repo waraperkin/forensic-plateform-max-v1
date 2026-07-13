@@ -1,0 +1,16 @@
+# Forensic Platform — Timesketch worker override (Sigma / TI / analyzers deps)
+ARG BASE_IMAGE=us-docker.pkg.dev/osdfir-registry/timesketch/timesketch:latest
+FROM ${BASE_IMAGE}
+
+USER root
+
+RUN pip install --no-cache-dir \
+    sigma-cli \
+    tldextract \
+    python-dateutil \
+    regex \
+    beautifulsoup4 \
+    && mkdir -p /opt/timesketch/sigma_rules /opt/timesketch/ti \
+    && chmod 755 /opt/timesketch/sigma_rules /opt/timesketch/ti
+
+# Répertoires Sigma/TI montés en volume ; pip reste dans l'image worker.

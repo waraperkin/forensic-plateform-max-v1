@@ -1,0 +1,11 @@
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: fp-soc-webhook
+    receivers:
+      - uid: fp-soc-webhook-rcv
+        type: webhook
+        settings:
+          url: http://forensic-cert-portal:8080/health
+          httpMethod: GET
+        disableResolveMessage: false

@@ -1,0 +1,79 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">Pipeline d'ingestion forensique : dépôt via portails CERT/IT, stockage MinIO, file d'attente Redis, traitement par <code>ingest-worker</code>, indexation OpenSearch et import Timesketch. Optionnel : push vers HELK pour hunting.</p>
+
+  <h3>Schéma de la chaîne</h3>
+  <pre class="mermaid">flowchart TB
+    classDef portal fill:#0d47a1,stroke:#00e5ff,color:#fff
+    classDef queue fill:#f57f17,stroke:#ffca28,color:#000
+    classDef worker fill:#2e7d32,stroke:#a5d6a7,color:#fff
+    classDef store fill:#1b5e20,stroke:#81c784,color:#e8f5e9
+
+    CERT["Portail CERT<br/>POST /api/upload"]:::portal
+    IT["Portail IT<br/>token + upload"]:::portal
+    VAL["upload-limits.js<br/>ext + taille"]:::portal
+    MINIO[("MinIO buckets<br/>logs-windows, pcap…")]:::store
+    REDIS[("Redis<br/>ingest-queue")]:::queue
+    WORKER["ingest-worker<br/>worker.py"]:::worker
+    PARSE["Parsers<br/>evtx, csv, plaso…"]:::worker
+    OS[("OpenSearch<br/>forensic-*")]:::store
+    TS["Timesketch<br/>timesketch_io.py"]:::store
+    HELK["pushToHelk()<br/>option upload"]:::worker
+    ERR["/api/master/ingest-errors"]:::portal
+
+    CERT & IT --> VAL --> MINIO & REDIS
+    REDIS --> WORKER --> PARSE
+    PARSE --> OS & TS
+    CERT -.-> HELK
+    WORKER -.-> ERR</pre>
+
+  <h3>Étapes détaillées</h3>
+  <ol>
+    <li><strong>Réception</strong> — <code>portal-cert/server.js</code> ou <code>portal-it/server.js</code> reçoit les fichiers (multer). Métadonnées : <code>case_id</code>, analyste, priorité, OS source.</li>
+    <li><strong>Validation</strong> — <code>lib/upload-limits.js</code> : extensions autorisées, taille max 5.4 Go, nombre max 100 fichiers.</li>
+    <li><strong>Stockage</strong> — MinIO bucket selon type (logs-windows, timesketch, pcap, iocs, kape…).</li>
+    <li><strong>Enqueue</strong> — <code>lib/ingest-queue.js</code> pousse un job JSON dans Redis.</li>
+    <li><strong>Traitement</strong> — <code>ingest-worker/worker.py</code> consomme la queue, parse et bulk-indexe.</li>
+    <li><strong>Enrichissement</strong> — <code>ti_enrichment.py</code> peut enrichir avec contexte OpenCTI/MISP.</li>
+    <li><strong>Timesketch</strong> — <code>timesketch_pipeline.py</code> + CSV 9 colonnes strictes.</li>
+    <li><strong>HELK (option)</strong> — si coché à l'upload, <code>lib/helk-connector.js</code> POST vers Logstash HELK.</li>
+  </ol>
+
+  <h3>Types de fichiers supportés</h3>
+  <table class="portal-doc-table">
+    <thead><tr><th>Extension</th><th>Parser</th><th>Destination</th><th>Index / sortie</th></tr></thead>
+    <tbody>
+      <tr><td><code>.evtx</code>, <code>.evt</code></td><td>evtx_parser.py</td><td>logs-windows + OS</td><td>forensic-windows-*</td></tr>
+      <tr><td><code>.plaso</code></td><td>timesketch pipeline</td><td>timesketch bucket</td><td>Sketch Timesketch</td></tr>
+      <tr><td><code>.csv</code>, <code>.jsonl</code></td><td>timesketch_csv.py</td><td>TS + OS</td><td>Timeline 9 colonnes</td></tr>
+      <tr><td><code>.log</code>, <code>.txt</code>, syslog</td><td>text_parser.py</td><td>logs-linux</td><td>forensic-linux-*</td></tr>
+      <tr><td><code>.pcap</code>, <code>.pcapng</code></td><td>stockage binaire</td><td>MinIO pcap</td><td>Métadonnées upload</td></tr>
+      <tr><td><code>.stix</code></td><td>stix / IOC</td><td>iocs bucket</td><td>Corrélation CTI</td></tr>
+      <tr><td><code>.zip</code> (KAPE)</td><td>archive</td><td>kape bucket</td><td>Extraction manuelle</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Logstash &amp; Filebeat (flux réseau)</h3>
+  <p>En parallèle de l'upload portail, <strong>Logstash FP</strong> écoute :</p>
+  <ul>
+    <li><code>:5044</code> — Beats (agents/Filebeat)</li>
+    <li><code>:5045</code> — JSON lines</li>
+    <li><code>:5140/udp</code> — Syslog</li>
+    <li><code>:5555</code> — HEC (HTTP Event Collector)</li>
+  </ul>
+  <p>Pipelines : <code>config/logstash/pipeline/00-inputs.conf</code>, <code>10-windows.conf</code>, <code>20-linux-macos.conf</code>, <code>40-multi-source.conf</code>. <strong>Filebeat</strong> collecte les logs conteneurs Docker vers OpenSearch.</p>
+
+  <h3>Supervision &amp; APIs</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Interface</th><th>Emplacement</th></tr></thead>
+    <tbody>
+      <tr><td>Onglet Ingestion &amp; Evidences</td><td>Volumes, historique uploads CERT/IT</td></tr>
+      <tr><td>KPI Ingest Total</td><td>Vue d'ensemble portail</td></tr>
+      <tr><td>Grafana fp-platform-health</td><td>Cumul documents OpenSearch</td></tr>
+      <tr><td><code>GET /api/stats</code></td><td>Statistiques temps réel parsing</td></tr>
+      <tr><td><code>GET /api/master/ingest_status</code></td><td>Statut file ingest</td></tr>
+      <tr><td><code>GET /api/master/ingest_errors</code></td><td>Erreurs parsing détaillées</td></tr>
+    </tbody>
+  </table>
+
+  <p class="fp-muted">Fichiers clés : <code>ingest-worker/worker.py</code>, <code>lib/ingest-queue.js</code>, <code>docs/PORTAL/FLOWS.md</code>.</p>
+</div>

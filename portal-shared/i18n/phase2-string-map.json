@@ -1,0 +1,132 @@
+[
+  {
+    "fr": "outils SOC, comptes techniques, API portail, ports réseau. Utilisez les raccourcis pour les opérations courantes.</p>",
+    "en": "outils SOC, comptes techniques, API portal, ports réseau. Utilisez the raccourcis for the opérations courantes.</p>",
+    "key": "msg.outils_soc_comptes_techniques_api_portail_ports_"
+  },
+  {
+    "fr": "aucune clé API listée — endpoint UI non disponible ou droits insuffisants. SentinelOne reste affiché si configuré.",
+    "en": "no clé API listée — endpoint UI non disponible or droits insuffisants. SentinelOne reste affiché si configured.",
+    "key": "msg.aucune_cle_api_listee_endpoint_ui_non_disponible"
+  },
+  {
+    "fr": "valider pivots & exports avant clôture.",
+    "en": "valider pivots & exports avant cluture.",
+    "key": "msg.valider_pivots_exports_avant_cloture"
+  },
+  {
+    "fr": "Règles :",
+    "en": "Règles",
+    "key": "msg.regles"
+  },
+  {
+    "fr": "\">Requête",
+    "en": "Requête :",
+    "key": "msg.requete"
+  },
+  {
+    "fr": "authentifications échouées sur WIN-DC01 entre 8h et 10h",
+    "en": "authentifications échouées on WIN-DC01 entre 8h and 10h",
+    "key": "msg.authentifications_echouees_sur_win_dc01_entre_8h"
+  },
+  {
+    "fr": "détecter powershell obfusqué",
+    "en": "detecter powershell obfusque",
+    "key": "msg.detecter_powershell_obfusque"
+  },
+  {
+    "fr": "dashboard activité Windows",
+    "en": "dashboard activite Windows",
+    "key": "msg.dashboard_activite_windows"
+  },
+  {
+    "fr": "hostname)",
+    "en": "hostname)",
+    "key": "msg.hostname"
+  },
+  {
+    "fr": "santé SOC et liens outils.",
+    "en": "santé SOC and liens outils.",
+    "key": "msg.sante_soc_et_liens_outils"
+  },
+  {
+    "fr": "inventaire et filtres.",
+    "en": "inventaire and filtres.",
+    "key": "msg.inventaire_et_filtres"
+  },
+  {
+    "fr": "aide requêtes et règles (à valider).",
+    "en": "aide requêtes and rules (to valider).",
+    "key": "msg.aide_requetes_et_regles_a_valider"
+  },
+  {
+    "fr": "incidents actifs, tickets, demandes IT entrantes, dépôt evidences et journal d'audit.",
+    "en": "incidents active, tickets, requests IT entrantes, dépôt evidences and journal d'audit.",
+    "key": "msg.incidents_actifs_tickets_demandes_it_entrantes_d"
+  },
+  {
+    "fr": "exposition périmètre, inventaire jetons, santé des services, uploads et vulnérabilités.",
+    "en": "exposition périmètre, inventaire tokens, santé services, uploads and vulnérabilités.",
+    "key": "msg.exposition_perimetre_inventaire_jetons_sante_des"
+  },
+  {
+    "fr": "volumes indexés, erreurs de traitement, uploads CERT/IT récents et jetons de dépôt actifs.",
+    "en": "volumes indexed, erreurs of traitement, uploads CERT/IT récents and tokens of dépôt active.",
+    "key": "msg.volumes_indexes_erreurs_de_traitement_uploads_ce"
+  },
+  {
+    "fr": "top IOC, tags MISP/OpenCTI, volumétrie SIEM et état des connecteurs. Chaque carte ouvre le panneau détaillé avec exports.",
+    "en": "top IOC, tags MISP/OpenCTI, volume SIEM and état connecteurs. Chaque carte ouvre the panneau détaillé with exports.",
+    "key": "msg.top_ioc_tags_misp_opencti_volumetrie_siem_et_eta"
+  },
+  {
+    "fr": "incidents FP-Master, base de connaissances, journal d'activité et documentation portail.",
+    "en": "incidents FP-Master, base of connaissances, journal d'activité and documentation portal.",
+    "key": "msg.incidents_fp_master_base_de_connaissances_journa"
+  },
+  {
+    "fr": "aperçu Markdown des fiches, playbooks, guides et répartition par catégorie.",
+    "en": "aperçu Markdown records, playbooks, guides and répartition by category.",
+    "key": "msg.apercu_markdown_des_fiches_playbooks_guides_et_r"
+  },
+  {
+    "fr": "uploads, tokens et tickets.",
+    "en": "uploads, tokens and tickets.",
+    "key": "msg.uploads_tokens_et_tickets"
+  },
+  {
+    "fr": "vérifier connecteur, credentials et parser (",
+    "en": "vérifier connecteur, credentials and parser (",
+    "key": "msg.verifier_connecteur_credentials_et_parser"
+  },
+  {
+    "fr": "contrôler la source et le statut Sekoia (",
+    "en": "contrôler the source and the status Sekoia (",
+    "key": "msg.controler_la_source_et_le_statut_sekoia"
+  },
+  {
+    "fr": "corréler avec changements réseau, filtrage ou saturation pipeline.",
+    "en": "corréler with changements réseau, filtrage or saturation pipeline.",
+    "key": "msg.correler_avec_changements_reseau_filtrage_ou_sat"
+  },
+  {
+    "fr": "prioriser triage et collecte complémentaire.",
+    "en": "prioritize triage and collection complémentaire.",
+    "key": "msg.prioriser_triage_et_collecte_complementaire"
+  },
+  {
+    "fr": "'Erreur')}",
+    "en": "Erreur:",
+    "key": "msg.erreur"
+  },
+  {
+    "fr": "ajoute des loaders branchés aux boutons",
+    "en": "ajoute loaders branchés aux boutons",
+    "key": "msg.ajoute_des_loaders_branches_aux_boutons"
+  },
+  {
+    "fr": "Bearer &lt;SEKOIA_UI_TOKEN&gt;</strong>. Les secrets sont stockés <strong>chiffrés</strong> dans le connecteur (<code>/data</code>), jamais dans <code>.env</code>.</p>",
+    "en": "Bearer &lt;SEKOIA_UI_TOKEN&gt;</strong>. the secrets sont stockés <strong>chiffrés</strong> in the connecteur (<code>/data</code>), jamais in <code>.env</code>.</p>",
+    "key": "msg.bearer_lt_sekoia_ui_token_gt_strong_les_secrets_"
+  }
+]

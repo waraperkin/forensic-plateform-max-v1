@@ -1,0 +1,31 @@
+# FP-ECS-LIKE data types (complément data_finder Timesketch)
+fp_ecs_generic:
+  description: FP ECS generic events in message/tag fields.
+  notes: Ingest via Timesketch Master fusion pipeline.
+  query_string: 'message:*event.dataset* OR tag:fp'
+  attribute: message
+  regular_expression: "event\\.dataset="
+
+fp_dfir_plaso:
+  description: Plaso timeline (dfir.plaso).
+  query_string: 'tag:fp.plaso OR message:*dfir.plaso*'
+  attribute: tag
+  regular_expression: "plaso"
+
+fp_dfir_kape:
+  description: KAPE collection artifacts.
+  query_string: 'tag:fp.kape OR message:*dfir.kape*'
+  attribute: tag
+  regular_expression: "kape"
+
+fp_ti_ioc:
+  description: Threat intelligence IOC matches.
+  query_string: 'tag:ti OR message:*ti.ioc*'
+  attribute: message
+  regular_expression: "ti\\.ioc"
+
+fp_ir_incident:
+  description: Incident response tagged events.
+  query_string: 'tag:ir OR message:*ir.case*'
+  attribute: tag
+  regular_expression: "ir"

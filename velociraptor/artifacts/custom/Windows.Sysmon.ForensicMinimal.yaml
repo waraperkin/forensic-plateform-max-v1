@@ -1,0 +1,19 @@
+name: Custom.Windows.Sysmon.ForensicMinimal
+description: |
+  Collecte Sysmon (Event ID 1, 3, 7, 8, 10, 11, 13, 22) pour forensic-minimal.
+author: CYBERCORP Forensic Platform
+type: CLIENT
+parameters: []
+sources:
+  - name: SysmonEvents
+    precondition: SELECT OS FROM info() WHERE OS = 'windows'
+    query: |
+      LET evtx <= "C:/Windows/System32/Winevt/Logs/Microsoft-Windows-Sysmon%4Operational.evtx"
+      SELECT
+        EventID,
+        System.TimeCreated.SystemTime AS EventTime,
+        EventData,
+        Message
+      FROM parse_evtx(filename=evtx)
+      WHERE EventID IN (1, 3, 7, 8, 10, 11, 13, 22)
+      LIMIT 50000

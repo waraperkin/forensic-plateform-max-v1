@@ -1,0 +1,14 @@
+title: FP-SIGMA-043-cmd-exec
+id: fp-sigma-043
+status: stable
+description: Command shell execution
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: 4625
+  condition: selection
+tags:
+  - attack.t1110
+level: high

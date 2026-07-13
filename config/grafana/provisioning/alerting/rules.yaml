@@ -1,0 +1,83 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: FP Master
+    folder: FP Master
+    interval: 5m
+    rules:
+      - uid: fp-alert-parsing
+        title: Parsing errors
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: fp-platform-health
+            model:
+              alias: ""
+              bucketAggs: []
+              datasource:
+                type: grafana-opensearch-datasource
+                uid: fp-platform-health
+              metrics:
+                - id: "1"
+                  type: count
+              query: 'health.metric: "parse_errors" AND health.value: >0'
+              timeField: "@timestamp"
+          - refId: C
+            datasourceUid: "-100"
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                    params: []
+                  type: query
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+      - uid: fp-alert-soc
+        title: SOC Autonomous FAIL
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: fp-platform-health
+            model:
+              datasource:
+                type: grafana-opensearch-datasource
+                uid: fp-platform-health
+              metrics:
+                - id: "1"
+                  type: count
+              query: 'health.status: "FAIL"'
+              timeField: "@timestamp"
+          - refId: C
+            datasourceUid: "-100"
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                    params: []
+                  type: query
+              type: classic_conditions
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m

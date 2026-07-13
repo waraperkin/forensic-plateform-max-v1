@@ -1,0 +1,463 @@
+/* Couche premium cockpit SOC/DFIR — additive, chargee en dernier.
+   N'ecrase pas les classes existantes : les etend/precise. Scope [data-edition="cybercorp"]
+   comme le reste du design system pour rester compatible. */
+
+[data-edition="cybercorp"] {
+  --premium-ok: #22c55e;
+  --premium-warn: #f59e0b;
+  --premium-down: #ef4444;
+  --premium-muted: #64748b;
+}
+
+/* ---- Badges cc-badge : jamais definis nulle part -> texte brut avant ce fix ---- */
+[data-edition="cybercorp"] .cc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  line-height: 1.4;
+}
+[data-edition="cybercorp"] .cc-badge-ok {
+  background: color-mix(in srgb, var(--premium-ok) 16%, transparent);
+  color: var(--premium-ok);
+  border-color: color-mix(in srgb, var(--premium-ok) 40%, transparent);
+}
+[data-edition="cybercorp"] .cc-badge-warn {
+  background: color-mix(in srgb, var(--premium-warn) 16%, transparent);
+  color: var(--premium-warn);
+  border-color: color-mix(in srgb, var(--premium-warn) 40%, transparent);
+}
+[data-edition="cybercorp"] .cc-badge-down {
+  background: color-mix(in srgb, var(--premium-down) 16%, transparent);
+  color: var(--premium-down);
+  border-color: color-mix(in srgb, var(--premium-down) 40%, transparent);
+}
+[data-edition="cybercorp"] .cc-badge-muted {
+  background: color-mix(in srgb, var(--premium-muted) 14%, transparent);
+  color: var(--premium-muted);
+  border-color: color-mix(in srgb, var(--premium-muted) 32%, transparent);
+}
+
+/* ---- Cartes hub premium : accent + hover, sans changer la structure DOM ---- */
+[data-edition="cybercorp"] .cc-card-click.cc-glass-card {
+  position: relative;
+  border-left: 3px solid var(--border);
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+[data-edition="cybercorp"] .cc-card-click.cc-glass-card:hover {
+  border-left-color: var(--accent, #2563eb);
+  transform: translateY(-1px);
+}
+[data-edition="cybercorp"] .cc-hub-grid-premium,
+[data-edition="cybercorp"] .cc-hub-grid {
+  gap: 0.85rem;
+}
+
+/* ---- Bandeau live board (Ops CERT/IT, Ingestion, CTI) : plus dense/lisible ---- */
+[data-edition="cybercorp"] .cc-hub-live-board {
+  border-left: 3px solid var(--accent, #2563eb);
+}
+[data-edition="cybercorp"] .cc-hub-live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+/* ---- Sidebar : sections mieux separees, item actif plus marque ---- */
+[data-edition="cybercorp"] .cc-nav-section-title {
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+  margin-top: 0.9rem;
+}
+[data-edition="cybercorp"] .cc-nav-btn.active {
+  box-shadow: inset 3px 0 0 var(--accent, #2563eb);
+}
+
+/* ---- Tables : en-tete collant sur les longues listes (tokens, uploads, incidents) ---- */
+[data-edition="cybercorp"] .fp-table-wrap {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+[data-edition="cybercorp"] .fp-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* ---- IT : token-box et dropzone plus premium (etats visuels clairs) ---- */
+[data-portal="it"] .token-box:not(:empty) {
+  border-left: 3px solid var(--premium-ok);
+  padding-left: 0.85rem;
+}
+[data-portal="it"] .fp-dropzone {
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+[data-portal="it"] .fp-dropzone:hover:not([style*="pointer-events: none"]) {
+  border-color: var(--accent, #2563eb);
+}
+.it-locked #it-upload-locked-notice {
+  border-left: 3px solid var(--premium-warn);
+  font-weight: 500;
+}
+
+/* ---- Pipeline ingestion (Ingestion & Evidences) ---- */
+[data-edition="cybercorp"] .cc-ingest-pipeline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.75rem 1rem;
+}
+[data-edition="cybercorp"] .cc-ingest-pipeline-step {
+  background: color-mix(in srgb, var(--accent, #2563eb) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #2563eb) 35%, transparent);
+  color: var(--text, inherit);
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+[data-edition="cybercorp"] .cc-ingest-pipeline-arrow {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+@media (max-width: 640px) {
+  [data-edition="cybercorp"] .cc-ingest-pipeline { padding: 0.6rem 0.75rem; }
+  [data-edition="cybercorp"] .cc-ingest-pipeline-step { font-size: 0.68rem; padding: 0.25rem 0.55rem; }
+}
+
+/* ---- IT : resultat upload fichier par fichier ---- */
+.fp-upload-result-list {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.fp-upload-result-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.fp-upload-result-ok span:first-child { color: var(--premium-ok, #22c55e); }
+.fp-upload-result-err span:first-child { color: var(--premium-down, #ef4444); }
+
+/* ---- Mobile : renforcement des ajustements deja faits (forensic-ui.css) ---- */
+@media (max-width: 480px) {
+  [data-edition="cybercorp"] .cc-hub-kpi-row { grid-template-columns: repeat(2, 1fr); }
+  [data-edition="cybercorp"] .cc-hub-live-grid { grid-template-columns: 1fr; }
+  [data-edition="cybercorp"] .fp-table-wrap { max-height: none; }
+}
+
+/* =====================================================================
+   SHELL PREMIUM — header non tronque, sidebar plus respirante
+   ===================================================================== */
+:root, [data-edition="cybercorp"] {
+  --header-h: 76px;
+}
+.fp-header, .cc-topbar,
+[data-edition="cybercorp"] .cc-topbar {
+  height: auto !important;
+  min-height: var(--header-h) !important;
+  max-height: none !important;
+  padding: 0.6rem 1.25rem !important;
+  flex-wrap: wrap !important;
+  row-gap: 0.4rem;
+}
+.cc-brand { display: flex; align-items: center; gap: 0.65rem; flex-shrink: 0; }
+.cc-brand img { flex-shrink: 0; }
+.cc-brand > div,
+[data-edition="cybercorp"] .cc-brand > div {
+  min-width: max-content !important;
+  overflow: visible !important;
+}
+.fp-header h1, #portal-title,
+[data-edition="cybercorp"] .cc-brand h1 {
+  font-size: 1rem !important;
+  white-space: nowrap;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  letter-spacing: 0.02em;
+  max-width: none !important;
+}
+.cc-brand-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.fp-badge.cc-badge-edition, #assistant-soc-toggle, #portal-doc-header-btn {
+  order: 4;
+}
+.fp-nav-links, .fp-header-actions {
+  order: 5;
+}
+.fp-nav-links {
+  flex-basis: 100%;
+  border-top: 1px solid var(--border);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+@media (max-width: 900px) {
+  .cc-brand-sub { display: none; }
+  .fp-header, .cc-topbar { padding: 0.5rem 0.75rem !important; }
+  .cc-brand {
+    flex-shrink: 0 !important;
+    min-width: 0;
+    order: 1;
+  }
+  .cc-brand > div,
+  [data-edition="cybercorp"] .cc-brand > div {
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+  .fp-header h1, #portal-title,
+  [data-edition="cybercorp"] .cc-brand h1 {
+    font-size: 0.85rem !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+    max-width: none !important;
+  }
+  .fp-badge.cc-badge-edition { order: 2; }
+  .fp-nav-links, .fp-header-actions {
+    order: 5;
+    flex-basis: 100% !important;
+  }
+  .fp-header-actions { justify-content: flex-start !important; gap: 0.4rem !important; }
+}
+@media (max-width: 640px) {
+  /* Mobile : header minimal — menu, logo, titre, langue/theme uniquement */
+  .fp-nav-links { display: none !important; }
+  .fp-header-actions #cc-soc-clock,
+  .fp-header-actions #fp-user-bar,
+  .fp-header-actions .portal-ai-toggle,
+  .fp-header-actions .portal-ingest-alert-toggle,
+  .fp-header-actions #portal-doc-header-btn { display: none !important; }
+  .fp-badge.cc-badge-edition { display: none !important; }
+  .fp-header-actions { flex-basis: auto !important; margin-left: auto !important; }
+}
+
+/* Footer discret, non collant, ne mange pas d'espace utile */
+.fp-footer, footer.fp-footer {
+  position: static !important;
+  padding: 0.4rem 1rem !important;
+  font-size: 0.68rem !important;
+  opacity: 0.45;
+  text-align: center;
+}
+
+/* Sidebar premium : plus d'air, sections distinctes, item actif marque */
+[data-edition="cybercorp"] .cc-sidebar,
+[data-edition="cybercorp"] .fp-sidebar {
+  padding: 1rem 0.75rem;
+}
+[data-edition="cybercorp"] .cc-nav-section { margin-bottom: 1.1rem; }
+[data-edition="cybercorp"] .cc-nav-btn {
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 0.15rem;
+  transition: background 0.12s ease;
+}
+[data-edition="cybercorp"] .cc-nav-btn:hover { background: rgba(255, 255, 255, 0.045); }
+[data-edition="cybercorp"] .cc-nav-btn.active {
+  background: color-mix(in srgb, var(--accent, #2563eb) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent, #2563eb);
+  font-weight: 600;
+}
+
+/* Footer discret */
+.fp-footer, footer.fp-footer, body > footer {
+  opacity: 0.55;
+  font-size: 0.7rem;
+  padding: 0.5rem;
+}
+
+/* =====================================================================
+   TABLES MOBILE -> CARTES (responsive-tables.js genere .fp-table-cards)
+   ===================================================================== */
+.fp-table-cards { display: none; }
+@media (max-width: 640px) {
+  [data-edition="cybercorp"] .fp-table-wrap.fp-table-wrap--carded { display: none; }
+  .fp-table-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .fp-tc-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem 0.85rem;
+    background: var(--bg-elevated, rgba(255, 255, 255, 0.02));
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .fp-tc-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    font-size: 0.82rem;
+    flex-wrap: wrap;
+  }
+  .fp-tc-row--plain { justify-content: flex-start; }
+  .fp-tc-label {
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .fp-tc-value {
+    text-align: right;
+    word-break: break-word;
+    min-width: 0;
+  }
+  .fp-tc-value a, .fp-tc-row a { word-break: break-all; }
+  .fp-tc-row .fp-btn { width: auto; }
+}
+
+/* =====================================================================
+   CENTRE D'ACCES — cartes par domaine (remplace la grande table brute
+   comme premiere presentation ; la table detaillee reste disponible
+   plus bas pour qui veut tout voir d'un coup)
+   ===================================================================== */
+.cc-access-domain-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+.cc-access-domain-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.02));
+}
+.cc-access-domain-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.cc-access-tool-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+}
+.cc-access-tool-row:first-of-type { border-top: none; }
+.cc-access-tool-name { font-weight: 600; font-size: 0.85rem; }
+.cc-access-tool-url {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+.cc-access-tool-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+@media (max-width: 640px) {
+  .cc-access-domain-grid { grid-template-columns: 1fr; }
+  .cc-access-tool-url { max-width: 120px; }
+}
+
+/* =====================================================================
+   INCIDENTS — bandeau cartes cas au-dessus de la table detail
+   ===================================================================== */
+.cc-case-cards-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.85rem;
+  margin: 1rem 0 1.5rem;
+}
+.cc-case-card {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--premium-muted);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.02));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.15s ease;
+}
+.cc-case-card:hover { transform: translateY(-1px); border-color: var(--accent, #2563eb); }
+.cc-case-card[data-sev="critical"] { border-left-color: var(--premium-down); }
+.cc-case-card[data-sev="high"] { border-left-color: var(--premium-warn); }
+.cc-case-card[data-sev="medium"], .cc-case-card[data-sev="low"] { border-left-color: var(--premium-ok); }
+.cc-case-card-title { font-weight: 700; font-size: 0.85rem; margin-bottom: 0.3rem; }
+.cc-case-card-meta { font-size: 0.72rem; color: var(--text-muted); display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.cc-case-card--active { border-color: var(--accent, #2563eb); background: color-mix(in srgb, var(--accent, #2563eb) 10%, transparent); }
+
+/* =====================================================================
+   INCIDENTS — vue case management (liste + detail cote a cote)
+   ===================================================================== */
+.cc-incident-split {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+.cc-incident-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+.cc-incident-list .cc-case-card { width: 100%; }
+.cc-incident-detail {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.02));
+  min-height: 240px;
+}
+.cc-incident-detail-empty { text-align: center; padding: 2rem 0; }
+.cc-incident-detail-title { margin-top: 0; }
+@media (max-width: 900px) {
+  .cc-incident-split { grid-template-columns: 1fr; }
+  .cc-incident-list { max-height: none; }
+}
+
+/* Masquer les zones d'embed vides (HELK/Velociraptor) tant qu'aucun outil n'est ouvert dedans */
+#helk-proxy-embed:empty,
+[id$="-proxy-embed"]:empty,
+.pf-frame-wrap:empty {
+  display: none;
+}
+
+/* Collapse sante IT — details natif, chevron discret */
+.cc-it-health-collapse summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 0.5rem 0;
+  list-style: none;
+}
+.cc-it-health-collapse summary::-webkit-details-marker { display: none; }
+.cc-it-health-collapse summary::before { content: '▸ '; }
+.cc-it-health-collapse[open] summary::before { content: '▾ '; }

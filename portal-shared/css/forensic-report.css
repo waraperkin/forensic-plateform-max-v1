@@ -1,0 +1,39 @@
+/* Rapports d'investigation forensic — générateur portail */
+.fp-report-builder { display: flex; flex-direction: column; gap: 1rem; }
+.fp-report-builder-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.fp-report-llm-badge { font-size: 0.78rem; padding: 0.35rem 0.65rem; border-radius: 6px; background: rgba(120, 130, 150, 0.15); color: var(--fp-muted, #889); }
+.fp-report-llm-badge.is-live { background: rgba(46, 160, 67, 0.15); color: #3fb950; }
+.fp-report-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem; }
+.fp-report-span2 { grid-column: 1 / -1; }
+.fp-report-form-grid label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; }
+.fp-report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.fp-report-actions-bottom { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08); }
+.fp-report-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.65rem; }
+.fp-report-kpi { background: rgba(255,255,255,0.04); border-radius: 8px; padding: 0.65rem 0.85rem; }
+.fp-report-kpi span { display: block; font-size: 0.75rem; color: var(--fp-muted, #889); }
+.fp-report-kpi strong { font-size: 1.25rem; }
+.fp-report-editor { margin-top: 0.5rem; }
+.fp-report-editor-block { margin-bottom: 1.25rem; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 0.85rem; }
+.fp-report-editor-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+.fp-report-editor-head h4 { margin: 0; flex: 1; font-size: 0.95rem; }
+.fp-report-source { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
+.fp-report-textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 0.82rem; min-height: 120px; }
+.fp-report-custom-zone { margin-top: 1.5rem; }
+.fp-report-custom-block { margin-bottom: 1rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 8px; }
+.fp-report-custom-title { margin-bottom: 0.5rem; width: 100%; }
+.fp-report-saved-ul { list-style: none; padding: 0; margin: 0; }
+.fp-report-saved-ul li { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem; flex-wrap: wrap; }
+.fp-report-status-select { max-width: 140px; }
+.fp-report-modal-overlay { position: fixed; inset: 0; z-index: 9000; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.fp-report-modal { background: var(--fp-card-bg, #1a1d2e); border-radius: 12px; max-width: 960px; width: 100%; max-height: 92vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.45); }
+.fp-report-modal-head { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.fp-report-modal-head h3 { margin: 0; font-size: 1.1rem; }
+.fp-report-modal-body { padding: 1rem 1.25rem 1.5rem; overflow-y: auto; }
+.fp-report-download-banner { margin: 0.75rem 0 1rem; padding: 1rem 1.1rem; border-radius: 10px; border: 1px solid rgba(46, 160, 67, 0.45); background: rgba(46, 160, 67, 0.12); }
+.fp-report-download-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem 1rem; }
+.fp-report-download-inner strong { color: #3fb950; }
+.fp-report-download-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-left: auto; }
+@media (max-width: 640px) {
+  .fp-report-form-grid { grid-template-columns: 1fr; }
+  .fp-report-span2 { grid-column: 1; }
+}

@@ -1,0 +1,24 @@
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/auth.log
+      - /var/log/syslog
+      - /var/log/secure
+    tags: [linux, syslog]
+  - type: journald
+    id: journald-all
+    tags: [linux, journald]
+
+processors:
+  - add_host_metadata: ~
+  - add_fields:
+      target: event
+      fields:
+        module: linux
+        dataset: linux.syslog
+
+output.logstash:
+  hosts: ["localhost:15514"]
+
+logging.level: info

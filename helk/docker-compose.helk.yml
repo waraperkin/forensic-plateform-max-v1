@@ -1,0 +1,121 @@
+# HELK sidecar — réseau dédié, ports non conflictuels avec OpenSearch/OSD
+# Usage: docker compose -f docker-compose.helk.yml up -d
+
+name: helk-sidecar
+
+networks:
+  helk_net:
+    name: helk_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  helk-es-data:
+  helk-kafka-data:
+  helk-zk-data:
+
+services:
+  helk-zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: helk-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - helk-zk-data:/var/lib/zookeeper/data
+    networks:
+      helk_net:
+        ipv4_address: 172.30.0.2
+
+  helk-kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: helk-kafka
+    restart: unless-stopped
+    depends_on:
+      - helk-zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: helk-zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://helk-kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - helk-kafka-data:/var/lib/kafka/data
+    networks:
+      helk_net:
+        ipv4_address: 172.30.0.3
+
+  helk-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.16
+    container_name: helk-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - cluster.name=helk-cluster
+      - node.name=helk-es01
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - helk-es-data:/usr/share/elasticsearch/data
+    ports:
+      - "${FP_HELK_ES_PORT:-19201}:9200"
+      - "${FP_HELK_ES_TRANSPORT_PORT:-19301}:9300"
+    networks:
+      helk_net:
+        ipv4_address: 172.30.0.10
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9200/_cluster/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
+
+  helk-kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.16
+    container_name: helk-kibana
+    restart: unless-stopped
+    depends_on:
+      helk-elasticsearch:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOSTS=http://helk-elasticsearch:9200
+      - SERVER_NAME=helk-kibana
+      - SERVER_BASEPATH=/helk/kibana
+      - SERVER_REWRITEBASEPATH=true
+      - SERVER_PUBLICBASEURL=${HELK_KIBANA_PUBLIC_URL:-}
+    ports:
+      - "${FP_HELK_KIBANA_PORT:-15602}:5601"
+    networks:
+      helk_net:
+        ipv4_address: 172.30.0.11
+
+  helk-logstash:
+    image: docker.elastic.co/logstash/logstash:7.17.16
+    container_name: helk-logstash
+    restart: unless-stopped
+    depends_on:
+      helk-elasticsearch:
+        condition: service_healthy
+    environment:
+      - LS_JAVA_OPTS=-Xms256m -Xmx256m
+      - xpack.monitoring.enabled=false
+    volumes:
+      - ./config/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./config/logstash/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
+    ports:
+      # SAFE: HTTP lab simulateur uniquement (pas de Beats/TCP live)
+      - "${FP_HELK_LOGSTASH_PORT:-18180}:8080"
+    networks:
+      helk_net:
+        ipv4_address: 172.30.0.12

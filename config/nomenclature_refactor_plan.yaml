@@ -1,0 +1,1201 @@
+meta:
+  version: 1.0.0
+  generated_at: 20260524T111905Z
+  inventory: /tmp/fp-nomenclature-inventory.json
+  anti_regression:
+    preserve_ids: true
+    no_index_delete: true
+    no_data_mutation: true
+    rollback_on_any_failure: true
+string_replacements:
+- ancien_nom: FP — Soc Director Executive Playbook
+  nouveau_nom: SOC Operations — Executive Playbook
+- ancien_nom: FP — SOC Director Executive Playbook
+  nouveau_nom: SOC Operations — Executive Playbook
+- ancien_nom: FP — Observability Pipeline Health
+  nouveau_nom: Platform Health — Ingestion Status
+- ancien_nom: FP — Threat Hunting Lead Playbook
+  nouveau_nom: Security Operations — Threat Hunting Lead
+- ancien_nom: FP — Incident Commander Playbook
+  nouveau_nom: Incident Response — Commander
+- ancien_nom: FP — SOC Autonomous Mode Metrics
+  nouveau_nom: Metrics — SOC Autonomous
+- ancien_nom: FP — Pipelines & Parsing Metrics
+  nouveau_nom: Metrics — Ingestion Pipelines
+- ancien_nom: FP — CTI Fusion Center Playbook
+  nouveau_nom: Threat Intelligence — Fusion Center
+- ancien_nom: FP — CTI Fusion Global Playbook
+  nouveau_nom: Threat Intelligence — Global Fusion
+- ancien_nom: FP — Global SOC Command Center
+  nouveau_nom: SOC Operations — Command Center
+- ancien_nom: FP — Nation-State CTI Playbook
+  nouveau_nom: CERT — Nation-State CTI
+- ancien_nom: FP — Platform Health (Grafana)
+  nouveau_nom: Metrics — Platform Overview
+- ancien_nom: Portail CERT — Dashboard CERT
+  nouveau_nom: CERT — Situation Overview
+- ancien_nom: FP — Soc Automation Playbook
+  nouveau_nom: SOC Operations — Automation Playbook
+- ancien_nom: FP — SOC Automation Playbook
+  nouveau_nom: SOC Operations — Automation Playbook
+- ancien_nom: FP — Cyber Crisis Management
+  nouveau_nom: CERT — Crisis Management
+- ancien_nom: FP — Autonomous SOC Playbook
+  nouveau_nom: SOC Operations — Autonomous Mode
+- ancien_nom: FP — Blue Team Lead Playbook
+  nouveau_nom: SOC Operations — Blue Team Lead
+- ancien_nom: Portail CERT — accueil stats
+  nouveau_nom: CERT — Situation Overview
+- ancien_nom: FP — Red Team Lead Playbook
+  nouveau_nom: Purple Teaming — Red Team Lead
+- ancien_nom: FP — MITRE ATT&CK Coverage
+  nouveau_nom: Security Operations — Sigma Detections
+- ancien_nom: FP — Soc Director Playbook
+  nouveau_nom: SOC Operations — Director Playbook
+- ancien_nom: FP — SOC Director Playbook
+  nouveau_nom: SOC Operations — Director Playbook
+- ancien_nom: FP — Security Events & TI
+  nouveau_nom: Security Operations — Overview
+- ancien_nom: FP — Purple Team Playbook
+  nouveau_nom: Purple Teaming — Operations
+- ancien_nom: FP — Soc Manager Playbook
+  nouveau_nom: SOC Operations — Manager Playbook
+- ancien_nom: FP — Dfir Senior Playbook
+  nouveau_nom: Forensics — Senior DFIR Playbook
+- ancien_nom: FP — SOC Manager Playbook
+  nouveau_nom: SOC Operations — Manager Playbook
+- ancien_nom: FP — DFIR Senior Playbook
+  nouveau_nom: Forensics — Senior DFIR Playbook
+- ancien_nom: Timesketch — Intelligence
+  nouveau_nom: Forensics — Intelligence
+- ancien_nom: Portail IT — Dashboard IT
+  nouveau_nom: IT — Exposure Overview
+- ancien_nom: FP — OpenSearch Overview
+  nouveau_nom: Security Operations — Cluster Overview
+- ancien_nom: FP — OpenSearch Metrics
+  nouveau_nom: Metrics — OpenSearch Cluster
+- ancien_nom: FP — Timesketch Metrics
+  nouveau_nom: Metrics — Timesketch Activity
+- ancien_nom: FP — Incident Commander
+  nouveau_nom: Incident Response — Commander
+- ancien_nom: FP — Analyst Playbook
+  nouveau_nom: SOC Operations — Analyst Playbook
+- ancien_nom: FP — Ti Lead Playbook
+  nouveau_nom: Threat Intelligence — Lead Playbook
+- ancien_nom: FP — TI Lead Playbook
+  nouveau_nom: Threat Intelligence — Lead Playbook
+- ancien_nom: Timesketch — Overview
+  nouveau_nom: Forensics — Overview
+- ancien_nom: FP — Platform Health
+  nouveau_nom: Platform Health — System Metrics
+- ancien_nom: FP — Platform Health
+  nouveau_nom: Metrics — Platform Overview
+- ancien_nom: FP — TheHive Metrics
+  nouveau_nom: Metrics — TheHive IR
+- ancien_nom: Timesketch — Explore
+  nouveau_nom: Forensics — Timeline Explorer
+- ancien_nom: Timesketch — Stories
+  nouveau_nom: Forensics — Stories
+- ancien_nom: FP — IOC Threat Map
+  nouveau_nom: Incident Response — Evidence Map
+- ancien_nom: FP — Threat Hunting
+  nouveau_nom: Security Operations — Threat Hunting
+- ancien_nom: FP — Cortex Metrics
+  nouveau_nom: Metrics — Cortex Analyzers
+- ancien_nom: FP — Alerts Metrics
+  nouveau_nom: Metrics — Alerts Pipeline
+- ancien_nom: FP — Case IOC View
+  nouveau_nom: Incident Response — Case Summary
+- ancien_nom: FP — MISP Metrics
+  nouveau_nom: Metrics — MISP Connector
+- ancien_nom: FP — TI Overview
+  nouveau_nom: Threat Intelligence — Overview
+- ancien_nom: FP — IOC Matches
+  nouveau_nom: Security Operations — IOC Matches
+- ancien_nom: FP — CTI Metrics
+  nouveau_nom: Metrics — Connectors Health
+- ancien_nom: FP — Purple Team
+  nouveau_nom: Purple Teaming — Operations
+dashboards:
+  fp-opensearch-security: Security Operations — Overview
+  fp-ioc-matches: Security Operations — IOC Matches
+  fp-threat-hunting: Security Operations — Threat Hunting
+  fp-mitre-dashboard: Security Operations — Sigma Detections
+  fp-opensearch-overview: Security Operations — Cluster Overview
+  fp-ti-overview: Threat Intelligence — Overview
+  fp-ioc-threat-map: Incident Response — Evidence Map
+  fp-case-ioc-view: Incident Response — Case Summary
+  fp-incident-commander-playbook: Incident Response — Commander
+  fp-purple-team-playbook: Purple Teaming — Operations
+  fp-platform-health: Platform Health — System Metrics
+  fp-observability-pipeline: Platform Health — Ingestion Status
+  fp-analyst-playbook: SOC Operations — Analyst Playbook
+  fp-soc-manager-playbook: SOC Operations — Manager Playbook
+  fp-soc-director-playbook: SOC Operations — Director Playbook
+  fp-soc-director-executive-playbook: SOC Operations — Executive Playbook
+  fp-ti-lead-playbook: Threat Intelligence — Lead Playbook
+  fp-dfir-senior-playbook: Forensics — Senior DFIR Playbook
+  fp-threat-hunting-lead-playbook: Security Operations — Threat Hunting Lead
+  fp-soc-automation-playbook: SOC Operations — Automation Playbook
+  fp-cti-fusion-center-playbook: Threat Intelligence — Fusion Center
+  fp-cti-fusion-global-playbook: Threat Intelligence — Global Fusion
+  fp-global-soc-command-center: SOC Operations — Command Center
+  fp-cyber-crisis-management: CERT — Crisis Management
+  fp-nation-state-cti-playbook: CERT — Nation-State CTI
+  fp-autonomous-soc-playbook: SOC Operations — Autonomous Mode
+  fp-red-team-lead-playbook: Purple Teaming — Red Team Lead
+  fp-blue-team-lead-playbook: SOC Operations — Blue Team Lead
+  fp-opensearch-metrics: Metrics — OpenSearch Cluster
+  fp-timesketch-metrics: Metrics — Timesketch Activity
+  fp-platform-health-gf: Metrics — Platform Overview
+  fp-cti-metrics: Metrics — Connectors Health
+  fp-misp-metrics: Metrics — MISP Connector
+  fp-thehive-metrics: Metrics — TheHive IR
+  fp-cortex-metrics: Metrics — Cortex Analyzers
+  fp-soc-autonomous-metrics: Metrics — SOC Autonomous
+  fp-pipelines-parsing-metrics: Metrics — Ingestion Pipelines
+  fp-alerts-metrics: Metrics — Alerts Pipeline
+playbook_patterns:
+- match: IOC → OpenCTI
+  replace: Enrich — IOC — OpenCTI
+- match: IOC → MISP
+  replace: Enrich — Domain — MISP
+- match: Timeline
+  replace: Analyze — Timeline — Timesketch
+- match: Sigma
+  replace: Detect — Sigma — Windows Logon
+- match: Replay
+  replace: Replay — Attack — Purple Team
+- match: Alert
+  replace: Respond — Alert — SOC
+- match: Case
+  replace: Investigate — Incident — Endpoint
+- match: CERT
+  replace: Notify — CERT — Escalation
+- match: Report
+  replace: Report — Incident — CERT-FR Format
+portal:
+  cert:
+    page_title: CERT — National Operations Portal
+    header: CERT — Forensic Platform
+    badge: CERT NATIONAL
+    nav:
+      dashboard-cert: CERT — Situation Overview
+      dashboard-it: IT — Exposure Overview
+      incidents: CERT — Incident Cases
+      upload: CERT — Evidence Uploads
+      assets: CERT — Exposure Map
+      tokens: IT — Asset Inventory
+      it: IT — Uploads
+      svcs: IT — System Health
+    master_prefix: CERT
+    master_prefix_old: FP-Master
+  it:
+    page_title: IT — Forensic Upload Portal
+    header: IT — Forensic Upload
+    badge: ÉQUIPE IT — ANSSI
+timesketch:
+  explore:
+    new_label: Forensics — Timeline Explorer
+  overview:
+    new_label: Forensics — Overview
+  intelligence:
+    new_label: Forensics — Intelligence
+  stories:
+    new_label: Forensics — Stories
+  cti_fusion:
+    new_label: Forensics — CTI Fusion
+  incident_fusion:
+    new_label: Forensics — Incident Fusion
+  purple_fusion:
+    new_label: Forensics — Purple Fusion
+  master_sketch:
+    new_name: Forensics — Master Investigation
+changes:
+- ancien_nom: FP — Soc Director Executive Playbook
+  nouveau_nom: SOC Operations — Executive Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — SOC Director Executive Playbook
+  nouveau_nom: SOC Operations — Executive Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Observability Pipeline Health
+  nouveau_nom: Platform Health — Ingestion Status
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Threat Hunting Lead Playbook
+  nouveau_nom: Security Operations — Threat Hunting Lead
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Incident Commander Playbook
+  nouveau_nom: Incident Response — Commander
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — SOC Autonomous Mode Metrics
+  nouveau_nom: Metrics — SOC Autonomous
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Pipelines & Parsing Metrics
+  nouveau_nom: Metrics — Ingestion Pipelines
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — CTI Fusion Center Playbook
+  nouveau_nom: Threat Intelligence — Fusion Center
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — CTI Fusion Global Playbook
+  nouveau_nom: Threat Intelligence — Global Fusion
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Global SOC Command Center
+  nouveau_nom: SOC Operations — Command Center
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Nation-State CTI Playbook
+  nouveau_nom: CERT — Nation-State CTI
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Platform Health (Grafana)
+  nouveau_nom: Metrics — Platform Overview
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: Portail CERT — Dashboard CERT
+  nouveau_nom: CERT — Situation Overview
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Soc Automation Playbook
+  nouveau_nom: SOC Operations — Automation Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — SOC Automation Playbook
+  nouveau_nom: SOC Operations — Automation Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Cyber Crisis Management
+  nouveau_nom: CERT — Crisis Management
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Autonomous SOC Playbook
+  nouveau_nom: SOC Operations — Autonomous Mode
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Blue Team Lead Playbook
+  nouveau_nom: SOC Operations — Blue Team Lead
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: Portail CERT — accueil stats
+  nouveau_nom: CERT — Situation Overview
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Red Team Lead Playbook
+  nouveau_nom: Purple Teaming — Red Team Lead
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — MITRE ATT&CK Coverage
+  nouveau_nom: Security Operations — Sigma Detections
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Soc Director Playbook
+  nouveau_nom: SOC Operations — Director Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — SOC Director Playbook
+  nouveau_nom: SOC Operations — Director Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Security Events & TI
+  nouveau_nom: Security Operations — Overview
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Purple Team Playbook
+  nouveau_nom: Purple Teaming — Operations
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Soc Manager Playbook
+  nouveau_nom: SOC Operations — Manager Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Dfir Senior Playbook
+  nouveau_nom: Forensics — Senior DFIR Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — SOC Manager Playbook
+  nouveau_nom: SOC Operations — Manager Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — DFIR Senior Playbook
+  nouveau_nom: Forensics — Senior DFIR Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: Timesketch — Intelligence
+  nouveau_nom: Forensics — Intelligence
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: Portail IT — Dashboard IT
+  nouveau_nom: IT — Exposure Overview
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — OpenSearch Overview
+  nouveau_nom: Security Operations — Cluster Overview
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — OpenSearch Metrics
+  nouveau_nom: Metrics — OpenSearch Cluster
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Timesketch Metrics
+  nouveau_nom: Metrics — Timesketch Activity
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Incident Commander
+  nouveau_nom: Incident Response — Commander
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Analyst Playbook
+  nouveau_nom: SOC Operations — Analyst Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Ti Lead Playbook
+  nouveau_nom: Threat Intelligence — Lead Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — TI Lead Playbook
+  nouveau_nom: Threat Intelligence — Lead Playbook
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: Timesketch — Overview
+  nouveau_nom: Forensics — Overview
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Platform Health
+  nouveau_nom: Platform Health — System Metrics
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Platform Health
+  nouveau_nom: Metrics — Platform Overview
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — TheHive Metrics
+  nouveau_nom: Metrics — TheHive IR
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: Timesketch — Explore
+  nouveau_nom: Forensics — Timeline Explorer
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: Timesketch — Stories
+  nouveau_nom: Forensics — Stories
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — IOC Threat Map
+  nouveau_nom: Incident Response — Evidence Map
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Threat Hunting
+  nouveau_nom: Security Operations — Threat Hunting
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Cortex Metrics
+  nouveau_nom: Metrics — Cortex Analyzers
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Alerts Metrics
+  nouveau_nom: Metrics — Alerts Pipeline
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Case IOC View
+  nouveau_nom: Incident Response — Case Summary
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — MISP Metrics
+  nouveau_nom: Metrics — MISP Connector
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — TI Overview
+  nouveau_nom: Threat Intelligence — Overview
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — IOC Matches
+  nouveau_nom: Security Operations — IOC Matches
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — CTI Metrics
+  nouveau_nom: Metrics — Connectors Health
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- ancien_nom: FP — Purple Team
+  nouveau_nom: Purple Teaming — Operations
+  justification: Alignement nomenclature Premium SOC + CERT-FR/ANSSI (titres affichés uniquement)
+  preserve_id: true
+  actions:
+  - Remplacer chaîne dans scripts/*.py et dashboards/*
+  - Régénérer NDJSON via build_*
+  - Réimporter saved objects OSD/Grafana
+  rollback: backups/nomenclature/<stamp>/ + git checkout -- <fichiers>
+- object_id: fp-opensearch-security
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Security Operations — Overview
+  type: dashboard
+  justification: Catégorie Security Operations
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-opensearch-security", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-ioc-matches
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Security Operations — IOC Matches
+  type: dashboard
+  justification: Catégorie Security Operations
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-ioc-matches", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-threat-hunting
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Security Operations — Threat Hunting
+  type: dashboard
+  justification: Catégorie Security Operations
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-threat-hunting", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-mitre-dashboard
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Security Operations — Sigma Detections
+  type: dashboard
+  justification: Catégorie Security Operations
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-mitre-dashboard", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-opensearch-overview
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Security Operations — Cluster Overview
+  type: dashboard
+  justification: Catégorie Security Operations
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-opensearch-overview", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-ti-overview
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Threat Intelligence — Overview
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-ti-overview", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-ioc-threat-map
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Incident Response — Evidence Map
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-ioc-threat-map", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-case-ioc-view
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Incident Response — Case Summary
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-case-ioc-view", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-incident-commander-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Incident Response — Commander
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-incident-commander-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-purple-team-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Purple Teaming — Operations
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-purple-team-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-platform-health
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Platform Health — System Metrics
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-platform-health", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-observability-pipeline
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Platform Health — Ingestion Status
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-observability-pipeline", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-analyst-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: SOC Operations — Analyst Playbook
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-analyst-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-soc-manager-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: SOC Operations — Manager Playbook
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-soc-manager-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-soc-director-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: SOC Operations — Director Playbook
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-soc-director-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-soc-director-executive-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: SOC Operations — Executive Playbook
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-soc-director-executive-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-ti-lead-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Threat Intelligence — Lead Playbook
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-ti-lead-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-dfir-senior-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Forensics — Senior DFIR Playbook
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-dfir-senior-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-threat-hunting-lead-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Security Operations — Threat Hunting Lead
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-threat-hunting-lead-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-soc-automation-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: SOC Operations — Automation Playbook
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-soc-automation-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-cti-fusion-center-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Threat Intelligence — Fusion Center
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-cti-fusion-center-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-cti-fusion-global-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Threat Intelligence — Global Fusion
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-cti-fusion-global-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-global-soc-command-center
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: SOC Operations — Command Center
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-global-soc-command-center", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-cyber-crisis-management
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: CERT — Crisis Management
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-cyber-crisis-management", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-nation-state-cti-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: CERT — Nation-State CTI
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-nation-state-cti-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-autonomous-soc-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: SOC Operations — Autonomous Mode
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-autonomous-soc-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-red-team-lead-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Purple Teaming — Red Team Lead
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-red-team-lead-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-blue-team-lead-playbook
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: SOC Operations — Blue Team Lead
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-blue-team-lead-playbook", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-opensearch-metrics
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Metrics — OpenSearch Cluster
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-opensearch-metrics", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-timesketch-metrics
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Metrics — Timesketch Activity
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-timesketch-metrics", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-platform-health-gf
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Metrics — Platform Overview
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-platform-health-gf", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-cti-metrics
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Metrics — Connectors Health
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-cti-metrics", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-misp-metrics
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Metrics — MISP Connector
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-misp-metrics", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-thehive-metrics
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Metrics — TheHive IR
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-thehive-metrics", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-cortex-metrics
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Metrics — Cortex Analyzers
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-cortex-metrics", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-soc-autonomous-metrics
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Metrics — SOC Autonomous
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-soc-autonomous-metrics", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-pipelines-parsing-metrics
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Metrics — Ingestion Pipelines
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-pipelines-parsing-metrics", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+- object_id: fp-alerts-metrics
+  ancien_nom: (voir inventaire / NDJSON)
+  nouveau_nom: Metrics — Alerts Pipeline
+  type: dashboard
+  justification: Catégorie SOC
+  dependencies:
+  - fp_browser_qa_lib.py
+  - dashboard_metrics_lib.py
+  - osd_fp_playbooks_bars_lib.py
+  actions:
+  - Mettre à jour DASH_TITLE / dashboard("fp-alerts-metrics", ...)
+  - forensic.sh opensearch-dashboards-build
+  rollback: restaurer backup + rebuild
+verify_commands:
+- ./forensic.sh cluster-repair
+- ./forensic.sh opensearch-dashboards-import
+- ./forensic.sh grafana-master-setup
+- ./forensic.sh dashboard-panels-check
+- ./forensic.sh dashboard-metrics-extract
+- ./forensic.sh dashboard-metrics-compare

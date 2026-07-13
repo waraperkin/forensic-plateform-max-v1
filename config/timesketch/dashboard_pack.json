@@ -1,0 +1,15 @@
+{
+  "saved_searches": [
+    {"id": "ss-fusion", "name": "[FP] Fusion timeline", "query": "tag:fusion OR message:*dfir.fusion*"},
+    {"id": "ss-host-pivot", "name": "[FP] Pivot host", "query": "hostname:WIN-MASTER01"},
+    {"id": "ss-user-pivot", "name": "[FP] Pivot user", "query": "user:analyst"},
+    {"id": "ss-ip-pivot", "name": "[FP] Pivot IP", "query": "message:*203.0.113*"}
+  ],
+  "aggregations": [
+    {"id": "agg-tag", "name": "[FP] Tags distribution", "query": "*", "field": "tag"},
+    {"id": "agg-host", "name": "[FP] Hostname count", "query": "*", "field": "hostname"},
+    {"id": "agg-event-type", "name": "[FP] Event types", "query": "*", "field": "event_type"}
+  ],
+  "labels": ["dfir", "soc", "cti", "fusion", "fp-master"],
+  "tags": ["dfir.plaso", "dfir.kape", "ti.ioc", "dfir.fusion", "fp-ecs-like"]
+}

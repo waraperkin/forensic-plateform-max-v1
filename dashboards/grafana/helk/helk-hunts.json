@@ -1,0 +1,19 @@
+{
+  "uid": "helk-hunts",
+  "title": "HELK Hunts",
+  "tags": ["helk", "hunts"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Hunts par case_id",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "elasticsearch", "uid": "helk-es" },
+      "targets": [{ "refId": "A", "query": "tags:helk-hunt", "bucketAggs": [{ "type": "terms", "field": "case_id.keyword", "id": "1" }], "metrics": [{ "type": "count", "id": "2" }] }]
+    }
+  ]
+}

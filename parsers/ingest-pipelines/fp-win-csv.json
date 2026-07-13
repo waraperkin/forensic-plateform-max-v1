@@ -1,0 +1,87 @@
+{
+  "description": "FP Windows — CSV ingest-worker + Security event message",
+  "processors": [
+    {
+      "set": {
+        "field": "host.os.family",
+        "value": "windows",
+        "override": false
+      }
+    },
+    {
+      "rename": {
+        "field": "csv_EventID",
+        "target_field": "event.code",
+        "ignore_missing": true
+      }
+    },
+    {
+      "rename": {
+        "field": "csv_Computer",
+        "target_field": "host.name",
+        "ignore_missing": true
+      }
+    },
+    {
+      "rename": {
+        "field": "csv_Provider",
+        "target_field": "event.provider",
+        "ignore_missing": true
+      }
+    },
+    {
+      "rename": {
+        "field": "csv_Message",
+        "target_field": "event.original",
+        "ignore_missing": true
+      }
+    },
+    {
+      "grok": {
+        "field": "message",
+        "patterns": [
+          "%{TIMESTAMP_ISO8601}[,]%{INT:event.code}[,]%{DATA:host.name}[,]%{DATA:event.provider}[,]%{GREEDYDATA:event.original}",
+          "%{TIMESTAMP_ISO8601:winlog.time_created}[,]%{INT:winlog.event_id}[,]%{DATA:winlog.computer_name}[,]%{DATA:winlog.channel}[,]%{GREEDYDATA:winlog.message}"
+        ],
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "field": "event.code",
+        "value": "{{{winlog.event_id}}}",
+        "if": "ctx.event?.code == null && ctx.winlog?.event_id != null",
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "field": "host.name",
+        "value": "{{{winlog.computer_name}}}",
+        "if": "ctx.host?.name == null && ctx.winlog?.computer_name != null",
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "field": "event.dataset",
+        "value": "windows.security",
+        "override": false
+      }
+    },
+    {
+      "set": {
+        "field": "event.category",
+        "value": "host",
+        "override": false
+      }
+    },
+    {
+      "set": {
+        "field": "event.type",
+        "value": "info",
+        "override": false
+      }
+    }
+  ]
+}

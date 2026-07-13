@@ -1,0 +1,127 @@
+apiVersion: 1
+
+datasources:
+  - name: OpenSearch-Uploads
+    type: grafana-opensearch-datasource
+    uid: forensic-uploads
+    access: proxy
+    url: http://opensearch-node1:9200
+    isDefault: false
+    jsonData:
+      database: "forensic-uploads*"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+      maxConcurrentShardRequests: 5
+
+  - name: OpenSearch-Forensic
+    type: grafana-opensearch-datasource
+    uid: forensic-main
+    access: proxy
+    url: http://opensearch-node1:9200
+    isDefault: false
+    jsonData:
+      # Métadonnées portail / événements applicatifs (exclut logs bruts massifs)
+      database: "forensic-uploads*"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+      maxConcurrentShardRequests: 5
+      logMessageField: message
+      logLevelField: log.level
+
+  - name: OpenSearch-All-Events
+    type: grafana-opensearch-datasource
+    uid: forensic-all
+    access: proxy
+    url: http://opensearch-node1:9200
+    isDefault: true
+    jsonData:
+      database: "forensic-*"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+      maxConcurrentShardRequests: 5
+      logMessageField: message
+      logLevelField: log.level
+
+  - name: OpenSearch-Windows
+    type: grafana-opensearch-datasource
+    uid: forensic-windows
+    access: proxy
+    url: http://opensearch-node1:9200
+    jsonData:
+      database: "forensic-windows*"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+      maxConcurrentShardRequests: 5
+
+  - name: OpenSearch-Linux
+    type: grafana-opensearch-datasource
+    uid: forensic-linux
+    access: proxy
+    url: http://opensearch-node1:9200
+    jsonData:
+      database: "forensic-linux*"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+      maxConcurrentShardRequests: 5
+
+  - name: OpenSearch-Endpoint
+    type: grafana-opensearch-datasource
+    uid: forensic-endpoint
+    access: proxy
+    url: http://opensearch-node1:9200
+    jsonData:
+      database: "forensic-endpoint*"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+      maxConcurrentShardRequests: 5
+
+  - name: OpenSearch-Web
+    type: grafana-opensearch-datasource
+    uid: forensic-web
+    access: proxy
+    url: http://opensearch-node1:9200
+    jsonData:
+      database: "forensic-web*"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+      maxConcurrentShardRequests: 5
+
+  - name: OpenSearch-Network
+    type: grafana-opensearch-datasource
+    uid: forensic-network
+    access: proxy
+    url: http://opensearch-node1:9200
+    jsonData:
+      database: "forensic-network*"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+      maxConcurrentShardRequests: 5
+
+  - name: OpenSearch-Cloud
+    type: grafana-opensearch-datasource
+    uid: forensic-cloud
+    access: proxy
+    url: http://opensearch-node1:9200
+    jsonData:
+      database: "forensic-cloud*"
+      timeField: "@timestamp"
+      version: "2.12.0"
+      flavor: OpenSearch
+      pplEnabled: false
+      maxConcurrentShardRequests: 5

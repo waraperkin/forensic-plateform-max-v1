@@ -1,0 +1,23 @@
+name: Custom.Linux.Auth.ForensicFull
+description: |
+  Auth complète Linux — auth.log, secure, journald (offline lab + live logs).
+author: CYBERCORP Forensic Platform
+type: CLIENT
+parameters: []
+sources:
+  - name: LabAuthOffline
+    precondition: SELECT OS FROM info() WHERE OS = 'linux'
+    query: |
+      LET lab <= "/lab-data/linux/auth-full.jsonl"
+      SELECT timestamp, hostname, source, message
+      FROM parse_jsonl(filename=lab)
+      WHERE log(message="lab offline auth")
+  - name: AuthLogLive
+    precondition: SELECT OS FROM info() WHERE OS = 'linux'
+    query: |
+      SELECT timestamp, hostname, message, source
+      FROM parse_records_with_regex(
+        file="/var/log/auth.log",
+        regex="^(?P<timestamp>[^ ]+ [^ ]+) (?P<hostname>\\S+) (?P<message>.*)$"
+      )
+      LIMIT 50000

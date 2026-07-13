@@ -1,0 +1,41 @@
+{
+  "index_patterns": [
+    "forensic-ti-*",
+    "forensic-ti-opencti*",
+    "forensic-ti-misp*",
+    "forensic-ti-unified*",
+    "forensic-ti-enriched*"
+  ],
+  "template": {
+    "settings": {
+      "index.default_pipeline": "fp-ti-normalize"
+    },
+    "mappings": {
+      "properties": {
+        "event": {
+          "properties": {
+            "dataset": { "type": "keyword" },
+            "category": { "type": "keyword" },
+            "type": { "type": "keyword" }
+          }
+        },
+        "ti": {
+          "properties": {
+            "ioc_value": { "type": "keyword" },
+            "ioc_type": { "type": "keyword" },
+            "tags": { "type": "keyword" },
+            "threat_score": { "type": "long" }
+          }
+        },
+        "fp": {
+          "properties": {
+            "parsing_version": { "type": "keyword" }
+          }
+        }
+      }
+    }
+  },
+  "priority": 216,
+  "version": 1,
+  "_meta": { "description": "Normalisation TI Parsing Master" }
+}

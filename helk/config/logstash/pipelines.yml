@@ -1,0 +1,3 @@
+# HELK safe mode — HTTP lab ingest uniquement (pas de Beats, pas de Kafka live)
+- pipeline.id: lab-safe-ingest
+  path.config: "/usr/share/logstash/pipeline"

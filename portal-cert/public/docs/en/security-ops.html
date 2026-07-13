@@ -1,0 +1,57 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">Operational security for the portal and platform: authentication, sessions, IT token access, audit and training mode.</p>
+
+  <h3>CERT portal authentication</h3>
+  <table class="portal-doc-table">
+    <thead><tr><th>Mechanism</th><th>Endpoint</th><th>Detail</th></tr></thead>
+    <tbody>
+      <tr><td>Local login</td><td><code>POST /api/auth/login</code></td><td>HttpOnly session cookie, configurable duration</td></tr>
+      <tr><td>TOTP MFA</td><td><code>POST /api/auth/mfa</code></td><td>Activation/validation for sensitive accounts</td></tr>
+      <tr><td>Roles</td><td>—</td><td><code>admin</code> (administration, credentials) vs analyst</td></tr>
+      <tr><td>Logout</td><td><code>POST /api/auth/logout</code></td><td>Server session invalidation</td></tr>
+    </tbody>
+  </table>
+  <p>Files: <code>portal-cert/lib/auth-mount.js</code>, <code>auth-routes.js</code>, <code>auth-session.js</code>, <code>auth-store.js</code>.</p>
+
+  <h3>IT portal — token model</h3>
+  <ul>
+    <li>CERT analyst generates token via <code>POST /api/tokens/generate</code> (case_id, expiration, max uses)</li>
+    <li>IT team accesses <code>/it/?token=…</code> without permanent account</li>
+    <li>Upload limited to token scope; traceability in <code>forensic-tokens*</code></li>
+    <li>Revocation: <code>DELETE /api/tokens/:id</code></li>
+  </ul>
+
+  <h3>TLS &amp; network</h3>
+  <ul>
+    <li>TLS terminated on <strong>Nginx</strong> — certificates in <code>config/nginx/certs/</code></li>
+    <li><code>Strict-Transport-Security</code> header enabled</li>
+    <li>SSL fingerprint displayed in IT Health for remote team verification</li>
+    <li>Internal services (OpenSearch, Redis) not exposed outside Docker network</li>
+  </ul>
+
+  <h3>Audit &amp; traceability</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Log</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>Portal activity log</td><td>References tab → CYBERCORP audit</td></tr>
+      <tr><td><code>GET /api/audit/events</code></td><td>Filterable API (login, upload, master CRUD)</td></tr>
+      <tr><td>Audit center</td><td>Configuration change history</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Demo mode (training)</h3>
+  <p>Enable from portal Documentation:</p>
+  <ul>
+    <li>Blocks <code>delete</code>, <code>purge</code>, <code>regenerate</code> actions</li>
+    <li>Implemented in <code>portal-doc.js</code> (<code>blockDemoDestructive</code>)</li>
+    <li>Useful for demonstrations without destructive write risk</li>
+  </ul>
+
+  <h3>Analyst best practices</h3>
+  <ol>
+    <li>Never share Access Center credentials over insecure channels</li>
+    <li>Review all IOC/report exports before external send</li>
+    <li>Use short-lived IT tokens for urgent uploads</li>
+    <li>Verify demo mode before a training session</li>
+  </ol>
+</div>

@@ -1,0 +1,14 @@
+title: FP-SIGMA-028-scheduled-task
+id: fp-sigma-028
+status: stable
+description: Scheduled task created
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: 4625
+  condition: selection
+tags:
+  - attack.t1110
+level: high

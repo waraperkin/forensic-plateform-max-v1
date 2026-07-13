@@ -1,0 +1,72 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">La plateforme <strong>CYBERCORP Forensic Minimal</strong> (FP-Master) est un écosystème SOC/CERT intégré pour l'analyse forensique, le hunting, la réponse à incident et le renseignement sur les menaces — déployé en conteneurs Docker derrière un reverse proxy Nginx TLS unique.</p>
+
+  <h3>Mission &amp; périmètre</h3>
+  <p>Cette version <em>minimaliste</em> concentre les capacités opérationnelles sur : ingestion de preuves, recherche SIEM (OpenSearch), hunting HELK (Sysmon/Linux/Zeek + Sigma/MITRE), collecte DFIR Velociraptor, timelines Timesketch, stack CTI (OpenCTI, MISP, TheHive, Cortex) et supervision Grafana. Les portails CERT et IT unifient l'accès analyste sans multiplier les URLs.</p>
+
+  <h3>Modules fonctionnels</h3>
+  <div class="portal-doc-card-grid">
+    <div class="portal-doc-card"><strong>Portail CERT</strong><p>Vue d'ensemble SOC, santé 11+ services, ingest, incidents master, hunting HELK, DFIR VR, CTI, administration. Fichier : <code>portal-cert/server.js</code>.</p></div>
+    <div class="portal-doc-card"><strong>Portail IT</strong><p>Dépôt evidences via token CERT, suivi opérations, sync HELK/VR lab. URL : <code>/it/</code>.</p></div>
+    <div class="portal-doc-card"><strong>Ingestion</strong><p>Worker Python : EVTX, Plaso, CSV, syslog, STIX → OpenSearch + Timesketch + MinIO. Queue Redis.</p></div>
+    <div class="portal-doc-card"><strong>OpenSearch</strong><p>Cluster 2 nœuds, Dashboards, Logstash/Filebeat, indices <code>forensic-*</code>, <code>fp-*</code>, sync HELK/VR.</p></div>
+    <div class="portal-doc-card"><strong>HELK sidecar</strong><p>Pipelines Logstash 0010–0099, Kibana hunting, Grafana <code>helk-*</code>, bridge sync/export.</p></div>
+    <div class="portal-doc-card"><strong>Velociraptor</strong><p>GUI + bridge collecte, artefacts ForensicFull, playbooks offline lab, export OS/TS/CERT.</p></div>
+    <div class="portal-doc-card"><strong>Timesketch</strong><p>Investigation chronologique, import auto ingest, exports HELK/VR.</p></div>
+    <div class="portal-doc-card"><strong>CTI &amp; IR</strong><p>OpenCTI hub STIX, MISP IOC, TheHive cas, Cortex analyseurs, webhook portail.</p></div>
+    <div class="portal-doc-card"><strong>Observabilité</strong><p>Grafana, Prometheus, Loki — dashboard <code>fp-platform-health-gf</code>, heatmap portail.</p></div>
+  </div>
+
+  <h3>Accès HTTPS (remplacer &lt;IP&gt; par l'adresse plateforme)</h3>
+  <table class="portal-doc-table">
+    <thead><tr><th>Service</th><th>URL</th><th>Authentification</th><th>Rôle analyste</th></tr></thead>
+    <tbody>
+      <tr><td>Portail CERT</td><td><code>https://&lt;IP&gt;/</code></td><td>Compte portail</td><td>Hub opérations, tous modules</td></tr>
+      <tr><td>Portail IT</td><td><code>https://&lt;IP&gt;/it/?token=…</code></td><td>Token CERT</td><td>Dépôt preuves sécurisé</td></tr>
+      <tr><td>OpenSearch Dashboards</td><td><code>/dashboards/</code></td><td>SSO / basic</td><td>Recherche SIEM, playbooks</td></tr>
+      <tr><td>Grafana</td><td><code>/grafana/</code></td><td>Admin Grafana</td><td>Métriques, dashboards HELK/VR</td></tr>
+      <tr><td>HELK Kibana</td><td><code>/helk/kibana/</code></td><td>Kibana HELK</td><td>Hunting Sysmon, Zeek, MITRE</td></tr>
+      <tr><td>Velociraptor GUI</td><td><code>/velociraptor/</code></td><td>Admin VR</td><td>Collections, clients, artefacts</td></tr>
+      <tr><td>Timesketch</td><td><code>/timesketch/</code></td><td>Compte TS</td><td>Timelines, annotations</td></tr>
+      <tr><td>OpenCTI</td><td><code>/cti/</code></td><td>Admin CTI</td><td>Graph STIX, campagnes</td></tr>
+      <tr><td>TheHive</td><td><code>/thehive/</code></td><td>Compte TheHive</td><td>Cas IR, observables</td></tr>
+      <tr><td>MISP</td><td><code>/misp/</code></td><td>Compte MISP</td><td>Events IOC</td></tr>
+      <tr><td>Cortex</td><td><code>/cortex/</code></td><td>Compte Cortex</td><td>Analyseurs hash/IP/domaine</td></tr>
+      <tr><td>MinIO</td><td><code>/minio/</code></td><td>Credentials MinIO</td><td>Stockage objets preuves</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Limites ingest (portail)</h3>
+  <ul>
+    <li>Maximum <strong>100 fichiers</strong> par session upload</li>
+    <li>Taille max <strong>5,4 Go</strong> par fichier</li>
+    <li>Extensions : EVTX, EVT, LOG, syslog, Plaso, CSV, JSONL, PCAP, STIX, ZIP/KAPE…</li>
+    <li>Option <strong>Envoyer vers HELK</strong> sur upload CERT pour alimenter le hunting</li>
+  </ul>
+
+  <h3>Cas lab par défaut</h3>
+  <p>Investigation de démonstration : <code>CASE-001</code>, hosts <code>lab-win01</code> / <code>lab-linux01</code>. Voir <code>docs/PORTAL/SCENARIOS.md</code> pour les parcours analyste 360°.</p>
+
+  <h3>Démarrage &amp; maintenance</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Commande</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td><code>./forensic.sh full-start</code></td><td>Première installation complète (build + activation layers)</td></tr>
+      <tr><td><code>./forensic.sh start</code></td><td>Démarrage rapide sans rebuild</td></tr>
+      <tr><td><code>./forensic.sh check-health</code></td><td>Vérification santé tous services</td></tr>
+      <tr><td><code>./forensic.sh urls</code></td><td>Liste URLs et credentials labo</td></tr>
+      <tr><td><code>python3 scripts/global_health_dashboard_verify.py</code></td><td>Validation dashboards santé</td></tr>
+      <tr><td><code>docker compose build cert-portal &amp;&amp; docker compose up -d cert-portal</code></td><td>Mise à jour portail CERT</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Documentation technique dépôt</h3>
+  <ul>
+    <li><code>docs/PORTAL/</code> — référence complète (API, flux, fichiers, scénarios)</li>
+    <li><code>docs/HELK-FULL-CONFIG.md</code> — configuration HELK sidecar</li>
+    <li><code>docs/VELOCIRAPTOR-FULL-CONFIG.md</code> — configuration Velociraptor</li>
+    <li><code>docs/FORENSIC-MINIMAL.md</code> — guide installation</li>
+  </ul>
+
+  <p class="fp-muted">Consultez <strong>Architecture complète</strong> pour les schémas Mermaid détaillés (topologie, ingest, HELK, VR, CTI).</p>
+</div>

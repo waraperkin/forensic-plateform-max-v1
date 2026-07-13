@@ -1,0 +1,87 @@
+# Sigma Detection Rules — Cyber Forensic Platform v2.0
+# Conversion: sigma convert -t opensearch-dsl rules/sigma/forensic-detection-rules.yml
+
+title: PowerShell Encoded Command
+id: 4f2f1a3b-8c2e-4d5f-a6b7-c8d9e0f1a2b3
+status: production
+description: Détecte PowerShell avec commandes encodées (T1059.001)
+tags: [attack.execution, attack.t1059.001]
+logsource: {product: windows, service: sysmon}
+detection:
+  selection:
+    EventID: 1
+    CommandLine|contains: ['-enc ', '-encodedcommand', '-EncodedCommand']
+  condition: selection
+level: high
+---
+title: LSASS Memory Dump
+id: 5a3b2c1d-9e8f-7a6b-5c4d-3e2f1a0b9c8d
+status: production
+description: Extraction credentials depuis LSASS (T1003.001)
+tags: [attack.credential_access, attack.t1003.001]
+logsource: {product: windows, service: sysmon}
+detection:
+  selection:
+    EventID: 1
+    CommandLine|contains: ['mimikatz', 'sekurlsa', 'procdump']
+  condition: selection
+level: critical
+---
+title: SSH Brute Force
+id: 6b4c3d2e-1f0a-9b8c-7d6e-5f4a3b2c1d0e
+status: production
+description: Attaque brute-force SSH (T1110.001)
+tags: [attack.credential_access, attack.t1110.001]
+logsource: {product: linux, service: auth}
+detection:
+  selection: {event.action: ssh-failed}
+  condition: selection
+level: medium
+---
+title: Windows Scheduled Task Created
+id: 7c5d4e3f-2a1b-0c9d-8e7f-6a5b4c3d2e1f
+status: production
+description: Tâche planifiée créée (T1053.005)
+tags: [attack.persistence, attack.t1053.005]
+logsource: {product: windows, service: security}
+detection:
+  selection: {EventID: 4698}
+  condition: selection
+level: medium
+---
+title: SQL Injection Attempt
+id: 8d6e5f4a-3b2c-1d0e-9f8a-7b6c5d4e3f2a
+status: production
+description: Tentative d'injection SQL (T1190)
+tags: [attack.initial_access, attack.t1190]
+logsource: {category: webserver}
+detection:
+  selection:
+    url.path|contains: ['UNION SELECT', "1=1--", "' OR '", 'DROP TABLE']
+  condition: selection
+level: high
+---
+title: Kubernetes Secret Access
+id: 9e7f6a5b-4c3d-2e1f-0a9b-8c7d6e5f4a3b
+status: production
+description: Accès secrets Kubernetes (T1552.007)
+tags: [attack.credential_access, attack.t1552.007]
+logsource: {product: k8s, service: audit}
+detection:
+  selection:
+    kubernetes.resource: secrets
+    event.action: [get, list, watch]
+  condition: selection
+level: high
+---
+title: AWS IAM Privilege Escalation
+id: 0f8a7b6c-5d4e-3f2a-1b0c-9d8e7f6a5b4c
+status: production
+description: Escalade de privilèges IAM AWS (T1136.003)
+tags: [attack.persistence, attack.t1136.003]
+logsource: {product: aws, service: cloudtrail}
+detection:
+  selection:
+    event.action: [CreateUser, AttachUserPolicy, PutUserPolicy, CreateAccessKey]
+  condition: selection
+level: high

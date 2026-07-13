@@ -1,0 +1,72 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">The <strong>CYBERCORP Forensic Minimal</strong> (FP-Master) platform is an integrated SOC/CERT ecosystem for forensic analysis, hunting, incident response and threat intelligence — deployed in Docker containers behind a single Nginx TLS reverse proxy.</p>
+
+  <h3>Mission &amp; scope</h3>
+  <p>This <em>minimal</em> edition focuses operational capabilities on: evidence ingestion, SIEM search (OpenSearch), HELK hunting (Sysmon/Linux/Zeek + Sigma/MITRE), Velociraptor DFIR collection, Timesketch timelines, CTI stack (OpenCTI, MISP, TheHive, Cortex) and Grafana supervision. CERT and IT portals unify analyst access without multiplying URLs.</p>
+
+  <h3>Functional modules</h3>
+  <div class="portal-doc-card-grid">
+    <div class="portal-doc-card"><strong>CERT portal</strong><p>SOC overview, 11+ service health, ingest, master incidents, HELK hunting, VR DFIR, CTI, administration. File: <code>portal-cert/server.js</code>.</p></div>
+    <div class="portal-doc-card"><strong>IT portal</strong><p>Evidence upload via CERT token, operation tracking, HELK/VR lab sync. URL: <code>/it/</code>.</p></div>
+    <div class="portal-doc-card"><strong>Ingestion</strong><p>Python worker: EVTX, Plaso, CSV, syslog, STIX → OpenSearch + Timesketch + MinIO. Redis queue.</p></div>
+    <div class="portal-doc-card"><strong>OpenSearch</strong><p>2-node cluster, Dashboards, Logstash/Filebeat, <code>forensic-*</code>, <code>fp-*</code> indices, HELK/VR sync.</p></div>
+    <div class="portal-doc-card"><strong>HELK sidecar</strong><p>Logstash pipelines 0010–0099, Kibana hunting, Grafana <code>helk-*</code>, bridge sync/export.</p></div>
+    <div class="portal-doc-card"><strong>Velociraptor</strong><p>GUI + collection bridge, ForensicFull artefacts, offline lab playbooks, OS/TS/CERT export.</p></div>
+    <div class="portal-doc-card"><strong>Timesketch</strong><p>Chronological investigation, auto ingest import, HELK/VR exports.</p></div>
+    <div class="portal-doc-card"><strong>CTI &amp; IR</strong><p>OpenCTI STIX hub, MISP IOC, TheHive cases, Cortex analyzers, portal webhook.</p></div>
+    <div class="portal-doc-card"><strong>Observability</strong><p>Grafana, Prometheus, Loki — <code>fp-platform-health-gf</code> dashboard, portal heatmap.</p></div>
+  </div>
+
+  <h3>HTTPS access (replace &lt;IP&gt; with platform address)</h3>
+  <table class="portal-doc-table">
+    <thead><tr><th>Service</th><th>URL</th><th>Authentication</th><th>Analyst role</th></tr></thead>
+    <tbody>
+      <tr><td>CERT portal</td><td><code>https://&lt;IP&gt;/</code></td><td>Portal account</td><td>Operations hub, all modules</td></tr>
+      <tr><td>IT portal</td><td><code>https://&lt;IP&gt;/it/?token=…</code></td><td>CERT token</td><td>Secure evidence upload</td></tr>
+      <tr><td>OpenSearch Dashboards</td><td><code>/dashboards/</code></td><td>SSO / basic</td><td>SIEM search, playbooks</td></tr>
+      <tr><td>Grafana</td><td><code>/grafana/</code></td><td>Grafana admin</td><td>Metrics, HELK/VR dashboards</td></tr>
+      <tr><td>HELK Kibana</td><td><code>/helk/kibana/</code></td><td>HELK Kibana</td><td>Sysmon, Zeek, MITRE hunting</td></tr>
+      <tr><td>Velociraptor GUI</td><td><code>/velociraptor/</code></td><td>VR admin</td><td>Collections, clients, artefacts</td></tr>
+      <tr><td>Timesketch</td><td><code>/timesketch/</code></td><td>TS account</td><td>Timelines, annotations</td></tr>
+      <tr><td>OpenCTI</td><td><code>/cti/</code></td><td>CTI admin</td><td>STIX graph, campaigns</td></tr>
+      <tr><td>TheHive</td><td><code>/thehive/</code></td><td>TheHive account</td><td>IR cases, observables</td></tr>
+      <tr><td>MISP</td><td><code>/misp/</code></td><td>MISP account</td><td>IOC events</td></tr>
+      <tr><td>Cortex</td><td><code>/cortex/</code></td><td>Cortex account</td><td>Hash/IP/domain analyzers</td></tr>
+      <tr><td>MinIO</td><td><code>/minio/</code></td><td>MinIO credentials</td><td>Evidence object storage</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Ingest limits (portal)</h3>
+  <ul>
+    <li>Maximum <strong>100 files</strong> per upload session</li>
+    <li>Max size <strong>5.4 GB</strong> per file</li>
+    <li>Extensions: EVTX, EVT, LOG, syslog, Plaso, CSV, JSONL, PCAP, STIX, ZIP/KAPE…</li>
+    <li><strong>Send to HELK</strong> option on CERT upload to feed hunting</li>
+  </ul>
+
+  <h3>Default lab case</h3>
+  <p>Demo investigation: <code>CASE-001</code>, hosts <code>lab-win01</code> / <code>lab-linux01</code>. See <code>docs/PORTAL/SCENARIOS.md</code> for 360° analyst workflows.</p>
+
+  <h3>Startup &amp; maintenance</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Command</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td><code>./forensic.sh full-start</code></td><td>Full first install (build + layer activation)</td></tr>
+      <tr><td><code>./forensic.sh start</code></td><td>Quick start without rebuild</td></tr>
+      <tr><td><code>./forensic.sh check-health</code></td><td>Health check all services</td></tr>
+      <tr><td><code>./forensic.sh urls</code></td><td>List URLs and lab credentials</td></tr>
+      <tr><td><code>python3 scripts/global_health_dashboard_verify.py</code></td><td>Validate health dashboards</td></tr>
+      <tr><td><code>docker compose build cert-portal &amp;&amp; docker compose up -d cert-portal</code></td><td>Update CERT portal</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Repository technical documentation</h3>
+  <ul>
+    <li><code>docs/PORTAL/</code> — full reference (API, flows, files, scenarios)</li>
+    <li><code>docs/HELK-FULL-CONFIG.md</code> — HELK sidecar configuration</li>
+    <li><code>docs/VELOCIRAPTOR-FULL-CONFIG.md</code> — Velociraptor configuration</li>
+    <li><code>docs/FORENSIC-MINIMAL.md</code> — installation guide</li>
+  </ul>
+
+  <p class="fp-muted">See <strong>Full architecture</strong> for detailed Mermaid diagrams (topology, ingest, HELK, VR, CTI).</p>
+</div>

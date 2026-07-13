@@ -1,0 +1,52 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">Génération de rapports d'investigation forensic complets depuis le portail CERT : collecte automatique des preuves, sections personnalisables, enrichissement IA locale (Ollama) et export HTML / Markdown.</p>
+
+  <h3>Accès UI</h3>
+  <ul>
+    <li>Menu latéral <strong>Rapports forensic</strong> — générateur complet (modèle, blocs libres, aperçu, export)</li>
+    <li>Depuis un incident — bouton <strong>Générer le rapport</strong> (pré-remplit <code>case_id</code> / incident)</li>
+  </ul>
+
+  <h3>Workflow recommandé</h3>
+  <ol>
+    <li>Identifier le <code>case_id</code> (incident, upload, sketch Timesketch)</li>
+    <li><strong>Collecter les preuves</strong> — uploads MinIO, événements OpenSearch, IOC/TI, alertes, agrégations</li>
+    <li>Choisir un modèle : <code>standard-ir</code>, <code>executive-brief</code>, <code>technical-deep</code></li>
+    <li>Ajouter des blocs personnalisés (contexte métier, décisions, contacts)</li>
+    <li>Optionnel : <strong>Enrichir avec l'IA locale</strong> (Ollama) pour synthèse narrative et recommandations</li>
+    <li>Éditer le brouillon, puis exporter en HTML ou Markdown</li>
+  </ol>
+
+  <h3>API REST</h3>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Méthode</th><th>Route</th><th>Rôle</th></tr></thead>
+    <tbody>
+      <tr><td>GET</td><td><code>/api/reports/templates</code></td><td>Modèles disponibles</td></tr>
+      <tr><td>GET</td><td><code>/api/reports/llm/status</code></td><td>État Ollama / fallback heuristique</td></tr>
+      <tr><td>POST</td><td><code>/api/reports/collect</code></td><td>Collecte preuves (<code>case_id</code> ou <code>incident_id</code>)</td></tr>
+      <tr><td>POST</td><td><code>/api/reports/generate</code></td><td>Création rapport + sections</td></tr>
+      <tr><td>PUT</td><td><code>/api/reports/:id</code></td><td>Mise à jour brouillon</td></tr>
+      <tr><td>POST</td><td><code>/api/reports/:id/enrich</code></td><td>Ré-enrichissement IA</td></tr>
+      <tr><td>GET</td><td><code>/api/reports/:id/export?format=html|md|json</code></td><td>Export final</td></tr>
+    </tbody>
+  </table>
+  <p>Session CERT requise (cookie). Doc détaillée : <code>docs/PORTAL/FORENSIC-REPORTS.md</code>.</p>
+
+  <h3>IA locale (Ollama)</h3>
+  <ul>
+    <li>Variables : <code>OLLAMA_URL</code>, <code>OLLAMA_MODEL</code> (défaut <code>llama3.2</code>)</li>
+    <li>Si Ollama est indisponible, le moteur utilise un enrichissement heuristique (même structure de sections)</li>
+    <li>Les données restent sur l'infrastructure locale — pas d'envoi vers un cloud tiers</li>
+  </ul>
+
+  <h3>Vérification</h3>
+  <p><code>python scripts/forensic_report_verify.py</code> — templates, collecte sur <code>CASE-UC01-RANSOM</code>, génération et export JSON.</p>
+
+  <h3>Fichiers clés</h3>
+  <ul>
+    <li><code>portal-cert/lib/forensic-report-engine.js</code> — collecte &amp; rendu</li>
+    <li><code>portal-cert/lib/forensic-report-llm.js</code> — enrichissement Ollama</li>
+    <li><code>portal-cert/routes/forensic-report-routes.js</code> — routes API</li>
+    <li><code>portal-shared/js/forensic-report.js</code> — interface portail</li>
+  </ul>
+</div>

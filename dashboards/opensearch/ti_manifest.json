@@ -1,0 +1,14 @@
+{
+  "dashboards": [
+    "fp-ti-overview",
+    "fp-ioc-matches",
+    "fp-ioc-threat-map",
+    "fp-case-ioc-view"
+  ],
+  "files": [
+    "opensearch_siem_ti_overview.ndjson",
+    "opensearch_siem_ti_matches.ndjson",
+    "opensearch_siem_ti_map.ndjson",
+    "opensearch_siem_case_view.ndjson"
+  ]
+}

@@ -1,0 +1,16 @@
+---
+fp_ir_template_0:
+  query_string: 'message:*ir.phase=detection*'
+  short_name: '[FP-IR-Tpl] Detection'
+fp_ir_template_1:
+  query_string: 'message:*ir.phase=containment*'
+  short_name: '[FP-IR-Tpl] Containment'
+fp_ir_template_2:
+  query_string: 'message:*ir.phase=eradication*'
+  short_name: '[FP-IR-Tpl] Eradication'
+fp_ir_template_3:
+  query_string: 'message:*ir.phase=recovery*'
+  short_name: '[FP-IR-Tpl] Recovery'
+fp_ir_template_4:
+  query_string: 'tag:ir OR message:*ir.phase*'
+  short_name: '[FP-IR-Tpl] Full Incident'

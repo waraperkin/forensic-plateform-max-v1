@@ -1,0 +1,10 @@
+{
+  "description": "Linux ECS normalization",
+  "processors": [
+    {"set": {"field": "event.ingested", "value": "{{{_ingest.timestamp}}}"}},
+    {"set": {"field": "host.os.family", "value": "linux", "override": false}},
+    {"grok": {"field": "message", "patterns": ["<%{POSINT}>%{SYSLOGTIMESTAMP:syslog_ts} %{SYSLOGHOST:host.name} %{PROG:process.name}(?:\\[%{POSINT:process.pid}\\])?: %{GREEDYDATA:log.message}"], "ignore_failure": true}},
+    {"date": {"field": "syslog_ts", "target_field": "@timestamp", "formats": ["MMM dd HH:mm:ss","MMM  d HH:mm:ss"], "ignore_failure": true}},
+    {"remove": {"field": ["syslog_ts", "@metadata"], "ignore_missing": true}}
+  ]
+}

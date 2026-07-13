@@ -1,0 +1,28 @@
+{
+  "uid": "helk-overview",
+  "title": "HELK Hunting Overview",
+  "tags": ["helk", "hunting"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Events HELK (24h)",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "elasticsearch", "uid": "helk-es" },
+      "targets": [{ "refId": "A", "query": "*", "metrics": [{ "type": "count" }] }],
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "id": 2,
+      "type": "logs",
+      "title": "Derniers logs HELK",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 6 },
+      "datasource": { "type": "elasticsearch", "uid": "helk-es" },
+      "targets": [{ "refId": "A", "query": "tags:helk-hunt OR tags:helk-portal" }]
+    }
+  ]
+}

@@ -29,6 +29,22 @@ cd forensic-minimal-v2
 
 Documentation détaillée : répertoire [`docs/`](docs/) (architecture portails, HELK, Velociraptor, QA).
 
+### Aperçu visuel
+
+| Portail CERT — Vue d'ensemble | Portail CERT — Centre d'accès |
+|:---:|:---:|
+| ![Portail CERT — Overview](docs/images/portals/cert-overview.png) | ![Portail CERT — Centre d'accès](docs/images/portals/cert-access-center.png) |
+
+| Portail IT — Dashboard | Portail IT — Upload (token) |
+|:---:|:---:|
+| ![Portail IT — Dashboard](docs/images/portals/it-dashboard.png) | ![Portail IT — Upload](docs/images/portals/it-upload-with-token.png) |
+
+| HELK Kibana | MISP | Velociraptor |
+|:---:|:---:|:---:|
+| ![HELK Kibana](docs/images/tools/helk-kibana.png) | ![MISP](docs/images/tools/misp.png) | ![Velociraptor](docs/images/tools/velociraptor.png) |
+
+Galerie complète (25 captures portails + outils) : [`docs/PORTAL/SCREENS.md`](docs/PORTAL/SCREENS.md) — régénération : `node scripts/capture-portal-screenshots.mjs`.
+
 ---
 
 ## Architecture
@@ -473,6 +489,7 @@ L’orchestrateur exécute notamment :
 
 ```bash
 node tests/scripts/browser-tools-audit.mjs   # BASE_URL=https://localhost:8443
+node scripts/capture-portal-screenshots.mjs  # docs/images/ — portails + outils
 cd tests
 npm install
 npx playwright install chromium
@@ -538,6 +555,7 @@ forensic-minimal/
 ├── forensic.sh              # Orchestrateur principal
 ├── docker-compose.yml       # Stack Docker
 ├── scripts/                 # Bootstrap, activation SIEM/TI, bridges
+├── docs/images/             # Captures portails CERT/IT + outils SOC
 ├── config/nginx/            # Reverse proxy HTTPS
 ├── portal-cert/ portal-it/  # Portails opérationnels
 ├── dashboards/              # Saved objects OpenSearch Dashboards

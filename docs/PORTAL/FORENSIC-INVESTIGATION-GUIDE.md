@@ -6,11 +6,12 @@ Les captures d'écran de référence sont produites par :
 
 ```bash
 python scripts/cert_forensic_use_cases_e2e.py          # ingestion + validation API
-node tests/scripts/cert-analyst-7uc-browser.mjs        # parcours analyste + screenshots
+node scripts/capture-portal-screenshots.mjs            # docs/images/ — portails + outils
+node tests/scripts/cert-analyst-7uc-browser.mjs        # parcours analyste + screenshots UC
 node tests/scripts/click-cert-portal-all-buttons.mjs   # couverture UI complète
 ```
 
-Artefacts : `tests/artifacts/cert-analyst-7uc/` et `reports/cert-use-cases-e2e.json`.
+Artefacts : `docs/images/` (galerie [SCREENS.md](./SCREENS.md)), `tests/artifacts/cert-analyst-7uc/` et `reports/cert-use-cases-e2e.json`.
 
 ## Prérequis livraison
 

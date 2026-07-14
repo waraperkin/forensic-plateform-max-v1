@@ -1,0 +1,160 @@
+{
+  "generated_at": "2026-07-14T13:45:43.737Z",
+  "base_url": "https://localhost:8443",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "captures": [
+    {
+      "group": "cert",
+      "id": "overview",
+      "file": "portals/cert-overview.png",
+      "url": "https://localhost:8443/?tab=overview"
+    },
+    {
+      "group": "cert",
+      "id": "health",
+      "file": "portals/cert-health.png",
+      "url": "https://localhost:8443/?tab=health"
+    },
+    {
+      "group": "cert",
+      "id": "access-center",
+      "file": "portals/cert-access-center.png",
+      "url": "https://localhost:8443/?tab=access-center"
+    },
+    {
+      "group": "cert",
+      "id": "threat-intel",
+      "file": "portals/cert-threat-intel.png",
+      "url": "https://localhost:8443/?tab=threat-intel"
+    },
+    {
+      "group": "cert",
+      "id": "ingest-evidence",
+      "file": "portals/cert-ingest-evidence.png",
+      "url": "https://localhost:8443/?tab=ingest-evidence"
+    },
+    {
+      "group": "cert",
+      "id": "helk-hunting",
+      "file": "portals/cert-helk-hunting.png",
+      "url": "https://localhost:8443/?tab=helk-hunting"
+    },
+    {
+      "group": "cert",
+      "id": "velociraptor-dfir",
+      "file": "portals/cert-velociraptor-dfir.png",
+      "url": "https://localhost:8443/?tab=velociraptor-dfir"
+    },
+    {
+      "group": "cert",
+      "id": "tokens",
+      "file": "portals/cert-tokens.png",
+      "url": "https://localhost:8443/?tab=tokens"
+    },
+    {
+      "group": "cert",
+      "id": "cases",
+      "file": "portals/cert-incidents.png",
+      "url": "https://localhost:8443/?tab=cases"
+    },
+    {
+      "group": "cert",
+      "id": "forensic-reports",
+      "file": "portals/cert-forensic-reports.png",
+      "url": "https://localhost:8443/?tab=forensic-reports"
+    },
+    {
+      "group": "it",
+      "id": "it-dashboard",
+      "file": "portals/it-dashboard.png",
+      "url": "https://localhost:8443/it/#it-dashboard"
+    },
+    {
+      "group": "it",
+      "id": "it-health",
+      "file": "portals/it-health.png",
+      "url": "https://localhost:8443/it/#it-health"
+    },
+    {
+      "group": "it",
+      "id": "it-upload",
+      "file": "portals/it-upload.png",
+      "url": "https://localhost:8443/it/#it-upload"
+    },
+    {
+      "group": "it",
+      "id": "it-operations",
+      "file": "portals/it-operations.png",
+      "url": "https://localhost:8443/it/#it-operations"
+    },
+    {
+      "group": "it",
+      "id": "it-upload-token",
+      "file": "portals/it-upload-with-token.png",
+      "url": "https://localhost:8443/it/?token=…"
+    },
+    {
+      "group": "tools",
+      "id": "opensearch-dashboards",
+      "file": "tools/opensearch-dashboards.png",
+      "url": "https://localhost:8443/dashboards/"
+    },
+    {
+      "group": "tools",
+      "id": "grafana",
+      "file": "tools/grafana.png",
+      "url": "https://localhost:8443/grafana/login"
+    },
+    {
+      "group": "tools",
+      "id": "timesketch",
+      "file": "tools/timesketch.png",
+      "url": "https://localhost:8443/timesketch/"
+    },
+    {
+      "group": "tools",
+      "id": "opencti",
+      "file": "tools/opencti.png",
+      "url": "https://localhost:8443/cti/"
+    },
+    {
+      "group": "tools",
+      "id": "misp",
+      "file": "tools/misp.png",
+      "url": "https://localhost:8443/misp/users/login"
+    },
+    {
+      "group": "tools",
+      "id": "thehive",
+      "file": "tools/thehive.png",
+      "url": "https://localhost:8443/thehive/"
+    },
+    {
+      "group": "tools",
+      "id": "cortex",
+      "file": "tools/cortex.png",
+      "url": "https://localhost:8443/cortex/"
+    },
+    {
+      "group": "tools",
+      "id": "minio",
+      "file": "tools/minio.png",
+      "url": "https://localhost:8443/minio/"
+    },
+    {
+      "group": "tools",
+      "id": "helk-kibana",
+      "file": "tools/helk-kibana.png",
+      "url": "https://localhost:8443/helk/kibana/"
+    },
+    {
+      "group": "tools",
+      "id": "velociraptor",
+      "file": "tools/velociraptor.png",
+      "url": "https://localhost:8443/velociraptor/"
+    }
+  ]
+}

@@ -48,6 +48,24 @@ Documentation officielle de la plateforme **forensic-minimal** (CYBERCORP). Vers
 | [FORENSIC-REPORTS.md](./FORENSIC-REPORTS.md) | Rapports d'investigation + IA locale |
 | [FORENSIC-INVESTIGATION-GUIDE.md](./FORENSIC-INVESTIGATION-GUIDE.md) | 7 scénarios CERT + captures |
 | [SCENARIOS.md](./SCENARIOS.md) | Parcours analyste 360° |
+| [SCREENS.md](./SCREENS.md) | **Captures d'écran** portails CERT/IT + outils SOC |
+
+## Aperçu visuel
+
+![Portail CERT — Vue d'ensemble](../images/portals/cert-overview.png)
+
+| Portail CERT | Portail IT |
+|--------------|------------|
+| [Vue d'ensemble](../images/portals/cert-overview.png) | [Dashboard IT](../images/portals/it-dashboard.png) |
+| [Centre d'accès](../images/portals/cert-access-center.png) | [Upload token](../images/portals/it-upload-with-token.png) |
+| [HELK Hunting](../images/portals/cert-helk-hunting.png) | [Santé](../images/portals/it-health.png) |
+| [Incidents](../images/portals/cert-incidents.png) | [Opérations](../images/portals/it-operations.png) |
+
+**Outils :** [OpenSearch Dashboards](../images/tools/opensearch-dashboards.png) · [Grafana](../images/tools/grafana.png) · [MISP](../images/tools/misp.png) · [OpenCTI](../images/tools/opencti.png) · [TheHive](../images/tools/thehive.png) · [Cortex](../images/tools/cortex.png) · [HELK Kibana](../images/tools/helk-kibana.png) · [Velociraptor](../images/tools/velociraptor.png) · [Timesketch](../images/tools/timesketch.png) · [MinIO](../images/tools/minio.png)
+
+→ Galerie commentée : [SCREENS.md](./SCREENS.md)
+
+---
 
 ## Dépôt HELK (sidecar)
 

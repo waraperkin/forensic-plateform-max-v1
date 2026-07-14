@@ -9,7 +9,7 @@
 |-------------------|---------------------|---------|
 | Vue d'ensemble | `portal-hub-premium.js`, `global-health-dashboard.js` | `/api/overview/*`, `/api/health/global` |
 | Santé | `global-health-service.js` | `/api/health/global`, `/api/*/health` |
-| Centre d'accès | `soc-tools.js` | `/api/credentials`, `/api/services` |
+| Centre d'accès | `access-center.js` | `/api/credentials`, `/api/services` |
 | CTI | `forensic-components.js` | OpenCTI/MISP proxies nginx |
 | Ingest & Evidences | `forensic-ui.js` | `/api/upload`, `/api/stats` |
 | HELK Hunting | `helk-integration.js` | `/api/helk/*` |
@@ -21,6 +21,8 @@
 | Administration | `cert-users.js` | `/api/purge`, users |
 
 Shell UI : [`portal-shared/js/cybercorp-shell.js`](../../portal-shared/js/cybercorp-shell.js), [`portal-v6.js`](../../portal-shared/js/portal-v6.js).
+
+**Captures d'écran :** [SCREENS.md](./SCREENS.md) · [`docs/images/`](../images/)
 
 ## Portail IT
 

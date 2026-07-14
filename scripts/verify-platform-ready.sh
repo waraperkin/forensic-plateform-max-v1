@@ -96,7 +96,7 @@ if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-nginx$'; the
   else
     code=$((docker exec forensic-nginx wget -S -O /dev/null -T 10 \
       http://velociraptor-server:8000/velociraptor/app/index.html 2>&1 || true) | awk '/^[[:space:]]*HTTP\//{print $2}' | tail -1)
-    if echo "$code" | grep -qE '^(200|401)$'; then
+    if echo "$code" | grep -qE '^(200|301|302|307|308|401)$'; then
       echo "PASS: nginx → velociraptor-server:8000 (HTTP $code)"
     else
       echo "FAIL: nginx ne joint pas velociraptor-server:8000" >&2

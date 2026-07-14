@@ -7,6 +7,11 @@ if [ -f "$ROOT/scripts/lib/host-ip.sh" ]; then
   # shellcheck source=/dev/null
   . "$ROOT/scripts/lib/host-ip.sh"
 fi
+export FP_ROOT="$ROOT"
+if [ -f "$ROOT/scripts/lib/vr-gui-check.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$ROOT/scripts/lib/vr-gui-check.sh"
+fi
 PUBLIC_HOST="${PUBLIC_HOST:-$(fp_url_identity 2>/dev/null || fp_detect_public_host 2>/dev/null || true)}"
 VR_ADMIN="${VELOCIRAPTOR_ADMIN_USER:-admin}"
 VR_PASS="${VELOCIRAPTOR_ADMIN_PASSWORD:-F0r3ns1c_VR_2024!}"
@@ -48,9 +53,10 @@ step "Stack Velociraptor sidecar"
 cd "$ROOT/velociraptor"
 docker compose -f docker-compose.velociraptor.yml -f docker-compose.external-net.yml up -d --build
 for i in $(seq 1 40); do
-  curl -sf http://127.0.0.1:8000/velociraptor/ >/dev/null 2>&1 && break
+  fp_vr_test_host_gui 5 && break
   sleep 3
 done
+fp_vr_test_host_gui 5 || { warn "Velociraptor GUI pas prêt sur $(fp_vr_host_gui_url)"; exit 1; }
 ok "Velociraptor server"
 
 step "API client Velociraptor (forensic-bridge)"

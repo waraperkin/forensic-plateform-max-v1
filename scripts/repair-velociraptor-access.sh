@@ -5,6 +5,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+export FP_ROOT="$ROOT"
 
 if [ -f "$ROOT/scripts/lib/host-ip.sh" ]; then
   # shellcheck source=/dev/null
@@ -12,15 +13,23 @@ if [ -f "$ROOT/scripts/lib/host-ip.sh" ]; then
   fp_load_env_public_host 2>/dev/null || true
   fp_align_env_public_ip 2>/dev/null || true
 fi
+if [ -f "$ROOT/scripts/lib/vr-gui-check.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$ROOT/scripts/lib/vr-gui-check.sh"
+fi
 
 HOST=$(fp_url_identity 2>/dev/null || fp_detect_public_ip 2>/dev/null || echo "127.0.0.1")
 HOST=$(fp_normalize_host "$HOST" 2>/dev/null || echo "$HOST")
 export PUBLIC_HOST="$HOST"
 export FP_VR_NGINX_ONLY=1
 
+VR_GUI_PORT=$(fp_vr_gui_port)
+VR_HOST_URL=$(fp_vr_host_gui_url)
+
 log() { echo "[repair-vr] $*"; }
 
 log "Hôte public : $HOST"
+log "Port GUI hôte : $VR_GUI_PORT"
 
 bash "$ROOT/scripts/render-velociraptor-nginx-snippet.sh" 2>/dev/null || true
 
@@ -43,14 +52,14 @@ fi
 log "1/5 — Sidecar GUI + régénération config"
 bash "$ROOT/scripts/ensure-velociraptor-sidecar.sh"
 
-log "1b/5 — Test direct hôte :8000"
-if ! curl -sf --max-time 10 http://127.0.0.1:8000/velociraptor/ >/dev/null 2>&1; then
-  log "ERREUR: velociraptor-server injoignable sur http://127.0.0.1:8000/velociraptor/"
+log "1b/5 — Test direct hôte :${VR_GUI_PORT}"
+if ! fp_vr_test_host_gui 10; then
+  log "ERREUR: velociraptor-server injoignable sur $VR_HOST_URL"
   log "  → docker logs velociraptor-server --tail 40"
   docker logs velociraptor-server --tail 40 2>&1 || true
   exit 1
 fi
-log "GUI OK sur localhost:8000"
+log "GUI OK sur localhost:${VR_GUI_PORT}"
 
 log "2/5 — api.config.yaml + bridge"
 VR_ADMIN="${VELOCIRAPTOR_ADMIN_USER:-admin}"
@@ -73,7 +82,7 @@ docker network connect velociraptor_net forensic-nginx 2>/dev/null || true
 docker compose up -d --force-recreate velociraptor-bridge nginx 2>/dev/null || true
 sleep 3
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-nginx$'; then
-  if docker exec forensic-nginx wget -q -O /dev/null -T 15 http://velociraptor-server:8000/velociraptor/ 2>/dev/null; then
+  if fp_vr_test_nginx_to_server forensic-nginx /velociraptor/; then
     log "nginx → velociraptor-server:8000 OK"
   else
     log "ERREUR: nginx ne joint pas velociraptor-server:8000 (vérifier velociraptor_net)"
@@ -87,7 +96,7 @@ if [ -x "$ROOT/scripts/verify-platform-ready.sh" ]; then
   BASE_URL="https://${HOST}" bash "$ROOT/scripts/verify-platform-ready.sh"
 else
   code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 20 "https://${HOST}/velociraptor/" || echo "000")
-  if echo "$code" | grep -qE '200|301|302|401'; then
+  if fp_vr_http_code_ok "$code"; then
     log "Velociraptor GUI → HTTP $code"
   else
     log "ERREUR: Velociraptor GUI → HTTP $code"

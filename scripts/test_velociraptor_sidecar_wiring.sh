@@ -6,6 +6,7 @@ fail=0
 
 for f in \
   "$ROOT/scripts/ensure-velociraptor-sidecar.sh" \
+  "$ROOT/scripts/lib/vr-gui-check.sh" \
   "$ROOT/scripts/setup-sidecars.sh" \
   "$ROOT/scripts/post-start-align.sh"; do
   if [ -f "$f" ]; then
@@ -30,10 +31,10 @@ else
   fail=1
 fi
 
-if grep -q 'localhost:8000/velociraptor' "$ROOT/scripts/lib/installer.sh"; then
-  echo "PASS: fp_start_tests inclut VR direct"
+if grep -qE 'fp_vr_gui_port|FP_VR_GUI_PORT|18000/velociraptor' "$ROOT/scripts/lib/installer.sh"; then
+  echo "PASS: fp_start_tests inclut VR direct (port hôte FP_VR_GUI_PORT)"
 else
-  echo "FAIL: fp_start_tests sans VR" >&2
+  echo "FAIL: fp_start_tests sans VR port hôte correct" >&2
   fail=1
 fi
 

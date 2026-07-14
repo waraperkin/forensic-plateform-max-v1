@@ -22,6 +22,13 @@ elif [ -f "$(dirname "${BASH_SOURCE[0]}")/host-ip.sh" ]; then
   # shellcheck source=/dev/null
   . "$(dirname "${BASH_SOURCE[0]}")/host-ip.sh"
 fi
+if [ -n "${DIR:-}" ] && [ -f "${DIR}/scripts/lib/vr-gui-check.sh" ]; then
+  # shellcheck source=/dev/null
+  . "${DIR}/scripts/lib/vr-gui-check.sh"
+elif [ -f "$(dirname "${BASH_SOURCE[0]}")/vr-gui-check.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$(dirname "${BASH_SOURCE[0]}")/vr-gui-check.sh"
+fi
 if [ -n "${DIR:-}" ] && [ -f "${DIR}/scripts/lib/platform-host.sh" ]; then
   # shellcheck source=/dev/null
   . "${DIR}/scripts/lib/platform-host.sh"
@@ -1369,7 +1376,8 @@ fp_start_tests() {
   step "PHASE 6/6 — Tests automatiques (santé + réseaux + ports)"
   fp_log start "=== fp_start_tests start ==="
 
-  local ok_count=0 fail_count=0
+  local ok_count=0 fail_count=0 vr_port
+  vr_port=$(fp_vr_gui_port 2>/dev/null || echo "18000")
   # Format : "nom|url|codes_acceptés (csv)|opts"
   # codes_acceptés = liste de codes considérés OK (200, 30x redirects, 401/403
   # signifient "service UP mais auth requise" → considéré UP)
@@ -1379,7 +1387,7 @@ fp_start_tests() {
     "Grafana|http://localhost:3001/api/health|200|"
     "Timesketch login|http://localhost:5000/login|200,301,302,308|"
     "Portail CERT|http://localhost:3000/api/health|200|"
-    "Velociraptor direct|http://localhost:8000/velociraptor/|200,301,302,401|"
+    "Velociraptor direct|http://localhost:${vr_port}/velociraptor/|200,301,302,307,308,401|"
   )
   local entry
   for entry in "${checks[@]}"; do
@@ -1432,12 +1440,12 @@ fp_start_tests() {
   vr_host=$(fp_url_identity 2>/dev/null || fp_detect_public_ip 2>/dev/null || echo "127.0.0.1")
   vr_code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 12 \
     "https://${vr_host}/velociraptor/" 2>/dev/null || echo "000")
-  if echo ",200,301,302,401," | grep -q ",${vr_code},"; then
+  if echo ",200,301,302,307,308,401," | grep -q ",${vr_code},"; then
     ok "Velociraptor nginx → $vr_code"
     fp_log start "test Velociraptor nginx OK ($vr_code)"
     ok_count=$((ok_count+1))
   else
-    warn "Velociraptor nginx → $vr_code (attendu 200|302|401 — 502 = sidecar absent)"
+    warn "Velociraptor nginx → $vr_code (attendu 200|30x|401 — 502 = sidecar absent)"
     fp_log start "test Velociraptor nginx FAIL ($vr_code)"
     fail_count=$((fail_count+1))
   fi

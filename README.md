@@ -2,6 +2,8 @@
 
 Plateforme forensic et SOC **clé en main**, pensée pour le lab, la formation et les équipes CERT/DFIR. Elle regroupe ingestion, SIEM, threat intelligence, gestion d’incidents, timelines, hunting et collecte endpoint derrière un point d’entrée HTTPS unique.
 
+**Dépôt :** [`waraperkin/forensic-minimal-v2`](https://github.com/waraperkin/forensic-minimal-v2) — snapshot portable, QA navigateur et correctifs proxy (MISP, Timesketch, Velociraptor).
+
 **Public cible :** analystes SOC, ingénieurs DFIR, formateurs, lab interne.
 
 ---
@@ -11,8 +13,8 @@ Plateforme forensic et SOC **clé en main**, pensée pour le lab, la formation e
 Forensic Minimal déploie une stack Docker orchestrée par un seul script. **Sur une VM fraîche, seules ces commandes sont nécessaires :**
 
 ```bash
-git clone https://github.com/waraperkin/forensic-minimal.git
-cd forensic-minimal
+git clone https://github.com/waraperkin/forensic-minimal-v2.git
+cd forensic-minimal-v2
 ./scripts/preflight-full-start.sh
 ./forensic.sh -full-start
 ```
@@ -20,7 +22,7 @@ cd forensic-minimal
 À l’issue d’un `-full-start` réussi, **aucune étape manuelle** : détection IP AWS, TLS, MISP, HELK, Velociraptor, nginx, identité site (Palo Alto) et vérification des 11 services sont automatiques.
 
 - **Accès** : `https://<IP-publique>/` (affiché en fin de script)
-- **11/11 services** vérifiés automatiquement (`verify-platform-ready` intégré au `-full-start`)
+- **16/16 services** vérifiés via `/api/health/global` (Timesketch, MISP, Velociraptor, HELK, etc.)
 - **OpenSearch Dashboards** : dashboards SIEM/TI/Observability importés
 - **700+ règles** de détection et monitors d’alerting
 - **Portails CERT/IT** opérationnels pour l’ingestion et les pivots cross-tool
@@ -104,8 +106,8 @@ Sur l’hôte, les ports suivants doivent être libres (ou détenus par cette st
 ### 1. Cloner le dépôt
 
 ```bash
-git clone https://github.com/waraperkin/forensic-minimal.git
-cd forensic-minimal
+git clone https://github.com/waraperkin/forensic-minimal-v2.git
+cd forensic-minimal-v2
 ```
 
 ### 2. (Recommandé) Pré-vol statique
@@ -420,6 +422,20 @@ Les versions antérieures utilisaient souvent un **nom d'hôte** ou un certifica
 | Hotspot / réseau hors entreprise | Test rapide pour confirmer que la VM fonctionne |
 | Let's Encrypt | Après `PUBLIC_HOSTNAME`, certificat public reconnu (`certbot`) |
 
+### Docker Desktop (Windows) — ports alternatifs
+
+Si les ports **80/443** sont occupés (HTTP.sys, IIS), copiez `config/local-ports.env.example` vers `config/local-ports.env` et ajustez `FP_HTTPS_PORT` (ex. `8443`). Accès : `https://localhost:8443/`.
+
+Après modification de `.env`, régénérez la config Timesketch (compatible CRLF Windows) :
+
+```bash
+node scripts/generate-timesketch-conf.mjs
+# ou : bash scripts/generate-timesketch-conf.sh
+docker compose --env-file .env --env-file config/local-ports.env up -d --no-deps --force-recreate timesketch-web timesketch-worker
+```
+
+Les scripts shell du dépôt sont en **LF** (`.gitattributes`) — évite les crash loops Timesketch sur Windows.
+
 ---
 
 ## Tests
@@ -456,6 +472,7 @@ L’orchestrateur exécute notamment :
 ### Playwright (manuel)
 
 ```bash
+node tests/scripts/browser-tools-audit.mjs   # BASE_URL=https://localhost:8443
 cd tests
 npm install
 npx playwright install chromium
@@ -490,6 +507,9 @@ python3 scripts/opensearch_siem_full_verify.py
 
 | Symptôme | Action |
 |----------|--------|
+| Timesketch **502** / health DOWN | `node scripts/generate-timesketch-conf.mjs` puis recreate `timesketch-web` — vérifier alignement `POSTGRES_PASSWORD` (.env) |
+| MISP login **sans CSS** (assets 302) | Recharger nginx (`docker exec forensic-nginx nginx -s reload`) — locations `^~ /misp/css/` dans `forensic.conf` |
+| Velociraptor **503** API / redirect loop | `Frontend.hostname: 127.0.0.1` dans `velociraptor/config/server.config.yaml` ; upstream statique `u_velociraptor_gui` (pas `$variable`) ; `./forensic.sh repair-vr` |
 | Portail / outils inaccessibles depuis le navigateur (AWS) | Vérifier Security Group TCP 80/443 ; utiliser l’**IP publique** (`./forensic.sh urls`), pas l’IP privée EC2 |
 | URLs ou Grafana/MISP cassés (mauvaise IP) | `PUBLIC_HOST=<ip-publique> ./forensic.sh tls` puis `docker compose up -d --force-recreate nginx cert-portal it-portal grafana` |
 | MISP login boucle / CSRF | `bash scripts/misp-configure-host.sh` puis recharger `/misp/` |
@@ -525,7 +545,7 @@ forensic-minimal/
 
 ## License & credits
 
-- Projet **forensic-minimal** — plateforme CYBERCORP / lab SOC.
+- Projet **forensic-minimal-v2** — plateforme CYBERCORP / lab SOC ([GitHub](https://github.com/waraperkin/forensic-minimal-v2)).
 - Composants tiers sous leurs licences respectives (OpenSearch, Grafana, OpenCTI, MISP, TheHive, Timesketch, Velociraptor, HELK, Sigma, etc.).
 - Règles Sigma HELK : voir `helk/sigma/LICENSE`.
 

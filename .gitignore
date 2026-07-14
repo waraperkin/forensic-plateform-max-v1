@@ -15,6 +15,7 @@
 *.srl
 secrets/
 credentials.json
+credentials-snapshot.json
 config/credentials-snapshot.json
 
 # --- Node.js ---

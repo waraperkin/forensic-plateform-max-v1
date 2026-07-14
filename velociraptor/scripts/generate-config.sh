@@ -126,7 +126,7 @@ cfg["GUI"]["bind_port"] = 8000
 cfg["GUI"]["use_plain_http"] = True
 cfg["Frontend"]["bind_address"] = "0.0.0.0"
 cfg["Frontend"]["bind_port"] = 8001
-cfg["Frontend"]["hostname"] = host.split(":")[0]
+cfg["Frontend"]["hostname"] = "127.0.0.1" if __import__("os").environ.get("FP_VR_NGINX_ONLY", "1") == "1" else host.split(":")[0]
 if __import__("os").environ.get("FP_VR_NGINX_ONLY", "1") == "1":
     cfg["Frontend"]["use_plain_http"] = True
 cfg["API"]["bind_address"] = "0.0.0.0"

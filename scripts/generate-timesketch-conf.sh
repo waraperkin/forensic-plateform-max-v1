@@ -11,6 +11,7 @@ if [ -f "$DIR/.env" ]; then
       _k="${BASH_REMATCH[1]}"; _v="${BASH_REMATCH[2]}"
       if [[ "${_v:0:1}" == '"' && "${_v: -1}" == '"' ]]; then _v="${_v:1:${#_v}-2}"; fi
       if [[ "${_v:0:1}" == "'" && "${_v: -1}" == "'" ]]; then _v="${_v:1:${#_v}-2}"; fi
+      _v="${_v//$'\r'/}"
       export "${_k}=${_v}" 2>/dev/null || true
     fi
   done < "$DIR/.env"
@@ -40,9 +41,14 @@ if [ -z "$EXTERNAL_URL" ] || echo "$EXTERNAL_URL" | grep -qE '10\.78\.0\.9|^(htt
   EXTERNAL_URL="https://${HOST_IP}/timesketch"
 fi
 
+TS_SECRET="${TIMESKETCH_SECRET_KEY:-ts-secret-forensic-2024-changeme}"
+if [ -z "${TS_SECRET// }" ]; then
+  TS_SECRET="ts-secret-forensic-2024-changeme"
+fi
+
 cat > "$DIR/config/timesketch/timesketch.conf" << CONF
 # Timesketch configuration — généré automatiquement par forensic.sh / generate-timesketch-conf.sh
-SECRET_KEY = "${TIMESKETCH_SECRET_KEY:-ts-secret-forensic-2024-changeme}"
+SECRET_KEY = "${TS_SECRET}"
 SQLALCHEMY_DATABASE_URI = "postgresql://${POSTGRES_USER:-forensic}:${POSTGRES_PASSWORD:-F0r3ns1c_PG_2024!}@postgres/timesketch"
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 WTF_CSRF_ENABLED = False

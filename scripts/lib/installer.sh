@@ -1502,6 +1502,16 @@ _fp_bootstrap_env_file() {
   else
     ok ".env présent"
   fi
+  if ! grep -qE '^POSTGRES_PASSWORD=' "$root/.env" 2>/dev/null \
+    || ! grep -qE '^PUBLIC_HOST=' "$root/.env" 2>/dev/null; then
+    warn ".env avec clés non canoniques (traduction / corruption) — régénération depuis .env.example"
+    local ts
+    ts=$(date +%Y%m%d_%H%M%S)
+    cp "$root/.env" "$root/.env.corrupt.${ts}.bak"
+    cp "$root/.env.example" "$root/.env"
+    ok ".env sauvegardé → .env.corrupt.${ts}.bak puis recréé depuis .env.example"
+    fp_log install ".env repaired from corrupt keys"
+  fi
   _fp_bootstrap_env_complete || return 1
   return 0
 }
@@ -1596,7 +1606,58 @@ OPTIONAL_EMPTY_PREFIXES = (
     "CONNECTOR_ABUSE_SSL", "CONNECTOR_MITRE_ATLAS", "CONNECTOR_DISARM",
 )
 
+# Clés .env corrompues (traduction FR / renommage manuel) → clés Docker canoniques
+ENV_ALIASES = {
+    "MOT_DE_PASSE_POSTGRES": "POSTGRES_PASSWORD",
+    "MOT_DE_PASSE_RACINE_MINIO": "MINIO_ROOT_PASSWORD",
+    "MOT_DE_PASSE_ADMIN_MISP": "MISP_ADMIN_PASSWORD",
+    "MOT_DE_PASSE_ADMIN_VELOCIRAPTOR": "VELOCIRAPTOR_ADMIN_PASSWORD",
+    "CLÉ_DE_CRYPTION_OPENCTI": "OPENCTI_ENCRYPTION_KEY",
+    "CLE_DE_CRYPTION_OPENCTI": "OPENCTI_ENCRYPTION_KEY",
+    "CLÉ_API_ADMIN_MISP": "MISP_ADMIN_API_KEY",
+    "CLE_API_ADMIN_MISP": "MISP_ADMIN_API_KEY",
+    "CLÉ_API_ALIENVAULT": "ALIENVAULT_API_KEY",
+    "CLE_API_ALIENVAULT": "ALIENVAULT_API_KEY",
+    "CLÉ_API_ABUSEIPDB": "ABUSEIPDB_API_KEY",
+    "CLE_API_ABUSEIPDB": "ABUSEIPDB_API_KEY",
+    "CLÉ_API_SEKOIA": "SEKOIA_API_KEY",
+    "CLE_API_SEKOIA": "SEKOIA_API_KEY",
+    "URL_BASE_PUBLIC_MISP": "MISP_PUBLIC_BASE_URL",
+    "URL_API_VELOCIRAPTOR": "VELOCIRAPTOR_API_URL",
+    "HÔTE_PUBLIC": "PUBLIC_HOST",
+    "HOTE_PUBLIC": "PUBLIC_HOST",
+    "NOM_HÔTE_PUBLIC": "PUBLIC_HOSTNAME",
+    "NOM_HOTE_PUBLIC": "PUBLIC_HOSTNAME",
+    "GRAFANA_AUTORISATION_ORIGINES": "GRAFANA_ALLOWED_ORIGINS",
+}
+
+CANONICAL_REQUIRED = ("POSTGRES_PASSWORD", "PUBLIC_HOST", "CERT_PORTAL_SECRET")
+
+# Mots de passe labo documentés (README / Centre d'accès) — remplacent Fp_* aléatoires
+LAB_SECRETS = {
+    "POSTGRES_PASSWORD": "F0r3ns1c_PG_2024!",
+    "REDIS_PASSWORD": "F0r3ns1c_Redis_2024!",
+    "MINIO_ROOT_PASSWORD": "F0r3ns1c_Minio_2024!",
+    "TIMESKETCH_PASSWORD": "F0r3ns1c_TS_2024!",
+    "OPENCTI_ADMIN_PASSWORD": "F0r3ns1c_CTI_2024!",
+    "MISP_ADMIN_PASSWORD": "F0r3ns1c_MISP_2024!",
+    "MYSQL_ROOT_PASSWORD": "F0r3ns1c_MySQL_2024!",
+    "MYSQL_PASSWORD": "F0r3ns1c_MySQL_2024!",
+    "GRAFANA_ADMIN_PASSWORD": "F0r3ns1c_GF_2024!",
+    "THEHIVE_ADMIN_PASSWORD": "secret",
+    "THEHIVE_SECRET": "forensic-thehive-secret-2024-changeme-in-prod",
+    "CORTEX_SECRET": "forensic-cortex-secret-2024-changeme-in-prod",
+    "CORTEX_ADMIN_PASSWORD": "forensic-cortex-secret-2024-changeme-in-prod",
+    "CERT_PORTAL_SECRET": "F0r3ns1c_Portal_2024!",
+    "IT_PORTAL_SECRET": "F0r3ns1c_IT_Portal_2024!",
+    "PORTAINER_ADMIN_PASSWORD": "F0r3ns1c_Portainer_2024!",
+    "PORTAL_ADMIN_USER": "admin",
+    "PORTAL_ADMIN_PASSWORD": "F0r3ns1c_Portal_2024!",
+}
+
 def gen_secret(k: str) -> str:
+    if k in LAB_SECRETS:
+        return LAB_SECRETS[k]
     if k == "OPENCTI_ENCRYPTION_KEY":
         return base64.b64encode(secrets.token_bytes(32)).decode()
     if k == "MISP_ENCRYPTION_KEY":
@@ -1617,9 +1678,29 @@ def parse_val(v: str) -> str:
 existing = {}
 order = []
 for line in lines:
-    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
-    if m:
-        existing[m.group(1)] = parse_val(m.group(2))
+    stripped = line.strip()
+    if stripped == "" or stripped.startswith("#"):
+        order.append(line)
+        continue
+    if "=" not in line:
+        order.append(line)
+        continue
+    k, _, v = line.partition("=")
+    k = k.strip()
+    val = parse_val(v)
+    canon = k
+    if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", k):
+        canon = k
+    elif k in ENV_ALIASES:
+        canon = ENV_ALIASES[k]
+    elif k.startswith("CONNECTEUR_"):
+        canon = "CONNECTOR_" + k[len("CONNECTEUR_"):]
+    else:
+        order.append(line)
+        continue
+    if canon == "POSTGRES_DB" and val.lower() in ("médical", "medical"):
+        val = "forensic"
+    existing[canon] = val
     order.append(line)
 
 access_mode = (existing.get("FP_ACCESS_MODE") or "ip").strip().lower()
@@ -1642,6 +1723,10 @@ DEFAULTS = {
     "THEHIVE_ADMIN_LOGIN": "admin",
     "VELOCIRAPTOR_ADMIN_USER": "admin",
     "VELOCIRAPTOR_ADMIN_PASSWORD": "F0r3ns1c_VR_2024!",
+    "PORTAL_ADMIN_USER": "admin",
+    "PORTAL_ADMIN_PASSWORD": "F0r3ns1c_Portal_2024!",
+    "CERT_PORTAL_SECRET": "F0r3ns1c_Portal_2024!",
+    "IT_PORTAL_SECRET": "F0r3ns1c_IT_Portal_2024!",
     "PUBLIC_HOST": host,
     "TIMESKETCH_EXTERNAL_URL": f"https://{host}/timesketch",
     "MISP_PUBLIC_BASE_URL": f"https://{host}/misp",
@@ -1692,7 +1777,12 @@ if missing:
     print("CRITICAL_MISSING:" + ",".join(missing), file=sys.stderr)
     sys.exit(1)
 
-# Réécrire .env (conserver commentaires, ignorer lignes orphelines sans KEY=)
+missing_canon = [k for k in CANONICAL_REQUIRED if not existing.get(k)]
+if missing_canon:
+    print("CANONICAL_MISSING:" + ",".join(missing_canon), file=sys.stderr)
+    sys.exit(2)
+
+# Réécrire .env (clés canoniques uniquement — supprime lignes traduites / orphelines)
 out = []
 seen = set()
 for line in lines:
@@ -1703,14 +1793,16 @@ for line in lines:
         out.append(line)
         continue
     m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
-    if m and m.group(1) in existing:
+    if m:
         k = m.group(1)
-        out.append(f"{k}={existing[k]}")
-        seen.add(k)
-    elif m:
-        # Clé inconnue mais valide — conserver
-        out.append(line)
-    # sinon : ligne orpheline (ex. valeurs CSV cassées) — ignorée
+        if k in ENV_ALIASES or k.startswith("CONNECTEUR_"):
+            continue
+        if k in existing:
+            out.append(f"{k}={existing[k]}")
+            seen.add(k)
+        else:
+            out.append(line)
+    # sinon : ligne orpheline (ex. clés accentuées / CSV cassées) — ignorée
 for k, v in sorted(existing.items()):
     if k not in seen:
         out.append(f"{k}={v}")

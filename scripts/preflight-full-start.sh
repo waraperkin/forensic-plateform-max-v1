@@ -15,6 +15,7 @@ STATIC_TESTS=(
   test_proxy_subpath_config.sh
   test_bootstrap_fresh_install.sh
   test_bootstrap_prepare_host.sh
+  test_env_canonical.sh
   test_no_lab_ip_residual.sh
   test_nginx_config.sh
   test_full_start_gates.sh

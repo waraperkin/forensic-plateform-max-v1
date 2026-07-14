@@ -1184,7 +1184,12 @@ full_start() {
   # ── Phase 6: Portails + Nginx + Portainer ────────────────────
   step "6/8 Portails CERT + IT + ingest-worker + Nginx HTTPS + Portainer"
   docker compose up -d --build ingest-worker 2>/dev/null || $UP ingest-worker
-  $UP cert-portal it-portal
+  if [ "${FP_RECREATE_CERT_PORTAL:-0}" = "1" ]; then
+    info "Recréation cert-portal ( .env régénéré )"
+    docker compose up -d --force-recreate --build cert-portal it-portal 2>/dev/null || $UP cert-portal it-portal
+  else
+    $UP cert-portal it-portal
+  fi
   sleep 8
   if [ "${FP_SKIP_SIDECARS:-0}" != "1" ] && [ -x "$DIR/scripts/setup-sidecars.sh" ]; then
     step "6a/8 Sidecars HELK / Velociraptor (avant Nginx)"
@@ -2731,6 +2736,7 @@ urls() {
   echo -e "${CYAN}║              ACCÈS À LA PLATEFORME v2.1 (HTTPS)                  ║${NC}"
   echo -e "${CYAN}╠════════════════════════════════════════════════════════════════════╣${NC}"
   echo -e "${CYAN}║${NC} ${GREEN}Portail CERT${NC}              https://${IP}/"
+  echo -e "${CYAN}║${NC}   admin / F0r3ns1c_Portal_2024!  (ou grep CERT_PORTAL_SECRET .env)"
   echo -e "${CYAN}║${NC} ${GREEN}Portail IT${NC} (TLS chiffré)   https://${IP}/it/?token=<TOKEN>"
   echo -e "${CYAN}╠════════════════════════════════════════════════════════════════════╣${NC}"
   echo -e "${CYAN}║${NC} ${GREEN}OpenSearch Dashboards${NC}    https://${IP}/dashboards/"
@@ -3087,6 +3093,20 @@ case "${1:-help}" in
       err "scripts/repair-velociraptor-access.sh absent"; exit 1
     fi
     ;;
+  repair-env|fix-env)
+    if [ -x "$DIR/scripts/repair-env-file.sh" ]; then
+      bash "$DIR/scripts/repair-env-file.sh" --reset-portal
+    else
+      err "scripts/repair-env-file.sh absent"; exit 1
+    fi
+    ;;
+  reset-portal-admin)
+    if [ -x "$DIR/scripts/reset-portal-admin.sh" ]; then
+      bash "$DIR/scripts/reset-portal-admin.sh"
+    else
+      err "scripts/reset-portal-admin.sh absent"; exit 1
+    fi
+    ;;
   diagnose-vr|diagnose-velociraptor)
     if [ -x "$DIR/scripts/diagnose-velociraptor-502.sh" ]; then
       bash "$DIR/scripts/diagnose-velociraptor-502.sh"
@@ -3396,6 +3416,8 @@ case "${1:-help}" in
     echo "  reset             ⚠️  Supprimer TOUTES les données"
     echo "  fix-opensearch    ⚡ Corriger erreur Lucene codec OpenSearch"
     echo "  repair-vr         ⚡ Réparer Velociraptor (502 / sidecar GUI)"
+    echo "  repair-env        ⚡ Réparer .env corrompu + reset admin portail"
+    echo "  reset-portal-admin  Réinitialiser admin CERT (users.json)"
     echo "  align-host        🌐 Réaligner IP hôte (portails, TLS, nginx, VR)"
     ;;
 esac

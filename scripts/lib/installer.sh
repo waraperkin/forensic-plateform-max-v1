@@ -1458,6 +1458,22 @@ fp_start_tests() {
     fail_count=$((fail_count+1))
   fi
 
+  local portal_user portal_pass portal_code portal_host
+  portal_host=$(fp_url_identity 2>/dev/null || fp_detect_public_ip 2>/dev/null || echo "127.0.0.1")
+  portal_user=$(grep -E '^PORTAL_ADMIN_USER=' "${DIR:-.}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || echo "admin")
+  portal_pass=$(grep -E '^CERT_PORTAL_SECRET=' "${DIR:-.}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || echo "F0r3ns1c_Portal_2024!")
+  portal_code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 12 \
+    -X POST "http://127.0.0.1:${FP_CERT_PORTAL_PORT:-3000}/api/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d "{\"username\":\"${portal_user}\",\"password\":\"${portal_pass}\"}" 2>/dev/null || echo "000")
+  if [ "$portal_code" = "200" ]; then
+    ok "Portail CERT login → OK (${portal_user})"
+    ok_count=$((ok_count+1))
+  else
+    warn "Portail CERT login → $portal_code (attendu 200 — voir ensure-portal-admin / .env)"
+    fail_count=$((fail_count+1))
+  fi
+
   echo ""
   info "Bilan tests: ${ok_count} OK · ${fail_count} KO"
   fp_log start "bilan tests: OK=$ok_count FAIL=$fail_count"
@@ -1491,11 +1507,15 @@ _fp_bootstrap_ensure_openssl() {
 
 _fp_bootstrap_env_file() {
   local root="${DIR:-.}"
+  if [ ! -f "$root/.env.example" ]; then
+    err ".env.example absent — git pull depuis v2/main"
+    return 1
+  fi
+  if ! grep -qE '^POSTGRES_PASSWORD=' "$root/.env.example" 2>/dev/null; then
+    err ".env.example invalide (clés traduites ?) — git pull, ne pas traduire les noms de variables"
+    return 1
+  fi
   if [ ! -f "$root/.env" ]; then
-    if [ ! -f "$root/.env.example" ]; then
-      err ".env absent et .env.example introuvable"
-      return 1
-    fi
     cp "$root/.env.example" "$root/.env"
     ok ".env créé depuis .env.example"
     fp_log install ".env created from .env.example"
@@ -1511,6 +1531,7 @@ _fp_bootstrap_env_file() {
     cp "$root/.env.example" "$root/.env"
     ok ".env sauvegardé → .env.corrupt.${ts}.bak puis recréé depuis .env.example"
     fp_log install ".env repaired from corrupt keys"
+    export FP_RECREATE_CERT_PORTAL=1
   fi
   _fp_bootstrap_env_complete || return 1
   return 0

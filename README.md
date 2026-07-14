@@ -150,8 +150,9 @@ Alias équivalents : `./forensic.sh full-start`, `./forensic.sh full`, `./forens
 
 Sur une machine vierge, **aucune configuration manuelle** n’est requise :
 
-1. Copie `.env.example` → `.env` et génération des **secrets** (MinIO, MySQL/MISP, OpenCTI, portails, Grafana, TheHive, Cortex, etc.)
-2. **Détection automatique de l’IP publique** (`scripts/lib/host-ip.sh`) :
+1. Copie `.env.example` → `.env` et génération des **secrets labo documentés** (`F0r3ns1c_*` — portail, MISP, OpenCTI, Grafana, MinIO, etc.)
+2. **Réparation automatique** si `.env` corrompu (clés traduites type `MOT_DE_PASSE_*`, `HÔTE_PUBLIC`) : sauvegarde `.env.corrupt.*.bak`, recréation depuis `.env.example`
+3. **Détection automatique de l’IP publique** (`scripts/lib/host-ip.sh`) :
    - variable `PUBLIC_HOST` si définie explicitement ;
    - sinon **IMDS AWS** (`public-ipv4`) sur EC2 ;
    - sinon première IP routable de l’hôte ;
@@ -160,16 +161,17 @@ Sur une machine vierge, **aucune configuration manuelle** n’est requise :
 4. Génération **TLS** : CA interne, certificat serveur (SAN = IP détectée), certs portails / HELK / Velociraptor
 5. Création des dossiers persistants, patch Nginx / portails / `timesketch.conf`
 6. Création des réseaux Docker externes `helk_net` (172.30.0.0/24) et `velociraptor_net` (172.31.0.0/24)
+7. **Post-démarrage** : synchronisation admin portail CERT (`ensure-portal-admin.sh`), Velociraptor (port hôte **18000**), test login automatique
 
-> **Important :** ne pas éditer manuellement les URLs dans `.env.example` avec une IP fixe. Laisser `PUBLIC_HOST=` vide : le bootstrap remplit tout au premier `./forensic.sh -full-start`.
+> **Important :** ne **jamais traduire** les noms de variables dans `.env` / `.env.example` (uniquement des clés ASCII `POSTGRES_PASSWORD`, `PUBLIC_HOST`, …). Ne pas éditer manuellement les URLs avec une IP fixe : laisser `PUBLIC_HOST=` vide.
 
 ### Déploiement sur VM AWS (EC2)
 
 Procédure recommandée sur une instance **vierge** (Ubuntu 22.04+ ou Debian 12) :
 
 ```bash
-git clone https://github.com/waraperkin/forensic-minimal.git
-cd forensic-minimal
+git clone https://github.com/waraperkin/forensic-minimal-v2.git
+cd forensic-minimal-v2
 ./scripts/preflight-full-start.sh
 ./forensic.sh -full-start
 ```
@@ -249,7 +251,9 @@ Tous les services passent par **HTTPS** (certificat auto-signé — accepter l�
 
 **Timesketch direct (sans Nginx) :** `http://<IP>:5000/`
 
-**Identifiants portail CERT (premier boot) :** si aucun utilisateur n’existe encore, le compte bootstrap est `admin` avec le mot de passe par défaut `F0r3ns1c_Portal_2024!` (surchargeable via `PORTAL_ADMIN_USER` / `PORTAL_ADMIN_PASSWORD`). Les autres secrets sont dans `.env` — **ne jamais committer ce fichier**.
+**Identifiants portail CERT (premier boot) :** après bootstrap, connexion **`admin` / `F0r3ns1c_Portal_2024!`** (valeur `CERT_PORTAL_SECRET` dans `.env`). Le full-start exécute `ensure-portal-admin.sh` pour aligner le compte local. Dépannage manuel : `./forensic.sh repair-env` ou `./scripts/reset-portal-admin.sh`.
+
+Les autres secrets labo sont dans `.env` (Centre d’accès du portail CERT) — **ne jamais committer ce fichier**.
 
 ### Secrets et mots de passe labo (`lib/platform-secrets.js`)
 

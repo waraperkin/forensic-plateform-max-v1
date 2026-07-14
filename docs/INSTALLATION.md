@@ -173,7 +173,9 @@ chmod +x forensic.sh
 ### 4.4 Fichiers sensibles
 
 - **Ne pas** créer `.env` à la main : le bootstrap Phase 0 le génère depuis `.env.example`.
+- **Ne jamais traduire** les noms de variables (ex. `POSTGRES_PASSWORD`, pas `MOT_DE_PASSE_POSTGRES`).
 - **Ne jamais** committer `.env` (secrets générés localement).
+- Si `.env` est corrompu : `./forensic.sh -full-start` le répare automatiquement, ou `./forensic.sh repair-env` en dépannage ciblé.
 
 ---
 
@@ -210,7 +212,7 @@ Messages attendus :
 [ OK ] Bootstrap machine vierge terminé (.env + TLS + dossiers)
 ```
 
-Actions automatiques : copie `.env`, génération secrets (MinIO, MySQL/MISP, OpenCTI, portails…), CA + certificat serveur, `timesketch.conf`, patch `soc_base_url` des portails.
+Actions automatiques : copie `.env`, secrets labo `F0r3ns1c_*`, réparation clés traduites, CA + certificat serveur, `timesketch.conf`, patch portails, sync admin portail CERT (`ensure-portal-admin.sh`).
 
 #### Phases 1–3 — Système, dépendances, monorepo
 

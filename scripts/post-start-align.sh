@@ -73,6 +73,10 @@ fi
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^velociraptor-server$'; then
   VR_ADMIN="${VELOCIRAPTOR_ADMIN_USER:-admin}"
   VR_PASS="${VELOCIRAPTOR_ADMIN_PASSWORD:-F0r3ns1c_VR_2024!}"
+  if [ -f "$ROOT/.env" ]; then
+    _vr_pass=$(grep -E '^VELOCIRAPTOR_ADMIN_PASSWORD=' "$ROOT/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || true)
+    [ -n "$_vr_pass" ] && VR_PASS="$_vr_pass"
+  fi
   docker exec velociraptor-server test -f /data/.admin_bootstrapped 2>/dev/null \
     || docker exec velociraptor-server velociraptor --config /config/server.config.yaml \
       user add --role administrator "$VR_ADMIN" "$VR_PASS" 2>/dev/null || true
@@ -102,6 +106,13 @@ if [ -x "$ROOT/scripts/render-velociraptor-nginx-snippet.sh" ]; then
   bash "$ROOT/scripts/render-velociraptor-nginx-snippet.sh" >> "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" 2>&1 || true
 fi
 docker exec forensic-nginx nginx -s reload 2>/dev/null && log "Nginx rechargé" || log "WARN reload nginx"
+
+# Portail CERT — admin aligné sur CERT_PORTAL_SECRET (.env)
+if [ -x "$ROOT/scripts/ensure-portal-admin.sh" ]; then
+  bash "$ROOT/scripts/ensure-portal-admin.sh" >> "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" 2>&1 \
+    && log "Portail CERT — admin synchronisé (.env)" \
+    || { log "ERREUR ensure-portal-admin"; exit 1; }
+fi
 
 # Validation finale HTTPS (échec = full-start incomplet)
 if [ -x "$ROOT/scripts/verify-platform-ready.sh" ]; then

@@ -15,6 +15,7 @@ STATIC_TESTS=(
   test_proxy_subpath_config.sh
   test_bootstrap_fresh_install.sh
   test_bootstrap_prepare_host.sh
+  test_bootstrap_env_corrupt.sh
   test_env_canonical.sh
   test_no_lab_ip_residual.sh
   test_nginx_config.sh
@@ -50,6 +51,8 @@ done
 echo "── checks structurels ──"
 for req in \
   "scripts/ensure-velociraptor-sidecar.sh" \
+  "scripts/ensure-portal-admin.sh" \
+  "scripts/repair-env-file.sh" \
   "scripts/setup-sidecars.sh" \
   "scripts/post-start-align.sh" \
   "scripts/verify-platform-ready.sh" \
@@ -90,11 +93,12 @@ if [ "$fail" -eq 0 ]; then
   echo "✅ PREFLIGHT OK — $passed tests statiques passés"
   echo ""
   echo "Procédure zero-touch (VM AWS — Security Group : TCP 80 + 443) :"
-  echo "  git clone https://github.com/waraperkin/forensic-minimal.git"
-  echo "  cd forensic-minimal"
+  echo "  git clone https://github.com/waraperkin/forensic-minimal-v2.git"
+  echo "  cd forensic-minimal-v2"
   echo "  ./scripts/preflight-full-start.sh"
   echo "  ./forensic.sh -full-start"
   echo ""
+  echo "Portail CERT : https://<IP>/  (admin / F0r3ns1c_Portal_2024!)"
   echo "Velociraptor : https://<IP>/velociraptor/  (admin / F0r3ns1c_VR_2024!)"
   exit 0
 fi

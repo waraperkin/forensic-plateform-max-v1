@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OBJECTS="$ROOT/docker/helk-kibana/objects"
-KIBANA="${KIBANA_URL:-http://127.0.0.1:15601/helk/kibana}"
+KIBANA="${KIBANA_URL:-http://127.0.0.1:${FP_HELK_KIBANA_PORT:-15602}}"
 
 import_one() {
   local f="$1"

@@ -14,7 +14,8 @@ fp_align_env_public_ip 2>/dev/null || true
 PUBLIC_HOST="${PUBLIC_HOST:-$(fp_url_identity 2>/dev/null || fp_detect_public_ip 2>/dev/null || fp_resolve_public_host 2>/dev/null || echo "localhost")}"
 PUBLIC_HOST=$(fp_normalize_host "$PUBLIC_HOST" 2>/dev/null || echo "$PUBLIC_HOST")
 export PUBLIC_HOST
-export HELK_KIBANA_PUBLIC_URL="https://${PUBLIC_HOST}/helk/kibana"
+FP_ORIGIN="$(fp_public_https_origin 2>/dev/null || echo "https://${PUBLIC_HOST}")"
+export HELK_KIBANA_PUBLIC_URL="${HELK_KIBANA_PUBLIC_URL:-${FP_ORIGIN}/helk/kibana}"
 export FP_VR_NGINX_ONLY="${FP_VR_NGINX_ONLY:-1}"
 
 step() { echo -e "\n\033[0;34m━━━ $* ━━━\033[0m"; }
@@ -42,11 +43,17 @@ HELK_KIBANA_PUBLIC_URL="$HELK_KIBANA_PUBLIC_URL" \
   || warn "HELK sidecar partiel (Kafka non requis pour Kibana)"
 
 for i in $(seq 1 40); do
-  curl -sf http://127.0.0.1:19200/_cluster/health >/dev/null 2>&1 && break
+  curl -sf "http://127.0.0.1:${FP_HELK_ES_PORT:-19201}/_cluster/health" >/dev/null 2>&1 && break
   sleep 3
 done
-if curl -sf http://127.0.0.1:19200/_cluster/health >/dev/null 2>&1; then
+if curl -sf "http://127.0.0.1:${FP_HELK_ES_PORT:-19201}/_cluster/health" >/dev/null 2>&1; then
   ok "HELK Elasticsearch (19200)"
+  if [ -x "$ROOT/scripts/ensure-helk-kibana-objects.sh" ]; then
+    bash "$ROOT/scripts/ensure-helk-kibana-objects.sh" 2>&1 \
+      | tee -a "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" \
+      && ok "HELK Kibana objects (index-patterns + dashboards)" \
+      || warn "HELK Kibana import partiel"
+  fi
 else
   warn "HELK ES pas prêt — /helk/kibana/ peut être indisponible"
 fi

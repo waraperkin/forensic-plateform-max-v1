@@ -2,7 +2,11 @@
 # Import dashboards HELK full config (sidecar indices)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-KIBANA="${KIBANA_URL:-http://127.0.0.1:15601/helk/kibana}"
+KIBANA="${KIBANA_URL:-${BASE_URL:-http://127.0.0.1:15602}}"
+KIBANA="${KIBANA%/}"
+if [[ "$KIBANA" != */helk/kibana ]]; then
+  KIBANA="${KIBANA}/helk/kibana"
+fi
 CUSTOM="$ROOT/config/kibana/dashboards"
 
 import_one() {

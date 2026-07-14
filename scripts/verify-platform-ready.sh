@@ -58,6 +58,14 @@ echo ""
 echo "--- DFIR / Hunting ---"
 check "HELK Kibana" "/helk/kibana/" "200|302" || fail=1
 check "HELK API" "/helk/api/" "200" || fail=1
+helk_patterns=$(curl -sk --max-time 15 "${BASE}/helk/kibana/api/saved_objects/_find?type=index-pattern&per_page=20" \
+  -H 'kbn-xsrf: true' 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)
+if [ "${helk_patterns:-0}" -gt 0 ]; then
+  echo "PASS: HELK index patterns (${helk_patterns})"
+else
+  echo "FAIL: HELK index patterns absents (Discover vide)" >&2
+  fail=1
+fi
 check "Velociraptor GUI" "/velociraptor/" "200|302|307|401" || fail=1
 check "Velociraptor app" "/velociraptor/app/index.html" "200|302|307|401" || fail=1
 check "Velociraptor API" "/velociraptor/api/health" "200" || fail=1

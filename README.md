@@ -308,8 +308,8 @@ Depuis le **portail CERT** : liens vers HELK, Velociraptor, OpenCTI, Timesketch,
 
 ### Hunting & DFIR
 
-- **HELK** : Kibana hunting, règles Sigma, ingestion lab
-- **Velociraptor** : collecte endpoint, export vers la plateforme via bridge
+- **HELK** : Kibana hunting, règles Sigma, ingestion lab — **index patterns** (`helk-sysmon-*`, `helk-detections-*`, etc.) importés automatiquement au démarrage via `scripts/ensure-helk-kibana-objects.sh` (Windows : `node scripts/helk-kibana-import.mjs`)
+- **Velociraptor** : collecte endpoint, export vers la plateforme via bridge — `GUI.public_url` et `trusted_origins` alignés sur `FP_HTTPS_PORT` (ex. `:8443`)
 
 Scripts de setup sidecar : `scripts/setup-sidecars.sh` (automatique à chaque `full-start`) ou `scripts/helk_velociraptor_master_setup.sh` (setup complet lab).
 
@@ -510,6 +510,9 @@ python3 scripts/opensearch_siem_full_verify.py
 | Timesketch **502** / health DOWN | `node scripts/generate-timesketch-conf.mjs` puis recreate `timesketch-web` — vérifier alignement `POSTGRES_PASSWORD` (.env) |
 | MISP login **sans CSS** (assets 302) | Recharger nginx (`docker exec forensic-nginx nginx -s reload`) — locations `^~ /misp/css/` dans `forensic.conf` |
 | Velociraptor **503** API / redirect loop | `Frontend.hostname: 127.0.0.1` dans `velociraptor/config/server.config.yaml` ; upstream statique `u_velociraptor_gui` (pas `$variable`) ; `./forensic.sh repair-vr` |
+| Velociraptor **Forbidden - origin invalid** | `GUI.public_url` doit inclure le port (`https://localhost:8443/velociraptor/app/index.html`) + `trusted_origins` ; nginx : `Host`/`X-Forwarded-Host` = `$http_host` ; `bash velociraptor/scripts/generate-config.sh` puis recreate `velociraptor-server` |
+| HELK Discover **vide** (0 index pattern) | `node scripts/helk-kibana-import.mjs` ou `bash scripts/ensure-helk-kibana-objects.sh` — intégré à `post-start-align.sh` / `setup-sidecars.sh` |
+| HELK Discover **sans événements** | Élargir la plage temporelle (ex. **7 jours**) — les données lab datent de jours précédents, pas des 15 dernières minutes |
 | Portail / outils inaccessibles depuis le navigateur (AWS) | Vérifier Security Group TCP 80/443 ; utiliser l’**IP publique** (`./forensic.sh urls`), pas l’IP privée EC2 |
 | URLs ou Grafana/MISP cassés (mauvaise IP) | `PUBLIC_HOST=<ip-publique> ./forensic.sh tls` puis `docker compose up -d --force-recreate nginx cert-portal it-portal grafana` |
 | MISP login boucle / CSRF | `bash scripts/misp-configure-host.sh` puis recharger `/misp/` |

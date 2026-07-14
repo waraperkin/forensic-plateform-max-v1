@@ -3,3 +3,4 @@
 {"attributes":{"title":"helk-windows-*","timeFieldName":"@timestamp"},"id":"helk-windows-ip","type":"index-pattern","references":[],"migrationVersion":{"index-pattern":"7.10.0"},"coreMigrationVersion":"7.17.16","version":"WzEsMV0="}
 {"attributes":{"title":"helk-zeek-*","timeFieldName":"@timestamp"},"id":"helk-zeek-ip","type":"index-pattern","references":[],"migrationVersion":{"index-pattern":"7.10.0"},"coreMigrationVersion":"7.17.16","version":"WzEsMV0="}
 {"attributes":{"title":"helk-detections-*","timeFieldName":"@timestamp"},"id":"helk-detections-ip","type":"index-pattern","references":[],"migrationVersion":{"index-pattern":"7.10.0"},"coreMigrationVersion":"7.17.16","version":"WzEsMV0="}
+{"attributes":{"title":"helk-logs-*","timeFieldName":"@timestamp"},"id":"helk-logs-ip","type":"index-pattern","references":[],"migrationVersion":{"index-pattern":"7.10.0"},"coreMigrationVersion":"7.17.16","version":"WzEsMV0="}

@@ -57,8 +57,12 @@ sigma_once() {
 
 import_kibana() {
   step "Import dashboards Kibana"
-  bash "$ROOT/scripts/kibana-import-sidecar.sh" 2>/dev/null || true
-  bash "$ROOT/scripts/kibana-import-full.sh" 2>/dev/null || true
+  if [ -x "$FM/scripts/ensure-helk-kibana-objects.sh" ]; then
+    bash "$FM/scripts/ensure-helk-kibana-objects.sh" || true
+  else
+    bash "$ROOT/scripts/kibana-import-sidecar.sh" 2>/dev/null || true
+    bash "$ROOT/scripts/kibana-import-full.sh" 2>/dev/null || true
+  fi
 }
 
 start_sigma_daemon() {

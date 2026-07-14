@@ -14,8 +14,9 @@ fi
 HOST=$(fp_url_identity 2>/dev/null || fp_detect_public_ip 2>/dev/null || echo "localhost")
 HOST=$(fp_normalize_host "$HOST" 2>/dev/null || echo "$HOST")
 export PUBLIC_HOST="${PUBLIC_HOST:-$HOST}"
-export HELK_KIBANA_PUBLIC_URL="https://${HOST}/helk/kibana"
-export MISP_PUBLIC_BASE_URL="$(fp_misp_public_base_url 2>/dev/null || echo "https://${HOST}/misp")"
+FP_ORIGIN="$(fp_public_https_origin 2>/dev/null || echo "https://${HOST}")"
+export HELK_KIBANA_PUBLIC_URL="${HELK_KIBANA_PUBLIC_URL:-${FP_ORIGIN}/helk/kibana}"
+export MISP_PUBLIC_BASE_URL="$(fp_misp_public_base_url 2>/dev/null || echo "${FP_ORIGIN}/misp")"
 
 log() { echo "[post-start] $*"; }
 
@@ -80,6 +81,15 @@ fi
 docker compose up -d helk-bridge velociraptor-bridge nginx 2>/dev/null \
   || docker compose up -d helk-bridge velociraptor-bridge nginx 2>/dev/null \
   || true
+
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^helk-kibana$'; then
+  if [ -x "$ROOT/scripts/ensure-helk-kibana-objects.sh" ]; then
+    bash "$ROOT/scripts/ensure-helk-kibana-objects.sh" >> "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" 2>&1 \
+      && log "HELK Kibana index-patterns + dashboards OK" \
+      || log "WARN ensure-helk-kibana-objects"
+  fi
+fi
+
 if [ -x "$ROOT/scripts/render-velociraptor-nginx-snippet.sh" ]; then
   bash "$ROOT/scripts/render-velociraptor-nginx-snippet.sh" >> "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" 2>&1 || true
 fi
@@ -87,7 +97,7 @@ docker exec forensic-nginx nginx -s reload 2>/dev/null && log "Nginx rechargé" 
 
 # Validation finale HTTPS (échec = full-start incomplet)
 if [ -x "$ROOT/scripts/verify-platform-ready.sh" ]; then
-  BASE_URL="https://${HOST}" bash "$ROOT/scripts/verify-platform-ready.sh" \
+  BASE_URL="${BASE_URL:-$FP_ORIGIN}" bash "$ROOT/scripts/verify-platform-ready.sh" \
     >> "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" 2>&1 \
     && log "verify-platform-ready OK" \
     || { log "ERREUR verify-platform-ready (Velociraptor/HELK/MISP)"; exit 1; }

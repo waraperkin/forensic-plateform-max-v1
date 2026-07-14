@@ -133,6 +133,13 @@ cfg["API"]["bind_address"] = "0.0.0.0"
 cfg["API"]["bind_port"] = 8002
 # public_url — VR 0.76+ exige /app/index.html si base_path est défini (nginx gère le chemin)
 cfg.setdefault("GUI", {})["public_url"] = f"{origin}/velociraptor/app/index.html"
+trusted_host = host
+trusted = [trusted_host]
+if ":" in trusted_host:
+    trusted.append(trusted_host.split(":", 1)[0])
+else:
+    trusted.append(trusted_host)
+cfg.setdefault("GUI", {})["trusted_origins"] = list(dict.fromkeys(trusted))
 cfg.setdefault("GUI", {})["base_path"] = "/velociraptor"
 cfg.setdefault("Frontend", {})["base_path"] = "/velociraptor"
 cfg.setdefault("Datastore", {})

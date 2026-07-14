@@ -63,9 +63,12 @@ done
 
 _fp_nginx_docker_add_hosts() {
   local host
-  # upstream { server name:port } + set $var name:port (HELK / VR)
-  grep -oE '(server |set \$[a-z_]+ )[a-zA-Z0-9._-]+:' "$CONF" 2>/dev/null \
-    | awk '{print $NF}' | tr -d ':' | sort -u \
+  # upstream { server name:port } + set $var name:port + proxy_pass http://name:port
+  {
+    grep -oE '(server |set \$[a-z_]+ )[a-zA-Z0-9._-]+:' "$CONF" 2>/dev/null || true
+    grep -oE 'proxy_pass https?://[a-zA-Z0-9._-]+:' "$CONF" 2>/dev/null \
+      | sed -E 's|proxy_pass https?://||' || true
+  } | awk -F: '{print $1}' | sort -u \
     | while read -r host; do
         [ -n "$host" ] && printf '%s\n' "--add-host" "${host}:127.0.0.1"
       done

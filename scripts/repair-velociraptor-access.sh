@@ -31,8 +31,8 @@ if grep -qE 'proxy_pass https://\$velociraptor_upstream' "$CONF" 2>/dev/null; th
   sed -i 's|proxy_pass https://\$velociraptor_upstream/velociraptor/;|proxy_pass http://$velociraptor_upstream/velociraptor/;|g' "$CONF"
   sed -i '/proxy_ssl_verify off;/d' "$CONF"
 fi
-if ! grep -q 'u_velociraptor_gui' "$CONF" 2>/dev/null; then
-  log "PATCH: upstream VR → velociraptor-server (Docker DNS)"
+if ! grep -q 'set \$velociraptor_upstream' "$CONF" 2>/dev/null; then
+  log "ATTENTION: set \$velociraptor_upstream absent — mettre à jour forensic.conf (upstream dynamique)"
 fi
 
 if [ ! -x "$ROOT/scripts/ensure-velociraptor-sidecar.sh" ]; then

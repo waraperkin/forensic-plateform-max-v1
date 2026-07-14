@@ -526,7 +526,7 @@ python3 scripts/opensearch_siem_full_verify.py
 |----------|--------|
 | Timesketch **502** / health DOWN | `node scripts/generate-timesketch-conf.mjs` puis recreate `timesketch-web` — vérifier alignement `POSTGRES_PASSWORD` (.env) |
 | MISP login **sans CSS** (assets 302) | Recharger nginx (`docker exec forensic-nginx nginx -s reload`) — locations `^~ /misp/css/` dans `forensic.conf` |
-| Velociraptor **503** API / redirect loop | `Frontend.hostname: 127.0.0.1` dans `velociraptor/config/server.config.yaml` ; upstream statique `u_velociraptor_gui` (pas `$variable`) ; `./forensic.sh repair-vr` |
+| Velociraptor **503** API / redirect loop | `Frontend.hostname: 127.0.0.1` dans `velociraptor/config/server.config.yaml` ; upstream dynamique `$velociraptor_upstream` (HTTP plain) ; `./forensic.sh repair-vr` |
 | Velociraptor **Forbidden - origin invalid** | `GUI.public_url` doit inclure le port (`https://localhost:8443/velociraptor/app/index.html`) + `trusted_origins` ; nginx : `Host`/`X-Forwarded-Host` = `$http_host` ; `bash velociraptor/scripts/generate-config.sh` puis recreate `velociraptor-server` |
 | HELK Discover **vide** (0 index pattern) | `node scripts/helk-kibana-import.mjs` ou `bash scripts/ensure-helk-kibana-objects.sh` — intégré à `post-start-align.sh` / `setup-sidecars.sh` |
 | HELK Discover **sans événements** | Élargir la plage temporelle (ex. **7 jours**) — les données lab datent de jours précédents, pas des 15 dernières minutes |

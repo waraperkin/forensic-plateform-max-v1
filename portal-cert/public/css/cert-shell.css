@@ -603,6 +603,16 @@ html[data-portal="cert"] body {
   margin-top: 8px;
   flex-wrap: wrap;
 }
+[data-portal="cert"] .fp-ac-cred-inline {
+  margin-top: var(--fp-space-2, 12px);
+  font-size: 0.85rem;
+}
+[data-portal="cert"] .fp-ac-cred-inline code.cc-cred-pw {
+  font-family: var(--fp-font-mono, ui-monospace, monospace);
+}
+[data-portal="cert"] .cc-access-syncbar {
+  margin-bottom: var(--fp-space-2, 12px);
+}
 [data-portal="cert"] .fp-ac-cred-grid {
   gap: var(--fp-space-2, 12px);
 }

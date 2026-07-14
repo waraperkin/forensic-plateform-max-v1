@@ -282,9 +282,9 @@ app.get('/api/credentials', async (req, res) => {
   }
 
   const baseHttps = publicUrl('');
-  const reveal = req.user.role === 'admin' && req.query.reveal === '1';
+  const reveal = req.user.role === 'admin';
   const cred = (key, fallback = '—') => getCredential(key, fallback);
-  const show = (v) => (reveal ? v : maskSecret(v));
+  const show = (v) => (reveal ? String(v ?? '—') : maskSecret(v));
   const entries = [
     { service: 'OpenCTI', url: `${baseHttps}/cti/`, login: cred('OPENCTI_ADMIN_EMAIL', 'admin@forensic.local'), password: show(cred('OPENCTI_ADMIN_PASSWORD')), role: 'Administrateur CTI' },
     { service: 'MISP', url: process.env.MISP_PUBLIC_BASE_URL || process.env.MISP_PUBLIC_URL || `${baseHttps}/misp/`, login: cred('MISP_ADMIN_EMAIL', 'admin@forensic.local'), password: show(cred('MISP_ADMIN_PASSWORD')), role: 'Site admin' },
@@ -312,7 +312,7 @@ app.get('/api/credentials', async (req, res) => {
     masked: !reveal,
     sync: syncMeta,
     note: reveal
-      ? 'Référence interne — secrets synchronisés automatiquement depuis les conteneurs Docker actifs.'
+      ? 'Référence interne — secrets synchronisés automatiquement (.env + conteneurs Docker).'
       : 'Référence interne — mots de passe masqués.',
   });
 });

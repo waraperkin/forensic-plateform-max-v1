@@ -72,7 +72,7 @@ function acUrlRow(t) {
     </tr>`;
 }
 
-function acToolCard(t, groupKey) {
+function acToolCard(t, groupKey, cred) {
   const base = acBase();
   const url = `${base}${t.path}`;
   const name = t.name;
@@ -82,12 +82,23 @@ function acToolCard(t, groupKey) {
         : (groupKey || '').includes('portals') ? 'dash'
           : 'situation';
   const abbr = String(name || '??').replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase() || 'SOC';
+  const login = cred?.login && cred.login !== '—' ? cred.login : null;
+  const password = cred?.password && cred.password !== '—' ? cred.password : null;
+  const credHtml = (login || password)
+    ? `<div class="fp-ac-cred-inline">
+        ${login ? `<div class="fp-ac-cred-row"><span class="fp-muted">${i18n.t('table_cols.login')}</span> <code>${acEsc(login)}</code>
+          <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-ac-copy-text="${acEsc(login)}">${i18n.t('ui.copy')}</button></div>` : ''}
+        ${password ? `<div class="fp-ac-cred-row"><span class="fp-muted">${i18n.t('table_cols.password')}</span> <code class="cc-cred-pw">${acEsc(password)}</code>
+          <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-ac-copy-text="${acEsc(password)}">${i18n.t('ui.copy')}</button></div>` : ''}
+      </div>`
+    : `<div class="fp-ac-cred-inline fp-muted">${i18n.t('access.no_local_auth')}</div>`;
   return `
     <button type="button" class="fp-ds-card fp-ds-card-interactive fp-ac-card" data-ac-open="${acEsc(url)}" data-ac-icon="${acEsc(iconKey)}">
       <span class="fp-svc-card-icon fp-ac-card-badge" aria-hidden="true">${acEsc(abbr)}</span>
       <div class="fp-ds-card-label">${acEsc(name)}</div>
       <div class="fp-ds-card-value">${i18n.t('ui.open')}</div>
       <div class="fp-ds-card-meta"><code>${acEsc(url)}</code></div>
+      ${credHtml}
       <div class="fp-ac-card-actions">
         <span class="fp-btn fp-btn-sm fp-btn-primary fp-ac-card-open">${i18n.t('ui.open')}</span>
         <span class="fp-btn fp-btn-sm fp-btn-ghost fp-ac-card-copy" data-ac-copy="${acEsc(url)}">${i18n.t('ui.copy')}</span>
@@ -95,12 +106,12 @@ function acToolCard(t, groupKey) {
     </button>`;
 }
 
-function acGroupedUrlSections() {
+function acGroupedUrlSections(credMap = {}) {
   return acToolGroups().map((group) => `
     <section class="cc-ac-domain-group cc-pro-panel fp-section-spaced">
       <h3 class="fp-section-sub">${i18n.t(group.titleKey)}</h3>
       <div class="fp-ds-grid fp-ds-grid-3 fp-ac-grid">
-        ${group.tools.map((t) => acToolCard(t, group.titleKey)).join('')}
+        ${group.tools.map((t) => acToolCard(t, group.titleKey, credMap[t.name])).join('')}
       </div>
     </section>`).join('');
 }
@@ -180,16 +191,41 @@ function acPortRows() {
     </tr>`).join('');
 }
 
-async function acCredentialRows(reveal = false) {
-  try {
-    const q = reveal ? '?reveal=1' : '';
-    const r = await fetch(`/api/credentials${q}`, { credentials: 'include', cache: 'no-store' });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const data = await r.json();
-    const rows = data.credentials || [];
-    if (!rows.length) return `<p class="fp-muted">${i18n.t('ui.entry_empty')}</p>`;
-    return `<div class="fp-ds-grid fp-ds-grid-3 fp-ac-cred-grid">${
-      rows.map((c) => `
+const AC_TOOL_CRED_SERVICE = {
+  'OpenSearch Dashboards': 'OpenSearch Dashboards',
+  Grafana: 'Grafana',
+  Timesketch: 'Timesketch',
+  'HELK Kibana': 'HELK Kibana',
+  Logstash: 'Logstash',
+  TheHive: 'TheHive',
+  Velociraptor: 'Velociraptor',
+  OpenCTI: 'OpenCTI',
+  MISP: 'MISP',
+  Cortex: 'Cortex',
+  MinIO: 'MinIO',
+};
+
+async function acFetchCredentials() {
+  const r = await fetch('/api/credentials?reveal=1&refresh=1', { credentials: 'include', cache: 'no-store' });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const data = await r.json();
+  const byService = Object.create(null);
+  for (const c of data.credentials || []) {
+    byService[c.service] = c;
+  }
+  const byTool = Object.create(null);
+  for (const [toolName, serviceName] of Object.entries(AC_TOOL_CRED_SERVICE)) {
+    if (byService[serviceName]) byTool[toolName] = byService[serviceName];
+  }
+  byTool[i18n.t('access.portal_cert')] = byService['Portail CERT'];
+  byTool[i18n.t('health.portal_it')] = byService['Portail IT'];
+  return { rows: data.credentials || [], byTool, sync: data.sync || null };
+}
+
+function acCredentialRows(rows) {
+  if (!rows.length) return `<p class="fp-muted">${i18n.t('ui.entry_empty')}</p>`;
+  return `<div class="fp-ds-grid fp-ds-grid-3 fp-ac-cred-grid">${
+    rows.map((c) => `
       <div class="fp-ds-card fp-ac-cred-card">
         <div class="fp-ds-card-label">${acEsc(c.service)}</div>
         <div class="fp-ds-card-meta">${acEsc(c.role || '—')}</div>
@@ -200,10 +236,7 @@ async function acCredentialRows(reveal = false) {
           <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-ac-copy-text="${acEsc(c.password)}">${i18n.t('ui.copy')}</button>
         </div>
       </div>`).join('')
-    }</div>`;
-  } catch (e) {
-    return `<p class="fp-alert fp-alert-err">${acEsc(e.message)}</p>`;
-  }
+  }</div>`;
 }
 
 async function loadAccessCenter() {
@@ -214,6 +247,20 @@ async function loadAccessCenter() {
   await new Promise((resolve) => PortalConfig.whenReady(resolve));
   const base = acBase();
   const isAdmin = window.PortalSession?.isAdmin;
+
+  let credPack = { rows: [], byTool: {}, sync: null };
+  if (isAdmin) {
+    try {
+      credPack = await acFetchCredentials();
+    } catch (e) {
+      root.innerHTML = `<p class="fp-alert fp-alert-err">${acEsc(e.message)}</p>`;
+      return;
+    }
+  }
+
+  const syncNote = credPack.sync?.ok
+    ? `<p class="fp-muted cc-access-syncbar">${i18n.t('access.credentials_sync_ok', { count: credPack.sync.keys || credPack.rows.length })}</p>`
+    : '';
 
   root.innerHTML = `
     <p class="cc-panel-lead">${i18n.t('access.lead')}</p>
@@ -226,22 +273,20 @@ async function loadAccessCenter() {
       <button type="button" class="fp-btn fp-btn-primary" id="ac-open-all">${i18n.t('access.open_all_soc')}</button>
       <button type="button" class="fp-btn" id="ac-copy-urls">${i18n.t('access.copy_all_urls')}</button>
       <button type="button" class="fp-btn" id="ac-copy-endpoints">${i18n.t('access.copy_endpoints')}</button>
+      ${isAdmin ? `<button type="button" class="fp-btn fp-btn-ghost" id="ac-copy-creds">${i18n.t('access.copy_all_credentials')}</button>` : ''}
     </div>
 
     <section class="cc-pro-panel fp-section-spaced">
       <h3 class="fp-section-sub">${i18n.t('access.urls_soc')}</h3>
       <p class="fp-muted">${i18n.t('access.urls_hint')}</p>
-      ${acGroupedUrlSections()}
+      ${acGroupedUrlSections(credPack.byTool)}
     </section>
 
     <section class="cc-pro-panel fp-section-spaced" id="ac-cred-section">
-      <h3 class="fp-section-sub">Credentials</h3>
+      <h3 class="fp-section-sub">${i18n.t('access.credentials_title')}</h3>
       ${isAdmin
-        ? `<p class="fp-muted">${i18n.t('access.credentials_admin_hint')}</p>
-           <div class="fp-actions-row fp-section-spaced">
-             <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" id="ac-reveal-creds">${i18n.t('access.reveal_secrets')}</button>
-           </div>
-           <div id="ac-cred-host"><p class="fp-muted">${i18n.t('ui.loading')}</p></div>`
+        ? `${syncNote}<p class="fp-muted">${i18n.t('access.credentials_admin_hint')}</p>
+           <div id="ac-cred-host">${acCredentialRows(credPack.rows)}</div>`
         : `<p class="fp-muted">${i18n.t('users.admin_only')}</p>`}
     </section>
 
@@ -268,24 +313,10 @@ async function loadAccessCenter() {
     </section>
     </details>`;
 
-  if (isAdmin) {
-    let credsRevealed = false;
-    const refreshCreds = () => {
-      acCredentialRows(credsRevealed).then((html) => {
-        const host = document.getElementById('ac-cred-host');
-        if (!host) return;
-        host.innerHTML = html;
-        bindCopy(host);
-      });
-    };
-    refreshCreds();
-    document.getElementById('ac-reveal-creds')?.addEventListener('click', (e) => {
-      credsRevealed = !credsRevealed;
-      e.currentTarget.classList.toggle('fp-btn-primary', credsRevealed);
-      e.currentTarget.classList.toggle('fp-btn-ghost', !credsRevealed);
-      refreshCreds();
-    });
-  }
+  document.getElementById('ac-copy-creds')?.addEventListener('click', (e) => {
+    const lines = credPack.rows.map((c) => `${c.service}\t${c.login}\t${c.password}`).join('\n');
+    acCopy(lines, e.currentTarget);
+  });
 
   document.getElementById('ac-open-all')?.addEventListener('click', () => {
     acSocTools().filter((t) => t.path !== '/' && t.path !== '/it/').forEach((t) => {

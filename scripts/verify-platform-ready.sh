@@ -66,6 +66,18 @@ else
   echo "FAIL: HELK index patterns absents (Discover vide)" >&2
   fail=1
 fi
+check "Cortex" "/cortex/" "200|302|303" || fail=1
+cortex_loc=$(curl -sk -I --max-time 15 "${BASE}/cortex/" 2>/dev/null | awk -F': ' 'tolower($1)=="location"{print $2}' | tr -d '\r' | head -1)
+if [ -n "$cortex_loc" ] && echo "$cortex_loc" | grep -qE '^https?://[^/]+/cortex/' && ! echo "$cortex_loc" | grep -qE '^https?://[^:/]+/cortex/'; then
+  echo "PASS: Cortex redirect avec port ($cortex_loc)"
+elif [ -n "$cortex_loc" ] && echo "$cortex_loc" | grep -q ':8443'; then
+  echo "PASS: Cortex redirect ($cortex_loc)"
+elif [ -z "$cortex_loc" ]; then
+  echo "PASS: Cortex (pas de redirect)"
+else
+  echo "FAIL: Cortex redirect sans port HTTPS ($cortex_loc)" >&2
+  fail=1
+fi
 check "Velociraptor GUI" "/velociraptor/" "200|302|307|401" || fail=1
 check "Velociraptor app" "/velociraptor/app/index.html" "200|302|307|401" || fail=1
 check "Velociraptor API" "/velociraptor/api/health" "200" || fail=1

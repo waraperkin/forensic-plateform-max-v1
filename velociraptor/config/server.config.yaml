@@ -179,14 +179,10 @@ GUI:
     -----END RSA PRIVATE KEY-----
 
     '
-<<<<<<< HEAD
-  public_url: https://203.0.113.10/velociraptor/app/index.html
-=======
   public_url: https://localhost:8443/velociraptor/app/index.html
   trusted_origins:
   - localhost:8443
   - localhost
->>>>>>> 7c24714 (fix: import auto index-patterns HELK et origine Velociraptor (port 8443))
   links:
   - text: Documentation
     url: https://docs.velociraptor.app/

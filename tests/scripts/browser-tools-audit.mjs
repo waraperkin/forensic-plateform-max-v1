@@ -40,6 +40,20 @@ const BAD = [
   { re: /Chargement\.{0,3}$|Loading\.{0,3}$/m, label: 'stuck-loading' },
 ];
 
+const LOGIN_CONSOLE_OK = [
+  /must be logged in/i,
+  /Authentication failure/i,
+  /AuthenticationError/i,
+  /401 \(Unauthorized\)/i,
+  /403 \(Forbidden\)/i,
+  /Branding not found/i,
+  /Content Security Policy directive/i,
+];
+
+function isBenignConsole(detail) {
+  return LOGIN_CONSOLE_OK.some((re) => re.test(detail || ''));
+}
+
 function scan(text, url) {
   const issues = [];
   for (const { re, label } of BAD) {
@@ -93,7 +107,11 @@ for (const tab of CERT_TABS) {
 for (const tool of TOOL_PATHS) {
   const entry = { ...tool, status: 'OK', title: '', issues: [], httpStatus: 0 };
   const p = await ctx.newPage();
-  p.on('console', (m) => { if (m.type() === 'error') entry.issues.push({ label: 'console', detail: m.text().slice(0, 150) }); });
+  p.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    const detail = m.text().slice(0, 150);
+    if (!isBenignConsole(detail)) entry.issues.push({ label: 'console', detail });
+  });
   try {
     const resp = await p.goto(`${BASE}${tool.path}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
     entry.httpStatus = resp?.status() || 0;

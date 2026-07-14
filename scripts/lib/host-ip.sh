@@ -331,7 +331,7 @@ fp_patch_portal_soc_base_urls() {
     if [ "$current" = "$expected" ]; then
       continue
     fi
-    if fp_host_binding_stale "$current" "$ip" || [ -z "$current" ]; then
+    if [ "$current" != "$expected" ] || fp_host_binding_stale "$current" "$ip" || [ -z "$current" ]; then
       jq --arg url "$expected" '.soc_base_url = $url' "$cfg" > "${cfg}.tmp" && mv -f "${cfg}.tmp" "$cfg"
     fi
   done

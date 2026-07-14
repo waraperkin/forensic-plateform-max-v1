@@ -513,6 +513,8 @@ python3 scripts/opensearch_siem_full_verify.py
 | Velociraptor **Forbidden - origin invalid** | `GUI.public_url` doit inclure le port (`https://localhost:8443/velociraptor/app/index.html`) + `trusted_origins` ; nginx : `Host`/`X-Forwarded-Host` = `$http_host` ; `bash velociraptor/scripts/generate-config.sh` puis recreate `velociraptor-server` |
 | HELK Discover **vide** (0 index pattern) | `node scripts/helk-kibana-import.mjs` ou `bash scripts/ensure-helk-kibana-objects.sh` — intégré à `post-start-align.sh` / `setup-sidecars.sh` |
 | HELK Discover **sans événements** | Élargir la plage temporelle (ex. **7 jours**) — les données lab datent de jours précédents, pas des 15 dernières minutes |
+| Cortex **ERR_CONNECTION_REFUSED** / redirect sans port | `node scripts/align-subpath-public-urls.mjs` — `application.baseUrl` + nginx `proxy_redirect` ; recreate `forensic-cortex` |
+| MISP **boucle redirect** / login sans CSS | `MISP.baseurl` doit inclure le port (`https://localhost:8443/misp`) — `docker exec -e MISP_PUBLIC_BASE_URL=… forensic-misp bash /scripts/misp-configure-public-url.sh` |
 | Portail / outils inaccessibles depuis le navigateur (AWS) | Vérifier Security Group TCP 80/443 ; utiliser l’**IP publique** (`./forensic.sh urls`), pas l’IP privée EC2 |
 | URLs ou Grafana/MISP cassés (mauvaise IP) | `PUBLIC_HOST=<ip-publique> ./forensic.sh tls` puis `docker compose up -d --force-recreate nginx cert-portal it-portal grafana` |
 | MISP login boucle / CSRF | `bash scripts/misp-configure-host.sh` puis recharger `/misp/` |

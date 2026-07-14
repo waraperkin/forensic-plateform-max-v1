@@ -22,6 +22,14 @@ log() { echo "[post-start] $*"; }
 
 log "Mode accès IP — hôte : $HOST"
 
+if command -v node >/dev/null 2>&1 && [ -f "$ROOT/scripts/align-subpath-public-urls.mjs" ]; then
+  BASE_URL="${BASE_URL:-$FP_ORIGIN}" node "$ROOT/scripts/align-subpath-public-urls.mjs" \
+    >> "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" 2>&1 \
+    && log "URLs sous-chemin alignées (Cortex/TheHive/MinIO/portails)" \
+    || log "WARN align-subpath-public-urls"
+fi
+fp_patch_portal_soc_base_urls "$HOST" 2>/dev/null || true
+
 if [ "${FP_SKIP_PREPARE:-0}" != "1" ]; then
   bash "$ROOT/scripts/setup-site-identity.sh" 2>/dev/null && log "Identité site OK" || log "WARN setup-site-identity"
   bash "$ROOT/scripts/generate-nginx-access-snippet.sh" 2>/dev/null && log "Redirect DNS EC2 → IP OK" || log "WARN generate-nginx-access-snippet"

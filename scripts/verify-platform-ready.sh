@@ -46,6 +46,12 @@ echo "--- SOC / SIEM / Observabilité ---"
 check "OpenSearch Dashboards" "/dashboards/" "200|302" || fail=1
 check "Grafana" "/grafana/api/health" "200" || fail=1
 check "Timesketch" "/timesketch/" "200|302" || fail=1
+check "Logstash monitoring" "/logstash/" "200" || fail=1
+
+echo ""
+echo "--- Documentation portail ---"
+check "Docs HTML (fr)" "/docs/fr/platform-overview.html" "200" || fail=1
+check "Docs inventaire (fr)" "/docs/fr/platform-inventory.json" "200" || fail=1
 
 echo ""
 echo "--- Threat Intel / IR ---"

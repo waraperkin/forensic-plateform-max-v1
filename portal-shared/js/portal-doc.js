@@ -256,7 +256,8 @@
 
   function renderDocumentationRoot() {
     const root = document.getElementById('portal-documentation-root');
-    if (!root || root.__docBound) return;
+    if (!root) return;
+    if (root.__docBound && root.querySelector('#portal-doc-content')) return;
     root.__docBound = true;
     root.innerHTML = `<div class="portal-doc-layout">
       <nav class="portal-doc-nav" id="portal-doc-nav" aria-label="${esc(i18n.t('docs.nav_label'))}"></nav>
@@ -406,6 +407,7 @@
     VERSION,
     DOC_CATALOG,
     startTour,
+    renderDocumentationRoot,
     renderDocPanel,
     attachContextHelp,
   };

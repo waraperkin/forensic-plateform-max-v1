@@ -83,6 +83,7 @@ function mountAuth(app) {
       || req.path === '/api/auth/activate-info'
       || req.path.startsWith('/activate.html')
       || req.path.startsWith('/shared/')
+      || req.path.startsWith('/docs/')
     ) {
       return next();
     }

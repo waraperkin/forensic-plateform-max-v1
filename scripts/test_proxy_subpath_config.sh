@@ -51,6 +51,10 @@ check_grep "MISP proxy_redirect off (pas de / → /misp/)" \
   'proxy_redirect off;' "$MISP_SNIP"
 check_grep "MISP sans proxy_redirect / → /misp/" \
   'proxy_redirect / https://' "$MISP_SNIP" 1
+check_grep "Logstash proxy sous-chemin" \
+  'location /logstash/' "$CONF"
+check_grep "Logstash upstream monitoring" \
+  'upstream u_logstash' "$CONF"
 
 echo ""
 echo "=== HELK Kibana public URL ==="

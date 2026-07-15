@@ -55,6 +55,10 @@ fi
 
 echo "[misp-configure-host] MISP_PUBLIC_BASE_URL=${MISP_PUBLIC_BASE_URL}"
 
+if [ -x "$ROOT/scripts/misp-sanitize-bootstrap.sh" ]; then
+  bash "$ROOT/scripts/misp-sanitize-bootstrap.sh" || true
+fi
+
 _run_in_misp() {
   MSYS_NO_PATHCONV=1 docker exec -e "MISP_PUBLIC_BASE_URL=${MISP_PUBLIC_BASE_URL}" "$CONTAINER" "$@"
 }

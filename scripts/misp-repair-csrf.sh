@@ -26,12 +26,11 @@ fi
 
 log "Hôte public : $HOST"
 
-# Force require du correctif App.base (même si ancien patch inline)
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-misp$'; then
-  docker exec forensic-misp bash -c \
-    'grep -q "misp-bootstrap-localhost-fix.php" /var/www/MISP/app/Config/bootstrap.php 2>/dev/null || echo "require \"/scripts/misp-bootstrap-localhost-fix.php\";" >> /var/www/MISP/app/Config/bootstrap.php' \
-    2>/dev/null || true
+# 0 — bootstrap.php corrompu (patches inline après ?> → CSRF garanti)
+if [ -x "$ROOT/scripts/misp-sanitize-bootstrap.sh" ]; then
+  bash "$ROOT/scripts/misp-sanitize-bootstrap.sh" || log "WARN misp-sanitize-bootstrap"
 fi
+
 log "MISP_PUBLIC_BASE_URL=${MISP_PUBLIC_BASE_URL}"
 
 # Persiste l'URL publique dans .env (sans source .env complet)
@@ -44,6 +43,11 @@ if [ -f "$ROOT/.env" ]; then
 fi
 
 docker compose up -d misp 2>/dev/null || true
+sleep 5
+
+if [ -x "$ROOT/scripts/misp-sanitize-bootstrap.sh" ]; then
+  bash "$ROOT/scripts/misp-sanitize-bootstrap.sh" || log "WARN misp-sanitize-bootstrap"
+fi
 
 n=0
 until docker exec forensic-misp curl -sf --max-time 5 http://127.0.0.1/users/login >/dev/null 2>&1; do
@@ -54,13 +58,13 @@ done
 
 bash "$ROOT/scripts/misp-configure-host.sh"
 
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-nginx$'; then
-  docker exec forensic-nginx nginx -t 2>/dev/null && docker exec forensic-nginx nginx -s reload 2>/dev/null \
-    && log "Nginx rechargé" || log "WARN reload nginx"
-fi
+# 4 — Portail CERT + nginx (volume docs + config)
+log "Portail CERT + nginx — rebuild/recreate"
+docker compose up -d --build --force-recreate cert-portal nginx misp 2>/dev/null || true
+sleep 10
 
 code=$(docker exec forensic-nginx wget -q -O /dev/null --no-check-certificate -S \
-  "${MISP_PUBLIC_BASE_URL}/users/login" 2>&1 | awk '/HTTP\//{print $2}' | tail -1 || echo "000")
+  "https://127.0.0.1/misp/users/login" 2>&1 | awk '/HTTP\//{print $2}' | tail -1 || echo "000")
 if echo "$code" | grep -qE '^(200|302)$'; then
   log "MISP login → HTTP ${code}"
 else

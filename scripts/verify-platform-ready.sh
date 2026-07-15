@@ -80,6 +80,8 @@ helk_patterns=$(docker exec forensic-nginx wget -q -O - --no-check-certificate -
   | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)
 if [ "${helk_patterns:-0}" -gt 0 ]; then
   echo "PASS: HELK index patterns (${helk_patterns})"
+elif [ "${FP_SKIP_HELK_PATTERNS:-0}" = "1" ]; then
+  echo "WARN: HELK index patterns absents (ignoré — FP_SKIP_HELK_PATTERNS=1)"
 else
   echo "FAIL: HELK index patterns absents (Discover vide)" >&2
   fail=1

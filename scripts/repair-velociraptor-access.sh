@@ -52,6 +52,17 @@ fi
 log "1/5 — Sidecar GUI + régénération config"
 bash "$ROOT/scripts/ensure-velociraptor-sidecar.sh"
 
+VR_CFG="$ROOT/velociraptor/config/server.config.yaml"
+if [ -f "$VR_CFG" ] && grep -qE 'public_url:.*localhost|public_url:.*127\.0\.0\.1' "$VR_CFG" 2>/dev/null; then
+  log "ERREUR: server.config.yaml public_url encore localhost — régénération forcée"
+  FP_VR_NGINX_ONLY=1 PUBLIC_HOST="$HOST" bash "$ROOT/velociraptor/scripts/generate-config.sh" || true
+  cd "$ROOT/velociraptor" && docker compose -f docker-compose.velociraptor.yml up -d --force-recreate velociraptor-server 2>/dev/null || true
+  cd "$ROOT"
+fi
+if [ -f "$VR_CFG" ] && ! grep -q "$HOST" "$VR_CFG" 2>/dev/null; then
+  log "WARN: public_url ne contient pas $HOST — vérifier velociraptor/config/server.config.yaml"
+fi
+
 log "1b/5 — Test direct hôte :${VR_GUI_PORT}"
 if ! fp_vr_test_host_gui 10; then
   log "ERREUR: velociraptor-server injoignable sur $VR_HOST_URL"

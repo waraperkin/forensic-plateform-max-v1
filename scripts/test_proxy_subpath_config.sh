@@ -57,6 +57,8 @@ check_grep "Logstash upstream monitoring" \
   'upstream u_logstash' "$CONF"
 check_grep "MISP proxy rewrite strip prefix" \
   'rewrite \^/misp/\?\(\.\*\)\$ /\$1 break;' "$CONF"
+check_grep "Docs nginx alias direct" \
+  'alias /usr/share/nginx/portal-docs/' "$CONF"
 
 echo ""
 echo "=== HELK Kibana public URL ==="

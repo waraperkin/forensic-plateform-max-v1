@@ -1,7 +1,7 @@
 #!/bin/sh
 # Applique le correctif App.base pour MISP derrière nginx /misp/.
 set -eu
-BOOTSTRAP="/var/www/MISP/app/Config/bootstrap.php"
+BOOT="/var/www/MISP/app/Config/bootstrap.php"
 FIX="/scripts/misp-bootstrap-localhost-fix.php"
 MARKER="FP_LOCALHOST_BASE_FIX"
 
@@ -10,19 +10,25 @@ if [ ! -f "$FIX" ]; then
   exit 1
 fi
 
-if grep -q "$MARKER" "$BOOTSTRAP" 2>/dev/null; then
-  echo "[misp-bootstrap-fix] déjà appliqué (require $FIX)"
-  exit 0
+if [ -x /scripts/misp-sanitize-bootstrap.sh ]; then
+  exec /scripts/misp-sanitize-bootstrap.sh
 fi
 
-if ! grep -q '^<?php' "$BOOTSTRAP" 2>/dev/null; then
-  sed -i '1s/^/<?php\n/' "$BOOTSTRAP"
-fi
+python3 - "$BOOT" "$FIX" "$MARKER" <<'PY'
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+t = p.read_text(errors="replace")
+if "?>" in t:
+    t = t.split("?>", 1)[0].rstrip() + "\n"
+while sys.argv[3] in t:
+    t = t.split(sys.argv[3], 1)[0].rstrip() + "\n"
+req = f"require '{sys.argv[2]}';"
+if req not in t:
+    if not t.lstrip().startswith("<?php"):
+        t = "<?php\n" + t.lstrip()
+    t = t.rstrip() + f"\n// {sys.argv[3]}\n{req}\n"
+p.write_text(t)
+print("[misp-bootstrap-fix] bootstrap.php nettoyé (python)")
+PY
 
-{
-  echo ""
-  echo "// $MARKER — require monté depuis l'hôte (scripts/misp-bootstrap-localhost-fix.php)"
-  echo "require '$FIX';"
-} >> "$BOOTSTRAP"
-
-echo "[misp-bootstrap-fix] bootstrap.php patché"
+php -l "$BOOT" >/dev/null || { echo "[misp-bootstrap-fix] ERREUR syntaxe bootstrap.php" >&2; exit 1; }

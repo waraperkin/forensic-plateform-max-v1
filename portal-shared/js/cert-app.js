@@ -87,8 +87,11 @@ function tab(raw) {
   if (t === 'access-center' && window.AccessCenter) {
     AccessCenter.loadAccessCenter();
   }
-  if (t === 'portal-documentation' && window.PortalDoc?.renderDocumentationRoot) {
-    window.PortalDoc.renderDocumentationRoot();
+  if (t === 'portal-documentation') {
+    const loadDoc = () => window.PortalDoc?.renderDocumentationRoot?.();
+    loadDoc();
+    requestAnimationFrame(loadDoc);
+    setTimeout(loadDoc, 100);
   }
   const masterZone = t === 'cases' ? 'incidents' : t === 'master-users' ? 'users' : t;
   const skipMasterZone = new Set(['kb']);

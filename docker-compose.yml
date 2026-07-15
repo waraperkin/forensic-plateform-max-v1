@@ -729,6 +729,7 @@ services:
       - ./scripts/misp-disable-ssl.sh:/scripts/misp-disable-ssl.sh:ro
       - ./scripts/misp-configure-public-url.sh:/scripts/misp-configure-public-url.sh:ro
       - ./scripts/misp-apply-bootstrap-fix.sh:/scripts/misp-apply-bootstrap-fix.sh:ro
+      - ./scripts/misp-sanitize-bootstrap.sh:/scripts/misp-sanitize-bootstrap.sh:ro
       - ./scripts/misp-bootstrap-localhost-fix.php:/scripts/misp-bootstrap-localhost-fix.php:ro
     ports:
       - "${FP_MISP_PORT:-8090}:80"
@@ -1234,6 +1235,7 @@ services:
       - ./config/nginx/static:/etc/nginx/static:ro
       - ./nginx/certs:/etc/nginx/certs:ro
       - ./config/nginx/ssl:/etc/nginx/ssl:ro
+      - ./portal-cert/public/docs:/usr/share/nginx/portal-docs:ro
     ports:
       - "${FP_HTTP_PORT:-80}:80"
       - "${FP_HTTPS_PORT:-443}:443"

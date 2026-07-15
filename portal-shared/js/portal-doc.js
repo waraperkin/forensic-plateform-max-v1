@@ -407,8 +407,10 @@
       const docPanel = document.getElementById('tab-portal-documentation');
       if (docPanel?.classList.contains('active')) renderDocumentationRoot();
     };
+    boot();
     if (window.i18n?.whenReady) window.i18n.whenReady(boot);
-    else boot();
+    setTimeout(boot, 1500);
+    document.addEventListener('i18n:language-changed', boot);
     setTimeout(attachContextHelp, 1500);
     setTimeout(attachContextHelp, 5000);
   }

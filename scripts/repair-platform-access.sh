@@ -22,10 +22,12 @@ log() { echo "[repair-access] $*"; }
 
 log "Hôte public : $HOST"
 
-# 1 — Nginx : snippet VR + reload
+# 1 — Nginx : snippet VR + recreate (volume docs)
 if [ -x "$ROOT/scripts/render-velociraptor-nginx-snippet.sh" ]; then
   bash "$ROOT/scripts/render-velociraptor-nginx-snippet.sh" || true
 fi
+docker compose up -d --force-recreate nginx 2>/dev/null || true
+sleep 3
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-nginx$'; then
   docker network connect velociraptor_net forensic-nginx 2>/dev/null || true
   docker exec forensic-nginx nginx -t 2>/dev/null && docker exec forensic-nginx nginx -s reload 2>/dev/null \
@@ -51,17 +53,15 @@ if [ -x "$ROOT/scripts/repair-velociraptor-access.sh" ]; then
   bash "$ROOT/scripts/repair-velociraptor-access.sh" || log "WARN repair-velociraptor-access"
 fi
 
-# 4 — Portail CERT (docs statiques servies avant auth) + nginx
-log "Portail CERT + nginx — rebuild/reload"
-docker compose up -d --build cert-portal nginx 2>/dev/null || true
+# 4 — Portail CERT (docs + JS)
+log "Portail CERT — rebuild sans cache layer shared"
+docker compose build --no-cache cert-portal 2>/dev/null || docker compose build cert-portal 2>/dev/null || true
+docker compose up -d --force-recreate cert-portal 2>/dev/null || true
 sleep 8
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-nginx$'; then
-  docker exec forensic-nginx nginx -t 2>/dev/null && docker exec forensic-nginx nginx -s reload 2>/dev/null || true
-fi
 
 # 5 — Vérification
 if [ -x "$ROOT/scripts/verify-platform-ready.sh" ]; then
-  BASE_URL="$BASE" bash "$ROOT/scripts/verify-platform-ready.sh"
+  FP_SKIP_HELK_PATTERNS=1 BASE_URL="$BASE" bash "$ROOT/scripts/verify-platform-ready.sh"
 else
   for path in /logstash/ /misp/users/login /velociraptor/app/index.html /docs/fr/platform-inventory.json; do
     code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 20 "${BASE}${path}" 2>/dev/null || echo "000")

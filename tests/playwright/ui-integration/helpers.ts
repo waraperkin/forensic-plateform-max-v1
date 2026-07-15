@@ -241,6 +241,17 @@ export async function gotoOk(page: Page, urlPath: string, waitMs = 1500) {
   throw lastErr;
 }
 
+/** Velociraptor GUI : body peut être CSS "hidden" (thème) — valider titre / URL plutôt que visibility. */
+export async function assertProxyPageOk(page: Page, routeName: string) {
+  await expect(page.locator('body')).toBeAttached();
+  if (/velociraptor/i.test(routeName) || /velociraptor/i.test(page.url())) {
+    await expect(page).toHaveTitle(/Velociraptor/i, { timeout: 30_000 });
+    expect(page.url()).toMatch(/\/velociraptor\//);
+    return;
+  }
+  await expect(page.locator('body')).toBeVisible({ timeout: 20_000 });
+}
+
 export async function openCertTab(page: Page, tab: string) {
   await gotoOk(page, `/?tab=${tab}`);
   const btn = page.locator(`[data-tab-btn="${tab}"]`).first();

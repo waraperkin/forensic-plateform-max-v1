@@ -9,6 +9,7 @@ import {
   ensureProxyAuth,
   gotoOk,
   openCertTab,
+  assertProxyPageOk,
 } from './helpers';
 
 const CERT_ACTION_BUTTONS = [
@@ -50,7 +51,7 @@ test.describe('QA deep — proxys outils', () => {
       await ensureProxyAuth(page, route);
       const res = await gotoOk(page, route.path, 2000);
       expect(res?.status() ?? 0).toBeLessThan(500);
-      await expect(page.locator('body')).toBeVisible();
+      await assertProxyPageOk(page, route.name);
       await dumpErrorsOnFail(consoleErrors, networkErrors, testInfo);
     });
   }

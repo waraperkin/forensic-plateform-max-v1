@@ -38,8 +38,15 @@ check_grep "HELK proxy_pass racine upstream" \
 check_grep "HELK proxy_redirect off" \
   'proxy_redirect off;' "$CONF"
 check_grep "VR proxy HTTP plain (TLS offload nginx)" \
-  'proxy_pass http://\$velociraptor_upstream/velociraptor/;' "$CONF"
-if grep -A16 'location /velociraptor/' "$CONF" | grep -q 'proxy_redirect off'; then
+  'proxy_pass http://\$velociraptor_upstream;' "$CONF"
+# rewrite obligatoire avec proxy_pass variable (évite 307 boucle app/index.html)
+if grep -A20 'location /velociraptor/' "$CONF" | grep -qE 'rewrite \^/velociraptor/'; then
+  echo "PASS: VR rewrite path pour proxy_pass variable"
+else
+  echo "FAIL: VR rewrite ^/velociraptor/ manquant (boucle 307)" >&2
+  fail=1
+fi
+if grep -A20 'location /velociraptor/' "$CONF" | grep -q 'proxy_redirect off'; then
   echo "PASS: VR proxy_redirect off"
 else
   echo "FAIL: VR proxy_redirect off (absent dans block /velociraptor/)" >&2
@@ -55,8 +62,15 @@ check_grep "Logstash proxy sous-chemin" \
   'location /logstash/' "$CONF"
 check_grep "Logstash upstream monitoring" \
   'upstream u_logstash' "$CONF"
+# rewrite strip : MISP écoute en racine ; préfixe /misp/ porté par baseurl + App.base
 check_grep "MISP proxy rewrite strip prefix" \
   'rewrite \^/misp/\?\(\.\*\)\$ /\$1 break;' "$CONF"
+if grep -A6 'location /misp/ {' "$CONF" | grep -qE 'proxy_pass http://u_misp;'; then
+  echo "PASS: MISP location /misp/ proxy_pass sans slash final"
+else
+  echo "FAIL: MISP location /misp/ proxy_pass attendu sans slash final" >&2
+  fail=1
+fi
 check_grep "Docs nginx alias direct" \
   'alias /usr/share/nginx/portal-docs/' "$CONF"
 

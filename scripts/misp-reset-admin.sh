@@ -10,7 +10,7 @@ DB_CONTAINER="${MISP_DB_CONTAINER:-forensic-misp-db}"
 EMAIL="${MISP_ADMIN_EMAIL:-admin@forensic.local}"
 PASS="${MISP_ADMIN_PASSWORD:-F0r3ns1c_MISP_2024!}"
 API_KEY="${MISP_ADMIN_API_KEY:-a1b2c3d4e5f6789012345678901234567890abcd}"
-MYSQL_PASS="${MYSQL_PASSWORD:-F0r3ns1c_MISP_DB!}"
+MYSQL_PASS="${MYSQL_PASSWORD:-F0r3ns1c_MySQL_2024!}"
 MISP_URL="${MISP_URL:-http://localhost:8090}"
 
 if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${CONTAINER}$"; then

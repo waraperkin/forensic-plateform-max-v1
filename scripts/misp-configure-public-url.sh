@@ -45,13 +45,19 @@ sudo -u www-data "$CAKE" Admin setSetting "MISP.external_baseurl" "${PUBLIC_BASE
 sudo -u www-data "$CAKE" Admin setSetting "Security.force_https" true --force 2>/dev/null \
   || "$CAKE" Admin setSetting "Security.force_https" true --force
 
-# Coercion désactivée : App.base fixé via misp-apply-bootstrap-fix.sh (inline, sans ?>)
+# Coercion désactivée : App.fullBaseUrl doit rester scheme://host (sans /misp).
+# Avec App.base=/misp (bootstrap IP-fix), la coercion MISP remettait
+# fullBaseUrl=https://host/misp → FormHelper hashe /misp/misp/… → CSRF 400.
 sudo -u www-data "$CAKE" Admin setSetting "MISP.disable_baseurl_coercion" true --force 2>/dev/null \
   || "$CAKE" Admin setSetting "MISP.disable_baseurl_coercion" true --force
 
 if [ -x /scripts/misp-apply-bootstrap-fix.sh ]; then
   /scripts/misp-apply-bootstrap-fix.sh || true
 fi
+
+# cake Admin setSetting peut laisser config.php en root:600 → CSRF/salt illisibles
+chown www-data:www-data /var/www/MISP/app/Config/config.php 2>/dev/null || true
+chmod 640 /var/www/MISP/app/Config/config.php 2>/dev/null || true
 
 sudo -u www-data "$CAKE" Admin getSetting "MISP.baseurl" 2>/dev/null \
   || "$CAKE" Admin getSetting "MISP.baseurl"

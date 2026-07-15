@@ -1697,6 +1697,21 @@ def parse_val(v: str) -> str:
     v = v.strip().strip('"').strip("'")
     return v
 
+def format_env_val(v: str) -> str:
+    """Réécrit une valeur .env en quotant si nécessaire (espaces, #, etc.)."""
+    if v is None:
+        return ""
+    s = str(v)
+    if s == "":
+        return ""
+    # Déjà correctement quotée
+    if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+        return s
+    if any(c in s for c in (' ', '\t', '#', '"', "'", '$', '`', '\\', '\n')):
+        esc = s.replace('\\', '\\\\').replace('"', '\\"')
+        return f'"{esc}"'
+    return s
+
 def is_legacy_env_key(k: str) -> bool:
     if k in ENV_ALIASES or k.startswith("CONNECTEUR_"):
         return True
@@ -1840,7 +1855,7 @@ for line in lines:
         if is_legacy_env_key(k):
             continue
         if k in existing:
-            out.append(f"{k}={existing[k]}")
+            out.append(f"{k}={format_env_val(existing[k])}")
             seen.add(k)
         else:
             out.append(line)
@@ -1849,7 +1864,7 @@ for k, v in sorted(existing.items()):
     if is_legacy_env_key(k):
         continue
     if k not in seen:
-        out.append(f"{k}={v}")
+        out.append(f"{k}={format_env_val(v)}")
 path.write_text("\n".join(out) + "\n", encoding="utf-8")
 print(f"OK vars={len(existing)} critical={len(CRITICAL)}")
 PY

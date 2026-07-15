@@ -8,6 +8,7 @@ import {
   ensureProxyAuth,
   gotoOk,
   openCertTab,
+  assertProxyPageOk,
 } from './helpers';
 
 test.describe('UI Navigation — CERT portal', () => {
@@ -38,7 +39,7 @@ test.describe('UI Navigation — proxys Nginx', () => {
       await ensureProxyAuth(page, route);
       const res = await gotoOk(page, route.path, 2000);
       expect(res?.status() ?? 0).toBeLessThan(500);
-      await expect(page.locator('body')).toBeVisible();
+      await assertProxyPageOk(page, route.name);
       await dumpErrorsOnFail(consoleErrors, networkErrors, testInfo);
       assertNoSevereErrors(consoleErrors, networkErrors, route.name);
     });

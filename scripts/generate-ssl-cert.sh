@@ -35,8 +35,9 @@ fi
 
 echo "[ssl] Génération certificat SSL RSA-4096..."
 
-# Configuration SAN (Subject Alternative Names)
-cat > /tmp/ssl-ext.cnf << EXTCONF
+# Configuration SAN (Subject Alternative Names) — fichier local (évite /tmp sticky/root)
+SSL_EXT_CNF="$SSL_DIR/ssl-ext.cnf"
+cat > "$SSL_EXT_CNF" << EXTCONF
 [req]
 distinguished_name = req_distinguished_name
 x509_extensions = v3_req
@@ -68,8 +69,9 @@ openssl req -x509 \
   -out "$CERT" \
   -days 365 \
   -nodes \
-  -config /tmp/ssl-ext.cnf \
+  -config "$SSL_EXT_CNF" \
   2>/dev/null
+rm -f "$SSL_EXT_CNF"
 
 # Calculer le fingerprint SHA-256
 FINGERPRINT=$(openssl x509 -noout -fingerprint -sha256 -in "$CERT" 2>/dev/null | sed 's/SHA256 Fingerprint=//')

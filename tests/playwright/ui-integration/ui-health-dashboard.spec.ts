@@ -12,7 +12,7 @@ const GLOBAL_HEALTH_KEYS = [
   'thehive',
   'cortex',
   'nginx',
-  'portal',
+  'cert',
 ];
 
 test.describe('Global Health Dashboard', () => {

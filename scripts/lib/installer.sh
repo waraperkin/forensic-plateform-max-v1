@@ -1697,7 +1697,26 @@ def parse_val(v: str) -> str:
     v = v.strip().strip('"').strip("'")
     return v
 
+def is_legacy_env_key(k: str) -> bool:
+    if k in ENV_ALIASES or k.startswith("CONNECTEUR_"):
+        return True
+    legacy_prefixes = (
+        "MOT_DE_PASSE_", "CLÉ_", "CLE_", "URL_BASE_", "URL_API_",
+        "NOM_HÔTE_", "NOM_HOTE_", "GRAFANA_AUTORISATION_",
+    )
+    return any(k.startswith(p) for p in legacy_prefixes)
+
+def canon_env_key(k: str):
+    if k in ENV_ALIASES:
+        return ENV_ALIASES[k]
+    if k.startswith("CONNECTEUR_"):
+        return "CONNECTOR_" + k[len("CONNECTEUR_"):]
+    if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", k):
+        return k
+    return None
+
 existing = {}
+alias_migrated = set()
 order = []
 for line in lines:
     stripped = line.strip()
@@ -1710,16 +1729,12 @@ for line in lines:
     k, _, v = line.partition("=")
     k = k.strip()
     val = parse_val(v)
-    canon = k
-    if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", k):
-        canon = k
-    elif k in ENV_ALIASES:
-        canon = ENV_ALIASES[k]
-    elif k.startswith("CONNECTEUR_"):
-        canon = "CONNECTOR_" + k[len("CONNECTEUR_"):]
-    else:
+    canon = canon_env_key(k)
+    if canon is None:
         order.append(line)
         continue
+    if k != canon:
+        alias_migrated.add(canon)
     if canon == "POSTGRES_DB" and val.lower() in ("médical", "medical"):
         val = "forensic"
     existing[canon] = val
@@ -1763,6 +1778,11 @@ DEFAULTS = {
 for k, dv in DEFAULTS.items():
     if k not in existing or existing[k] == "":
         existing[k] = dv
+
+# Secrets labo : toujours appliqués si clé migrée depuis alias FR ou valeur vide
+for k, lab_val in LAB_SECRETS.items():
+    if k in alias_migrated or not existing.get(k):
+        existing[k] = lab_val
 
 # Toujours remplacer les placeholders IP lab (192.0.2.9) par l'IP détectée
 for k in HOST_KEYS:
@@ -1817,7 +1837,7 @@ for line in lines:
     m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
     if m:
         k = m.group(1)
-        if k in ENV_ALIASES or k.startswith("CONNECTEUR_"):
+        if is_legacy_env_key(k):
             continue
         if k in existing:
             out.append(f"{k}={existing[k]}")
@@ -1826,6 +1846,8 @@ for line in lines:
             out.append(line)
     # sinon : ligne orpheline (ex. clés accentuées / CSV cassées) — ignorée
 for k, v in sorted(existing.items()):
+    if is_legacy_env_key(k):
+        continue
     if k not in seen:
         out.append(f"{k}={v}")
 path.write_text("\n".join(out) + "\n", encoding="utf-8")

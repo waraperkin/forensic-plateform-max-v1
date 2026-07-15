@@ -32,9 +32,13 @@ _fp_bootstrap_env_complete
 grep -qE '^POSTGRES_PASSWORD=F0r3ns1c_PG_2024!' "$WORKDIR/.env" || { echo "FAIL: POSTGRES_PASSWORD"; exit 1; }
 grep -qE '^CERT_PORTAL_SECRET=F0r3ns1c_Portal_2024!' "$WORKDIR/.env" || { echo "FAIL: CERT_PORTAL_SECRET"; exit 1; }
 grep -qE "^PUBLIC_HOST=${TEST_IP}" "$WORKDIR/.env" || { echo "FAIL: PUBLIC_HOST=$TEST_IP"; exit 1; }
-if grep -qE '^MOT_DE_PASSE_POSTGRES=' "$WORKDIR/.env"; then
-  echo "FAIL: clé traduite MOT_DE_PASSE_POSTGRES encore dans .env" >&2
-  exit 1
-fi
+grep -qE '^CONNECTOR_CISA_KEV_ID=' "$WORKDIR/.env" || { echo "FAIL: CONNECTOR_CISA_KEV_ID absent"; exit 1; }
+
+for bad in '^MOT_DE_PASSE_POSTGRES=' '^HÔTE_PUBLIC=' '^HOTE_PUBLIC=' '^CONNECTEUR_'; do
+  if grep -qE "$bad" "$WORKDIR/.env"; then
+    echo "FAIL: clé legacy encore présente ($bad)" >&2
+    exit 1
+  fi
+done
 
 echo "PASS: bootstrap répare .env corrompu (clés FR → canoniques + secrets labo)"

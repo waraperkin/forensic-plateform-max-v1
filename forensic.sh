@@ -961,6 +961,12 @@ full_start_orchestrator() {
   START_FAIL=()
   START_WARN=()
 
+  if [ -x "$DIR/scripts/ensure-scripts-executable.sh" ]; then
+    bash "$DIR/scripts/ensure-scripts-executable.sh" 2>/dev/null || true
+  elif [ -f "$DIR/scripts/ensure-scripts-executable.sh" ]; then
+    bash "$DIR/scripts/ensure-scripts-executable.sh" 2>/dev/null || true
+  fi
+
   local ip
   ip=$(fp_url_identity 2>/dev/null || fp_detect_public_ip 2>/dev/null || fp_detect_public_host 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}')
   [ -n "$ip" ] && export FP_ORCH_BASE_URL="https://${ip}"

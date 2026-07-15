@@ -149,15 +149,31 @@ sudo sysctl --system
 
 ## 4. Récupération du projet
 
-### 4.1 Clone SSH (équipe avec accès GitHub)
+**Dépôt v2 (recommandé) :** [`waraperkin/forensic-minimal-v2`](https://github.com/waraperkin/forensic-minimal-v2)
+
+### 4.1 Clone AWS — répertoire `/opt` (recommandé)
 
 ```bash
-cd ~
-git clone git@github.com:waraperkin/forensic-minimal.git
-cd forensic-minimal
+sudo mkdir -p /opt
+sudo git clone https://github.com/waraperkin/forensic-minimal-v2.git /opt/forensic-minimal-v2
+cd /opt/forensic-minimal-v2
+chmod +x forensic.sh
+./scripts/preflight-full-start.sh
+./forensic.sh -full-start
 ```
 
-### 4.2 Clone HTTPS (alternative)
+> Le preflight exécute `ensure-scripts-executable.sh` (chmod +x automatique après clone).
+
+### 4.2 Clone HTTPS (répertoire courant)
+
+```bash
+git clone https://github.com/waraperkin/forensic-minimal-v2.git
+cd forensic-minimal-v2
+./scripts/preflight-full-start.sh
+./forensic.sh -full-start
+```
+
+### 4.3 Clone legacy (v1)
 
 ```bash
 git clone https://github.com/waraperkin/forensic-minimal.git

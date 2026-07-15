@@ -7,6 +7,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+if [ -x "$ROOT/scripts/ensure-scripts-executable.sh" ]; then
+  bash "$ROOT/scripts/ensure-scripts-executable.sh"
+elif [ -f "$ROOT/scripts/ensure-scripts-executable.sh" ]; then
+  chmod +x "$ROOT/scripts/ensure-scripts-executable.sh" 2>/dev/null || true
+  bash "$ROOT/scripts/ensure-scripts-executable.sh"
+fi
+
 STATIC_TESTS=(
   test_host_ip.sh
   test_tls_forensic_platform.sh
@@ -95,9 +102,10 @@ echo ""
 if [ "$fail" -eq 0 ]; then
   echo "✅ PREFLIGHT OK — $passed tests statiques passés"
   echo ""
-  echo "Procédure zero-touch (VM AWS — Security Group : TCP 80 + 443) :"
-  echo "  git clone https://github.com/waraperkin/forensic-minimal-v2.git"
-  echo "  cd forensic-minimal-v2"
+  echo "Procédure zero-touch (VM AWS EC2 — Security Group : TCP 80 + 443) :"
+  echo "  sudo mkdir -p /opt"
+  echo "  sudo git clone https://github.com/waraperkin/forensic-minimal-v2.git /opt/forensic-minimal-v2"
+  echo "  cd /opt/forensic-minimal-v2"
   echo "  ./scripts/preflight-full-start.sh"
   echo "  ./forensic.sh -full-start"
   echo ""

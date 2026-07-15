@@ -10,7 +10,17 @@ Plateforme forensic et SOC **clé en main**, pensée pour le lab, la formation e
 
 ## Overview
 
-Forensic Minimal déploie une stack Docker orchestrée par un seul script. **Sur une VM fraîche, seules ces commandes sont nécessaires :**
+Forensic Minimal déploie une stack Docker orchestrée par un seul script. **Sur une VM AWS fraîche (recommandé : `/opt/forensic-minimal-v2`) :**
+
+```bash
+sudo mkdir -p /opt
+sudo git clone https://github.com/waraperkin/forensic-minimal-v2.git /opt/forensic-minimal-v2
+cd /opt/forensic-minimal-v2
+./scripts/preflight-full-start.sh
+./forensic.sh -full-start
+```
+
+Alternative (répertoire courant) :
 
 ```bash
 git clone https://github.com/waraperkin/forensic-minimal-v2.git

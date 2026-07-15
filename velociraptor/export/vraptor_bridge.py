@@ -68,8 +68,15 @@ def collect_artifact(body: dict[str, Any]) -> dict[str, Any]:
     artifact = str(body.get("artifact") or "Custom.Windows.Sysmon.ForensicMinimal").strip()
     case_id = str(body.get("case_id") or "VR-COLLECT").strip()
     auto_export = bool(body.get("auto_export", True))
+    # Lab offline: sans agent live, bascule automatique vers simulation + export
     if not client_id:
-        return {"ok": False, "error": "client_id requis"}
+        log.info("collect sans client_id → fallback lab offline (%s)", artifact)
+        return simulate_collect(
+            artifact=artifact,
+            case_id=case_id,
+            client_id="LAB-OFFLINE",
+            auto_export=auto_export,
+        )
 
     cfg = VR_CONFIG if os.path.isfile(VR_CONFIG) and os.path.getsize(VR_CONFIG) > 32 else VR_SERVER_CONFIG
     cmd = ["velociraptor", "--config", cfg]

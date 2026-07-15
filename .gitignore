@@ -99,3 +99,6 @@ helk/sigma/.git/
 
 # --- États runtime / caches locaux ---
 *_state.json
+
+# Runtime VR lab collections
+velociraptor/lab-collections/*.json

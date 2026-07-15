@@ -68,6 +68,14 @@ echo ""
 echo "--- Threat Intel / IR ---"
 check "OpenCTI" "/cti/" "200|302" || fail=1
 check "MISP login" "/misp/users/login" "200|302" || fail=1
+misp_html=$(docker exec forensic-nginx wget -q -O - --no-check-certificate --max-time 20 \
+  "${BASE}/misp/users/login" 2>/dev/null || true)
+if echo "$misp_html" | grep -qE 'Configure::read|FP_LOCALHOST_BASE_FIX|misp-bootstrap-localhost'; then
+  echo "FAIL: MISP bootstrap.php corrompu (PHP visible sur /misp/users/login)" >&2
+  fail=1
+else
+  echo "PASS: MISP bootstrap propre"
+fi
 check "TheHive" "/thehive/" "200|302" || fail=1
 check "Cortex" "/cortex/" "200|302|303" || fail=1
 

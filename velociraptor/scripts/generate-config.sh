@@ -131,8 +131,8 @@ if __import__("os").environ.get("FP_VR_NGINX_ONLY", "1") == "1":
     cfg["Frontend"]["use_plain_http"] = True
 cfg["API"]["bind_address"] = "0.0.0.0"
 cfg["API"]["bind_port"] = 8002
-# public_url — URL externe vue par le navigateur (sans boucle redirect nginx)
-cfg.setdefault("GUI", {})["public_url"] = f"{origin}/velociraptor/"
+# public_url — VR 0.76+ avec base_path /velociraptor (redirect relatif → /velociraptor/app/index.html)
+cfg.setdefault("GUI", {})["public_url"] = f"{origin}/velociraptor/app/index.html"
 trusted_host = host
 trusted = [trusted_host]
 if ":" in trusted_host:

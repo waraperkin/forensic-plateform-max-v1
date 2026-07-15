@@ -45,10 +45,6 @@ fi
 docker compose up -d misp 2>/dev/null || true
 sleep 5
 
-if [ -x "$ROOT/scripts/misp-sanitize-bootstrap.sh" ]; then
-  bash "$ROOT/scripts/misp-sanitize-bootstrap.sh" || log "WARN misp-sanitize-bootstrap"
-fi
-
 n=0
 until docker exec forensic-misp curl -sf --max-time 5 http://127.0.0.1/users/login >/dev/null 2>&1; do
   n=$((n + 1))

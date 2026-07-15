@@ -68,6 +68,8 @@ function auditAction(action, req, context = {}) {
     message: action,
   });
 }
+// Documentation statique — avant gate auth (fetch onglet Documentation)
+app.use('/docs', express.static(path.join(__dirname, 'public/docs'), { maxAge: '1h', fallthrough: true }));
 mountAuth(app);
 app.use(express.static(path.join(__dirname,'public')));
 

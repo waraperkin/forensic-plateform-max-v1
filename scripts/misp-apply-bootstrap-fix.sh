@@ -1,5 +1,5 @@
 #!/bin/sh
-# Applique le correctif App.base pour localhost dans bootstrap.php MISP.
+# Applique le correctif App.base pour MISP derrière nginx /misp/.
 set -eu
 BOOTSTRAP="/var/www/MISP/app/Config/bootstrap.php"
 FIX="/scripts/misp-bootstrap-localhost-fix.php"
@@ -11,7 +11,7 @@ if [ ! -f "$FIX" ]; then
 fi
 
 if grep -q "$MARKER" "$BOOTSTRAP" 2>/dev/null; then
-  echo "[misp-bootstrap-fix] déjà appliqué"
+  echo "[misp-bootstrap-fix] déjà appliqué (require $FIX)"
   exit 0
 fi
 
@@ -21,8 +21,8 @@ fi
 
 {
   echo ""
-  echo "// $MARKER"
-  cat "$FIX"
+  echo "// $MARKER — require monté depuis l'hôte (scripts/misp-bootstrap-localhost-fix.php)"
+  echo "require '$FIX';"
 } >> "$BOOTSTRAP"
 
 echo "[misp-bootstrap-fix] bootstrap.php patché"

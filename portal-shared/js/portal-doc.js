@@ -258,8 +258,9 @@
     const root = document.getElementById('portal-documentation-root');
     if (!root) return;
     if (root.__docBound && root.querySelector('#portal-doc-content')) return;
-    root.__docBound = true;
-    root.innerHTML = `<div class="portal-doc-layout">
+    try {
+      root.__docBound = true;
+      root.innerHTML = `<div class="portal-doc-layout">
       <nav class="portal-doc-nav" id="portal-doc-nav" aria-label="${esc(i18n.t('docs.nav_label'))}"></nav>
       <div class="portal-doc-content" id="portal-doc-content"></div>
     </div>
@@ -312,6 +313,11 @@
 
     if (window.PortalHubPremium) PortalHubPremium.enhanceDocumentation();
     if (window.__PORTAL_DEMO__) document.getElementById('portal-demo-toggle').checked = true;
+    } catch (e) {
+      root.__docBound = false;
+      root.innerHTML = `<p class="fp-alert fp-alert-err">${esc(e.message || 'Documentation indisponible')}</p>`;
+      console.error('[portal-doc]', e);
+    }
   }
 
   function startTour() {
@@ -396,9 +402,13 @@
   function init() {
     mountDocHeaderLink();
     blockDemoDestructive();
-    if (TC?.bind) TC.bind({ 'portal-documentation': renderDocumentationRoot });
-    const docPanel = document.getElementById('tab-portal-documentation');
-    if (docPanel?.classList.contains('active')) renderDocumentationRoot();
+    const boot = () => {
+      if (TC?.bind) TC.bind({ 'portal-documentation': renderDocumentationRoot });
+      const docPanel = document.getElementById('tab-portal-documentation');
+      if (docPanel?.classList.contains('active')) renderDocumentationRoot();
+    };
+    if (window.i18n?.whenReady) window.i18n.whenReady(boot);
+    else boot();
     setTimeout(attachContextHelp, 1500);
     setTimeout(attachContextHelp, 5000);
   }

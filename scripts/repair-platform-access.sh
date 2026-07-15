@@ -33,21 +33,15 @@ if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-nginx$'; the
     || log "WARN reload nginx"
 fi
 
-# 2 — MISP baseurl + bootstrap App.base (/misp/)
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-misp$'; then
+# 2 — MISP CSRF + baseurl
+if [ -x "$ROOT/scripts/misp-repair-csrf.sh" ]; then
+  bash "$ROOT/scripts/misp-repair-csrf.sh" || log "WARN misp-repair-csrf"
+elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-misp$'; then
   log "MISP — bootstrap + baseurl"
   export MISP_PUBLIC_BASE_URL="$(fp_misp_public_base_url 2>/dev/null || echo "${BASE}/misp")"
   docker compose up -d misp 2>/dev/null || true
-  n=0
-  until docker exec forensic-misp curl -sf --max-time 5 http://127.0.0.1/users/login >/dev/null 2>&1; do
-    n=$((n + 1))
-    [ "$n" -ge 36 ] && { log "WARN MISP timeout"; break; }
-    sleep 5
-  done
-  if [ "$n" -lt 36 ]; then
-    MSYS_NO_PATHCONV=1 docker exec forensic-misp bash /scripts/misp-apply-bootstrap-fix.sh 2>/dev/null || true
-    bash "$ROOT/scripts/misp-configure-host.sh" 2>/dev/null || log "WARN misp-configure-host"
-  fi
+  MSYS_NO_PATHCONV=1 docker exec forensic-misp bash /scripts/misp-apply-bootstrap-fix.sh 2>/dev/null || true
+  bash "$ROOT/scripts/misp-configure-host.sh" 2>/dev/null || log "WARN misp-configure-host"
 else
   log "WARN forensic-misp absent"
 fi
@@ -57,14 +51,12 @@ if [ -x "$ROOT/scripts/repair-velociraptor-access.sh" ]; then
   bash "$ROOT/scripts/repair-velociraptor-access.sh" || log "WARN repair-velociraptor-access"
 fi
 
-# 4 — Portail CERT (docs statiques + auth)
-if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^cert-portal$'; then
-  log "Portail CERT — rebuild si docs absents dans le conteneur"
-  if ! docker exec cert-portal test -f /app/public/docs/fr/platform-inventory.json 2>/dev/null; then
-    log "Docs manquants dans cert-portal — rebuild image"
-    docker compose up -d --build cert-portal 2>/dev/null || true
-    sleep 8
-  fi
+# 4 — Portail CERT (docs statiques servies avant auth) + nginx
+log "Portail CERT + nginx — rebuild/reload"
+docker compose up -d --build cert-portal nginx 2>/dev/null || true
+sleep 8
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-nginx$'; then
+  docker exec forensic-nginx nginx -t 2>/dev/null && docker exec forensic-nginx nginx -s reload 2>/dev/null || true
 fi
 
 # 5 — Vérification

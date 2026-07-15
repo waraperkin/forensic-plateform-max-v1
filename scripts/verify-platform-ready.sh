@@ -16,22 +16,33 @@ if [ -z "$BASE" ]; then
   BASE="https://${HOST}"
 fi
 BASE="${BASE%/}"
+PUBLIC_BASE="$BASE"
+# AWS EC2 : curl vers l'IP publique depuis la VM échoue (hairpin NAT) — tester via nginx local
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-nginx$'; then
+  BASE="https://127.0.0.1"
+fi
 
 check() {
   local name="$1" path="$2" expect="${3:-200}"
-  local code
-  code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 25 "${BASE}${path}" 2>/dev/null || echo "000")
+  local code target="${BASE}${path}"
+  if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-nginx$'; then
+    code=$((docker exec forensic-nginx wget -q -O /dev/null --no-check-certificate -S "$target" 2>&1 || true) \
+      | awk '/HTTP\//{print $2}' | tail -1)
+    [ -z "$code" ] && code="000"
+  else
+    code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 25 "$target" 2>/dev/null || echo "000")
+  fi
   if echo "$code" | grep -qE "$expect"; then
     echo "PASS: $name"
     return 0
   fi
-  echo "FAIL: $name (${BASE}${path}) → HTTP $code (attendu $expect)" >&2
+  echo "FAIL: $name ($target) → HTTP $code (attendu $expect)" >&2
   return 1
 }
 
 fail=0
 
-echo "=== Vérification plateforme — $BASE ==="
+echo "=== Vérification plateforme — $BASE (public: $PUBLIC_BASE) ==="
 echo ""
 
 echo "--- Portail ---"
@@ -64,8 +75,9 @@ echo ""
 echo "--- DFIR / Hunting ---"
 check "HELK Kibana" "/helk/kibana/" "200|302" || fail=1
 check "HELK API" "/helk/api/" "200" || fail=1
-helk_patterns=$(curl -sk --max-time 15 "${BASE}/helk/kibana/api/saved_objects/_find?type=index-pattern&per_page=20" \
-  -H 'kbn-xsrf: true' 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)
+helk_patterns=$(docker exec forensic-nginx wget -q -O - --no-check-certificate --max-time 15 \
+  "${BASE}/helk/kibana/api/saved_objects/_find?type=index-pattern&per_page=20" 2>/dev/null \
+  | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)
 if [ "${helk_patterns:-0}" -gt 0 ]; then
   echo "PASS: HELK index patterns (${helk_patterns})"
 else
@@ -73,7 +85,8 @@ else
   fail=1
 fi
 check "Cortex" "/cortex/" "200|302|303" || fail=1
-cortex_loc=$(curl -sk -I --max-time 15 "${BASE}/cortex/" 2>/dev/null | awk -F': ' 'tolower($1)=="location"{print $2}' | tr -d '\r' | head -1)
+cortex_loc=$(docker exec forensic-nginx wget -S -O /dev/null --no-check-certificate --max-time 15 "${BASE}/cortex/" 2>&1 \
+  | awk -F': ' 'tolower($1)=="location"{print $2}' | tr -d '\r' | head -1 || true)
 if [ -n "$cortex_loc" ] && echo "$cortex_loc" | grep -qE '^https?://[^/]+/cortex/' && ! echo "$cortex_loc" | grep -qE '^https?://[^:/]+/cortex/'; then
   echo "PASS: Cortex redirect avec port ($cortex_loc)"
 elif [ -n "$cortex_loc" ] && echo "$cortex_loc" | grep -q ':8443'; then

@@ -55,6 +55,8 @@ check_grep "Logstash proxy sous-chemin" \
   'location /logstash/' "$CONF"
 check_grep "Logstash upstream monitoring" \
   'upstream u_logstash' "$CONF"
+check_grep "MISP proxy rewrite strip prefix" \
+  'rewrite \^/misp/\?\(\.\*\)\$ /\$1 break;' "$CONF"
 
 echo ""
 echo "=== HELK Kibana public URL ==="

@@ -32,10 +32,13 @@ echo ""
 
 for name in "${STATIC_TESTS[@]}"; do
   script="$ROOT/scripts/$name"
-  if [ ! -x "$script" ]; then
-    echo "FAIL: $name absent ou non exécutable" >&2
+  if [ ! -f "$script" ]; then
+    echo "FAIL: $name absent" >&2
     fail=1
     continue
+  fi
+  if [ ! -x "$script" ]; then
+    echo "WARN: $name non exécutable — lancement via bash (chmod +x recommandé)" >&2
   fi
   echo "── $name ──"
   if bash "$script"; then

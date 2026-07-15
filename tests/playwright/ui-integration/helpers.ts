@@ -169,6 +169,8 @@ export function attachErrorCollector(page: Page) {
   page.on('requestfailed', (req) => {
     const f = req.failure()?.errorText || 'failed';
     const url = req.url();
+    // Flakes Chromium/lab (changement interface, abort navigation)
+    if (/ERR_NETWORK_CHANGED|ERR_ABORTED|ERR_CONNECTION_RESET|ERR_INTERNET_DISCONNECTED/i.test(f)) return;
     if (isIgnorableNetwork(url, 0)) return;
     networkErrors.push(`FAIL ${url} (${f})`);
   });
@@ -210,6 +212,8 @@ function isIgnorableConsoleError(text: string): boolean {
 
 function isIgnorableNetwork(url: string, status: number): boolean {
   if (url.includes('favicon')) return true;
+  // CDN tiers / flakiness réseau lab (ERR_NETWORK_CHANGED, etc.)
+  if (/cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com|fonts\.googleapis|fonts\.gstatic/i.test(url)) return true;
   if (url.includes('/api/helk/status') && status === 0) return true;
   if (url.includes('/api/velociraptor/status') && status === 0) return true;
   if (url.includes('/api/velociraptor/clients') && status >= 500) return true;

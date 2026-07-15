@@ -21,6 +21,8 @@ test.describe('UI Velociraptor', () => {
   test('module Velociraptor DFIR portail', async ({ page }) => {
     await openCertTab(page, 'velociraptor-dfir');
     await expect(page.locator('#velociraptor-dfir-root')).toBeVisible();
+    // Attendre le mount async du module (collect + exports)
+    await expect(page.locator('#vr-lab-collect-full')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('#vr-export-ts, #vr-export-full').first()).toBeVisible({ timeout: 15_000 });
   });
 

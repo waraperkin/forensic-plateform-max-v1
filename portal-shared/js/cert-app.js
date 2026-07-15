@@ -88,10 +88,14 @@ function tab(raw) {
     AccessCenter.loadAccessCenter();
   }
   if (t === 'portal-documentation') {
-    const loadDoc = () => window.PortalDoc?.renderDocumentationRoot?.();
+    const loadDoc = (n = 0) => {
+      if (window.PortalDoc?.renderDocumentationRoot) {
+        window.PortalDoc.renderDocumentationRoot();
+        return;
+      }
+      if (n < 40) setTimeout(() => loadDoc(n + 1), 50);
+    };
     loadDoc();
-    requestAnimationFrame(loadDoc);
-    setTimeout(loadDoc, 100);
   }
   const masterZone = t === 'cases' ? 'incidents' : t === 'master-users' ? 'users' : t;
   const skipMasterZone = new Set(['kb']);

@@ -53,8 +53,9 @@ if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-misp$'; then
         && log "MISP CSRF/baseurl alignés (IP)" \
         || log "WARN misp-repair-csrf"
     else
-      MSYS_NO_PATHCONV=1 docker exec forensic-misp bash /scripts/misp-apply-bootstrap-fix.sh \
-        >> "${FP_LOG_START:-$ROOT/logs/misp-init.log}" 2>&1 || true
+      if [ -x "$ROOT/scripts/misp-sanitize-bootstrap.sh" ]; then
+        bash "$ROOT/scripts/misp-sanitize-bootstrap.sh" >> "${FP_LOG_START:-$ROOT/logs/misp-init.log}" 2>&1 || true
+      fi
       bash "$ROOT/scripts/misp-configure-host.sh" >> "${FP_LOG_START:-$ROOT/logs/misp-init.log}" 2>&1 \
         && log "MISP.baseurl aligné (IP)" \
         || log "WARN misp-configure-host"

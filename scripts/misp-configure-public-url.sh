@@ -45,13 +45,9 @@ sudo -u www-data "$CAKE" Admin setSetting "MISP.external_baseurl" "${PUBLIC_BASE
 sudo -u www-data "$CAKE" Admin setSetting "Security.force_https" true --force 2>/dev/null \
   || "$CAKE" Admin setSetting "Security.force_https" true --force
 
-# Coercion désactivée : App.base est fixé via misp-apply-bootstrap-fix.sh (localhost)
+# Coercion désactivée : App.base géré par MISP selon MISP.baseurl
 sudo -u www-data "$CAKE" Admin setSetting "MISP.disable_baseurl_coercion" true --force 2>/dev/null \
   || "$CAKE" Admin setSetting "MISP.disable_baseurl_coercion" true --force
-
-if [ -x /scripts/misp-apply-bootstrap-fix.sh ]; then
-  /scripts/misp-apply-bootstrap-fix.sh || true
-fi
 
 sudo -u www-data "$CAKE" Admin getSetting "MISP.baseurl" 2>/dev/null \
   || "$CAKE" Admin getSetting "MISP.baseurl"

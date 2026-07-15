@@ -53,8 +53,8 @@ log "1/5 — Sidecar GUI + régénération config"
 bash "$ROOT/scripts/ensure-velociraptor-sidecar.sh"
 
 VR_CFG="$ROOT/velociraptor/config/server.config.yaml"
-if [ -f "$VR_CFG" ] && grep -qE 'public_url:.*localhost|public_url:.*127\.0\.0\.1' "$VR_CFG" 2>/dev/null; then
-  log "ERREUR: server.config.yaml public_url encore localhost — régénération forcée"
+if [ -f "$VR_CFG" ] && grep -qE 'public_url:.*(localhost|127\.0\.0\.1|/app/index\.html)' "$VR_CFG" 2>/dev/null; then
+  log "Régénération server.config.yaml (public_url obsolète)"
   FP_VR_NGINX_ONLY=1 PUBLIC_HOST="$HOST" bash "$ROOT/velociraptor/scripts/generate-config.sh" || true
   cd "$ROOT/velociraptor" && docker compose -f docker-compose.velociraptor.yml up -d --force-recreate velociraptor-server 2>/dev/null || true
   cd "$ROOT"

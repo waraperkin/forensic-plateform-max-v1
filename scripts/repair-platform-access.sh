@@ -39,10 +39,12 @@ fi
 if [ -x "$ROOT/scripts/misp-repair-csrf.sh" ]; then
   bash "$ROOT/scripts/misp-repair-csrf.sh" || log "WARN misp-repair-csrf"
 elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-misp$'; then
-  log "MISP — bootstrap + baseurl"
+  log "MISP — sanitize bootstrap + baseurl"
   export MISP_PUBLIC_BASE_URL="$(fp_misp_public_base_url 2>/dev/null || echo "${BASE}/misp")"
   docker compose up -d misp 2>/dev/null || true
-  MSYS_NO_PATHCONV=1 docker exec forensic-misp bash /scripts/misp-apply-bootstrap-fix.sh 2>/dev/null || true
+  if [ -x "$ROOT/scripts/misp-sanitize-bootstrap.sh" ]; then
+    bash "$ROOT/scripts/misp-sanitize-bootstrap.sh" 2>/dev/null || true
+  fi
   bash "$ROOT/scripts/misp-configure-host.sh" 2>/dev/null || log "WARN misp-configure-host"
 else
   log "WARN forensic-misp absent"
@@ -63,7 +65,7 @@ sleep 8
 if [ -x "$ROOT/scripts/verify-platform-ready.sh" ]; then
   FP_SKIP_HELK_PATTERNS=1 BASE_URL="$BASE" bash "$ROOT/scripts/verify-platform-ready.sh"
 else
-  for path in /logstash/ /misp/users/login /velociraptor/app/index.html /docs/fr/platform-inventory.json; do
+  for path in /logstash/ /misp/users/login /velociraptor/ /docs/fr/platform-inventory.json; do
     code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 20 "${BASE}${path}" 2>/dev/null || echo "000")
     log "${path} → HTTP ${code}"
   done

@@ -64,8 +64,7 @@ _run_in_misp() {
 }
 
 for attempt in 1 2 3 4 5; do
-  if _run_in_misp bash /scripts/misp-apply-bootstrap-fix.sh 2>/dev/null \
-    && _run_in_misp bash /scripts/misp-configure-public-url.sh; then
+  if _run_in_misp bash /scripts/misp-configure-public-url.sh; then
     _run_in_misp bash -c 'rm -rf /var/www/MISP/app/tmp/cache/models/* /var/www/MISP/app/tmp/cache/persistent/* 2>/dev/null || true'
     echo "[misp-configure-host] Terminé"
     exit 0

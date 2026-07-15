@@ -64,13 +64,14 @@
   }
 
   function docSection(id) {
+    const i18 = window.i18n;
     const sid = DOC_SECTION_IDS.includes(id) ? id : 'platform';
     if (sid === 'changelog') {
-      return { title: i18n.t('docs.changelog.title'), body: '' };
+      return { title: i18?.t?.('docs.changelog.title') || 'Changelog', body: '' };
     }
     return {
-      title: i18n.t(`docs.${sid}.title`),
-      body: i18n.t(`docs.${sid}.body`),
+      title: i18?.t?.(`docs.${sid}.title`) || sid,
+      body: i18?.t?.(`docs.${sid}.body`) || '',
     };
   }
 

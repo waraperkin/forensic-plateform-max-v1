@@ -167,12 +167,15 @@ def upload_csv_timeline(
     }
 
     def _post():
-        files = {"file": (csv_name, csv_data, "text/csv; charset=utf-8")}
+        # Ne pas envoyer Content-Type: application/json (casse le multipart → HTTP 500).
+        uh = {k: v for k, v in h.items() if k.lower() != "content-type"}
+        fname = csv_name if csv_name.lower().endswith(".csv") else f"{csv_name}.csv"
+        files = {"file": (fname, csv_data, "text/csv; charset=utf-8")}
         return session.post(
             f"{ts_url}/api/v1/upload/",
             files=files,
             data=data,
-            headers=h,
+            headers=uh,
             timeout=600,
         )
 

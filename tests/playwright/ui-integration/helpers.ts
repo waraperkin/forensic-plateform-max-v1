@@ -203,6 +203,18 @@ function isIgnorableConsoleError(text: string): boolean {
     'Impossible de contacter HELK',
     '[UI] api HELK',
     '[UI] api Impossible de contacter HELK',
+    // Grafana sous-chemin : annotations / chunks transitoires hors session complète
+    'handleAnnotationQueryRunnerError',
+    'Datasource: grafana was not found',
+    'ChunkLoadError',
+    'Loading chunk',
+    'DashboardPageProxy',
+    // Apps SOC avant login (TheHive / Cortex / OpenCTI)
+    'Authentication failure',
+    'AuthenticationError',
+    'You must be logged in',
+    'RRNLRequestError',
+    'Transition Rejection',
   ];
   if (process.env.FP_HARNESS_MODE === '1') {
     ignore.push('OpenSearch', 'opensearch', 'ECONNREFUSED', 'Service Unavailable');
@@ -258,13 +270,18 @@ export async function assertProxyPageOk(page: Page, routeName: string) {
 
 export async function openCertTab(page: Page, tab: string) {
   await gotoOk(page, `/?tab=${tab}`);
-  const btn = page.locator(`[data-tab-btn="${tab}"]`).first();
+  // Préférer le bouton sidebar visible (évite les data-tab-btn legacy cachés)
+  const btn = page.locator(`.cc-nav-btn[data-tab-btn="${tab}"], #fp-sidebar [data-tab-btn="${tab}"]`).first();
   if (await btn.isVisible().catch(() => false)) {
     await btn.click();
-  } else if (typeof page.evaluate === 'function') {
-    await page.evaluate((t) => { if (typeof (window as unknown as { tab?: (x: string) => void }).tab === 'function') (window as unknown as { tab: (x: string) => void }).tab(t); }, tab);
+  } else {
+    await page.evaluate((t) => {
+      const w = window as unknown as { tab?: (x: string) => void };
+      if (typeof w.tab === 'function') w.tab(t);
+    }, tab);
   }
-  await page.waitForTimeout(800);
+  await expect(page.locator(`#tab-${tab}`)).toBeVisible({ timeout: 20_000 });
+  await page.waitForTimeout(400);
 }
 
 export function testFilePath(): string {

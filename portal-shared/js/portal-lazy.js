@@ -156,8 +156,14 @@
     });
   }
 
-  function hookCertTab() {
-    if (typeof global.tab !== 'function' || global.tab.__lazyHooked) return;
+  function hookCertTab(attempt) {
+    const n = attempt || 0;
+    // cert-app.js assigne window.tab après bootstrap async — réessayer
+    if (typeof global.tab !== 'function') {
+      if (n < 80) setTimeout(() => hookCertTab(n + 1), 50);
+      return;
+    }
+    if (global.tab.__lazyHooked) return;
     const orig = global.tab;
     global.tab = function tabLazy(raw) {
       const b = bundleForTab(raw);
@@ -170,12 +176,19 @@
       ensureTab(raw).then(() => runTab(raw));
     };
     global.tab.__lazyHooked = true;
+    // Deep-link URL après hook (évite onglet fantôme / panel display:none)
+    const initial = new URLSearchParams(location.search).get('tab');
+    if (initial) {
+      setTimeout(() => {
+        try { global.tab(initial); } catch (e) { console.warn(e); }
+      }, 0);
+    }
   }
 
   function init() {
     wrapThreatBind();
     hookSidebarPrefetch();
-    hookCertTab();
+    hookCertTab(0);
     const initial = new URLSearchParams(location.search).get('tab');
     if (initial) prefetchTab(initial);
     ['sekoia-assets', 'gov-assets', 'sekoia-cc'].forEach(prefetchTab);

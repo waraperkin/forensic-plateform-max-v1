@@ -712,9 +712,15 @@ async function boot() {
   }
   initCertApp();
   if (window.initCybercorpShell) initCybercorpShell();
+  // Deep-link autoritatif : activer l'onglet même si PortalLazy n'a pas encore wrappé tab()
   const tabParam = new URLSearchParams(location.search).get('tab');
-  if (tabParam && window.applyInitialTabFromUrl) applyInitialTabFromUrl();
-  else if (window.PortalOverview) PortalOverview.loadOverviewCert();
+  if (tabParam && typeof window.tab === 'function') {
+    window.tab(tabParam);
+  } else if (tabParam && window.applyInitialTabFromUrl) {
+    applyInitialTabFromUrl();
+  } else if (window.PortalOverview) {
+    PortalOverview.loadOverviewCert();
+  }
   if (window.CybercorpUltra) CybercorpUltra.initSocClock();
 }
 

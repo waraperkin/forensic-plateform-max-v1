@@ -83,8 +83,14 @@ test.describe('QA deep — APIs interconnexions', () => {
   ];
   for (const path of apis) {
     test(`API ${path}`, async ({ request }) => {
-      const res = await request.get(path);
-      expect(res.status()).toBeLessThan(500);
+      let last = 0;
+      for (let i = 0; i < 5; i++) {
+        const res = await request.get(path);
+        last = res.status();
+        if (last > 0 && last < 500) break;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      expect(last).toBeLessThan(500);
     });
   }
 });

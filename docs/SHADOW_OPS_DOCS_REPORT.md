@@ -52,7 +52,7 @@ git commit -m "SHADOW OPS: full documentation suite generated"
 git push origin main
 ```
 
-Hash du commit documentaire : renseigné après push (`git log -1 --oneline`).
+Hash du commit documentaire : `4a10852` — SHADOW OPS: full documentation suite generated.
 
 ---
 

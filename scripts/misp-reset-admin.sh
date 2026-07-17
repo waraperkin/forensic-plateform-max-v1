@@ -48,6 +48,18 @@ cake user change_pw "admin@admin.test" "$PASS" --no_password_change 2>/dev/null 
 mysql_misp "UPDATE users SET email='${EMAIL}', change_pw=0, termsaccepted=1 WHERE id=1;"
 cake user change_pw "$EMAIL" "$PASS" --no_password_change 2>/dev/null || true
 cake user change_authkey 1 "$API_KEY" 2>/dev/null || true
+# Sync .env si cake a généré une clé différente (MISP ignore parfois la clé fournie)
+if [ -n "${API_KEY:-}" ] && [ -f "$ROOT/.env" ]; then
+  if ! grep -q "^MISP_ADMIN_API_KEY=${API_KEY}$" "$ROOT/.env" 2>/dev/null; then
+    if grep -q '^MISP_ADMIN_API_KEY=' "$ROOT/.env"; then
+      sed -i "s|^MISP_ADMIN_API_KEY=.*|MISP_ADMIN_API_KEY=${API_KEY}|" "$ROOT/.env"
+    else
+      echo "MISP_ADMIN_API_KEY=${API_KEY}" >> "$ROOT/.env"
+    fi
+    echo "[misp-reset] Sync MISP_ADMIN_API_KEY → .env"
+  fi
+fi
+
 mysql_misp "DELETE FROM bruteforces WHERE username IN ('${EMAIL}','admin@admin.test');" || true
 fix_misp_tmp_perms
 

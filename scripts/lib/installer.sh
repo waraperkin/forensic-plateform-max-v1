@@ -1684,6 +1684,9 @@ def gen_secret(k: str) -> str:
         return base64.b64encode(secrets.token_bytes(32)).decode()
     if k == "MISP_ENCRYPTION_KEY":
         return secrets.token_hex(16)
+    # MISP exige une authkey hex 40 chars (20 octets) — jamais Fp_/urlsafe
+    if k == "MISP_ADMIN_API_KEY":
+        return secrets.token_hex(20)
     if k.endswith("_ID") or "TOKEN" in k:
         return str(uuid.uuid4())
     if k in ("CORTEX_SECRET", "THEHIVE_API_KEY", "CORTEX_API_KEY"):

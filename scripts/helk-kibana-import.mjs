@@ -37,7 +37,8 @@ const origin =
 const kibanaBase = origin.includes('/helk/kibana')
   ? origin
   : `${origin}/helk/kibana`;
-const kibanaDirect = `http://127.0.0.1:${helkKibanaPort}`;
+// HELK Kibana force basePath=/helk/kibana même en accès direct hôte
+const kibanaDirect = `http://127.0.0.1:${helkKibanaPort}/helk/kibana`;
 
 async function importNdjson(filePath, base) {
   const name = path.basename(filePath);

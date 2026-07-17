@@ -68,7 +68,8 @@ echo ""
 echo "--- Threat Intel / IR ---"
 check "OpenCTI" "/cti/" "200|302" || fail=1
 check "MISP login" "/misp/users/login" "200|302" || fail=1
-misp_html=$(docker exec forensic-nginx wget -q -O - --no-check-certificate --max-time 20 \
+# BusyBox wget (alpine nginx) : -T SEC, pas --max-time
+misp_html=$(docker exec forensic-nginx wget -q -O - --no-check-certificate -T 20 \
   "${BASE}/misp/users/login" 2>/dev/null || true)
 if echo "$misp_html" | grep -qE 'Configure::read|FP_LOCALHOST_BASE_FIX|misp-bootstrap-localhost'; then
   echo "FAIL: MISP bootstrap.php corrompu (PHP visible sur /misp/users/login)" >&2
@@ -83,9 +84,16 @@ echo ""
 echo "--- DFIR / Hunting ---"
 check "HELK Kibana" "/helk/kibana/" "200|302" || fail=1
 check "HELK API" "/helk/api/" "200" || fail=1
-helk_patterns=$(docker exec forensic-nginx wget -q -O - --no-check-certificate --max-time 15 \
+# Prefer curl host (headers kbn-xsrf) ; fallback BusyBox wget -T
+helk_patterns=$(curl -sk --max-time 15 -H 'kbn-xsrf: true' \
   "${BASE}/helk/kibana/api/saved_objects/_find?type=index-pattern&per_page=20" 2>/dev/null \
   | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)
+if [ "${helk_patterns:-0}" = "0" ]; then
+  helk_patterns=$(docker exec forensic-nginx wget -q -O - --no-check-certificate -T 15 \
+    --header='kbn-xsrf: true' \
+    "${BASE}/helk/kibana/api/saved_objects/_find?type=index-pattern&per_page=20" 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)
+fi
 if [ "${helk_patterns:-0}" -gt 0 ]; then
   echo "PASS: HELK index patterns (${helk_patterns})"
 elif [ "${FP_SKIP_HELK_PATTERNS:-0}" = "1" ]; then
@@ -95,7 +103,7 @@ else
   fail=1
 fi
 check "Cortex" "/cortex/" "200|302|303" || fail=1
-cortex_loc=$(docker exec forensic-nginx wget -S -O /dev/null --no-check-certificate --max-time 15 "${BASE}/cortex/" 2>&1 \
+cortex_loc=$(docker exec forensic-nginx wget -S -O /dev/null --no-check-certificate -T 15 "${BASE}/cortex/" 2>&1 \
   | awk -F': ' 'tolower($1)=="location"{print $2}' | tr -d '\r' | head -1 || true)
 if [ -n "$cortex_loc" ] && echo "$cortex_loc" | grep -qE '^https?://[^/]+/cortex/' && ! echo "$cortex_loc" | grep -qE '^https?://[^:/]+/cortex/'; then
   echo "PASS: Cortex redirect avec port ($cortex_loc)"

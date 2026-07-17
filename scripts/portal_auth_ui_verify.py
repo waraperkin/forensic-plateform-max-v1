@@ -94,10 +94,20 @@ def main() -> int:
     elif "cc-nav-section" not in index_html.lower():
         ko("sidebar sections CYBERCORP absentes")
         fails += 1
-    elif "ingest &amp; evidence" not in index_html.lower() and "ingest & evidence" not in index_html.lower():
+    elif (
+        'data-tab-btn="ingest-evidence"' not in index_html.lower()
+        and "sidebar.ingest_evidence" not in index_html.lower()
+        and "ingest &amp; evidence" not in index_html.lower()
+        and "ingest & evidence" not in index_html.lower()
+        and "ingestion & evidence" not in index_html.lower()
+    ):
         ko("sidebar ultra (Ingest & Evidence) manquante")
         fails += 1
-    elif "activity log" not in index_html.lower():
+    elif (
+        'data-tab-btn="activity-log"' not in index_html.lower()
+        and "sidebar.activity_log" not in index_html.lower()
+        and "activity log" not in index_html.lower()
+    ):
         ko("sidebar Activity Log manquante")
         fails += 1
     elif 'data-tab-btn="access-center"' not in index_html.lower():

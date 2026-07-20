@@ -2,7 +2,7 @@
 
 **Destinataires :** direction, RSSI, responsables SOC / CERT  
 **Objet :** livraison de la plateforme SOC/DFIR forensic-minimal-v2  
-**Date :** 2026-07-17  
+**Date :** 2026-07-21  
 **Décision recommandée :** adoption pour lab CERT / formation / exploitation contrôlée
 
 ---
@@ -13,7 +13,7 @@ Forensic Minimal v2 est une **plateforme SOC et DFIR clé en main**. Elle regrou
 
 Une mission d’ingénierie **SHADOW OPS** a redéployé la plateforme depuis zéro, corrigé les défauts bloquants, validé les parcours analystes réels, puis livré la documentation d’exploitation.
 
-**Résultat :** santé **16/16 services OK**, aucun service DOWN ou DEGRADED, workflows authentifiés validés, code et documentation poussés sur GitHub.
+**Résultat :** santé **16/16 services OK**, aucun service DOWN ou DEGRADED, workflows authentifiés validés. Re-validation **SHADOW OPS FINAL2** (déploiement propre Debian 13, wipe Docker, full-start) confirmée ; code et documentation poussés sur GitHub.
 
 ---
 
@@ -85,3 +85,20 @@ La plateforme couvre les fonctions attendues d’un SOC/CERT de lab :
 3. Exécution du plan QA continu à chaque mise à jour.
 
 **Conclusion management : la plateforme est stable, opérationnelle et prête à être exploitée par une équipe SOC/DFIR.**
+
+---
+
+## Documentation associée
+
+- [Résumé exécutif](executive-summary.md)
+- [Message de livraison](delivery-message.md)
+- [Guide analyste](analyst-guide.md)
+- [Guide d'exploitation](operations-guide.md)
+- [Guide de déploiement](deployment-guide.md)
+- [Guide de maintenance](maintenance-guide.md)
+- [Plan de QA continu](qa-continuous.md)
+- [Plan de durcissement](hardening-plan.md)
+- [Plan de monitoring](monitoring-plan.md)
+- [Plan de migration](migration-plan.md)
+- [Plan de formation](training-plan.md)
+- [Manuel complet](full-manual.md)

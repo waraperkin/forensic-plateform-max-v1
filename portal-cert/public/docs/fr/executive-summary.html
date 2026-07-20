@@ -1,0 +1,88 @@
+<div class="portal-doc-article">
+<h2 id="résumé-exécutif-forensic-minimal-v2">Résumé exécutif — Forensic Minimal v2</h2>
+<p><strong>Destinataires :</strong> direction, RSSI, responsables SOC / CERT <strong>Objet :</strong> livraison de la plateforme SOC/DFIR forensic-minimal-v2 <strong>Date :</strong> 2026-07-21 <strong>Décision recommandée :</strong> adoption pour lab CERT / formation / exploitation contrôlée</p>
+<hr>
+<h3 id="en-une-page">En une page</h3>
+<p>Forensic Minimal v2 est une <strong>plateforme SOC et DFIR clé en main</strong>. Elle regroupe, derrière un seul accès HTTPS, l’ingestion d’evidences, le SIEM, le renseignement menace (CTI), la gestion d’incidents, les timelines forensiques et la collecte endpoint.</p>
+<p>Une mission d’ingénierie <strong>SHADOW OPS</strong> a redéployé la plateforme depuis zéro, corrigé les défauts bloquants, validé les parcours analystes réels, puis livré la documentation d’exploitation.</p>
+<p><strong>Résultat :</strong> santé <strong>16/16 services OK</strong>, aucun service DOWN ou DEGRADED, workflows authentifiés validés. Re-validation <strong>SHADOW OPS FINAL2</strong> (déploiement propre Debian 13, wipe Docker, full-start) confirmée ; code et documentation poussés sur GitHub.</p>
+<hr>
+<h3 id="ce-que-la-plateforme-apporte-métier">Ce que la plateforme apporte métier</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Besoin métier</th>
+<th>Réponse produit</th>
+</tr></thead><tbody>
+<tr><td>Centraliser les evidences CERT/IT</td><td>Portail CERT + portail IT (jetons) + MinIO</td></tr>
+<tr><td>Détecter et chercher dans les logs</td><td>OpenSearch / Dashboards + HELK</td></tr>
+<tr><td>Enrichir en threat intelligence</td><td>OpenCTI + MISP + sync SIEM</td></tr>
+<tr><td>Gérer les incidents</td><td>TheHive + Cortex</td></tr>
+<tr><td>Reconstruire une timeline</td><td>Timesketch</td></tr>
+<tr><td>Collecter sur endpoints</td><td>Velociraptor</td></tr>
+<tr><td>Piloter la santé SOC</td><td>Grafana + healthchecks portail (<strong>16/16</strong>)</td></tr>
+</tbody></table>
+<hr>
+<h3 id="risques-éliminés-par-la-mission">Risques éliminés par la mission</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Risque initial</th>
+<th>Traitement</th>
+</tr></thead><tbody>
+<tr><td>Déploiement non reproductible</td><td>Procédure zero-touch documentée (<code>preflight</code> + <code>-full-start</code>)</td></tr>
+<tr><td>Outils « verts » sans preuve d’usage</td><td>Workflows authentifiés obligatoires (login + API + actions analystes)</td></tr>
+<tr><td>Clés API MISP invalides à la génération</td><td>Génération hex conforme + reset admin synchronisé</td></tr>
+<tr><td>Faux échecs de santé HELK / portail</td><td>Correctifs verify + import Kibana</td></tr>
+<tr><td>Documentation éparpillée</td><td>Suite professionnelle unifiée dans <code>docs/</code></td></tr>
+</tbody></table>
+<hr>
+<h3 id="stabilité-confirmée">Stabilité confirmée</h3>
+<ul>
+<li>Redéploiement neuf sur VM Debian 13 validé.</li>
+<li>Cluster OpenSearch <strong>green</strong>.</li>
+<li>Portail CERT affiche <strong>16 OK / 0 DEGRADED / 0 DOWN</strong>.</li>
+<li>Script <code>verify-platform-ready.sh</code> : succès.</li>
+<li>Preuves techniques : <code>docs/SHADOW_OPS_REPORT.md</code>, <code>docs/SHADOW_OPS_MATRIX.json</code>.</li>
+</ul>
+<hr>
+<h3 id="conformité-soc-dfir-lab">Conformité SOC / DFIR (lab)</h3>
+<p>La plateforme couvre les fonctions attendues d’un SOC/CERT de lab :</p>
+<ul>
+<li><strong>Collecte &amp; chaîne de custody</strong> (upload, checksum MinIO, cases).</li>
+<li><strong>Détection &amp; hunting</strong> (SIEM, HELK, Sigma, Velociraptor).</li>
+<li><strong>CTI</strong> (OpenCTI/MISP, corrélation IOC).</li>
+<li><strong>IR</strong> (TheHive/Cortex).</li>
+<li><strong>Traçabilité</strong> (journaux d’activité portail, audit).</li>
+</ul>
+<blockquote>Note : le certificat TLS lab est auto-signé. Un passage en production entreprise nécessite PKI interne, durcissement et rotation secrets (voir <code>hardening-plan.md</code>).</blockquote>
+<hr>
+<h3 id="valeur">Valeur</h3>
+<ol>
+<li><strong>Time-to-SOC réduit</strong> : une commande d’orchestration au lieu de dizaines d’installations manuelles.</li>
+<li><strong>Parcours analyste unifié</strong> : un portail, des deep-links vers tous les outils.</li>
+<li><strong>Formation accélérée</strong> : scénarios et guides livrés (<code>training-plan.md</code>, <code>analyst-guide.md</code>).</li>
+<li><strong>Maintenabilité</strong> : guides d’exploitation, maintenance, migration et QA continu.</li>
+</ol>
+<hr>
+<h3 id="recommandation">Recommandation</h3>
+<p><strong>Valider la livraison</strong> pour usage lab / CERT interne, et planifier :</p>
+<ol>
+<li>Formation analystes (plan fourni).</li>
+<li>Durcissement progressif si exposition hors lab.</li>
+<li>Exécution du plan QA continu à chaque mise à jour.</li>
+</ol>
+<p><strong>Conclusion management : la plateforme est stable, opérationnelle et prête à être exploitée par une équipe SOC/DFIR.</strong></p>
+<hr>
+<h3 id="documentation-associée">Documentation associée</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Résumé exécutif</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Message de livraison</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Guide analyste</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Guide d&#x27;exploitation</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Guide de déploiement</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Guide de maintenance</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Plan de QA continu</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Plan de durcissement</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Plan de monitoring</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Plan de migration</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Plan de formation</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Manuel complet</a></li>
+</ul>
+</div>

@@ -145,10 +145,27 @@ docker run --rm -v forensic-minimal-v2_osdata:/to -v /backup:/backup alpine \
 - [ ] MISP baseurl
 - [ ] Clients Velociraptor re-enroll si IP change
 - [ ] Jetons IT régénérés
-- [ ] Documenter le commit + date dans `delivery-report.md`
+- [ ] Documenter le commit + date dans `delivery-message.md`
 
 ---
 
 ## 11. Rollback
 
 Si verify échoue : rebasculer SG/DNS vers ancienne VM encore intacte ; analyser logs cible ; ne pas détruire backups.
+
+---
+
+## Documentation associée
+
+- [Résumé exécutif](executive-summary.md)
+- [Message de livraison](delivery-message.md)
+- [Guide analyste](analyst-guide.md)
+- [Guide d'exploitation](operations-guide.md)
+- [Guide de déploiement](deployment-guide.md)
+- [Guide de maintenance](maintenance-guide.md)
+- [Plan de QA continu](qa-continuous.md)
+- [Plan de durcissement](hardening-plan.md)
+- [Plan de monitoring](monitoring-plan.md)
+- [Plan de migration](migration-plan.md)
+- [Plan de formation](training-plan.md)
+- [Manuel complet](full-manual.md)

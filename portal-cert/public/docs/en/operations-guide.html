@@ -1,0 +1,155 @@
+<div class="portal-doc-article">
+<h2 id="operations-guide-forensic-minimal-v2">Operations Guide — Forensic Minimal v2</h2>
+<p><strong>Audience:</strong> platform engineers, SOC ops, CERT administrators <strong>Goal:</strong> start, monitor and operate the platform day to day</p>
+<hr>
+<h3 id="1-starting-the-platform">1. Starting the platform</h3>
+<h4 id="first-start-fresh-vm">First start (fresh VM)</h4>
+<pre><code>sudo mkdir -p /opt
+sudo git clone https://github.com/waraperkin/forensic-minimal-v2.git /opt/forensic-minimal-v2
+cd /opt/forensic-minimal-v2
+./scripts/preflight-full-start.sh
+./forensic.sh -full-start</code></pre>
+<p>Typical duration: <strong>1 to 3 hours</strong> depending on bandwidth (image pulls).</p>
+<h4 id="restart-after-a-clean-stop">Restart after a clean stop</h4>
+<pre><code>cd /opt/forensic-minimal-v2
+./forensic.sh start
+# or
+docker compose up -d</code></pre>
+<h4 id="stop">Stop</h4>
+<pre><code>./forensic.sh stop
+# or
+docker compose down   # caution: do not lose the volumes</code></pre>
+<hr>
+<h3 id="2-checking-health">2. Checking health</h3>
+<h4 id="cert-portal">CERT Portal</h4>
+<p><code>https://&lt;HOST&gt;/</code> → banner <strong>16 OK / 0 DEGRADED / 0 DOWN</strong>.</p>
+<h4 id="cli">CLI</h4>
+<pre><code>cd /opt/forensic-minimal-v2
+./forensic.sh status
+BASE_URL=https://127.0.0.1 ./scripts/verify-platform-ready.sh
+curl -sk https://127.0.0.1/api/health/global | jq .</code></pre>
+<h4 id="containers">Containers</h4>
+<pre><code>docker ps --format &#x27;table {{.Names}}\t{{.Status}}&#x27; | sort
+docker ps --filter health=unhealthy</code></pre>
+<h4 id="opensearch">OpenSearch</h4>
+<pre><code>curl -s http://127.0.0.1:9200/_cluster/health | jq .</code></pre>
+<hr>
+<h3 id="3-monitoring-the-services">3. Monitoring the services</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Source</th>
+<th>Usage</th>
+</tr></thead><tbody>
+<tr><td>Grafana <code>https://&lt;HOST&gt;/grafana/</code></td><td>Platform / Velociraptor / Timesketch dashboards</td></tr>
+<tr><td>Prometheus <code>:9090</code></td><td>Raw metrics</td></tr>
+<tr><td>Loki / Tempo</td><td>Logs &amp; traces (obs stack)</td></tr>
+<tr><td>Portal → Health</td><td>16-service summary</td></tr>
+<tr><td><code>docker logs &lt;container&gt;</code></td><td>Unit diagnostics</td></tr>
+</tbody></table>
+<p>Useful dashboards: <code>forensic-overview</code>, <code>vraptor-endpoint</code>, <code>fp-platform-health</code>, SOC playbooks.</p>
+<hr>
+<h3 id="4-handling-incidents-operations">4. Handling incidents (operations)</h3>
+<ol>
+<li>Analyst creates / tracks the case in <strong>TheHive</strong> (via portal deep link).</li>
+<li>Evidence: CERT upload or IT token → MinIO + pipelines.</li>
+<li>Enrichment: MISP / OpenCTI / Cortex.</li>
+<li>Hunting: HELK / Velociraptor / OpenSearch.</li>
+<li>Timeline: Timesketch.</li>
+<li>Closure: portal report + case tags.</li>
+</ol>
+<p>Escalate to ops when:</p>
+<ul>
+<li>health &lt; 16/16;</li>
+<li>OpenSearch cluster stays yellow/red;</li>
+<li>CTI connector restart-loop;</li>
+<li>nginx 502 on a sub-path.</li>
+</ul>
+<hr>
+<h3 id="5-exports">5. Exports</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Data</th>
+<th>Method</th>
+</tr></thead><tbody>
+<tr><td>MISP event</td><td>UI Export / <code>restSearch</code> JSON</td></tr>
+<tr><td>OpenCTI indicator</td><td>STIX export UI / GraphQL</td></tr>
+<tr><td>Timesketch sketch</td><td>Sketch / stories export</td></tr>
+<tr><td>TheHive case</td><td>Case export UI / API</td></tr>
+<tr><td>MinIO objects</td><td><code>mc cp</code> / MinIO Console</td></tr>
+<tr><td>OS dashboards</td><td>Saved objects NDJSON</td></tr>
+<tr><td>VR collection</td><td>Artifact ZIP / flow export</td></tr>
+</tbody></table>
+<p>MinIO example:</p>
+<pre><code>docker run --rm --network forensic-minimal-v2_forensic-net \
+  -v &quot;$PWD/export:/data&quot; --entrypoint sh minio/mc -c &#x27;
+  mc alias set local http://minio:9000 &quot;$MINIO_ROOT_USER&quot; &quot;$MINIO_ROOT_PASSWORD&quot;
+  mc mirror local/logs-raw /data/logs-raw
+&#x27;</code></pre>
+<hr>
+<h3 id="6-imports">6. Imports</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Type</th>
+<th>Input</th>
+</tr></thead><tbody>
+<tr><td>Logs / evidence</td><td>CERT portal upload, IT token, Logstash beats</td></tr>
+<tr><td>TI</td><td>OpenCTI connectors, MISP sync, STIX upload</td></tr>
+<tr><td>Timeline</td><td>Timesketch upload / ingest worker</td></tr>
+<tr><td>Dashboards</td><td>OpenSearch / HELK NDJSON import scripts</td></tr>
+<tr><td>VR agents</td><td><code>client.config.yaml</code> generated post-start</td></tr>
+</tbody></table>
+<hr>
+<h3 id="7-users">7. Users</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Scope</th>
+<th>Management</th>
+</tr></thead><tbody>
+<tr><td>CERT Portal</td><td><strong>Portal accounts</strong> (admin) / <code>ensure-portal-admin.sh</code></td></tr>
+<tr><td>IT Portal</td><td>Time-limited tokens (no permanent account required)</td></tr>
+<tr><td>MISP</td><td>cake users / UI Administration</td></tr>
+<tr><td>OpenCTI</td><td>Settings → Users</td></tr>
+<tr><td>TheHive</td><td>Users + organisations (<code>cert</code>)</td></tr>
+<tr><td>Cortex</td><td>Users / orgs</td></tr>
+<tr><td>Timesketch</td><td>Admin users</td></tr>
+<tr><td>Grafana</td><td>Users / org</td></tr>
+<tr><td>Velociraptor</td><td>GUI users</td></tr>
+</tbody></table>
+<p>Portal admin reset:</p>
+<pre><code>./forensic.sh reset-portal-admin
+# or
+bash scripts/ensure-portal-admin.sh</code></pre>
+<p>MISP admin reset:</p>
+<pre><code>bash scripts/misp-reset-admin.sh</code></pre>
+<hr>
+<h3 id="8-frequent-ops-commands">8. Frequent ops commands</h3>
+<pre><code>./forensic.sh status
+./forensic.sh update-portals
+./forensic.sh repair-vr
+./forensic.sh misp-init
+./forensic.sh fix-data
+bash scripts/post-start-align.sh</code></pre>
+<p>Logging: <code>logs/forensic_start.log</code>, <code>logs/forensic_install.log</code>.</p>
+<hr>
+<h3 id="9-daily-checklist-5-minutes">9. Daily checklist (5 minutes)</h3>
+<ul>
+<li><input type="checkbox" disabled> Portal 16/16</li>
+<li><input type="checkbox" disabled> <code>verify-platform-ready</code> or <code>/api/health/global</code></li>
+<li><input type="checkbox" disabled> No critical unhealthy container</li>
+<li><input type="checkbox" disabled> OpenSearch green/yellow acceptable</li>
+<li><input type="checkbox" disabled> Disk space (<code>df -h</code>)</li>
+<li><input type="checkbox" disabled> OpenCTI connectors (no massive restart-loop)</li>
+</ul>
+<hr>
+<h3 id="related-documentation">Related documentation</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Executive summary</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Delivery message</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Analyst guide</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Operations guide</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Deployment guide</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Maintenance guide</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Continuous QA plan</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Hardening plan</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Monitoring plan</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Migration plan</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Training plan</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Full platform manual</a></li>
+</ul>
+</div>

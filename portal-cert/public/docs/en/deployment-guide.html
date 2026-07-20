@@ -1,0 +1,130 @@
+<div class="portal-doc-article">
+<h2 id="deployment-guide-forensic-minimal-v2">Deployment Guide — Forensic Minimal v2</h2>
+<hr>
+<h3 id="1-system-requirements">1. System requirements</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Resource</th>
+<th>Minimum</th>
+<th>Recommended</th>
+</tr></thead><tbody>
+<tr><td>OS</td><td>Debian 12/13 (or Ubuntu 22.04+)</td><td>Debian 13</td></tr>
+<tr><td>CPU</td><td>8 cores</td><td>14+</td></tr>
+<tr><td>RAM</td><td>32 GB</td><td>64 GB</td></tr>
+<tr><td>Disk</td><td>100 GB free</td><td>300 GB+ SSD</td></tr>
+<tr><td>Docker</td><td>24+ with Compose v2</td><td>Latest stable</td></tr>
+<tr><td>Network</td><td>Outbound HTTPS (image pulls)</td><td>SG/firewall: TCP 80, 443</td></tr>
+</tbody></table>
+<p>Mandatory sysctl (OpenSearch):</p>
+<pre><code>sudo sysctl -w vm.max_map_count=262144
+echo &#x27;vm.max_map_count=262144&#x27; | sudo tee /etc/sysctl.d/99-opensearch.conf</code></pre>
+<p>Useful packages: <code>curl jq openssl python3 git lsof</code>.</p>
+<hr>
+<h3 id="2-complete-installation-exact-commands">2. Complete installation (exact commands)</h3>
+<pre><code>sudo mkdir -p /opt
+sudo rm -rf /opt/forensic-minimal-v2   # only for a fresh redeploy
+sudo git clone https://github.com/waraperkin/forensic-minimal-v2.git /opt/forensic-minimal-v2
+sudo chown -R &quot;$USER:$USER&quot; /opt/forensic-minimal-v2
+cd /opt/forensic-minimal-v2
+
+./scripts/preflight-full-start.sh
+./forensic.sh -full-start</code></pre>
+<p>At the end of the run, note:</p>
+<ul>
+<li>the <code>https://&lt;IP&gt;/</code> URL</li>
+<li>the TLS fingerprint</li>
+<li>the displayed accounts (portal, Grafana, MISP, etc.)</li>
+</ul>
+<p>Validation:</p>
+<pre><code>BASE_URL=https://127.0.0.1 ./scripts/verify-platform-ready.sh
+./forensic.sh status</code></pre>
+<hr>
+<h3 id="3-docker-architecture">3. Docker architecture</h3>
+<pre><code>                    Internet / LAN
+                           │
+                    ┌──────▼──────┐
+                    │ forensic-   │
+                    │ nginx :443  │
+                    └──────┬──────┘
+           ┌───────────────┼────────────────┐
+           ▼               ▼                ▼
+     cert-portal      it-portal        sub-paths
+     it-portal                         /misp /cti /thehive
+                                       /grafana /dashboards
+                                       /velociraptor /helk/...
+           │
+     forensic-net (bridge)
+           │
+  ┌────────┼────────┬─────────┬──────────┐
+  OS/OSD   MinIO   TS/MISP   OpenCTI    TheHive/Cortex
+  Logstash Redis   Postgres  Cassandra  RabbitMQ
+  HELK*    VR*     Grafana   Loki/Tempo Prometheus</code></pre>
+<p>\* HELK and Velociraptor are <strong>sidecars</strong> orchestrated by the <code>setup-sidecars</code> / <code>ensure-velociraptor-sidecar</code> scripts.</p>
+<p>Key files:</p>
+<ul>
+<li><code>docker-compose.yml</code> — main stack</li>
+<li><code>docker-compose.opencti.yml</code> — OpenCTI / connectors</li>
+<li><code>helk/docker-compose*.yml</code> — HELK sidecar</li>
+<li><code>config/nginx/conf.d/forensic.conf</code> — reverse proxy</li>
+</ul>
+<hr>
+<h3 id="4-network-reverse-proxy">4. Network / reverse proxy</h3>
+<ul>
+<li>TLS terminates on <strong>nginx</strong> (lab certs in <code>config/nginx/ssl/</code>).</li>
+<li>Sub-paths keep their prefix for CakePHP/MISP, TheHive (<code>/thehive</code>), OpenCTI (<code>/cti</code>), VR.</li>
+<li>Hairpin NAT: from the VM, test through <code>https://127.0.0.1</code> (the <code>verify-platform-ready</code> script forces it when nginx runs).</li>
+<li><code>PUBLIC_HOST</code> is detected / written into <code>.env</code> at bootstrap.</li>
+</ul>
+<p>Typical exposed ports: <code>80</code>, <code>443</code>, plus lab debug ports (<code>5000</code>, <code>8090</code>, <code>9001</code>–<code>9003</code>, <code>9200</code>, <code>5601</code>, …) depending on compose.</p>
+<hr>
+<h3 id="5-env-bootstrap">5. <code>.env</code> bootstrap</h3>
+<p>On the first <code>-full-start</code>:</p>
+<ol>
+<li>Copy from <code>.env.example</code> when absent.</li>
+<li>Secret generation (see <code>gen_secret</code> in <code>scripts/lib/installer.sh</code>).</li>
+<li>Config patching (Grafana, Timesketch, VR, portals, site-identity).</li>
+</ol>
+<p><strong>Never</strong> commit <code>.env</code> (gitignored).</p>
+<hr>
+<h3 id="6-deployment-troubleshooting">6. Deployment troubleshooting</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Symptom</th>
+<th>Lead</th>
+</tr></thead><tbody>
+<tr><td>Preflight FAIL on MISP proxy</td><td>Align nginx tests / recent commits</td></tr>
+<tr><td>OpenSearch does not start</td><td><code>vm.max_map_count</code>, RAM, disk</td></tr>
+<tr><td>HELK patterns = 0</td><td><code>KIBANA_URL=http://127.0.0.1:15602/helk/kibana node scripts/helk-kibana-import.mjs</code></td></tr>
+<tr><td>MISP API 403</td><td><code>bash scripts/misp-reset-admin.sh</code> (40-char hex key)</td></tr>
+<tr><td>Portal login broken</td><td><code>bash scripts/ensure-portal-admin.sh</code></td></tr>
+<tr><td>VR 502</td><td><code>./forensic.sh repair-vr</code></td></tr>
+<tr><td>verify FAIL HTTP 000</td><td>nginx stopped → <code>docker compose up -d nginx</code></td></tr>
+<tr><td>TheHive 404 on <code>:9002/api</code></td><td>Use <code>:9002/thehive/api/...</code></td></tr>
+<tr><td>Full-start long / step timeout</td><td>Re-run targeted masters (<code>./forensic.sh &lt;tool&gt;-master-setup</code>)</td></tr>
+</tbody></table>
+<p>Logs: <code>logs/full-start-console.log</code>, <code>logs/forensic_start.log</code>.</p>
+<hr>
+<h3 id="7-mandatory-post-deployment">7. Mandatory post-deployment</h3>
+<ol>
+<li>Accept the browser TLS warning (lab).</li>
+<li>Change the passwords outside the lab.</li>
+<li>Run <code>verify-platform-ready</code>.</li>
+<li>Portal smoke test (login + upload).</li>
+<li>Capture the TLS fingerprint for the IT teams.</li>
+</ol>
+<p>See also: <code>docs/INSTALLATION.md</code>, <code>docs/LAB-ENDPOINTS.md</code>.</p>
+<hr>
+<h3 id="related-documentation">Related documentation</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Executive summary</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Delivery message</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Analyst guide</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Operations guide</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Deployment guide</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Maintenance guide</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Continuous QA plan</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Hardening plan</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Monitoring plan</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Migration plan</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Training plan</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Full platform manual</a></li>
+</ul>
+</div>

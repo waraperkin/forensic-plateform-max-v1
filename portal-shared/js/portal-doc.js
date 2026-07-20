@@ -9,7 +9,7 @@
   const esc = (s) => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  const VERSION = '2026.06.11-minimal-doc1';
+  const VERSION = '2026.07.21-docs1';
 
   /** @type {{ group: string, items: { id: string, type?: 'inline'|'fetch'|'changelog', fetch?: string }[] }[]} */
   const DOC_CATALOG = [
@@ -25,6 +25,23 @@
         { id: 'security', type: 'fetch', fetch: 'security-ops' },
         { id: 'forensic_reports', type: 'fetch', fetch: 'forensic-reports' },
         { id: 'forensic_investigation', type: 'fetch', fetch: 'forensic-investigation' },
+      ],
+    },
+    {
+      group: 'docs.groups.guides',
+      items: [
+        { id: 'guide_executive_summary', type: 'fetch', fetch: 'executive-summary' },
+        { id: 'guide_delivery_message', type: 'fetch', fetch: 'delivery-message' },
+        { id: 'guide_analyst', type: 'fetch', fetch: 'analyst-guide' },
+        { id: 'guide_operations', type: 'fetch', fetch: 'operations-guide' },
+        { id: 'guide_deployment', type: 'fetch', fetch: 'deployment-guide' },
+        { id: 'guide_maintenance', type: 'fetch', fetch: 'maintenance-guide' },
+        { id: 'guide_qa_continuous', type: 'fetch', fetch: 'qa-continuous' },
+        { id: 'guide_hardening', type: 'fetch', fetch: 'hardening-plan' },
+        { id: 'guide_monitoring', type: 'fetch', fetch: 'monitoring-plan' },
+        { id: 'guide_migration', type: 'fetch', fetch: 'migration-plan' },
+        { id: 'guide_training', type: 'fetch', fetch: 'training-plan' },
+        { id: 'guide_full_manual', type: 'fetch', fetch: 'full-manual' },
       ],
     },
     {
@@ -243,6 +260,7 @@
       if (item.type === 'fetch' && item.fetch) {
         host.innerHTML = await fetchDocHtml(item.fetch);
         initMermaidIn(host);
+        wireInternalDocLinks(host);
         host.querySelector('#portal-doc-start-tour')?.addEventListener('click', startTour);
         return;
       }
@@ -253,6 +271,26 @@
     } catch (e) {
       host.innerHTML = `<p class="fp-alert fp-alert-err">${esc(e.message)}</p>`;
     }
+  }
+
+  /** Liens internes data-doc-section → navigation dans le menu docs */
+  function wireInternalDocLinks(host) {
+    if (!host) return;
+    host.querySelectorAll('a[data-doc-section]').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const sid = a.getAttribute('data-doc-section');
+        if (!sid) return;
+        const nav = document.getElementById('portal-doc-nav');
+        const btn = nav?.querySelector(`[data-doc-section="${sid}"]`);
+        if (btn) {
+          nav.querySelectorAll('.fp-btn[data-doc-section]').forEach((x) => x.classList.remove('active'));
+          btn.classList.add('active');
+          btn.scrollIntoView({ block: 'nearest' });
+        }
+        renderDocPanel(sid);
+      });
+    });
   }
 
   function renderDocumentationRoot() {

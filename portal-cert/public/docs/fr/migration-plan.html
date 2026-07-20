@@ -1,0 +1,135 @@
+<div class="portal-doc-article">
+<h2 id="plan-de-migration-forensic-minimal-v2">Plan de migration — Forensic Minimal v2</h2>
+<p><strong>Objectif :</strong> déplacer une instance lab/prod vers une autre VM en minimisant la perte de données.</p>
+<hr>
+<h3 id="1-principes">1. Principes</h3>
+<ol>
+<li><strong>Ne jamais</strong> migrer sans backup vérifié.</li>
+<li>Migrer d’abord le **code + <code>.env</code><strong>, puis les </strong>volumes**.</li>
+<li>Recréer la stack, restaurer, <strong>re-aligner</strong> (<code>post-start-align</code>), <strong>verify</strong>.</li>
+<li>Basculer le DNS / IP / Security Group en dernier.</li>
+</ol>
+<hr>
+<h3 id="2-préparation-vm-cible">2. Préparation VM cible</h3>
+<ul>
+<li>Mêmes prérequis que <code>deployment-guide.md</code> (RAM, <code>vm.max_map_count</code>, Docker).</li>
+<li>Clone du <strong>même commit</strong> :</li>
+</ul>
+<pre><code>sudo git clone https://github.com/waraperkin/forensic-minimal-v2.git /opt/forensic-minimal-v2
+cd /opt/forensic-minimal-v2
+git checkout &lt;commit-source&gt;</code></pre>
+<ul>
+<li>Copier <code>.env</code> source (scp chiffré) — <strong>ne pas régénérer</strong> les secrets si on restaure les DB.</li>
+</ul>
+<hr>
+<h3 id="3-inventaire-des-données-à-migrer">3. Inventaire des données à migrer</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Donnée</th>
+<th>Volume / chemin typique</th>
+</tr></thead><tbody>
+<tr><td>MinIO objects</td><td>volume <code>minio</code> / data</td></tr>
+<tr><td>OpenSearch indices</td><td>volumes <code>opensearch-1/2</code></td></tr>
+<tr><td>Postgres (TS, portails, etc.)</td><td>volume <code>postgres</code></td></tr>
+<tr><td>MISP MySQL</td><td>volume <code>misp-db</code></td></tr>
+<tr><td>Cassandra (TheHive/OpenCTI selon config)</td><td>volume <code>cassandra</code></td></tr>
+<tr><td>Redis</td><td>souvent éphémère (sessions)</td></tr>
+<tr><td>Timesketch data</td><td>volumes associés</td></tr>
+<tr><td>VR server data / clients</td><td>volumes velociraptor</td></tr>
+<tr><td>Certs TLS</td><td><code>config/nginx/ssl/</code></td></tr>
+<tr><td>Uploads portail</td><td><code>shared-uploads</code> / cert-portal-uploads</td></tr>
+</tbody></table>
+<p>Lister précisément :</p>
+<pre><code>docker volume ls | grep forensic
+docker compose config --volumes</code></pre>
+<hr>
+<h3 id="4-migrer-minio">4. Migrer MinIO</h3>
+<p>Sur source :</p>
+<pre><code>mc mirror local/ /backup/minio/
+# ou docker run minio/mc comme dans maintenance-guide</code></pre>
+<p>Sur cible (après <code>docker compose up -d minio</code>) :</p>
+<pre><code>mc mirror /backup/minio/ local/</code></pre>
+<p>Vérifier checksum échantillon.</p>
+<hr>
+<h3 id="5-migrer-opensearch">5. Migrer OpenSearch</h3>
+<p><strong>Option A — Snapshot/restore</strong> (recommandée)</p>
+<ol>
+<li>Enregistrer dépôt snapshot accessible (FS partagé / MinIO).  </li>
+<li>Snapshot complet sur source.  </li>
+<li>Restore sur cible (même version OS 2.12.x).</li>
+</ol>
+<p><strong>Option B — Copie volumes</strong> (arrêt propre requis) :</p>
+<pre><code># source arrêté
+docker run --rm -v forensic-minimal-v2_osdata:/from -v /backup:/backup alpine \
+  tar czf /backup/osdata.tgz -C /from .
+# cible
+docker run --rm -v forensic-minimal-v2_osdata:/to -v /backup:/backup alpine \
+  tar xzf /backup/osdata.tgz -C /to</code></pre>
+<hr>
+<h3 id="6-migrer-timesketch">6. Migrer Timesketch</h3>
+<ol>
+<li>Dump Postgres (DB Timesketch).</li>
+<li>Copier volumes fichiers timelines si externalisés.</li>
+<li>Restore Postgres cible + <code>docker compose up -d timesketch-web timesketch-worker</code>.</li>
+<li>Login + ouvrir un sketch témoin.</li>
+</ol>
+<hr>
+<h3 id="7-migrer-misp">7. Migrer MISP</h3>
+<ol>
+<li>Dump MySQL <code>misp</code> (+ fichiers <code>/var/www/MISP/app/files</code> si attachments).</li>
+<li>Restore sur <code>forensic-misp-db</code>.</li>
+<li><code>bash scripts/misp-reset-admin.sh</code> <strong>seulement</strong> si credentials doivent être réalignés (sinon garder clés).</li>
+<li><code>misp-configure-public-url</code> / <code>post-start-align</code> pour nouvelle IP.</li>
+</ol>
+<hr>
+<h3 id="8-migrer-thehive-cortex">8. Migrer TheHive / Cortex</h3>
+<ol>
+<li>Backup Cassandra (et Elasticsearch TheHive si utilisé).</li>
+<li>Backup configs <code>config/thehive</code>, <code>config/cortex</code>.</li>
+<li>Restore volumes + up services.</li>
+<li>Vérifier <code>/thehive/api/status</code> et login analyste.</li>
+<li>Renouveler clés Cortex si mismatch.</li>
+</ol>
+<hr>
+<h3 id="9-procédure-globale-recommandée">9. Procédure globale recommandée</h3>
+<pre><code>[Source] freeze writes (annonce SOC)
+   → backup MinIO + snapshot OS + dump SQL/Cassandra
+   → copier .env + ssl + configs
+[Cible] clone repo + .env
+   → sysctl + docker
+   → create volumes + restore data
+   → docker compose up -d (par vagues)
+   → post-start-align.sh
+   → verify-platform-ready.sh
+   → smoke workflows
+[Cutover] DNS/IP/SG
+[Source] conserver offline 7 jours</code></pre>
+<hr>
+<h3 id="10-post-migration">10. Post-migration</h3>
+<ul>
+<li><input type="checkbox" disabled> <code>PUBLIC_HOST</code> / configs Grafana / Timesketch / VR régénérés pour nouvelle IP</li>
+<li><input type="checkbox" disabled> Portail 16/16</li>
+<li><input type="checkbox" disabled> MISP baseurl</li>
+<li><input type="checkbox" disabled> Clients Velociraptor re-enroll si IP change</li>
+<li><input type="checkbox" disabled> Jetons IT régénérés</li>
+<li><input type="checkbox" disabled> Documenter le commit + date dans <code>delivery-message.md</code></li>
+</ul>
+<hr>
+<h3 id="11-rollback">11. Rollback</h3>
+<p>Si verify échoue : rebasculer SG/DNS vers ancienne VM encore intacte ; analyser logs cible ; ne pas détruire backups.</p>
+<hr>
+<h3 id="documentation-associée">Documentation associée</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Résumé exécutif</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Message de livraison</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Guide analyste</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Guide d&#x27;exploitation</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Guide de déploiement</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Guide de maintenance</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Plan de QA continu</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Plan de durcissement</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Plan de monitoring</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Plan de migration</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Plan de formation</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Manuel complet</a></li>
+</ul>
+</div>

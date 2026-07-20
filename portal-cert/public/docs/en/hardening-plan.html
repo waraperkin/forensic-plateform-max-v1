@@ -1,0 +1,123 @@
+<div class="portal-doc-article">
+<h2 id="hardening-plan-forensic-minimal-v2">Hardening Plan — Forensic Minimal v2</h2>
+<p><strong>Context:</strong> default lab configuration. This plan describes the move to a harder posture (limited exposure / controlled production).</p>
+<hr>
+<h3 id="1-nginx">1. Nginx</h3>
+<ul>
+<li>Replace the self-signed certificate with an internal PKI / Let&#x27;s Encrypt.</li>
+<li>Disable weak TLS suites; enforce TLS 1.2+.</li>
+<li>HSTS already enabled in the lab — validate <code>max-age</code> in production.</li>
+<li>Rate-limit portal logins.</li>
+<li>Restrict debug ports (5000, 8090, 9001…) to the admin network (firewall).</li>
+<li>Headers: keep <code>X-Content-Type-Options</code>, <code>X-Frame-Options</code>, progressive CSP.</li>
+</ul>
+<hr>
+<h3 id="2-docker">2. Docker</h3>
+<ul>
+<li>Do not expose the Docker socket to unprivileged containers.</li>
+<li>Non-root user in custom images (portals).</li>
+<li>Read-only rootfs where possible.</li>
+<li>CPU/RAM limits per service (avoid OpenSearch OOM).</li>
+<li>Network: split front / data when multi-host.</li>
+<li>Scan images (<code>trivy</code> / <code>grype</code>) before production pulls.</li>
+<li>Forbid <code>privileged</code> unless a documented sysctl need exists.</li>
+</ul>
+<hr>
+<h3 id="3-minio">3. MinIO</h3>
+<ul>
+<li>Rotate <code>MINIO_ROOT_*</code>; least-privilege application accounts.</li>
+<li>Private buckets; no anonymous <code>*</code> policy.</li>
+<li>Versioning + Object Lock on evidence (WORM lab→prod).</li>
+<li>End-to-end TLS if MinIO is exposed outside nginx.</li>
+<li>Audit logging enabled.</li>
+</ul>
+<hr>
+<h3 id="4-misp">4. MISP</h3>
+<ul>
+<li><strong>40-char hex</strong> API keys only (fixed in <code>gen_secret</code>).</li>
+<li>Disable emailing when SMTP is absent (<code>MISP.disable_emailing</code>).</li>
+<li>Strong admin account; separate sync accounts.</li>
+<li>Feeds: trusted sources; review before publish.</li>
+<li>Encrypted MySQL database backups.</li>
+<li>Baseurl / CSRF aligned behind <code>/misp</code>.</li>
+</ul>
+<hr>
+<h3 id="5-velociraptor">5. Velociraptor</h3>
+<ul>
+<li><code>use_plain_http</code> only behind nginx TLS (current lab).</li>
+<li>ACL: least-privilege roles; no shared admin.</li>
+<li>Client certs / controlled enrollment.</li>
+<li>Custom artifacts reviewed (no blind exec).</li>
+<li>API gateway 8002 restricted to the internal network.</li>
+<li>GUI admin password rotation.</li>
+</ul>
+<hr>
+<h3 id="6-timesketch">6. Timesketch</h3>
+<ul>
+<li>Individual accounts; no shared admin.</li>
+<li>Private sketches by default.</li>
+<li>Limit upload size.</li>
+<li>Strong Postgres credentials; backups.</li>
+<li>Isolate the worker when multi-tenant.</li>
+</ul>
+<hr>
+<h3 id="7-thehive-cortex">7. TheHive / Cortex</h3>
+<ul>
+<li>Separate organisations (CERT / lab).</li>
+<li>Analyzers: third-party API secrets in a vault, never in clear text.</li>
+<li>CSRF + rotating API keys (Cortex renew).</li>
+<li>Disable default accounts post-bootstrap.</li>
+<li>Network: Cortex never publicly exposed; nginx proxy only.</li>
+</ul>
+<hr>
+<h3 id="8-opencti">8. OpenCTI</h3>
+<ul>
+<li>Rotating admin token; SSO users when available.</li>
+<li>Connectors: external API keys as Docker secrets.</li>
+<li>Shut down unstable connectors (restart-loop) rather than brute-forcing.</li>
+<li>Encryption key (<code>OPENCTI_ENCRYPTION_KEY</code>) backed up outside the repo.</li>
+<li>GraphQL: no exposure outside <code>/cti</code>.</li>
+</ul>
+<hr>
+<h3 id="9-cert-it-portal">9. CERT / IT Portal</h3>
+<ul>
+<li>MFA for admin accounts (UI already ready).</li>
+<li>IT tokens: short TTL, limited uses.</li>
+<li>Unique <code>CERT_PORTAL_SECRET</code> / <code>IT_PORTAL_SECRET</code>.</li>
+<li>Upload: antivirus / size limits (already configurable).</li>
+<li>Audit log enabled; weekly review.</li>
+<li>Separate the IT upload network for untrusted zones.</li>
+</ul>
+<hr>
+<h3 id="10-roadmap">10. Roadmap</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Phase</th>
+<th>Actions</th>
+</tr></thead><tbody>
+<tr><td>P0 (immediately outside the lab)</td><td>Change all passwords / tokens; close debug ports</td></tr>
+<tr><td>P1</td><td>PKI certificate; admin MFA; encrypted backups</td></tr>
+<tr><td>P2</td><td>SSO; MinIO WORM; CI image scanning</td></tr>
+<tr><td>P3</td><td>Network segmentation; secret vault; security alert monitoring</td></tr>
+</tbody></table>
+<hr>
+<h3 id="11-non-regression">11. Non-regression</h3>
+<p>After every hardening step:</p>
+<pre><code>BASE_URL=https://127.0.0.1 ./scripts/verify-platform-ready.sh
+python3 scripts/portal_auth_ui_verify.py</code></pre>
+<hr>
+<h3 id="related-documentation">Related documentation</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Executive summary</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Delivery message</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Analyst guide</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Operations guide</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Deployment guide</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Maintenance guide</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Continuous QA plan</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Hardening plan</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Monitoring plan</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Migration plan</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Training plan</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Full platform manual</a></li>
+</ul>
+</div>

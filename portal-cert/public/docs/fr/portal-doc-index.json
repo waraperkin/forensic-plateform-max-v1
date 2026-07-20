@@ -1,0 +1,79 @@
+{
+  "version": "2026.07.21-docs1",
+  "lang": "fr",
+  "group": "guides",
+  "documents": [
+    {
+      "slug": "executive-summary",
+      "title": "Résumé exécutif",
+      "path": "/docs/fr/executive-summary.html",
+      "source": "docs/fr/executive-summary.md"
+    },
+    {
+      "slug": "delivery-message",
+      "title": "Message officiel de livraison",
+      "path": "/docs/fr/delivery-message.html",
+      "source": "docs/fr/delivery-message.md"
+    },
+    {
+      "slug": "analyst-guide",
+      "title": "Guide analyste SOC/DFIR",
+      "path": "/docs/fr/analyst-guide.html",
+      "source": "docs/fr/analyst-guide.md"
+    },
+    {
+      "slug": "operations-guide",
+      "title": "Guide d'exploitation",
+      "path": "/docs/fr/operations-guide.html",
+      "source": "docs/fr/operations-guide.md"
+    },
+    {
+      "slug": "deployment-guide",
+      "title": "Guide de déploiement",
+      "path": "/docs/fr/deployment-guide.html",
+      "source": "docs/fr/deployment-guide.md"
+    },
+    {
+      "slug": "maintenance-guide",
+      "title": "Guide de maintenance",
+      "path": "/docs/fr/maintenance-guide.html",
+      "source": "docs/fr/maintenance-guide.md"
+    },
+    {
+      "slug": "qa-continuous",
+      "title": "Plan de QA continu",
+      "path": "/docs/fr/qa-continuous.html",
+      "source": "docs/fr/qa-continuous.md"
+    },
+    {
+      "slug": "hardening-plan",
+      "title": "Plan de durcissement",
+      "path": "/docs/fr/hardening-plan.html",
+      "source": "docs/fr/hardening-plan.md"
+    },
+    {
+      "slug": "monitoring-plan",
+      "title": "Plan de monitoring",
+      "path": "/docs/fr/monitoring-plan.html",
+      "source": "docs/fr/monitoring-plan.md"
+    },
+    {
+      "slug": "migration-plan",
+      "title": "Plan de migration",
+      "path": "/docs/fr/migration-plan.html",
+      "source": "docs/fr/migration-plan.md"
+    },
+    {
+      "slug": "training-plan",
+      "title": "Plan de formation",
+      "path": "/docs/fr/training-plan.html",
+      "source": "docs/fr/training-plan.md"
+    },
+    {
+      "slug": "full-manual",
+      "title": "Manuel complet de la plateforme",
+      "path": "/docs/fr/full-manual.html",
+      "source": "docs/fr/full-manual.md"
+    }
+  ]
+}

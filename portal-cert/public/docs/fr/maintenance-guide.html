@@ -1,0 +1,136 @@
+<div class="portal-doc-article">
+<h2 id="guide-de-maintenance-forensic-minimal-v2">Guide de maintenance — Forensic Minimal v2</h2>
+<hr>
+<h3 id="1-mises-à-jour">1. Mises à jour</h3>
+<h4 id="code-plateforme">Code plateforme</h4>
+<pre><code>cd /opt/forensic-minimal-v2
+git fetch origin
+git pull --ff-only origin main
+./scripts/preflight-full-start.sh
+./forensic.sh update-portals   # si seuls les portails changent
+# ou full rebuild ciblé
+docker compose build --pull
+./forensic.sh start
+BASE_URL=https://127.0.0.1 ./scripts/verify-platform-ready.sh</code></pre>
+<h4 id="images-docker">Images Docker</h4>
+<pre><code>docker compose pull
+docker compose up -d</code></pre>
+<p>Planifier une fenêtre : rebuild OpenCTI/MISP/TheHive peut être long.</p>
+<hr>
+<h3 id="2-rotation-des-logs">2. Rotation des logs</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Source</th>
+<th>Emplacement</th>
+<th>Action</th>
+</tr></thead><tbody>
+<tr><td>Orchestrateur</td><td><code>logs/*.log</code></td><td><code>logrotate</code> ou purge &gt; 30 j</td></tr>
+<tr><td>Conteneurs</td><td><code>docker logs</code></td><td>driver json-file + <code>max-size</code>/<code>max-file</code></td></tr>
+<tr><td>Nginx</td><td>volumes/logs nginx</td><td>rotation hebdo</td></tr>
+<tr><td>OpenSearch</td><td>indices <code>forensic-*</code></td><td>ISM policies (déjà déployées lab)</td></tr>
+</tbody></table>
+<p>Exemple logrotate hôte (<code>/etc/logrotate.d/forensic-minimal</code>) :</p>
+<pre><code>/opt/forensic-minimal-v2/logs/*.log {
+  weekly
+  rotate 8
+  compress
+  missingok
+  notifempty
+  copytruncate
+}</code></pre>
+<hr>
+<h3 id="3-backup-minio">3. Backup MinIO</h3>
+<pre><code># Snapshot buckets critiques
+mkdir -p /backup/minio-$(date +%F)
+docker run --rm --network forensic-minimal-v2_forensic-net \
+  -v /backup/minio-$(date +%F):/data --entrypoint sh minio/mc -c &#x27;
+  mc alias set local http://minio:9000 &quot;$MINIO_ROOT_USER&quot; &quot;$MINIO_ROOT_PASSWORD&quot;
+  mc mirror --overwrite local/ /data/
+&#x27;</code></pre>
+<p>Buckets prioritaires : evidences / <code>logs-raw</code> / artefacts cases.</p>
+<hr>
+<h3 id="4-backup-opensearch">4. Backup OpenSearch</h3>
+<p>Options :</p>
+<ol>
+<li><strong>Snapshots</strong> vers dépôt MinIO / FS (recommandé production).</li>
+<li>Export indices critiques (<code>forensic-ti-*</code>, cases metadata).</li>
+</ol>
+<pre><code># Exemple enregistrement dépôt FS (à adapter)
+curl -s -X PUT http://127.0.0.1:9200/_snapshot/fp_fs \
+  -H &#x27;Content-Type: application/json&#x27; \
+  -d &#x27;{&quot;type&quot;:&quot;fs&quot;,&quot;settings&quot;:{&quot;location&quot;:&quot;/usr/share/opensearch/snapshots&quot;}}&#x27;</code></pre>
+<p>Vérifier ISM : policies <code>fp-events-policy</code> etc. (voir docs OpenSearch SIEM).</p>
+<hr>
+<h3 id="5-backup-timesketch">5. Backup Timesketch</h3>
+<ul>
+<li>Volume PostgreSQL Timesketch / données sketches.</li>
+<li>Export sketches importants via UI avant maj majeure.</li>
+</ul>
+<pre><code>docker compose exec -T postgres \
+  pg_dump -U &quot;$POSTGRES_USER&quot; &gt; /backup/postgres-$(date +%F).sql</code></pre>
+<p>(adapter nom DB Timesketch selon compose).</p>
+<hr>
+<h3 id="6-rotation-des-clés-api">6. Rotation des clés API</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Clé</th>
+<th>Procédure</th>
+</tr></thead><tbody>
+<tr><td>MISP</td><td><code>bash scripts/misp-reset-admin.sh</code> (sync <code>.env</code>)</td></tr>
+<tr><td>Cortex</td><td>Login UI → renew key / script master Cortex</td></tr>
+<tr><td>TheHive</td><td>Générer API key user → <code>.env</code> <code>THEHIVE_API_KEY</code></td></tr>
+<tr><td>OpenCTI</td><td>Token admin → <code>OPENCTI_ADMIN_TOKEN</code></td></tr>
+<tr><td>Portail</td><td><code>CERT_PORTAL_SECRET</code> / reset users.json</td></tr>
+<tr><td>MinIO</td><td>Rotation access keys + update <code>.env</code> + recreate services</td></tr>
+</tbody></table>
+<p>Après rotation : <code>docker compose up -d</code> des services consommateurs + re-verify.</p>
+<hr>
+<h3 id="7-redémarrage-contrôlé">7. Redémarrage contrôlé</h3>
+<p>Ordre recommandé :</p>
+<ol>
+<li>Infra : <code>postgres redis rabbitmq cassandra</code></li>
+<li>Data : <code>opensearch-* minio</code></li>
+<li>Apps : <code>misp opencti thehive cortex timesketch</code></li>
+<li>Ingest : <code>logstash filebeat ingest-worker</code></li>
+<li>Sidecars : HELK, Velociraptor</li>
+<li>Edge : <code>cert-portal it-portal nginx</code></li>
+</ol>
+<pre><code>docker compose restart nginx
+# sidecars
+bash scripts/ensure-velociraptor-sidecar.sh
+bash scripts/ensure-helk-kibana-objects.sh   # si patterns manquants
+bash scripts/post-start-align.sh</code></pre>
+<p>Éviter <code>docker compose down -v</code> (destruction volumes).</p>
+<hr>
+<h3 id="8-maintenance-disque">8. Maintenance disque</h3>
+<pre><code>df -h /
+docker system df
+# Prudence :
+docker image prune -f
+# Ne pas prune volumes sans backup</code></pre>
+<hr>
+<h3 id="9-calendrier-suggéré">9. Calendrier suggéré</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Fréquence</th>
+<th>Tâche</th>
+</tr></thead><tbody>
+<tr><td>Quotidien</td><td>Health 16/16 + disque</td></tr>
+<tr><td>Hebdo</td><td>Backup MinIO + Postgres</td></tr>
+<tr><td>Mensuel</td><td>Snapshot OpenSearch + revue connecteurs</td></tr>
+<tr><td>Trimestriel</td><td>Rotation secrets + <code>git pull</code> + re-verify complet</td></tr>
+</tbody></table>
+<hr>
+<h3 id="documentation-associée">Documentation associée</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Résumé exécutif</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Message de livraison</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Guide analyste</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Guide d&#x27;exploitation</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Guide de déploiement</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Guide de maintenance</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Plan de QA continu</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Plan de durcissement</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Plan de monitoring</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Plan de migration</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Plan de formation</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Manuel complet</a></li>
+</ul>
+</div>

@@ -1,0 +1,123 @@
+<div class="portal-doc-article">
+<h2 id="official-delivery-message-forensic-minimal-v2">Official Delivery Message — forensic-minimal-v2</h2>
+<table class="portal-doc-table"><thead><tr>
+<th>Field</th>
+<th>Value</th>
+</tr></thead><tbody>
+<tr><td><strong>Product</strong></td><td>Forensic Minimal v2.1 — SOC / DFIR platform</td></tr>
+<tr><td><strong>Mission</strong></td><td>SHADOW OPS — fresh redeployment, authenticated validation, documentation</td></tr>
+<tr><td><strong>Repository</strong></td><td>https://github.com/waraperkin/forensic-minimal-v2</td></tr>
+<tr><td><strong>Delivery date</strong></td><td>2026-07-21</td></tr>
+<tr><td><strong>Status</strong></td><td><strong>Ready for lab / CERT production</strong></td></tr>
+</tbody></table>
+<hr>
+<h3 id="1-shadow-ops-mission-summary">1. SHADOW OPS mission summary</h3>
+<p>The mission consisted of:</p>
+<ol>
+<li>Redeploying the platform <strong>from scratch</strong> on a fresh Debian 13 VM (<code>/opt/forensic-minimal-v2</code>).</li>
+<li>Running the preflight then <code>./forensic.sh -full-start</code> until full stabilisation.</li>
+<li>Validating <strong>every tool with authentication</strong> (UI login + API + analyst workflows).</li>
+<li>Fixing the root defects found (MISP secrets, HELK basePath, verifies, etc.).</li>
+<li>Re-testing until <strong>16/16 OK</strong>, <strong>0 DOWN</strong>, <strong>0 DEGRADED</strong>.</li>
+<li>Pushing fixes and documentation to <code>origin/main</code>.</li>
+</ol>
+<hr>
+<h3 id="2-final-platform-state">2. Final platform state</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Layer</th>
+<th>Services</th>
+<th>State</th>
+</tr></thead><tbody>
+<tr><td>Edge</td><td>Nginx HTTPS, CERT + IT portals</td><td>UP / healthy</td></tr>
+<tr><td>SIEM</td><td>OpenSearch (green cluster), Dashboards, Logstash, Filebeat</td><td>UP</td></tr>
+<tr><td>Storage</td><td>MinIO</td><td>UP / healthy</td></tr>
+<tr><td>Timeline</td><td>Timesketch web + worker</td><td>UP / healthy</td></tr>
+<tr><td>CTI</td><td>OpenCTI + connectors, MISP</td><td>UP / healthy</td></tr>
+<tr><td>IR</td><td>TheHive, Cortex</td><td>UP / healthy</td></tr>
+<tr><td>Observability</td><td>Grafana, Prometheus, Loki, Tempo</td><td>UP</td></tr>
+<tr><td>DFIR</td><td>Velociraptor, HELK (ES/Kibana/Logstash)</td><td>UP / healthy</td></tr>
+</tbody></table>
+<p>Single entry point: <code>https://&lt;PUBLIC_HOST&gt;/</code> (self-signed lab certificate).</p>
+<hr>
+<h3 id="3-1616-health">3. 16/16 health</h3>
+<p>UI validation (CERT portal — Overview):</p>
+<ul>
+<li><strong>16 OK</strong></li>
+<li><strong>0 DEGRADED</strong></li>
+<li><strong>0 DOWN</strong></li>
+</ul>
+<p>Automated validation:</p>
+<pre><code>BASE_URL=https://127.0.0.1 ./scripts/verify-platform-ready.sh
+# → ✅ Platform ready — portal + 11 services reachable</code></pre>
+<hr>
+<h3 id="4-validated-authenticated-workflows">4. Validated authenticated workflows</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Tool</th>
+<th>Auth</th>
+<th>Validated workflow</th>
+</tr></thead><tbody>
+<tr><td>MISP</td><td>Admin API + UI</td><td>Event + 3 attributes (IP, hash, URL) + search + JSON export</td></tr>
+<tr><td>Velociraptor</td><td>Admin GUI / CLI</td><td>Custom artifact, lab collect (client-less fallback)</td></tr>
+<tr><td>Timesketch</td><td>Admin</td><td>Sketch + import/explore IOC</td></tr>
+<tr><td>TheHive</td><td>Analyst, org <code>cert</code></td><td>Case + observable</td></tr>
+<tr><td>Cortex</td><td>Admin + API key</td><td>Analyzer list + job</td></tr>
+<tr><td>OpenCTI</td><td>GraphQL token</td><td>Indicator + connectors</td></tr>
+<tr><td>Grafana</td><td>Admin</td><td><code>vraptor-endpoint</code> dashboard + annotations</td></tr>
+<tr><td>OpenSearch / HELK</td><td>—</td><td>Index search + 6 HELK index patterns</td></tr>
+<tr><td>MinIO</td><td>Root</td><td>Bucket + upload/download + SHA-256</td></tr>
+<tr><td>CERT Portal</td><td>Admin</td><td>Login + evidence upload + deep links</td></tr>
+<tr><td>IT Portal</td><td>Token / health</td><td>Health + token API</td></tr>
+<tr><td>Docs</td><td>Public</td><td><code>/docs/</code> reachable</td></tr>
+</tbody></table>
+<p>Matrix: [<code>SHADOW_OPS_MATRIX.json</code>](../SHADOW_OPS_MATRIX.json) · details: [<code>SHADOW_OPS_REPORT.md</code>](../SHADOW_OPS_REPORT.md).</p>
+<hr>
+<h3 id="5-fixes-applied-delivered">5. Fixes applied (delivered)</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Fix</th>
+<th>File</th>
+<th>Effect</th>
+</tr></thead><tbody>
+<tr><td>40-char hex MISP key</td><td><code>scripts/lib/installer.sh</code></td><td>No more invalid <code>Fp_…</code> keys (API 403)</td></tr>
+<tr><td>MISP key sync → <code>.env</code></td><td><code>scripts/misp-reset-admin.sh</code></td><td>Persistence after reset</td></tr>
+<tr><td>HELK import basePath</td><td><code>scripts/helk-kibana-import.mjs</code></td><td>Pattern import through <code>/helk/kibana</code></td></tr>
+<tr><td>Portal i18n verify</td><td><code>scripts/portal_auth_ui_verify.py</code></td><td>No more sidebar false negatives</td></tr>
+<tr><td>BusyBox wget / HELK check</td><td><code>scripts/verify-platform-ready.sh</code></td><td>HELK patterns counted correctly</td></tr>
+</tbody></table>
+<hr>
+<h3 id="6-reproducibility">6. Reproducibility</h3>
+<p>On a Debian 13 VM with Docker:</p>
+<pre><code>sudo mkdir -p /opt
+sudo git clone https://github.com/waraperkin/forensic-minimal-v2.git /opt/forensic-minimal-v2
+cd /opt/forensic-minimal-v2
+./scripts/preflight-full-start.sh
+./forensic.sh -full-start
+BASE_URL=https://127.0.0.1 ./scripts/verify-platform-ready.sh</code></pre>
+<p>Requirements: ~16 GB RAM minimum (64 GB recommended), <code>vm.max_map_count=262144</code>, ports 80/443 free.</p>
+<hr>
+<h3 id="7-conclusion">7. Conclusion</h3>
+<p>The <strong>forensic-minimal-v2</strong> platform is delivered with:</p>
+<ul>
+<li>a fully operational stack;</li>
+<li><strong>16/16</strong> health;</li>
+<li>proven authenticated analyst workflows;</li>
+<li>lab-production fixes pushed to GitHub;</li>
+<li>a professional documentation suite in <code>docs/</code>.</li>
+</ul>
+<p><strong>Delivery status: platform ready for lab production / CERT-SOC operations.</strong></p>
+<hr>
+<h3 id="related-documentation">Related documentation</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Executive summary</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Delivery message</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Analyst guide</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Operations guide</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Deployment guide</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Maintenance guide</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Continuous QA plan</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Hardening plan</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Monitoring plan</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Migration plan</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Training plan</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Full platform manual</a></li>
+</ul>
+</div>

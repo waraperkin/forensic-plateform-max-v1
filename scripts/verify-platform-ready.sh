@@ -63,6 +63,12 @@ echo ""
 echo "--- Documentation portail ---"
 check "Docs HTML (fr)" "/docs/fr/platform-overview.html" "200" || fail=1
 check "Docs inventaire (fr)" "/docs/fr/platform-inventory.json" "200" || fail=1
+check "Docs guide FR (résumé exécutif)" "/docs/fr/executive-summary.html" "200" || fail=1
+check "Docs guide EN (executive summary)" "/docs/en/executive-summary.html" "200" || fail=1
+check "Docs manuel FR" "/docs/fr/full-manual.html" "200" || fail=1
+check "Docs manuel EN" "/docs/en/full-manual.html" "200" || fail=1
+check "Docs index FR" "/docs/fr/portal-doc-index.json" "200" || fail=1
+check "Docs index EN" "/docs/en/portal-doc-index.json" "200" || fail=1
 
 echo ""
 echo "--- Threat Intel / IR ---"

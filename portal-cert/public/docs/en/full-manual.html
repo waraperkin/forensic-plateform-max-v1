@@ -1,0 +1,236 @@
+<div class="portal-doc-article">
+<h2 id="full-platform-manual-forensic-minimal-v2">Full Platform Manual — Forensic Minimal v2</h2>
+<p><strong>Platform version:</strong> 2.1 <strong>Repository:</strong> https://github.com/waraperkin/forensic-minimal-v2 <strong>Audience:</strong> SOC, DFIR, CERT, engineering</p>
+<p>This manual summarises the architecture, the flows and the behaviour of each service. For step-by-step procedures, see the dedicated guides (<code>deployment-guide.md</code>, <code>analyst-guide.md</code>, etc.).</p>
+<hr>
+<h3 id="1-complete-architecture">1. Complete architecture</h3>
+<h4 id="11-logical-view">1.1 Logical view</h4>
+<pre><code>                     ┌─────────────────────────────┐
+                     │     Analyst / IT clients     │
+                     └──────────────┬──────────────┘
+                                    │ HTTPS :443
+                     ┌──────────────▼──────────────┐
+                     │     forensic-nginx (TLS)     │
+                     └──────────────┬──────────────┘
+           ┌────────────┬───────────┼───────────┬────────────┐
+           ▼            ▼           ▼           ▼            ▼
+     CERT Portal   IT Portal   /dashboards  /grafana    /misp /cti
+           │            │       /timesketch /thehive   /velociraptor
+           │            │       /helk/kibana /cortex   /minio /docs
+           └─────┬──────┘
+                 ▼
+        forensic-net (Docker bridge)
+                 │
+     ┌───────────┼──────────────────────────────────────┐
+     ▼           ▼            ▼             ▼           ▼
+ OpenSearch   MinIO      Timesketch     OpenCTI      TheHive
+ Logstash     Redis      Postgres       Connectors   Cortex
+ Filebeat     RabbitMQ   MISP+MySQL     Cassandra    Grafana
+ Ingest-worker           Velociraptor   HELK sidecar Prometheus/Loki/Tempo</code></pre>
+<h4 id="12-layers">1.2 Layers</h4>
+<table class="portal-doc-table"><thead><tr>
+<th>Layer</th>
+<th>Role</th>
+</tr></thead><tbody>
+<tr><td><strong>Edge</strong></td><td>Nginx TLS, sub-path routing</td></tr>
+<tr><td><strong>Portals</strong></td><td>CERT/IT UX, auth, upload, 16/16 health</td></tr>
+<tr><td><strong>Ingest</strong></td><td>Logstash, Filebeat, ingest-worker, HELK HTTP</td></tr>
+<tr><td><strong>Data</strong></td><td>OpenSearch, MinIO, Postgres, Cassandra, Redis, RabbitMQ</td></tr>
+<tr><td><strong>Analysis</strong></td><td>Timesketch, TheHive, Cortex, Velociraptor</td></tr>
+<tr><td><strong>CTI</strong></td><td>OpenCTI + connectors, MISP</td></tr>
+<tr><td><strong>Obs</strong></td><td>Grafana, Prometheus, Loki, Tempo</td></tr>
+</tbody></table>
+<hr>
+<h3 id="2-flow-diagrams">2. Flow diagrams</h3>
+<h4 id="21-dfir-flow">2.1 DFIR flow</h4>
+<pre><code>Endpoint / disk image
+    → Velociraptor collect / CERT upload
+    → MinIO (raw)
+    → parsers / Logstash
+    → OpenSearch (forensic-*)
+    → Timesketch (timeline)
+    → TheHive case + report</code></pre>
+<h4 id="22-soc-flow">2.2 SOC flow</h4>
+<pre><code>Beats / Syslog / Upload
+    → Logstash pipelines
+    → OpenSearch
+    → Alerting / Dashboards / HELK Sigma
+    → Portal triage
+    → TheHive + Cortex</code></pre>
+<h4 id="23-cti-flow">2.3 CTI flow</h4>
+<pre><code>External feeds → OpenCTI connectors
+              ↘ MISP events/attrs
+    → sync scripts → forensic-ti-opencti-* / forensic-ti-misp-*
+    → IOC / match dashboards
+    → hunting pivots</code></pre>
+<h4 id="24-ingestion-flow">2.4 Ingestion flow</h4>
+<pre><code>CERT upload ──┐
+IT token ─────┼→ cert-portal / ingest-worker → MinIO
+API upload ───┘         ↓
+                 Logstash / HELK
+                        ↓
+                 OpenSearch + Timesketch queue</code></pre>
+<h4 id="25-export-flow">2.5 Export flow</h4>
+<pre><code>MISP JSON/STIX export → third-party sharing / OpenCTI
+OpenCTI STIX → files / export connectors
+Timesketch → stories / CSV
+MinIO → mc mirror / evidence ZIP
+VR → artifact ZIP
+Portal → forensic reports</code></pre>
+<h4 id="26-typical-investigation-flow">2.6 Typical investigation flow</h4>
+<p>See <code>analyst-guide.md</code> §8 and <code>docs/PORTAL/PIVOTS.md</code>.</p>
+<hr>
+<h3 id="3-services-reference">3. Services — reference</h3>
+<h4 id="31-nginx">3.1 Nginx</h4>
+<ul>
+<li>Container <code>forensic-nginx</code>.</li>
+<li>Config: <code>config/nginx/conf.d/forensic.conf</code> + snippets.</li>
+<li>Health: <code>/nginx-health</code>.</li>
+</ul>
+<h4 id="32-cert-portal">3.2 CERT Portal</h4>
+<ul>
+<li>Node/Express, session auth, overview, upload, CTI panel, VR/HELK modules.</li>
+<li>Aggregated health across <strong>16 services</strong>.</li>
+<li>Docs served under <code>/docs/</code>.</li>
+</ul>
+<h4 id="33-it-portal">3.3 IT Portal</h4>
+<ul>
+<li>Evidence drop through TTL <strong>tokens</strong>.</li>
+<li>Health <code>/it/api/health</code>.</li>
+</ul>
+<h4 id="34-opensearch-dashboards">3.4 OpenSearch + Dashboards</h4>
+<ul>
+<li>2-node lab cluster, <code>forensic-*</code> indices, TI, ISM.</li>
+<li>UI <code>/dashboards/</code> — SOC playbooks imported during full-start.</li>
+</ul>
+<h4 id="35-logstash-filebeat">3.5 Logstash / Filebeat</h4>
+<ul>
+<li>Multi-pipeline ingest (beats, syslog, HEC, HTTP).</li>
+<li>Filebeat → OS.</li>
+</ul>
+<h4 id="36-minio">3.6 MinIO</h4>
+<ul>
+<li>Object storage for evidence / raw logs.</li>
+<li>Console through the <code>/minio/</code> proxy or port 9001.</li>
+</ul>
+<h4 id="37-timesketch">3.7 Timesketch</h4>
+<ul>
+<li>Sketches, Sigma/MISP analyzers, import worker.</li>
+<li>External URL patched with <code>PUBLIC_HOST</code>.</li>
+</ul>
+<h4 id="38-misp">3.8 MISP</h4>
+<ul>
+<li>Event-based CTI, galaxies, warninglists.</li>
+<li><code>/misp</code> proxy (prefix preserved).</li>
+<li>40-char hex API key required.</li>
+</ul>
+<h4 id="39-opencti">3.9 OpenCTI</h4>
+<ul>
+<li>CTI graph + connectors (URLhaus, MITRE, CVE…).</li>
+<li>UI <code>/cti/</code>, GraphQL <code>/cti/graphql</code>.</li>
+</ul>
+<h4 id="310-thehive">3.10 TheHive</h4>
+<ul>
+<li>IR cases v5, org <code>cert</code>, FP-Master templates.</li>
+<li>Base path <code>/thehive</code>.</li>
+</ul>
+<h4 id="311-cortex">3.11 Cortex</h4>
+<ul>
+<li>Analyzers / responders; CSRF + API key.</li>
+<li>TheHive integration.</li>
+</ul>
+<h4 id="312-velociraptor">3.12 Velociraptor</h4>
+<ul>
+<li>Server 0.76.x, custom ForensicMinimal artifacts.</li>
+<li>GUI through the nginx plain-HTTP upstream.</li>
+<li>Health bridge sidecar.</li>
+</ul>
+<h4 id="313-helk">3.13 HELK</h4>
+<ul>
+<li>ES/Kibana/Logstash hunting sidecar.</li>
+<li>Kibana basePath <code>/helk/kibana</code>.</li>
+<li><code>helk-*</code> index patterns.</li>
+</ul>
+<h4 id="314-observability">3.14 Observability</h4>
+<ul>
+<li>Grafana OS/TS datasources; Prometheus scraping; Loki/Tempo.</li>
+</ul>
+<h4 id="315-infra">3.15 Infra</h4>
+<ul>
+<li>Postgres, Redis, RabbitMQ, Cassandra — application dependencies.</li>
+</ul>
+<hr>
+<h3 id="4-orchestration">4. Orchestration</h3>
+<p>Single script: <code>./forensic.sh</code></p>
+<table class="portal-doc-table"><thead><tr>
+<th>Command</th>
+<th>Role</th>
+</tr></thead><tbody>
+<tr><td><code>-full-start</code></td><td>Bootstrap → build → start → masters → tests</td></tr>
+<tr><td><code>start</code> / <code>stop</code> / <code>status</code></td><td>Lifecycle</td></tr>
+<tr><td><code>update-portals</code></td><td>Portal rebuild</td></tr>
+<tr><td><code>repair-vr</code></td><td>VR 502</td></tr>
+<tr><td><code>*-master-setup/verify</code></td><td>Tool packs</td></tr>
+</tbody></table>
+<p>Libraries: <code>scripts/lib/installer.sh</code>, <code>platform-host.sh</code>, <code>host-ip.sh</code>.</p>
+<hr>
+<h3 id="5-lab-vs-production-security">5. Lab vs production security</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Topic</th>
+<th>Lab</th>
+<th>Production</th>
+</tr></thead><tbody>
+<tr><td>TLS</td><td>Self-signed</td><td>PKI</td></tr>
+<tr><td>Secrets</td><td>Generated in <code>.env</code></td><td>Vault + rotation</td></tr>
+<tr><td>Ports</td><td>Many exposed</td><td>Least exposure</td></tr>
+<tr><td>Auth</td><td>Shared passwords</td><td>MFA / SSO</td></tr>
+</tbody></table>
+<p>Details: <code>hardening-plan.md</code>.</p>
+<hr>
+<h3 id="6-operations-maintenance">6. Operations &amp; maintenance</h3>
+<ul>
+<li>Daily: <code>operations-guide.md</code></li>
+<li>Backups / updates: <code>maintenance-guide.md</code></li>
+<li>Monitoring: <code>monitoring-plan.md</code></li>
+<li>QA: <code>qa-continuous.md</code></li>
+</ul>
+<hr>
+<h3 id="7-technical-annexes">7. Technical annexes</h3>
+<h4 id="71-critical-environment-variables">7.1 Critical environment variables</h4>
+<p><code>PUBLIC_HOST</code>, <code>PORTAL_ADMIN_*</code>, <code>MISP_ADMIN_*</code>, <code>OPENCTI_ADMIN_*</code>, <code>TIMESKETCH_*</code>, <code>GRAFANA_ADMIN_PASSWORD</code>, <code>MINIO_ROOT_*</code>, <code>VELOCIRAPTOR_ADMIN_*</code>, <code>THEHIVE_*</code>, <code>CORTEX_*</code>, <code>CERT_PORTAL_SECRET</code>, <code>IT_PORTAL_SECRET</code>.</p>
+<h4 id="72-scripts-of-truth">7.2 Scripts of truth</h4>
+<table class="portal-doc-table"><thead><tr>
+<th>Script</th>
+<th>Usage</th>
+</tr></thead><tbody>
+<tr><td><code>verify-platform-ready.sh</code></td><td>HTTPS health gate</td></tr>
+<tr><td><code>portal_auth_ui_verify.py</code></td><td>Portal auth</td></tr>
+<tr><td><code>helk-kibana-import.mjs</code></td><td>HELK patterns</td></tr>
+<tr><td><code>misp-reset-admin.sh</code></td><td>MISP admin</td></tr>
+<tr><td><code>post-start-align.sh</code></td><td>IP/proxy alignment</td></tr>
+<tr><td><code>preflight-full-start.sh</code></td><td>Pre-deployment gate</td></tr>
+</tbody></table>
+<h4 id="73-shadow-ops-evidence">7.3 Shadow Ops evidence</h4>
+<ul>
+<li><code>docs/SHADOW_OPS_REPORT.md</code></li>
+<li><code>docs/SHADOW_OPS_MATRIX.json</code></li>
+<li><code>docs/en/delivery-message.md</code></li>
+</ul>
+<h4 id="74-screenshots">7.4 Screenshots</h4>
+<p>Gallery: <code>docs/PORTAL/SCREENS.md</code> · images <code>docs/images/</code>.</p>
+<h4 id="75-internal-links">7.5 Internal links</h4>
+<table class="portal-doc-table"><thead><tr>
+<th>Doc</th>
+<th>Topic</th>
+</tr></thead><tbody>
+<tr><td><code>INSTALLATION.md</code></td><td>Historical install</td></tr>
+<tr><td><code>LAB-ENDPOINTS.md</code></td><td>Lab endpoints</td></tr>
+<tr><td><code>HELK-FULL-CONFIG.md</code></td><td>HELK</td></tr>
+<tr><td><code>VELOCIRAPTOR-*.md</code></td><td>VR</td></tr>
+<tr><td><code>PORTAL/*</code></td><td>Portal modules</td></tr>
+</tbody></table>
+<hr>
+<h3 id="8-conclusion">8. Conclusion</h3>
+<p>Forensic Minimal v2 provides an <strong>integrated SOC/DFIR platform</strong>: one reverse proxy, two portals, a SIEM, a CTI stack, an IR system, a timeline and endpoint collection, orchestrated by a single script and validated by a battery of verifies.</p>
+<p>To get started: <code>deployment-guide.md</code> → <code>operations-guide.md</code> → <code>analyst-guide.md</code>.</p>
+</div>

@@ -1597,7 +1597,8 @@
     "groups": {
       "platform": "Documentation plateforme",
       "tools": "Outils & intégrations",
-      "reference": "Référence"
+      "reference": "Référence",
+      "guides": "Guides professionnels"
     },
     "platform_inventory": {
       "title": "Inventaire outils plateforme",
@@ -1701,6 +1702,42 @@
       "ai": "Aide requêtes — validation analyste.",
       "s1": "SentinelOne — endpoints, politiques, telemetrie a la demande.",
       "sekoia": "Sekoia.IO — assets, regles, ingestion et volumetrie."
+    },
+    "guide_executive_summary": {
+      "title": "Résumé exécutif"
+    },
+    "guide_delivery_message": {
+      "title": "Message officiel de livraison"
+    },
+    "guide_analyst": {
+      "title": "Guide analyste SOC/DFIR"
+    },
+    "guide_operations": {
+      "title": "Guide d'exploitation"
+    },
+    "guide_deployment": {
+      "title": "Guide de déploiement"
+    },
+    "guide_maintenance": {
+      "title": "Guide de maintenance"
+    },
+    "guide_qa_continuous": {
+      "title": "Plan de QA continu"
+    },
+    "guide_hardening": {
+      "title": "Plan de durcissement"
+    },
+    "guide_monitoring": {
+      "title": "Plan de monitoring"
+    },
+    "guide_migration": {
+      "title": "Plan de migration"
+    },
+    "guide_training": {
+      "title": "Plan de formation"
+    },
+    "guide_full_manual": {
+      "title": "Manuel complet plateforme"
     }
   },
   "incidents": {

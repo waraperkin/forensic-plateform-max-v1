@@ -255,7 +255,7 @@ Détail : `hardening-plan.md`.
 
 - `docs/SHADOW_OPS_REPORT.md`
 - `docs/SHADOW_OPS_MATRIX.json`
-- `docs/delivery-report.md`
+- `docs/fr/delivery-message.md`
 
 ### 7.4 Captures d’écran
 

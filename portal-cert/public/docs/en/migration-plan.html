@@ -1,0 +1,135 @@
+<div class="portal-doc-article">
+<h2 id="migration-plan-forensic-minimal-v2">Migration Plan — Forensic Minimal v2</h2>
+<p><strong>Goal:</strong> move a lab/prod instance to another VM while minimising data loss.</p>
+<hr>
+<h3 id="1-principles">1. Principles</h3>
+<ol>
+<li><strong>Never</strong> migrate without a verified backup.</li>
+<li>Migrate the **code + <code>.env</code><strong> first, then the </strong>volumes**.</li>
+<li>Recreate the stack, restore, <strong>re-align</strong> (<code>post-start-align</code>), <strong>verify</strong>.</li>
+<li>Switch the DNS / IP / Security Group last.</li>
+</ol>
+<hr>
+<h3 id="2-target-vm-preparation">2. Target VM preparation</h3>
+<ul>
+<li>Same requirements as <code>deployment-guide.md</code> (RAM, <code>vm.max_map_count</code>, Docker).</li>
+<li>Clone the <strong>same commit</strong>:</li>
+</ul>
+<pre><code>sudo git clone https://github.com/waraperkin/forensic-minimal-v2.git /opt/forensic-minimal-v2
+cd /opt/forensic-minimal-v2
+git checkout &lt;source-commit&gt;</code></pre>
+<ul>
+<li>Copy the source <code>.env</code> (encrypted scp) — <strong>do not regenerate</strong> secrets when restoring the DBs.</li>
+</ul>
+<hr>
+<h3 id="3-data-inventory-to-migrate">3. Data inventory to migrate</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Data</th>
+<th>Typical volume / path</th>
+</tr></thead><tbody>
+<tr><td>MinIO objects</td><td><code>minio</code> volume / data</td></tr>
+<tr><td>OpenSearch indices</td><td><code>opensearch-1/2</code> volumes</td></tr>
+<tr><td>Postgres (TS, portals, etc.)</td><td><code>postgres</code> volume</td></tr>
+<tr><td>MISP MySQL</td><td><code>misp-db</code> volume</td></tr>
+<tr><td>Cassandra (TheHive/OpenCTI depending on config)</td><td><code>cassandra</code> volume</td></tr>
+<tr><td>Redis</td><td>usually ephemeral (sessions)</td></tr>
+<tr><td>Timesketch data</td><td>associated volumes</td></tr>
+<tr><td>VR server data / clients</td><td>velociraptor volumes</td></tr>
+<tr><td>TLS certs</td><td><code>config/nginx/ssl/</code></td></tr>
+<tr><td>Portal uploads</td><td><code>shared-uploads</code> / cert-portal-uploads</td></tr>
+</tbody></table>
+<p>List precisely:</p>
+<pre><code>docker volume ls | grep forensic
+docker compose config --volumes</code></pre>
+<hr>
+<h3 id="4-migrating-minio">4. Migrating MinIO</h3>
+<p>On the source:</p>
+<pre><code>mc mirror local/ /backup/minio/
+# or docker run minio/mc as in maintenance-guide</code></pre>
+<p>On the target (after <code>docker compose up -d minio</code>):</p>
+<pre><code>mc mirror /backup/minio/ local/</code></pre>
+<p>Verify a checksum sample.</p>
+<hr>
+<h3 id="5-migrating-opensearch">5. Migrating OpenSearch</h3>
+<p><strong>Option A — Snapshot/restore</strong> (recommended)</p>
+<ol>
+<li>Register a reachable snapshot repository (shared FS / MinIO).  </li>
+<li>Full snapshot on the source.  </li>
+<li>Restore on the target (same OS 2.12.x version).</li>
+</ol>
+<p><strong>Option B — Volume copy</strong> (clean stop required):</p>
+<pre><code># source stopped
+docker run --rm -v forensic-minimal-v2_osdata:/from -v /backup:/backup alpine \
+  tar czf /backup/osdata.tgz -C /from .
+# target
+docker run --rm -v forensic-minimal-v2_osdata:/to -v /backup:/backup alpine \
+  tar xzf /backup/osdata.tgz -C /to</code></pre>
+<hr>
+<h3 id="6-migrating-timesketch">6. Migrating Timesketch</h3>
+<ol>
+<li>Postgres dump (Timesketch DB).</li>
+<li>Copy timeline file volumes if externalised.</li>
+<li>Restore Postgres on the target + <code>docker compose up -d timesketch-web timesketch-worker</code>.</li>
+<li>Log in + open a witness sketch.</li>
+</ol>
+<hr>
+<h3 id="7-migrating-misp">7. Migrating MISP</h3>
+<ol>
+<li>Dump the <code>misp</code> MySQL database (+ <code>/var/www/MISP/app/files</code> if attachments).</li>
+<li>Restore into <code>forensic-misp-db</code>.</li>
+<li><code>bash scripts/misp-reset-admin.sh</code> <strong>only</strong> if credentials must be realigned (otherwise keep the keys).</li>
+<li><code>misp-configure-public-url</code> / <code>post-start-align</code> for the new IP.</li>
+</ol>
+<hr>
+<h3 id="8-migrating-thehive-cortex">8. Migrating TheHive / Cortex</h3>
+<ol>
+<li>Cassandra backup (and TheHive Elasticsearch if used).</li>
+<li>Backup the <code>config/thehive</code>, <code>config/cortex</code> configs.</li>
+<li>Restore the volumes + start the services.</li>
+<li>Check <code>/thehive/api/status</code> and analyst login.</li>
+<li>Renew Cortex keys on mismatch.</li>
+</ol>
+<hr>
+<h3 id="9-recommended-global-procedure">9. Recommended global procedure</h3>
+<pre><code>[Source] freeze writes (SOC announcement)
+   → MinIO backup + OS snapshot + SQL/Cassandra dumps
+   → copy .env + ssl + configs
+[Target] clone repo + .env
+   → sysctl + docker
+   → create volumes + restore data
+   → docker compose up -d (in waves)
+   → post-start-align.sh
+   → verify-platform-ready.sh
+   → smoke workflows
+[Cutover] DNS/IP/SG
+[Source] keep offline for 7 days</code></pre>
+<hr>
+<h3 id="10-post-migration">10. Post-migration</h3>
+<ul>
+<li><input type="checkbox" disabled> <code>PUBLIC_HOST</code> / Grafana / Timesketch / VR configs regenerated for the new IP</li>
+<li><input type="checkbox" disabled> Portal 16/16</li>
+<li><input type="checkbox" disabled> MISP baseurl</li>
+<li><input type="checkbox" disabled> Velociraptor clients re-enrolled if the IP changed</li>
+<li><input type="checkbox" disabled> IT tokens regenerated</li>
+<li><input type="checkbox" disabled> Document the commit + date in <code>delivery-message.md</code></li>
+</ul>
+<hr>
+<h3 id="11-rollback">11. Rollback</h3>
+<p>If verify fails: switch SG/DNS back to the still-intact old VM; analyse target logs; never destroy backups.</p>
+<hr>
+<h3 id="related-documentation">Related documentation</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Executive summary</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Delivery message</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Analyst guide</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Operations guide</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Deployment guide</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Maintenance guide</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Continuous QA plan</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Hardening plan</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Monitoring plan</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Migration plan</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Training plan</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Full platform manual</a></li>
+</ul>
+</div>

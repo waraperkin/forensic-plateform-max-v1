@@ -1,0 +1,178 @@
+<div class="portal-doc-article">
+<h2 id="soc-dfir-analyst-guide-forensic-minimal-v2">SOC / DFIR Analyst Guide — Forensic Minimal v2</h2>
+<p><strong>Audience:</strong> SOC L1/L2 analysts, DFIR investigators, CERT operators <strong>Prerequisites:</strong> CERT portal account (or tool accounts) provided by the platform admin <strong>Access:</strong> <code>https://&lt;PUBLIC_HOST&gt;/</code></p>
+<p>Default lab credentials live in <code>.env</code> / the <code>-full-start</code> closing message (change them outside the lab).</p>
+<hr>
+<h3 id="1-cert-portal-entry-point">1. CERT Portal — entry point</h3>
+<h4 id="sign-in">Sign in</h4>
+<ol>
+<li>Open <code>https://&lt;PUBLIC_HOST&gt;/login.html</code>.</li>
+<li>Authenticate (admin or analyst account).</li>
+<li>Check the health banner: <strong>16 OK / 0 DEGRADED / 0 DOWN</strong>.</li>
+</ol>
+<h4 id="daily-usage">Daily usage</h4>
+<table class="portal-doc-table"><thead><tr>
+<th>Action</th>
+<th>Where</th>
+</tr></thead><tbody>
+<tr><td>SOC overview</td><td><strong>Overview</strong></td></tr>
+<tr><td>Drop evidence</td><td><strong>Upload evidences</strong> / <strong>Ingestion &amp; Evidences</strong></td></tr>
+<tr><td>Generate an IT link</td><td><strong>IT tokens</strong></td></tr>
+<tr><td>Open a tool</td><td><strong>Access centre</strong> or deep-link cards</td></tr>
+<tr><td>Track incidents</td><td><strong>Incidents</strong></td></tr>
+<tr><td>Read aggregated CTI</td><td><strong>Threat Intelligence (CTI)</strong></td></tr>
+<tr><td>HELK / VR hunting</td><td><strong>HELK Hunting</strong>, <strong>Velociraptor DFIR</strong> menus</td></tr>
+</tbody></table>
+<h4 id="good-practices">Good practices</h4>
+<ul>
+<li>Always fill in a <strong>Case ID</strong> when uploading.</li>
+<li>Prefer supported formats (EVTX, Plaso, PCAP, CSV, JSONL, STIX…).</li>
+<li>Use deep links rather than memorised URLs outside the portal (proxy consistency).</li>
+</ul>
+<hr>
+<h3 id="2-velociraptor-endpoint-collection">2. Velociraptor — endpoint collection</h3>
+<p><strong>URL:</strong> <code>https://&lt;PUBLIC_HOST&gt;/velociraptor/</code></p>
+<h4 id="typical-journey">Typical journey</h4>
+<ol>
+<li>Sign in (lab admin).</li>
+<li>Check clients (or client-less lab mode).</li>
+<li>Open an <strong>Artifact</strong> (e.g. custom <code>Custom.Linux.Logs.ForensicMinimal</code>).</li>
+<li>Launch a <strong>collect</strong> or a <strong>Hunt</strong>.</li>
+<li>Export / confirm arrival in OpenSearch / Timesketch (depending on lab pipelines).</li>
+</ol>
+<h4 id="client-less-fallback">Client-less fallback</h4>
+<p>In the lab, server-side / CLI collection is still a valid way to validate the chain:</p>
+<pre><code>docker exec velociraptor-server \
+  velociraptor --config /config/server.config.yaml \
+  artifacts collect Generic.Client.Info --output /tmp/collect.zip</code></pre>
+<p>See also: <code>docs/VELOCIRAPTOR-PLAYBOOKS.md</code>, <code>docs/PORTAL/VELOCIRAPTOR.md</code>.</p>
+<hr>
+<h3 id="3-timesketch-timelines">3. Timesketch — timelines</h3>
+<p><strong>URL:</strong> <code>https://&lt;PUBLIC_HOST&gt;/timesketch/</code> (or dedicated port depending on config)</p>
+<h4 id="typical-journey-2">Typical journey</h4>
+<ol>
+<li>Sign in as Timesketch admin.</li>
+<li>Create a <strong>sketch</strong> (name it with the Case ID).</li>
+<li>Import a timeline (CSV / Plaso / platform upload).</li>
+<li>Search for an IOC (<code>ip</code>, <code>hash</code>, keyword).</li>
+<li>Run analyzers (Sigma, MISP, etc.) when available.</li>
+<li>Document findings in the sketch / story.</li>
+</ol>
+<hr>
+<h3 id="4-misp-cti-sharing">4. MISP — CTI sharing</h3>
+<p><strong>URL:</strong> <code>https://&lt;PUBLIC_HOST&gt;/misp/</code></p>
+<h4 id="typical-journey-3">Typical journey</h4>
+<ol>
+<li>Sign in as MISP admin.</li>
+<li><strong>Event</strong> → New (info = case / campaign).</li>
+<li>Add attributes: <code>ip-dst</code>, <code>sha256</code>, <code>url</code> (to_ids per policy).</li>
+<li>Check correlations / galaxies.</li>
+<li>Export JSON / STIX to pivot to OpenCTI or the SIEM.</li>
+</ol>
+<h4 id="api-analyst-automation">API (analyst / automation)</h4>
+<pre><code>curl -sk -H &quot;Authorization: $MISP_ADMIN_API_KEY&quot; -H &quot;Accept: application/json&quot; \
+  &quot;https://&lt;HOST&gt;/misp/servers/getVersion&quot;</code></pre>
+<hr>
+<h3 id="5-thehive-ir-cases">5. TheHive — IR cases</h3>
+<p><strong>URL:</strong> <code>https://&lt;PUBLIC_HOST&gt;/thehive/</code></p>
+<h4 id="typical-journey-4">Typical journey</h4>
+<ol>
+<li>Sign in (analyst in org <code>cert</code> recommended for creating cases).</li>
+<li>Create a <strong>Case</strong> (title, severity, TLP, tags).</li>
+<li>Add an <strong>Observable</strong> (IP, hash, domain…).</li>
+<li>Link tasks / FP-Master templates.</li>
+<li>Pivot to Cortex for analysis, MISP/OpenCTI for enrichment.</li>
+</ol>
+<blockquote>On TheHive 5, the <code>/thehive</code> application prefix is mandatory behind the proxy.</blockquote>
+<hr>
+<h3 id="6-cortex-analyzers-responders">6. Cortex — analyzers / responders</h3>
+<p><strong>URL:</strong> <code>https://&lt;PUBLIC_HOST&gt;/cortex/</code> (or admin port depending on config)</p>
+<h4 id="typical-journey-5">Typical journey</h4>
+<ol>
+<li>Sign in as admin / orgadmin.</li>
+<li>List the available <strong>analyzers</strong>.</li>
+<li>Run a job (e.g. a public IP) from Cortex or from TheHive.</li>
+<li>Review the report and attach it to the case.</li>
+</ol>
+<hr>
+<h3 id="7-opencti-cti-graph">7. OpenCTI — CTI graph</h3>
+<p><strong>URL:</strong> <code>https://&lt;PUBLIC_HOST&gt;/cti/</code></p>
+<h4 id="typical-journey-6">Typical journey</h4>
+<ol>
+<li>Sign in as OpenCTI admin.</li>
+<li>Check the <strong>connectors</strong> (active / errors).</li>
+<li>Create an <strong>Indicator</strong> (STIX pattern) or import STIX.</li>
+<li>Browse entities / relationships.</li>
+<li>Check the SIEM sync (<code>forensic-ti-opencti-*</code> in OpenSearch).</li>
+</ol>
+<p>Lab GraphQL (path <code>/cti/graphql</code>):</p>
+<pre><code>curl -sk -H &quot;Authorization: Bearer $OPENCTI_ADMIN_TOKEN&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d &#x27;{&quot;query&quot;:&quot;{ about { version } }&quot;}&#x27; \
+  &quot;https://&lt;HOST&gt;/cti/graphql&quot;</code></pre>
+<hr>
+<h3 id="8-typical-analyst-workflows">8. Typical analyst workflows</h3>
+<h4 id="a-siem-alert-ir-case">A. SIEM alert → IR case</h4>
+<ol>
+<li>OpenSearch Dashboards / Grafana: identify the alert.</li>
+<li>Extract IOCs.</li>
+<li>Create a TheHive case + observables.</li>
+<li>Enrich in MISP / OpenCTI.</li>
+<li>Hunt with Velociraptor / HELK if endpoints are involved.</li>
+<li>Timesketch timeline.</li>
+<li>Report through the portal (<strong>Forensic reports</strong>).</li>
+</ol>
+<h4 id="b-evidence-dropped-by-it">B. Evidence dropped by IT</h4>
+<ol>
+<li>Generate an IT token from CERT.</li>
+<li>IT uploads through the IT portal.</li>
+<li>CERT sees the ingest / case.</li>
+<li>Parsing → OpenSearch / Timesketch.</li>
+<li>Investigation + CTI pivots.</li>
+</ol>
+<h4 id="c-cti-campaign">C. CTI campaign</h4>
+<ol>
+<li>OpenCTI indicator / MISP event.</li>
+<li>Check the <code>forensic-ti-*</code> sync.</li>
+<li>TI dashboards (IOC matches, threat map).</li>
+<li>Trigger hunts / searches on the IOCs.</li>
+</ol>
+<hr>
+<h3 id="9-investigation-example-shadow-ops-lab">9. Investigation example (Shadow Ops lab)</h3>
+<p><strong>IOC:</strong> <code>203.0.113.77</code></p>
+<ol>
+<li>MISP: event with IP + hash + URL.</li>
+<li>TheHive: case + IP observable.</li>
+<li>Cortex: analyzer job on the IP.</li>
+<li>OpenCTI: STIX IPv4 indicator.</li>
+<li>CERT: upload evidence linked to the case.</li>
+<li>Timesketch: search <code>SHADOW_IOC</code> / IP.</li>
+<li>Grafana: Velociraptor Endpoint dashboard.</li>
+</ol>
+<hr>
+<h3 id="10-good-practices">10. Good practices</h3>
+<ul>
+<li>Name cases / sketches / events with the <strong>same Case ID</strong>.</li>
+<li>Respect TLP / PAP.</li>
+<li>Never paste secrets into public tickets.</li>
+<li>Check the proxy (<code>/misp</code>, <code>/thehive</code>, <code>/cti</code>, <code>/velociraptor</code>) before declaring a tool &quot;down&quot;.</li>
+<li>Document pivots (Timesketch link, MISP event, TheHive case) in the final report.</li>
+</ul>
+<p>Related documents: <code>docs/PORTAL/FORENSIC-INVESTIGATION-GUIDE.md</code>, <code>docs/PORTAL/SCENARIOS.md</code>, <code>docs/SOC-SCENARIOS-HELK-VEL.md</code>.</p>
+<hr>
+<h3 id="related-documentation">Related documentation</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Executive summary</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Delivery message</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Analyst guide</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Operations guide</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Deployment guide</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Maintenance guide</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Continuous QA plan</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Hardening plan</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Monitoring plan</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Migration plan</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Training plan</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Full platform manual</a></li>
+</ul>
+</div>

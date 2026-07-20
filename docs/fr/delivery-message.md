@@ -1,11 +1,11 @@
-# Rapport de livraison officiel — forensic-minimal-v2
+# Message officiel de livraison — forensic-minimal-v2
 
 | Champ | Valeur |
 |-------|--------|
 | **Produit** | Forensic Minimal v2.1 — plateforme SOC / DFIR |
 | **Mission** | SHADOW OPS — redéploiement neuf, validation authentifiée, documentation |
 | **Dépôt** | https://github.com/waraperkin/forensic-minimal-v2 |
-| **Date de livraison** | 2026-07-17 |
+| **Date de livraison** | 2026-07-21 |
 | **Statut** | **Prête pour production lab / CERT** |
 
 ---
@@ -121,3 +121,20 @@ La plateforme **forensic-minimal-v2** est livrée avec :
 - suite documentaire professionnelle dans `docs/`.
 
 **Statut de livraison : plateforme prête pour production lab / exploitation CERT-SOC.**
+
+---
+
+## Documentation associée
+
+- [Résumé exécutif](executive-summary.md)
+- [Message de livraison](delivery-message.md)
+- [Guide analyste](analyst-guide.md)
+- [Guide d'exploitation](operations-guide.md)
+- [Guide de déploiement](deployment-guide.md)
+- [Guide de maintenance](maintenance-guide.md)
+- [Plan de QA continu](qa-continuous.md)
+- [Plan de durcissement](hardening-plan.md)
+- [Plan de monitoring](monitoring-plan.md)
+- [Plan de migration](migration-plan.md)
+- [Plan de formation](training-plan.md)
+- [Manuel complet](full-manual.md)

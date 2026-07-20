@@ -1,0 +1,155 @@
+<div class="portal-doc-article">
+<h2 id="guide-dexploitation-forensic-minimal-v2">Guide d’exploitation — Forensic Minimal v2</h2>
+<p><strong>Public :</strong> ingénieurs plateforme, ops SOC, administrateurs CERT <strong>Objectif :</strong> démarrer, surveiller et exploiter la plateforme au quotidien</p>
+<hr>
+<h3 id="1-démarrer-la-plateforme">1. Démarrer la plateforme</h3>
+<h4 id="premier-démarrage-vm-neuve">Premier démarrage (VM neuve)</h4>
+<pre><code>sudo mkdir -p /opt
+sudo git clone https://github.com/waraperkin/forensic-minimal-v2.git /opt/forensic-minimal-v2
+cd /opt/forensic-minimal-v2
+./scripts/preflight-full-start.sh
+./forensic.sh -full-start</code></pre>
+<p>Durée typique : <strong>1 à 3 heures</strong> selon bande passante (pull images).</p>
+<h4 id="redémarrage-après-arrêt-propre">Redémarrage après arrêt propre</h4>
+<pre><code>cd /opt/forensic-minimal-v2
+./forensic.sh start
+# ou
+docker compose up -d</code></pre>
+<h4 id="arrêt">Arrêt</h4>
+<pre><code>./forensic.sh stop
+# ou
+docker compose down   # attention : ne pas perdre les volumes</code></pre>
+<hr>
+<h3 id="2-vérifier-la-santé">2. Vérifier la santé</h3>
+<h4 id="portail-cert">Portail CERT</h4>
+<p><code>https://&lt;HOST&gt;/</code> → bandeau <strong>16 OK / 0 DEGRADED / 0 DOWN</strong>.</p>
+<h4 id="cli">CLI</h4>
+<pre><code>cd /opt/forensic-minimal-v2
+./forensic.sh status
+BASE_URL=https://127.0.0.1 ./scripts/verify-platform-ready.sh
+curl -sk https://127.0.0.1/api/health/global | jq .</code></pre>
+<h4 id="conteneurs">Conteneurs</h4>
+<pre><code>docker ps --format &#x27;table {{.Names}}\t{{.Status}}&#x27; | sort
+docker ps --filter health=unhealthy</code></pre>
+<h4 id="opensearch">OpenSearch</h4>
+<pre><code>curl -s http://127.0.0.1:9200/_cluster/health | jq .</code></pre>
+<hr>
+<h3 id="3-monitorer-les-services">3. Monitorer les services</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Source</th>
+<th>Usage</th>
+</tr></thead><tbody>
+<tr><td>Grafana <code>https://&lt;HOST&gt;/grafana/</code></td><td>Dashboards plateforme / Velociraptor / Timesketch</td></tr>
+<tr><td>Prometheus <code>:9090</code></td><td>Métriques brutes</td></tr>
+<tr><td>Loki / Tempo</td><td>Logs &amp; traces (stack obs)</td></tr>
+<tr><td>Portail → Santé</td><td>Synthèse 16 services</td></tr>
+<tr><td><code>docker logs &lt;container&gt;</code></td><td>Diagnostic unitaire</td></tr>
+</tbody></table>
+<p>Dashboards utiles : <code>forensic-overview</code>, <code>vraptor-endpoint</code>, <code>fp-platform-health</code>, playbooks SOC.</p>
+<hr>
+<h3 id="4-gérer-les-incidents-exploitation">4. Gérer les incidents (exploitation)</h3>
+<ol>
+<li>Analyste crée / suit le case dans <strong>TheHive</strong> (via deep-link portail).</li>
+<li>Evidences : upload CERT ou jeton IT → MinIO + pipelines.</li>
+<li>Enrichissement : MISP / OpenCTI / Cortex.</li>
+<li>Hunting : HELK / Velociraptor / OpenSearch.</li>
+<li>Timeline : Timesketch.</li>
+<li>Clôture : rapport portail + tags cases.</li>
+</ol>
+<p>Escalade ops si :</p>
+<ul>
+<li>health &lt; 16/16 ;</li>
+<li>cluster OpenSearch yellow/red prolongé ;</li>
+<li>restart-loop connecteur CTI ;</li>
+<li>nginx 502 sur un sous-chemin.</li>
+</ul>
+<hr>
+<h3 id="5-exports">5. Exports</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Données</th>
+<th>Méthode</th>
+</tr></thead><tbody>
+<tr><td>Event MISP</td><td>UI Export / <code>restSearch</code> JSON</td></tr>
+<tr><td>Indicator OpenCTI</td><td>Export STIX UI / GraphQL</td></tr>
+<tr><td>Sketch Timesketch</td><td>Export sketch / stories</td></tr>
+<tr><td>Case TheHive</td><td>Export case UI / API</td></tr>
+<tr><td>Objets MinIO</td><td><code>mc cp</code> / Console MinIO</td></tr>
+<tr><td>Dashboards OS</td><td>Saved objects NDJSON</td></tr>
+<tr><td>Collecte VR</td><td>ZIP artifact / export flows</td></tr>
+</tbody></table>
+<p>Exemple MinIO :</p>
+<pre><code>docker run --rm --network forensic-minimal-v2_forensic-net \
+  -v &quot;$PWD/export:/data&quot; --entrypoint sh minio/mc -c &#x27;
+  mc alias set local http://minio:9000 &quot;$MINIO_ROOT_USER&quot; &quot;$MINIO_ROOT_PASSWORD&quot;
+  mc mirror local/logs-raw /data/logs-raw
+&#x27;</code></pre>
+<hr>
+<h3 id="6-imports">6. Imports</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Type</th>
+<th>Entrée</th>
+</tr></thead><tbody>
+<tr><td>Logs / evidences</td><td>Portail CERT upload, IT token, Logstash beats</td></tr>
+<tr><td>TI</td><td>Connecteurs OpenCTI, sync MISP, upload STIX</td></tr>
+<tr><td>Timeline</td><td>Timesketch upload / ingest worker</td></tr>
+<tr><td>Dashboards</td><td>scripts import OpenSearch / HELK NDJSON</td></tr>
+<tr><td>Agents VR</td><td><code>client.config.yaml</code> généré post-start</td></tr>
+</tbody></table>
+<hr>
+<h3 id="7-utilisateurs">7. Utilisateurs</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Périmètre</th>
+<th>Gestion</th>
+</tr></thead><tbody>
+<tr><td>Portail CERT</td><td><strong>Comptes portail</strong> (admin) / <code>ensure-portal-admin.sh</code></td></tr>
+<tr><td>Portail IT</td><td>Jetons à durée limitée (pas de compte permanent requis)</td></tr>
+<tr><td>MISP</td><td>Users cake / UI Administration</td></tr>
+<tr><td>OpenCTI</td><td>Settings → Users</td></tr>
+<tr><td>TheHive</td><td>Users + organisations (<code>cert</code>)</td></tr>
+<tr><td>Cortex</td><td>Users / orgs</td></tr>
+<tr><td>Timesketch</td><td>Users admin</td></tr>
+<tr><td>Grafana</td><td>Users / org</td></tr>
+<tr><td>Velociraptor</td><td>Users GUI</td></tr>
+</tbody></table>
+<p>Reset admin portail :</p>
+<pre><code>./forensic.sh reset-portal-admin
+# ou
+bash scripts/ensure-portal-admin.sh</code></pre>
+<p>Reset MISP admin :</p>
+<pre><code>bash scripts/misp-reset-admin.sh</code></pre>
+<hr>
+<h3 id="8-commandes-ops-fréquentes">8. Commandes ops fréquentes</h3>
+<pre><code>./forensic.sh status
+./forensic.sh update-portals
+./forensic.sh repair-vr
+./forensic.sh misp-init
+./forensic.sh fix-data
+bash scripts/post-start-align.sh</code></pre>
+<p>Journalisation : <code>logs/forensic_start.log</code>, <code>logs/forensic_install.log</code>.</p>
+<hr>
+<h3 id="9-checklist-quotidienne-5-minutes">9. Checklist quotidienne (5 minutes)</h3>
+<ul>
+<li><input type="checkbox" disabled> Portail 16/16</li>
+<li><input type="checkbox" disabled> <code>verify-platform-ready</code> ou <code>/api/health/global</code></li>
+<li><input type="checkbox" disabled> Aucun unhealthy critique</li>
+<li><input type="checkbox" disabled> OpenSearch green/yellow acceptable</li>
+<li><input type="checkbox" disabled> Espace disque (<code>df -h</code>)</li>
+<li><input type="checkbox" disabled> Connecteurs OpenCTI (pas de restart-loop massif)</li>
+</ul>
+<hr>
+<h3 id="documentation-associée">Documentation associée</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Résumé exécutif</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Message de livraison</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Guide analyste</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Guide d&#x27;exploitation</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Guide de déploiement</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Guide de maintenance</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Plan de QA continu</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Plan de durcissement</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Plan de monitoring</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Plan de migration</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Plan de formation</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Manuel complet</a></li>
+</ul>
+</div>

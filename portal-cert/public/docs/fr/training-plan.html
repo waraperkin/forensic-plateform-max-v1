@@ -1,0 +1,148 @@
+<div class="portal-doc-article">
+<h2 id="plan-de-formation-forensic-minimal-v2">Plan de formation — Forensic Minimal v2</h2>
+<hr>
+<h3 id="1-publics-et-objectifs">1. Publics et objectifs</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Public</th>
+<th>Objectif</th>
+</tr></thead><tbody>
+<tr><td>Analystes SOC L1</td><td>Naviguer portail, triage, pivots SIEM/CTI</td></tr>
+<tr><td>Analystes DFIR</td><td>Velociraptor, Timesketch, evidences</td></tr>
+<tr><td>Ingénieurs plateforme</td><td>Deploy, verify, maintenance</td></tr>
+<tr><td>Équipe CERT</td><td>Cases TheHive, jetons IT, rapports</td></tr>
+<tr><td>Management</td><td>Lire executive-summary + delivery-report</td></tr>
+</tbody></table>
+<hr>
+<h3 id="2-formation-analystes-soc-1-jour">2. Formation analystes SOC (1 jour)</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Module</th>
+<th>Durée</th>
+<th>Contenu</th>
+</tr></thead><tbody>
+<tr><td>Portail CERT</td><td>1 h</td><td>Login, 16/16, overview, deep-links</td></tr>
+<tr><td>OpenSearch / Grafana</td><td>2 h</td><td>Recherche, dashboards TI, IOC matches</td></tr>
+<tr><td>MISP / OpenCTI</td><td>1,5 h</td><td>Event, indicator, sync SIEM</td></tr>
+<tr><td>TheHive / Cortex</td><td>1,5 h</td><td>Case, observable, analyzer</td></tr>
+<tr><td>Exercice A</td><td>1 h</td><td>Alerte → case → enrichissement</td></tr>
+<tr><td>Debrief</td><td>0,5 h</td><td>Bonnes pratiques</td></tr>
+</tbody></table>
+<p>Supports : <code>analyst-guide.md</code>, <code>docs/PORTAL/SCENARIOS.md</code>.</p>
+<hr>
+<h3 id="3-formation-ingénieurs-12-jours">3. Formation ingénieurs (1–2 jours)</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Module</th>
+<th>Contenu</th>
+</tr></thead><tbody>
+<tr><td>Architecture Docker</td><td>Compose, sidecars, nginx</td></tr>
+<tr><td>Full-start</td><td>Preflight, logs, troubleshoot</td></tr>
+<tr><td>Verify &amp; QA</td><td>Scripts masters, cron health</td></tr>
+<tr><td>Backup / restore</td><td>MinIO, OS, Postgres</td></tr>
+<tr><td>Durcissement</td><td>hardening-plan (P0/P1)</td></tr>
+<tr><td>Migration</td><td>dry-run staging</td></tr>
+</tbody></table>
+<p>Supports : <code>deployment-guide.md</code>, <code>operations-guide.md</code>, <code>maintenance-guide.md</code>.</p>
+<hr>
+<h3 id="4-formation-soc-processus-½-journée">4. Formation SOC (processus, ½ journée)</h3>
+<ul>
+<li>Escalade L1→L2→Ops.</li>
+<li>KPIs monitoring.</li>
+<li>Playbooks Grafana / OpenSearch.</li>
+<li>Communication incident (TLP).</li>
+</ul>
+<hr>
+<h3 id="5-formation-cert-½1-jour">5. Formation CERT (½–1 jour)</h3>
+<ul>
+<li>Jetons IT et chaîne IT→CERT.</li>
+<li>Upload evidences et Case ID.</li>
+<li>Rapports forensic portail.</li>
+<li>Coordination TheHive + MISP.</li>
+<li>Scénarios HELK/Velociraptor (<code>SOC-SCENARIOS-HELK-VEL.md</code>).</li>
+</ul>
+<hr>
+<h3 id="6-exercices-pratiques">6. Exercices pratiques</h3>
+<h4 id="ex-01-smoke-analyste">EX-01 — Smoke analyste</h4>
+<ol>
+<li>Login CERT.  </li>
+<li>Upload fichier texte IOC.  </li>
+<li>Ouvrir MISP, créer event avec l’IP.  </li>
+<li>Créer case TheHive + observable.  </li>
+<li>Job Cortex.  </li>
+<li>Indicator OpenCTI.  </li>
+<li>Vérifier présence docs TI dans OpenSearch.</li>
+</ol>
+<h4 id="ex-02-timeline">EX-02 — Timeline</h4>
+<ol>
+<li>Créer sketch Timesketch.  </li>
+<li>Importer CSV lab.  </li>
+<li>Rechercher IOC.  </li>
+<li>Documenter finding.</li>
+</ol>
+<h4 id="ex-03-endpoint">EX-03 — Endpoint</h4>
+<ol>
+<li>Ouvrir Velociraptor.  </li>
+<li>Lancer collect / artifact custom.  </li>
+<li>Vérifier dashboard Grafana <code>vraptor-endpoint</code>.</li>
+</ol>
+<h4 id="ex-04-ops">EX-04 — Ops</h4>
+<ol>
+<li>Stopper nginx.  </li>
+<li>Constater health.  </li>
+<li>Remonter + verify PASS.</li>
+</ol>
+<hr>
+<h3 id="7-scénarios-dincident-table-top-lab">7. Scénarios d’incident (table-top + lab)</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Scénario</th>
+<th>Outils</th>
+</tr></thead><tbody>
+<tr><td>Phishing → malware hash</td><td>MISP, OpenCTI, TheHive, OS</td></tr>
+<tr><td>Latéralisation Windows</td><td>HELK, VR, Timesketch</td></tr>
+<tr><td>Exfil DNS</td><td>OS dashboards, Cortex</td></tr>
+<tr><td>Evidence IT hors bande</td><td>Jetons IT, MinIO, CERT</td></tr>
+<tr><td>Campagne APT IOC</td><td>OpenCTI connectors, TI sync</td></tr>
+</tbody></table>
+<p>Détails étendus : <code>docs/PORTAL/FORENSIC-INVESTIGATION-GUIDE.md</code>.</p>
+<hr>
+<h3 id="8-évaluation">8. Évaluation</h3>
+<ul>
+<li>Checklist EX-01 réussie sans aide.</li>
+<li>Verify script compris (ops).</li>
+<li>Rapport d’1 page rédigé après EX-01.</li>
+</ul>
+<hr>
+<h3 id="9-planning-type-équipe-6-personnes">9. Planning type (équipe 6 personnes)</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Jour</th>
+<th>Matin</th>
+<th>Après-midi</th>
+</tr></thead><tbody>
+<tr><td>J1</td><td>SOC analystes</td><td>Exercices A/B</td></tr>
+<tr><td>J2</td><td>CERT + DFIR</td><td>EX-02 / EX-03</td></tr>
+<tr><td>J3</td><td>Ingénieurs</td><td>Backup + EX-04</td></tr>
+</tbody></table>
+<hr>
+<h3 id="10-matériel-fourni">10. Matériel fourni</h3>
+<ul>
+<li><code>analyst-guide.md</code></li>
+<li><code>operations-guide.md</code></li>
+<li><code>full-manual.md</code></li>
+<li>Captures <code>docs/PORTAL/SCREENS.md</code></li>
+<li>Compte lab + Case ID d’entraînement</li>
+</ul>
+<hr>
+<h3 id="documentation-associée">Documentation associée</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Résumé exécutif</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Message de livraison</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Guide analyste</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Guide d&#x27;exploitation</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Guide de déploiement</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Guide de maintenance</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Plan de QA continu</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Plan de durcissement</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Plan de monitoring</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Plan de migration</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Plan de formation</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Manuel complet</a></li>
+</ul>
+</div>

@@ -1,0 +1,118 @@
+<div class="portal-doc-article">
+<h2 id="plan-de-monitoring-forensic-minimal-v2">Plan de monitoring — Forensic Minimal v2</h2>
+<hr>
+<h3 id="1-objectifs">1. Objectifs</h3>
+<ul>
+<li>Détecter indisponibilité outil &lt; 5 min.</li>
+<li>Suivre capacité (disque, RAM, shards).</li>
+<li>Alerter sur dégradation SOC (ingest, TI, health 16/16).</li>
+</ul>
+<hr>
+<h3 id="2-métriques">2. Métriques</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Domaine</th>
+<th>Métriques</th>
+<th>Source</th>
+</tr></thead><tbody>
+<tr><td>Edge</td><td>HTTP 5xx nginx, latence</td><td>Nginx / Prometheus</td></tr>
+<tr><td>Portails</td><td>up, login errors, upload rate</td><td>CERT <code>/api/health/global</code></td></tr>
+<tr><td>OpenSearch</td><td>cluster status, JVM, shards, ingest rate</td><td>OS API / Grafana</td></tr>
+<tr><td>Logstash</td><td>events in/out, failures</td><td>monitoring <code>:9600</code> / proxy</td></tr>
+<tr><td>MinIO</td><td>disk, API errors</td><td>MinIO metrics</td></tr>
+<tr><td>Conteneurs</td><td>restart count, unhealthy</td><td>Docker / cAdvisor</td></tr>
+<tr><td>CTI</td><td>connectors active, IOC count</td><td>OpenCTI / OS <code>forensic-ti-*</code></td></tr>
+<tr><td>VR</td><td>clients online, flow errors</td><td>VR metrics / Grafana</td></tr>
+</tbody></table>
+<hr>
+<h3 id="3-logs">3. Logs</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Source</th>
+<th>Collecte</th>
+</tr></thead><tbody>
+<tr><td><code>logs/forensic_*.log</code></td><td>Hôte</td></tr>
+<tr><td>Conteneurs</td><td>Docker logging driver → Loki (stack)</td></tr>
+<tr><td>Nginx access/error</td><td>Volume nginx</td></tr>
+<tr><td>MISP / TheHive / OpenCTI</td><td>logs conteneur</td></tr>
+<tr><td>Portail activity</td><td>Journal d’activité CERT</td></tr>
+</tbody></table>
+<p>Rétention lab suggérée : 14–30 jours (ajuster selon disque).</p>
+<hr>
+<h3 id="4-alertes-proposées">4. Alertes (proposées)</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Alerte</th>
+<th>Condition</th>
+<th>Sévérité</th>
+</tr></thead><tbody>
+<tr><td>Platform health</td><td>DOWN &gt; 0 ou OK &lt; 16 pendant 10 min</td><td>Critical</td></tr>
+<tr><td>OpenSearch</td><td>status red ; ou yellow &gt; 1 h</td><td>Critical / Warning</td></tr>
+<tr><td>Nginx down</td><td><code>/nginx-health</code> ≠ 200</td><td>Critical</td></tr>
+<tr><td>Unhealthy container</td><td>health=unhealthy &gt; 5 min</td><td>High</td></tr>
+<tr><td>Disk</td><td><code>/</code> &gt; 85 %</td><td>High</td></tr>
+<tr><td>Connector restart-loop</td><td>Restarting xN / 10 min</td><td>Medium</td></tr>
+<tr><td>Ingest stall</td><td>0 docs nouveaux 1 h (heures ouvrées)</td><td>Medium</td></tr>
+<tr><td>MISP/OpenCTI API</td><td>auth fail spike</td><td>High</td></tr>
+</tbody></table>
+<p>Implémentation : Grafana Alerting + contact point email/Slack/Teams.</p>
+<hr>
+<h3 id="5-dashboards-grafana">5. Dashboards Grafana</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>UID / nom</th>
+<th>Usage</th>
+</tr></thead><tbody>
+<tr><td><code>forensic-overview</code></td><td>Vue globale</td></tr>
+<tr><td><code>vraptor-endpoint</code></td><td>Endpoint DFIR</td></tr>
+<tr><td><code>timesketch-overview</code></td><td>Timeline</td></tr>
+<tr><td><code>fp-platform-health</code></td><td>Santé plateforme</td></tr>
+<tr><td>Playbooks SOC (<code>fp-*-playbook</code>)</td><td>Supervision métier</td></tr>
+</tbody></table>
+<p>Accès : <code>https://&lt;HOST&gt;/grafana/</code> (admin lab).</p>
+<hr>
+<h3 id="6-healthchecks">6. Healthchecks</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Check</th>
+<th>Commande / URL</th>
+</tr></thead><tbody>
+<tr><td>Global</td><td><code>GET /api/health/global</code></td></tr>
+<tr><td>Verify script</td><td><code>./scripts/verify-platform-ready.sh</code></td></tr>
+<tr><td>Status</td><td><code>./forensic.sh status</code></td></tr>
+<tr><td>OS</td><td><code>GET :9200/_cluster/health</code></td></tr>
+<tr><td>Conteneurs</td><td><code>docker ps --filter health=unhealthy</code></td></tr>
+</tbody></table>
+<p>Cron exemple (toutes les 10 min) :</p>
+<pre><code>*/10 * * * * cd /opt/forensic-minimal-v2 &amp;&amp; \
+  BASE_URL=https://127.0.0.1 ./scripts/verify-platform-ready.sh \
+  &gt;&gt; logs/cron-verify.log 2&gt;&amp;1 || true</code></pre>
+<hr>
+<h3 id="7-supervision-soc-processus">7. Supervision SOC (processus)</h3>
+<ol>
+<li><strong>L1</strong> : bandeau portail 16/16 + file d’alertes Grafana.</li>
+<li><strong>L2</strong> : dig tools DOWN via deep-links + logs.</li>
+<li><strong>Ops</strong> : restore service / volume / rollback image.</li>
+<li><strong>Post-mortem</strong> : ticket + entrée journal activité + update runbook.</li>
+</ol>
+<hr>
+<h3 id="8-kpis-mensuels">8. KPIs mensuels</h3>
+<ul>
+<li>Disponibilité portail (%)</li>
+<li>MTTD indisponibilité outil</li>
+<li>Volume ingest (docs/jour)</li>
+<li>IOC TI synchronisés</li>
+<li>Nombre d’échecs verify</li>
+</ul>
+<hr>
+<h3 id="documentation-associée">Documentation associée</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Résumé exécutif</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Message de livraison</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Guide analyste</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Guide d&#x27;exploitation</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Guide de déploiement</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Guide de maintenance</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Plan de QA continu</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Plan de durcissement</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Plan de monitoring</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Plan de migration</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Plan de formation</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Manuel complet</a></li>
+</ul>
+</div>

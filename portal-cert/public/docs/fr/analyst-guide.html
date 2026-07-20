@@ -1,0 +1,178 @@
+<div class="portal-doc-article">
+<h2 id="guide-analyste-soc-dfir-forensic-minimal-v2">Guide analyste SOC / DFIR — Forensic Minimal v2</h2>
+<p><strong>Public :</strong> analystes SOC L1/L2, investigateurs DFIR, opérateurs CERT <strong>Prérequis :</strong> compte portail CERT (ou comptes outils) fournis par l’admin plateforme <strong>Accès :</strong> <code>https://&lt;PUBLIC_HOST&gt;/</code></p>
+<p>Les identifiants par défaut de lab sont dans <code>.env</code> / message de fin de <code>-full-start</code> (à changer hors lab).</p>
+<hr>
+<h3 id="1-portail-cert-point-dentrée">1. Portail CERT — point d’entrée</h3>
+<h4 id="connexion">Connexion</h4>
+<ol>
+<li>Ouvrir <code>https://&lt;PUBLIC_HOST&gt;/login.html</code>.</li>
+<li>S’authentifier (admin ou compte analyste).</li>
+<li>Vérifier le bandeau santé : <strong>16 OK / 0 DEGRADED / 0 DOWN</strong>.</li>
+</ol>
+<h4 id="usages-quotidiens">Usages quotidiens</h4>
+<table class="portal-doc-table"><thead><tr>
+<th>Action</th>
+<th>Où</th>
+</tr></thead><tbody>
+<tr><td>Vue d’ensemble SOC</td><td><strong>Vue d’ensemble</strong></td></tr>
+<tr><td>Déposer des evidences</td><td><strong>Upload evidences</strong> / <strong>Ingestion &amp; Evidences</strong></td></tr>
+<tr><td>Générer un lien IT</td><td><strong>Jetons IT</strong></td></tr>
+<tr><td>Ouvrir un outil</td><td><strong>Centre d’accès</strong> ou cartes deep-link</td></tr>
+<tr><td>Suivre les incidents</td><td><strong>Incidents</strong></td></tr>
+<tr><td>Consulter CTI agrégé</td><td><strong>Renseignement menace (CTI)</strong></td></tr>
+<tr><td>Hunting HELK / VR</td><td>menus <strong>HELK Hunting</strong>, <strong>Velociraptor DFIR</strong></td></tr>
+</tbody></table>
+<h4 id="bonnes-pratiques">Bonnes pratiques</h4>
+<ul>
+<li>Toujours renseigner un <strong>Case ID</strong> à l’upload.</li>
+<li>Préférer les formats supportés (EVTX, Plaso, PCAP, CSV, JSONL, STIX…).</li>
+<li>Utiliser les deep-links plutôt que des URLs mémorisées hors portail (cohérence proxy).</li>
+</ul>
+<hr>
+<h3 id="2-velociraptor-collecte-endpoint">2. Velociraptor — collecte endpoint</h3>
+<p><strong>URL :</strong> <code>https://&lt;PUBLIC_HOST&gt;/velociraptor/</code></p>
+<h4 id="parcours-type">Parcours type</h4>
+<ol>
+<li>Se connecter (admin lab).</li>
+<li>Vérifier les clients (ou mode lab sans client).</li>
+<li>Ouvrir un <strong>Artifact</strong> (ex. custom <code>Custom.Linux.Logs.ForensicMinimal</code>).</li>
+<li>Lancer une <strong>collect</strong> ou un <strong>Hunt</strong>.</li>
+<li>Exporter / vérifier l’arrivée dans OpenSearch / Timesketch (selon pipelines lab).</li>
+</ol>
+<h4 id="fallback-sans-client">Fallback sans client</h4>
+<p>En lab, la collecte serveur / CLI reste valide pour valider la chaîne :</p>
+<pre><code>docker exec velociraptor-server \
+  velociraptor --config /config/server.config.yaml \
+  artifacts collect Generic.Client.Info --output /tmp/collect.zip</code></pre>
+<p>Voir aussi : <code>docs/VELOCIRAPTOR-PLAYBOOKS.md</code>, <code>docs/PORTAL/VELOCIRAPTOR.md</code>.</p>
+<hr>
+<h3 id="3-timesketch-timelines">3. Timesketch — timelines</h3>
+<p><strong>URL :</strong> <code>https://&lt;PUBLIC_HOST&gt;/timesketch/</code> (ou port dédié selon config)</p>
+<h4 id="parcours-type-2">Parcours type</h4>
+<ol>
+<li>Login admin Timesketch.</li>
+<li>Créer un <strong>sketch</strong> (nommer avec le Case ID).</li>
+<li>Importer une timeline (CSV / Plaso / upload plateforme).</li>
+<li>Rechercher un IOC (<code>ip</code>, <code>hash</code>, mot-clé).</li>
+<li>Lancer analyzers (Sigma, MISP, etc.) si disponibles.</li>
+<li>Documenter les findings dans le sketch / story.</li>
+</ol>
+<hr>
+<h3 id="4-misp-partage-cti">4. MISP — partage CTI</h3>
+<p><strong>URL :</strong> <code>https://&lt;PUBLIC_HOST&gt;/misp/</code></p>
+<h4 id="parcours-type-3">Parcours type</h4>
+<ol>
+<li>Login admin MISP.</li>
+<li><strong>Event</strong> → Nouveau (info = case / campagne).</li>
+<li>Ajouter attributs : <code>ip-dst</code>, <code>sha256</code>, <code>url</code> (to_ids selon politique).</li>
+<li>Vérifier corrélations / galaxies.</li>
+<li>Exporter JSON / STIX pour pivot OpenCTI ou SIEM.</li>
+</ol>
+<h4 id="api-analyste-automation">API (analyste / automation)</h4>
+<pre><code>curl -sk -H &quot;Authorization: $MISP_ADMIN_API_KEY&quot; -H &quot;Accept: application/json&quot; \
+  &quot;https://&lt;HOST&gt;/misp/servers/getVersion&quot;</code></pre>
+<hr>
+<h3 id="5-thehive-cases-ir">5. TheHive — cases IR</h3>
+<p><strong>URL :</strong> <code>https://&lt;PUBLIC_HOST&gt;/thehive/</code></p>
+<h4 id="parcours-type-4">Parcours type</h4>
+<ol>
+<li>Login (analyste org <code>cert</code> recommandé pour créer des cases).</li>
+<li>Créer un <strong>Case</strong> (titre, sévérité, TLP, tags).</li>
+<li>Ajouter un <strong>Observable</strong> (IP, hash, domaine…).</li>
+<li>Lier tâches / templates FP-Master.</li>
+<li>Pivoter vers Cortex pour analyse, MISP/OpenCTI pour enrichissement.</li>
+</ol>
+<blockquote>Sur TheHive 5, le préfixe applicatif <code>/thehive</code> est obligatoire derrière le proxy.</blockquote>
+<hr>
+<h3 id="6-cortex-analyzers-responders">6. Cortex — analyzers / responders</h3>
+<p><strong>URL :</strong> <code>https://&lt;PUBLIC_HOST&gt;/cortex/</code> (ou port admin selon config)</p>
+<h4 id="parcours-type-5">Parcours type</h4>
+<ol>
+<li>Login admin / orgadmin.</li>
+<li>Lister les <strong>analyzers</strong> disponibles.</li>
+<li>Lancer un job (ex. IP publique) depuis Cortex ou depuis TheHive.</li>
+<li>Relire le rapport et rattacher au case.</li>
+</ol>
+<hr>
+<h3 id="7-opencti-graphe-cti">7. OpenCTI — graphe CTI</h3>
+<p><strong>URL :</strong> <code>https://&lt;PUBLIC_HOST&gt;/cti/</code></p>
+<h4 id="parcours-type-6">Parcours type</h4>
+<ol>
+<li>Login admin OpenCTI.</li>
+<li>Vérifier les <strong>connectors</strong> (actifs / erreurs).</li>
+<li>Créer un <strong>Indicator</strong> (pattern STIX) ou importer STIX.</li>
+<li>Naviguer entités / relations.</li>
+<li>Contrôler la sync SIEM (<code>forensic-ti-opencti-*</code> dans OpenSearch).</li>
+</ol>
+<p>GraphQL lab (chemin <code>/cti/graphql</code>) :</p>
+<pre><code>curl -sk -H &quot;Authorization: Bearer $OPENCTI_ADMIN_TOKEN&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d &#x27;{&quot;query&quot;:&quot;{ about { version } }&quot;}&#x27; \
+  &quot;https://&lt;HOST&gt;/cti/graphql&quot;</code></pre>
+<hr>
+<h3 id="8-workflows-analystes-typiques">8. Workflows analystes typiques</h3>
+<h4 id="a-alerte-siem-case-ir">A. Alerte SIEM → case IR</h4>
+<ol>
+<li>OpenSearch Dashboards / Grafana : identifier l’alerte.</li>
+<li>Extraire IOC.</li>
+<li>Créer case TheHive + observables.</li>
+<li>Enrichir MISP / OpenCTI.</li>
+<li>Hunt Velociraptor / HELK si endpoints concernés.</li>
+<li>Timeline Timesketch.</li>
+<li>Rapport via portail (<strong>Rapports forensic</strong>).</li>
+</ol>
+<h4 id="b-evidence-déposée-par-lit">B. Evidence déposée par l’IT</h4>
+<ol>
+<li>Générer jeton IT depuis CERT.</li>
+<li>IT upload via portail IT.</li>
+<li>CERT voit l’ingest / case.</li>
+<li>Parsing → OpenSearch / Timesketch.</li>
+<li>Investigation + pivots CTI.</li>
+</ol>
+<h4 id="c-campagne-cti">C. Campagne CTI</h4>
+<ol>
+<li>Indicator OpenCTI / Event MISP.</li>
+<li>Vérifier sync <code>forensic-ti-*</code>.</li>
+<li>Dashboards TI (IOC matches, threat map).</li>
+<li>Déclencher hunts / searches sur les IOC.</li>
+</ol>
+<hr>
+<h3 id="9-exemple-dinvestigation-lab-shadow-ops">9. Exemple d’investigation (lab Shadow Ops)</h3>
+<p><strong>IOC :</strong> <code>203.0.113.77</code></p>
+<ol>
+<li>MISP : event avec IP + hash + URL.</li>
+<li>TheHive : case + observable IP.</li>
+<li>Cortex : job analyzer sur IP.</li>
+<li>OpenCTI : indicator STIX IPv4.</li>
+<li>CERT : upload evidence liée au case.</li>
+<li>Timesketch : recherche <code>SHADOW_IOC</code> / IP.</li>
+<li>Grafana : dashboard Velociraptor Endpoint.</li>
+</ol>
+<hr>
+<h3 id="10-bonnes-pratiques">10. Bonnes pratiques</h3>
+<ul>
+<li>Nommer cases / sketches / events avec le <strong>même Case ID</strong>.</li>
+<li>Respecter TLP / PAP.</li>
+<li>Ne jamais coller de secrets dans les tickets publics.</li>
+<li>Vérifier le proxy (<code>/misp</code>, <code>/thehive</code>, <code>/cti</code>, <code>/velociraptor</code>) avant de déclarer un outil « down ».</li>
+<li>Documenter les pivots (lien Timesketch, event MISP, case TheHive) dans le rapport final.</li>
+</ul>
+<p>Documents liés : <code>docs/PORTAL/FORENSIC-INVESTIGATION-GUIDE.md</code>, <code>docs/PORTAL/SCENARIOS.md</code>, <code>docs/SOC-SCENARIOS-HELK-VEL.md</code>.</p>
+<hr>
+<h3 id="documentation-associée">Documentation associée</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Résumé exécutif</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Message de livraison</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Guide analyste</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Guide d&#x27;exploitation</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Guide de déploiement</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Guide de maintenance</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Plan de QA continu</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Plan de durcissement</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Plan de monitoring</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Plan de migration</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Plan de formation</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Manuel complet</a></li>
+</ul>
+</div>

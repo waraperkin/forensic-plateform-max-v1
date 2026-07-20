@@ -159,3 +159,20 @@ docker image prune -f
 | Hebdo | Backup MinIO + Postgres |
 | Mensuel | Snapshot OpenSearch + revue connecteurs |
 | Trimestriel | Rotation secrets + `git pull` + re-verify complet |
+
+---
+
+## Documentation associée
+
+- [Résumé exécutif](executive-summary.md)
+- [Message de livraison](delivery-message.md)
+- [Guide analyste](analyst-guide.md)
+- [Guide d'exploitation](operations-guide.md)
+- [Guide de déploiement](deployment-guide.md)
+- [Guide de maintenance](maintenance-guide.md)
+- [Plan de QA continu](qa-continuous.md)
+- [Plan de durcissement](hardening-plan.md)
+- [Plan de monitoring](monitoring-plan.md)
+- [Plan de migration](migration-plan.md)
+- [Plan de formation](training-plan.md)
+- [Manuel complet](full-manual.md)

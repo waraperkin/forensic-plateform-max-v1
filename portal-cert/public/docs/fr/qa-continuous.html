@@ -1,0 +1,145 @@
+<div class="portal-doc-article">
+<h2 id="plan-de-qa-continu-forensic-minimal-v2">Plan de QA continu — Forensic Minimal v2</h2>
+<hr>
+<h3 id="1-objectifs">1. Objectifs</h3>
+<p>Garantir en continu :</p>
+<ul>
+<li>accessibilité HTTPS des portails et outils ;</li>
+<li>authenticité des parcours analystes (login + actions) ;</li>
+<li>santé 16/16 ;</li>
+<li>reproductibilité du déploiement neuf.</li>
+</ul>
+<hr>
+<h3 id="2-tests-ui">2. Tests UI</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Test</th>
+<th>Méthode</th>
+<th>Critère</th>
+</tr></thead><tbody>
+<tr><td>Login CERT</td><td>Navigateur / Playwright</td><td>Redirect dashboard, branding CYBERCORP</td></tr>
+<tr><td>Santé 16/16</td><td>UI overview</td><td>0 DOWN / 0 DEGRADED</td></tr>
+<tr><td>Deep-links</td><td>Clic Centre d’accès</td><td>HTTP 200/302/307 selon outil</td></tr>
+<tr><td>MISP login page</td><td><code>/misp/users/login</code></td><td>Pas de PHP brut</td></tr>
+<tr><td>VR GUI</td><td><code>/velociraptor/app/index.html</code></td><td>200</td></tr>
+<tr><td>Grafana login</td><td><code>/grafana/login</code></td><td>Dashboard listable</td></tr>
+</tbody></table>
+<p>Scripts :</p>
+<pre><code>python3 scripts/portal_auth_ui_verify.py
+python3 scripts/portal_cert_master_ui_verify.py
+# campagne agrégée pendant full-start</code></pre>
+<hr>
+<h3 id="3-tests-api">3. Tests API</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>API</th>
+<th>Check</th>
+</tr></thead><tbody>
+<tr><td>CERT <code>/api/health</code> <code>/api/health/global</code></td><td>200</td></tr>
+<tr><td>IT <code>/it/api/health</code></td><td>200</td></tr>
+<tr><td>MISP <code>/servers/getVersion</code></td><td>200 + version</td></tr>
+<tr><td>OpenCTI <code>/cti/graphql</code> about</td><td>version</td></tr>
+<tr><td>TheHive <code>/thehive/api/status</code></td><td>200</td></tr>
+<tr><td>Cortex <code>/api/analyzer</code> (Bearer)</td><td>liste</td></tr>
+<tr><td>OpenSearch <code>/_cluster/health</code></td><td>green/yellow</td></tr>
+<tr><td>Timesketch <code>/api/v1/sketches/</code></td><td>200 après login</td></tr>
+</tbody></table>
+<pre><code>BASE_URL=https://127.0.0.1 ./scripts/verify-platform-ready.sh</code></pre>
+<hr>
+<h3 id="4-tests-workflows-analystes">4. Tests workflows analystes</h3>
+<p>Checklist minimale (à automatiser / rejouer après maj) :</p>
+<ol>
+<li>MISP : create event + 3 attrs + export.</li>
+<li>TheHive : case + observable (org cert).</li>
+<li>Cortex : run analyzer.</li>
+<li>OpenCTI : create indicator.</li>
+<li>Timesketch : sketch + explore.</li>
+<li>CERT : upload evidence.</li>
+<li>MinIO : put/get + checksum.</li>
+<li>VR : collect artifact (même sans client lab).</li>
+<li>Grafana : load <code>vraptor-endpoint</code>.</li>
+</ol>
+<p>Masters :</p>
+<pre><code>./forensic.sh misp-master-verify
+./forensic.sh thehive-master-verify
+./forensic.sh cortex-master-verify
+./forensic.sh opencti-master-verify
+./forensic.sh minio-master-verify
+./forensic.sh portal-cert-master-verify</code></pre>
+<hr>
+<h3 id="5-tests-de-santé">5. Tests de santé</h3>
+<ul>
+<li><code>./forensic.sh status</code></li>
+<li><code>docker ps</code> unhealthy = 0 critique</li>
+<li>OpenSearch cluster health</li>
+<li>Restart-loop connecteurs (AlienVault, ThreatFox…) → kill/diag</li>
+</ul>
+<hr>
+<h3 id="6-tests-de-reproductibilité">6. Tests de reproductibilité</h3>
+<p>Sur VM neuve (ou staging) :</p>
+<pre><code>sudo rm -rf /opt/forensic-minimal-v2
+sudo git clone https://github.com/waraperkin/forensic-minimal-v2.git /opt/forensic-minimal-v2
+cd /opt/forensic-minimal-v2
+./scripts/preflight-full-start.sh
+./forensic.sh -full-start
+BASE_URL=https://127.0.0.1 ./scripts/verify-platform-ready.sh</code></pre>
+<p>Critère : preflight 12/12 + verify PASS + portail 16/16.</p>
+<hr>
+<h3 id="7-pipeline-cicd-proposé">7. Pipeline CI/CD proposé</h3>
+<pre><code># .github/workflows/qa.yml (proposition)
+name: qa-forensic-minimal
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preflight static
+        run: ./scripts/preflight-full-start.sh
+  # full-start : runner self-hosted 64GB (optionnel nightly)
+  nightly-e2e:
+    if: github.event_name == &#x27;schedule&#x27;
+    runs-on: [self-hosted, forensic-lab]
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./forensic.sh -full-start
+      - run: BASE_URL=https://127.0.0.1 ./scripts/verify-platform-ready.sh
+      - run: python3 scripts/portal_auth_ui_verify.py</code></pre>
+<p>Gates PR (légers) : preflight + <code>test_proxy_subpath_config</code> + lint scripts.</p>
+<hr>
+<h3 id="8-fréquence">8. Fréquence</h3>
+<table class="portal-doc-table"><thead><tr>
+<th>Niveau</th>
+<th>Fréquence</th>
+</tr></thead><tbody>
+<tr><td>Smoke health</td><td>Toutes les heures (cron) / à chaque login</td></tr>
+<tr><td>API verify</td><td>Quotidien</td></tr>
+<tr><td>Workflows masters</td><td>Hebdo + après maj</td></tr>
+<tr><td>Full redeploy</td><td>Mensuel / avant release</td></tr>
+</tbody></table>
+<hr>
+<h3 id="9-preuves-à-conserver">9. Preuves à conserver</h3>
+<ul>
+<li>Sortie <code>verify-platform-ready</code></li>
+<li>Captures portail 16/16</li>
+<li>JSON workflows (<code>docs/SHADOW_OPS_MATRIX.json</code>)</li>
+<li>Logs <code>logs/forensic_start.log</code> (archivage release)</li>
+</ul>
+<hr>
+<h3 id="documentation-associée">Documentation associée</h3>
+<ul>
+<li><a href="#doc-guide_executive_summary" data-doc-section="guide_executive_summary" class="portal-doc-internal">Résumé exécutif</a></li>
+<li><a href="#doc-guide_delivery_message" data-doc-section="guide_delivery_message" class="portal-doc-internal">Message de livraison</a></li>
+<li><a href="#doc-guide_analyst" data-doc-section="guide_analyst" class="portal-doc-internal">Guide analyste</a></li>
+<li><a href="#doc-guide_operations" data-doc-section="guide_operations" class="portal-doc-internal">Guide d&#x27;exploitation</a></li>
+<li><a href="#doc-guide_deployment" data-doc-section="guide_deployment" class="portal-doc-internal">Guide de déploiement</a></li>
+<li><a href="#doc-guide_maintenance" data-doc-section="guide_maintenance" class="portal-doc-internal">Guide de maintenance</a></li>
+<li><a href="#doc-guide_qa_continuous" data-doc-section="guide_qa_continuous" class="portal-doc-internal">Plan de QA continu</a></li>
+<li><a href="#doc-guide_hardening" data-doc-section="guide_hardening" class="portal-doc-internal">Plan de durcissement</a></li>
+<li><a href="#doc-guide_monitoring" data-doc-section="guide_monitoring" class="portal-doc-internal">Plan de monitoring</a></li>
+<li><a href="#doc-guide_migration" data-doc-section="guide_migration" class="portal-doc-internal">Plan de migration</a></li>
+<li><a href="#doc-guide_training" data-doc-section="guide_training" class="portal-doc-internal">Plan de formation</a></li>
+<li><a href="#doc-guide_full_manual" data-doc-section="guide_full_manual" class="portal-doc-internal">Manuel complet</a></li>
+</ul>
+</div>

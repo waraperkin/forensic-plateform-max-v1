@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-VERSION="$(tr -d '[:space:]' < release/VERSION 2>/dev/null || echo "2026.06.03-final1")"
+VERSION="$(tr -d '[:space:]' 2>/dev/null < release/VERSION || echo "2026.06.03-final1")"
 IMAGE_TAG="${IMAGE_TAG:-cybercorp-portal:${VERSION}}"
 PUBLIC_RELEASE="$ROOT/portal-cert/public/release"
 MIN_SCRIPT="$ROOT/scripts/minify-portal-assets.sh"

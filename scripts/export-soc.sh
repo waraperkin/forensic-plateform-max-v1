@@ -10,7 +10,9 @@ OUT_DIR="${OUT_DIR:-$ROOT/release/exports}"
 TS="$(date +%Y%m%d-%H%M%S)"
 ZIP_NAME="cybercorp-soc-export-${TS}.zip"
 WORK="$OUT_DIR/soc-export-${TS}"
-VERSION="$(tr -d '[:space:]' < release/VERSION 2>/dev/null || echo unknown)"
+# 2>/dev/null AVANT la redirection d'entrée : sinon l'erreur « fichier
+# introuvable » est émise avant que stderr ne soit redirigé
+VERSION="$(tr -d '[:space:]' 2>/dev/null < release/VERSION || echo unknown)"
 
 log() { echo "[export-soc] $*"; }
 
@@ -89,7 +91,12 @@ fi
 mkdir -p "$OUT_DIR"
 (
   cd "$(dirname "$WORK")"
-  zip -qr "$OUT_DIR/$ZIP_NAME" "$(basename "$WORK")"
+  if command -v zip >/dev/null 2>&1; then
+    zip -qr "$OUT_DIR/$ZIP_NAME" "$(basename "$WORK")"
+  else
+    # Debian minimal : zip absent — repli python3 (toujours présent)
+    python3 -m zipfile -c "$OUT_DIR/$ZIP_NAME" "$(basename "$WORK")"
+  fi
 )
 
 log "Archive : $OUT_DIR/$ZIP_NAME"

@@ -8,7 +8,9 @@ REPORT_DIR="$ROOT/tests/reports/soc-campaign"
 mkdir -p "$REPORT_DIR"
 LOG="$REPORT_DIR/ultra-campaign-run.log"
 
-export NODE_OPTIONS="${NODE_OPTIONS:---use-system-ca}"
+# --use-system-ca est interdit dans NODE_OPTIONS sur Node 20 —
+# NODE_EXTRA_CA_CERTS fait confiance à la CA plateforme partout.
+[ -f "$ROOT/nginx/certs/ca/ca.crt" ] && export NODE_EXTRA_CA_CERTS="$ROOT/nginx/certs/ca/ca.crt"
 export CERT_PORTAL_URL="https://${IP}"
 export IT_PORTAL_URL="https://${IP}/it"
 export SOC_BASE_URL="https://${IP}"

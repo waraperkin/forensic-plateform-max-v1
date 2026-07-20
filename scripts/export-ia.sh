@@ -225,7 +225,12 @@ PY
 
 (
   cd "$OUT_DIR"
-  zip -qr "$ZIP_NAME" "$(basename "$WORK")"
+  if command -v zip >/dev/null 2>&1; then
+    zip -qr "$ZIP_NAME" "$(basename "$WORK")"
+  else
+    # Debian minimal : zip absent — repli python3 (toujours présent)
+    python3 -m zipfile -c "$ZIP_NAME" "$(basename "$WORK")"
+  fi
 )
 log "Archive : $OUT_DIR/$ZIP_NAME"
 log "Dossier : $WORK"

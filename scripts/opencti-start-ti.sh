@@ -17,12 +17,18 @@ docker compose up -d \
   connector-cisa-known-exploited-vulnerabilities
 
 echo "[opencti-ti] Connecteurs TI (profile connectors-ti, clés API .env)..."
-docker compose --profile connectors-ti up -d \
-  connector-alienvault \
-  connector-abuseipdb \
-  connector-shodan \
-  connector-ipinfo \
-  connector-apt-campaign
+# Ne démarrer que les connecteurs dont la clé API est renseignée : sans clé
+# ils bouclent en restart (l'API externe rejette les requêtes anonymes).
+TI_CONNECTORS=(connector-apt-campaign)
+[ -n "${ALIENVAULT_API_KEY:-}" ] && TI_CONNECTORS+=(connector-alienvault) \
+  || echo "[opencti-ti] SKIP connector-alienvault (ALIENVAULT_API_KEY vide)"
+[ -n "${ABUSEIPDB_API_KEY:-}" ] && TI_CONNECTORS+=(connector-abuseipdb) \
+  || echo "[opencti-ti] SKIP connector-abuseipdb (ABUSEIPDB_API_KEY vide)"
+[ -n "${SHODAN_API_KEY:-}" ] && TI_CONNECTORS+=(connector-shodan) \
+  || echo "[opencti-ti] SKIP connector-shodan (SHODAN_API_KEY vide)"
+[ -n "${IPINFO_TOKEN:-}" ] && TI_CONNECTORS+=(connector-ipinfo) \
+  || echo "[opencti-ti] SKIP connector-ipinfo (IPINFO_TOKEN vide)"
+docker compose --profile connectors-ti up -d "${TI_CONNECTORS[@]}"
 
 echo "[opencti-ti] Containers:"
 docker ps --format 'table {{.Names}}\t{{.Status}}' | grep forensic-connector || true

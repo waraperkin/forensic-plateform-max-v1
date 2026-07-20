@@ -1613,19 +1613,23 @@ CRITICAL = [
     "CERT_PORTAL_SECRET", "IT_PORTAL_SECRET", "PORTAINER_ADMIN_PASSWORD",
 ]
 
-# Connecteurs OpenCTI internes (docker-compose.opencti.yml) — UUID requis même si vides dans l'exemple
+# Connecteurs OpenCTI internes (docker-compose.opencti.yml) — UUID requis même si vides dans l'exemple.
+# ThreatFox/SSL Blacklist/MITRE ATLAS/DISARM sont des feeds gratuits sans clé
+# API : leurs conteneurs démarrent systématiquement et crash-loopent si
+# CONNECTOR_ID est vide (VALIDATION_ERROR input.id null).
 OPENCTI_CONNECTOR_IDS = [
     "CONNECTOR_EXPORT_FILE_STIX_ID", "CONNECTOR_EXPORT_FILE_CSV_ID",
     "CONNECTOR_EXPORT_FILE_TXT_ID", "CONNECTOR_IMPORT_FILE_STIX_ID",
     "CONNECTOR_IMPORT_DOCUMENT_ID", "CONNECTOR_DNS_TWIST_ID",
     "CONNECTOR_EXPORT_REPORT_PDF_ID", "CONNECTOR_MITRE_ID",
     "CONNECTOR_CVE_ID", "CONNECTOR_OPENCTI_DATASETS_ID",
+    "CONNECTOR_THREATFOX_ID", "CONNECTOR_ABUSE_SSL_ID",
+    "CONNECTOR_MITRE_ATLAS_ID", "CONNECTOR_DISARM_ID",
 ]
 
 OPTIONAL_EMPTY_PREFIXES = (
     "ALIENVAULT_", "ABUSEIPDB_", "SHODAN_", "IPINFO_", "CYBER_MONITOR_",
-    "SEKOIA_API_", "SEKOIA_UI_", "S1_API_", "CISA_KEV_", "CONNECTOR_THREATFOX",
-    "CONNECTOR_ABUSE_SSL", "CONNECTOR_MITRE_ATLAS", "CONNECTOR_DISARM",
+    "SEKOIA_API_", "SEKOIA_UI_", "S1_API_", "CISA_KEV_",
 )
 
 # Clés .env corrompues (traduction FR / renommage manuel) → clés Docker canoniques
@@ -2485,12 +2489,21 @@ fp_full_start_extended_tests() {
   if [ "${FP_ORCH_SKIP_PLAYWRIGHT:-0}" != "1" ] && [ -f "$DIR/tests/playwright.config.ts" ]; then
     if command -v npx >/dev/null 2>&1; then
       step "Playwright — projet ui-integration"
+      # Machine vierge : @playwright/test et Chromium ne sont pas installés
+      if [ ! -d "$DIR/tests/node_modules/@playwright/test" ]; then
+        info "Playwright — installation des dépendances (npm install + chromium)"
+        (cd "$DIR/tests" && npm install --no-audit --no-fund >/dev/null 2>&1 \
+          && npx playwright install --with-deps chromium >/dev/null 2>&1) \
+          || warn "Playwright — installation dépendances incomplète"
+      fi
       local pw_log="$FP_LOG_DIR/full-start-playwright.log"
       local pw_rc=0
       (
         cd "$DIR/tests" || exit 1
         export BASE_URL="${FP_ORCH_BASE_URL:-https://localhost}"
-        export NODE_OPTIONS="${NODE_OPTIONS:---use-system-ca}"
+        # --use-system-ca est interdit dans NODE_OPTIONS sur Node 20 —
+        # NODE_EXTRA_CA_CERTS fait confiance à la CA plateforme partout.
+        [ -f "$DIR/nginx/certs/ca/ca.crt" ] && export NODE_EXTRA_CA_CERTS="$DIR/nginx/certs/ca/ca.crt"
         PLAYWRIGHT_HTML_OPEN=never npx playwright test \
           --config=playwright.config.ts \
           --project=ui-integration
@@ -2529,7 +2542,9 @@ fp_full_start_final_report() {
   printf "${BLUE}║${NC}  Tests orchestrateur: %s OK · %s KO\n" "${FP_ORCH_TEST_OK:-0}" "${FP_ORCH_TEST_FAIL:-0}"
   if [ "${#START_OK[@]}" -gt 0 ] 2>/dev/null; then
     printf "${BLUE}║${NC}  Étapes start: %s OK" "${#START_OK[@]}"
-    [ "${#START_FAIL[@]:-0}" -gt 0 ] && printf " · %s échecs" "${#START_FAIL[@]}"
+    # ${#arr[@]:-0} est une substitution invalide en bash — tester la taille
+    # du tableau directement (vaut 0 si vide/non défini sous set -u désactivé)
+    if [ "${#START_FAIL[@]}" -gt 0 ] 2>/dev/null; then printf " · %s échecs" "${#START_FAIL[@]}"; fi
     echo ""
   fi
   echo -e "${BLUE}╠══════════════════════════════════════════════════════════════╣${NC}"

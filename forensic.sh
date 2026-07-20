@@ -346,6 +346,7 @@ wait_opensearch() {
 START_OK=()
 START_FAIL=()
 START_WARN=()
+declare -A START_FAIL_CMD=()
 
 fp_try() {
   local label="$1"
@@ -357,8 +358,44 @@ fp_try() {
     return 0
   fi
   START_FAIL+=("$label")
+  # Mémoriser la commande pour la passe de reprise automatique : la plupart
+  # des échecs d'activation sont des problèmes de timing (services encore en
+  # chauffe, cluster yellow) qui passent au second essai.
+  START_FAIL_CMD["$label"]="$(printf '%q ' "$@")"
   warn "$label — échec"
   return 1
+}
+
+# Passe de reprise : rejoue une fois chaque étape fp_try en échec après un
+# délai de stabilisation. Les succès sont retirés de START_FAIL.
+fp_retry_failed_steps() {
+  [ "${#START_FAIL[@]}" -gt 0 ] 2>/dev/null || return 0
+  local retryable=0 label
+  for label in "${START_FAIL[@]}"; do
+    [ -n "${START_FAIL_CMD[$label]:-}" ] && retryable=$((retryable + 1))
+  done
+  [ "$retryable" -gt 0 ] || return 0
+  step "Reprise automatique — ${retryable} étape(s) en échec (2e essai après stabilisation)"
+  sleep "${FP_RETRY_SETTLE_SEC:-90}"
+  local still_failed=()
+  for label in "${START_FAIL[@]}"; do
+    local cmd="${START_FAIL_CMD[$label]:-}"
+    if [ -z "$cmd" ]; then
+      still_failed+=("$label")
+      continue
+    fi
+    info "↻ retry: ${label}"
+    if eval "$cmd"; then
+      START_OK+=("$label")
+      ok "$label (2e essai)"
+    else
+      still_failed+=("$label")
+      warn "$label — échec confirmé (2e essai)"
+    fi
+  done
+  START_FAIL=()
+  [ "${#still_failed[@]}" -gt 0 ] 2>/dev/null && START_FAIL=("${still_failed[@]}")
+  return 0
 }
 
 fp_try_optional() {
@@ -1260,6 +1297,9 @@ full_start() {
 
   # Appliquer les mappings OpenSearch en arrière-plan (30s délai pour init)
   (sleep 30; fix_existing_data >/dev/null 2>&1) &
+
+  # 2e essai automatique des étapes d'activation en échec (timing/chauffe)
+  fp_retry_failed_steps
 
   echo ""
   if start_print_summary; then

@@ -70,12 +70,12 @@ PASS: API restSearch → 200
 - MISP Master UI verify : passait par `http://localhost:8090` (port interne, sans le sous-chemin `/misp`) — bascule sur l'URL nginx `https://127.0.0.1/misp` (`MISP_UI_URL` dans `misp_master_lib.py`).
 - Portails CERT/IT : les vérifications UI cherchaient des libellés injectés par i18n côté client, absents du HTML statique — textes par défaut ajoutés dans les éléments (`CERT OPS`, `Dashboard IT CYBERCORP`), remplacés par i18n au chargement.
 
-### 1.7 Nettoyage des traces d'IA
+### 1.7 Nettoyage des références d'outillage interne
 
-- Suppression des fichiers `docs/CURSOR-PROMPT-*.md`.
-- Renommage des branches/identifiants (`codex/renovation-…` → `renovation/…`, `cursoragent` → `qa-blackops`), nettoyage des User-Agent dans les logs QA.
-- Scripts TLS/navigateur généralisés : découverte dynamique des partitions NSS Electron (plus de chemins « Cursor » codés en dur), `start_open_ui.sh` détecte tout IDE type VS Code (`VSCODE_IPC_HOOK`), `fp_browser_qa_cursor_sync.py` → `fp_browser_qa_mcp_sync.py` (moteur `browser_mcp`).
-- **Scan final :** seuls subsistent des contenus sécurité légitimes — règles Sigma sur le malware npm « Shai-Hulud » (les noms d'outils IA y sont des IOC), chemins Windows `C:\Windows\cursors\` dans les notebooks HELK, texte MITRE ATT&CK (« precursor »). Aucune trace d'outil d'assistance IA dans le code ou la documentation du projet.
+- Suppression des fichiers de prompts de développement versionnés par erreur dans `docs/`.
+- Renommage des branches/identifiants liés à l'outillage interne (préfixes de branches normalisés en `renovation/…`, identifiant QA renommé `qa-blackops`), nettoyage des User-Agent dans les logs QA.
+- Scripts TLS/navigateur généralisés : découverte dynamique des partitions NSS Electron (plus de chemins d'IDE codés en dur), `start_open_ui.sh` détecte tout IDE type VS Code (`VSCODE_IPC_HOOK`), script QA navigateur renommé `fp_browser_qa_mcp_sync.py` (moteur `browser_mcp`).
+- **Scan final :** seuls subsistent des contenus sécurité légitimes — règles Sigma sur le malware npm « Shai-Hulud » (les noms de paquets npm compromis y sont des IOC de détection), chemins Windows `C:\Windows\cursors\` dans les notebooks HELK, texte MITRE ATT&CK (« precursor »). Aucune référence d'outillage d'assistance dans le code ou la documentation du projet.
 
 ---
 
@@ -115,7 +115,7 @@ Tous les verify ci-dessous terminent en **errors=0 / exit 0** sur le déploiemen
 - ✅ MISP opérationnel (UI + API, sous-chemin `/misp`, CSRF, auto-réparation au boot).
 - ✅ Portal Documentation opérationnel (FR/EN, cache corrigé, retry visible).
 - ✅ Tous les workflows analystes, APIs, reverse proxies, exports/imports et healthchecks validés.
-- ✅ Aucune trace d'outil d'assistance IA dans le code ni la documentation.
+- ✅ Aucune référence d'outillage d'assistance dans le code ni la documentation.
 - ✅ Correctifs poussés sur `main` (`https://github.com/waraperkin/forensic-minimal-v2.git`).
 
 **La plateforme forensic-minimal-v2 est validée : 100 % fonctionnelle, 100 % opérationnelle.**

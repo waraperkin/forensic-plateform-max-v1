@@ -37,7 +37,12 @@ UI_ZONES = [
 def check_page(session: requests.Session, path: str, label: str) -> bool:
     url = f"{MISP_UI_URL}{path}"
     try:
-        r = session.get(url, timeout=45, allow_redirects=True)
+        try:
+            r = session.get(url, timeout=45, allow_redirects=True)
+        except requests.exceptions.Timeout:
+            # Premier accès à certaines pages lourdes (warninglists : cache de
+            # dizaines de milliers d'entrées) — 2e essai avec timeout élargi.
+            r = session.get(url, timeout=180, allow_redirects=True)
         if "login" in r.url and path != "/users/login":
             ko(f"{label} redirect login")
             return False

@@ -77,6 +77,28 @@ if echo "$misp_html" | grep -qE 'Configure::read|FP_LOCALHOST_BASE_FIX|misp-boot
 else
   echo "PASS: MISP bootstrap propre"
 fi
+# App.base doit produire des formulaires préfixés /misp/ (sinon POST racine → CSRF 400)
+if echo "$misp_html" | grep -q 'action="/misp/users/login"'; then
+  echo "PASS: MISP form action /misp/users/login (App.base OK)"
+else
+  echo "FAIL: MISP form action sans préfixe /misp (App.base perdu → CSRF)" >&2
+  fail=1
+fi
+if echo "$misp_html" | grep -q '_Token'; then
+  echo "PASS: MISP jeton CSRF présent dans le formulaire"
+else
+  echo "FAIL: MISP jeton CSRF absent du formulaire de login" >&2
+  fail=1
+fi
+# Login E2E réel (POST CSRF + session + API) — exécuté côté hôte via curl
+if [ -x "$ROOT/scripts/misp-login-e2e-test.sh" ] && command -v curl >/dev/null 2>&1; then
+  if bash "$ROOT/scripts/misp-login-e2e-test.sh" "https://127.0.0.1"; then
+    echo "PASS: MISP login E2E (CSRF + session + API)"
+  else
+    echo "FAIL: MISP login E2E" >&2
+    fail=1
+  fi
+fi
 check "TheHive" "/thehive/" "200|302" || fail=1
 check "Cortex" "/cortex/" "200|302|303" || fail=1
 

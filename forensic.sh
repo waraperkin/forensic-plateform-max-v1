@@ -594,7 +594,7 @@ _start_health_check() {
 
 start_open_ui() {
   [ "${FP_START_OPEN_UI:-1}" = "0" ] && return 0
-  step "Ouverture UIs (navigateur intégré Cursor ou système)"
+  step "Ouverture UIs (navigateur intégré IDE ou système)"
   if [ -x "$DIR/scripts/start_open_ui.sh" ]; then
     bash "$DIR/scripts/start_open_ui.sh" || warn "Ouverture UIs partielle"
   else
@@ -3267,7 +3267,7 @@ case "${1:-help}" in
     echo "  diagnose | diag   PHASE 5bis — Scanner les logs containers (patterns d'erreur)"
     echo "  auto-repair       PHASE 6bis — Boucle auto-réparation (3 retries max)"
     echo "  status            PHASE 4 — Statut global (containers + endpoints + réseaux + ports)"
-    echo "  open-ui | ui      Ouvrir dashboards dans Cursor (FP_START_OPEN_UI=cursor|xdg|both|0)"
+    echo "  open-ui | ui      Ouvrir dashboards (FP_START_OPEN_UI=ide|xdg|both|0)"
     echo "  start-logs [n]    Logs services critiques (défaut tail=100)"
     echo "  ui-campaign       Tests UI/fonctionnels complets (OSD, GF, TS, portails, CTI)"
     echo "  qa-ultra          Campagne QA ULTRA-AGRESSIVE (47 specs Playwright + API + 15 analystes)"

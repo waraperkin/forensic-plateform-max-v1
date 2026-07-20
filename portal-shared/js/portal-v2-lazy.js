@@ -16,7 +16,7 @@
     sekoiaCC: ['shared/js/sekoia-control-center.js'],
     sekoiaEnt: ['shared/js/sekoia-enterprise.js'],
     portalAI: ['shared/js/portal-ai.js'],
-    portalDoc: ['shared/js/portal-doc.js'],
+    portalDoc: ['shared/js/portal-doc-inventory.js', 'shared/js/portal-doc.js'],
   };
 
   const TAB_MICRO = {

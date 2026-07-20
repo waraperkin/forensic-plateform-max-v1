@@ -1,9 +1,9 @@
 # Rapport validation CERT/IT — Rénovation SOC/DFIR premium
 
 **Date** : 2026-07-12  
-**Branche** : `codex/renovation-cert-it-platform`  
+**Branche** : `renovation/cert-it-platform`  
 **PR** : https://github.com/waraperkin/forensic-minimal/pull/12  
-**Agent** : Cursor local Windows (`DESKTOP-O3SIFER`)  
+**Poste** : station locale Windows (`DESKTOP-O3SIFER`)  
 **BASE_URL testé** : `https://localhost:8443`
 
 ---

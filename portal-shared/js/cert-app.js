@@ -93,7 +93,21 @@ function tab(raw) {
         window.PortalDoc.renderDocumentationRoot();
         return;
       }
-      if (n < 40) setTimeout(() => loadDoc(n + 1), 50);
+      if (n < 40) {
+        setTimeout(() => loadDoc(n + 1), 50);
+        return;
+      }
+      // Module PortalDoc indisponible : ne pas laisser le « Chargement… » figé
+      const root = document.getElementById('portal-documentation-root');
+      if (root) {
+        root.__docBound = false;
+        root.innerHTML = '<p class="fp-alert fp-alert-err">Documentation indisponible — '
+          + '<button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" id="portal-doc-retry">Réessayer</button></p>';
+        document.getElementById('portal-doc-retry')?.addEventListener('click', () => {
+          root.innerHTML = '<p class="fp-muted">Chargement…</p>';
+          loadDoc(0);
+        });
+      }
     };
     loadDoc();
   }

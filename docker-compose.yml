@@ -731,6 +731,9 @@ services:
       - ./scripts/misp-apply-bootstrap-fix.sh:/scripts/misp-apply-bootstrap-fix.sh:ro
       - ./scripts/misp-sanitize-bootstrap.sh:/scripts/misp-sanitize-bootstrap.sh:ro
       - ./scripts/misp-bootstrap-localhost-fix.php:/scripts/misp-bootstrap-localhost-fix.php:ro
+      # customize_misp.sh : rejoué par l'entrypoint à CHAQUE boot — patch
+      # App.base + anti-CSRF auto-réparateurs (survivent aux recréations)
+      - ./config/misp-custom/:/custom/:ro
     ports:
       - "${FP_MISP_PORT:-8090}:80"
     networks:

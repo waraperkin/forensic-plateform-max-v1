@@ -18,7 +18,7 @@ git remote -v
 
 ## Mise à jour normale (historique incrémental)
 
-Depuis la branche de travail habituelle (`codex/renovation-cert-it-platform` ou autre) :
+Depuis la branche de travail habituelle (`renovation/cert-it-platform` ou autre) :
 
 ```bash
 cd C:\Users\siaka\forensic-minimal
@@ -38,7 +38,7 @@ git push v2 <branche-locale>:main
 Exemple :
 
 ```bash
-git push v2 codex/renovation-cert-it-platform:main
+git push v2 renovation/cert-it-platform:main
 ```
 
 Les commits s'ajoutent **au-dessus** du snapshot orphelin initial (`Initial snapshot — forensic-minimal-v2`). L'historique distant `main` de v2 grandit normalement.
@@ -55,7 +55,7 @@ git add -A
 git reset HEAD .env config/local-ports.env reports/ tests/artifacts/
 git commit -m "Initial snapshot — forensic-minimal-v2 (refresh)"
 git push --force v2 v2-clean-YYYYMMDD:main   # ⚠️ ÉCRASE l'historique distant
-git checkout codex/renovation-cert-it-platform
+git checkout renovation/cert-it-platform
 ```
 
 **Attention :** `git push --force` sur `v2/main` supprime l'historique précédent sur GitHub. À n'utiliser qu'avec validation explicite.

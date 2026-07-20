@@ -19,10 +19,10 @@ else
   fi
 fi
 
-echo "=== 3/6 Confiance NSS Chromium / Cursor ==="
+echo "=== 3/6 Confiance NSS Chromium / navigateurs intégrés ==="
 bash scripts/trust_ca_chromium.sh
 
-# Certificat serveur en confiance directe (partition navigateur intégré)
+# Certificat serveur en confiance directe (partitions navigateurs Electron)
 if [[ -x /tmp/nss-tools/usr/bin/certutil ]] || command -v certutil >/dev/null 2>&1; then
   CERTUTIL="${CERTUTIL:-/tmp/nss-tools/usr/bin/certutil}"
   if ! [[ -x "$CERTUTIL" ]]; then
@@ -30,17 +30,18 @@ if [[ -x /tmp/nss-tools/usr/bin/certutil ]] || command -v certutil >/dev/null 2>
     dpkg-deb -x /tmp/libnss3-tools*.deb /tmp/nss-tools 2>/dev/null || true
     CERTUTIL="/tmp/nss-tools/usr/bin/certutil"
   fi
-  DB="$HOME/.config/Cursor/Partitions/cursor-browser"
-  mkdir -p "$DB"
-  "$CERTUTIL" -d "sql:$DB" -A -t "P,," -n "CyberCorp-Server-192.0.2.9" \
-    -i "$ROOT/nginx/certs/server/server.crt" 2>/dev/null || true
+  for DB in "$HOME"/.config/*/Partitions/*; do
+    [[ -d "$DB" ]] || continue
+    "$CERTUTIL" -d "sql:$DB" -A -t "P,," -n "CyberCorp-Server-192.0.2.9" \
+      -i "$ROOT/nginx/certs/server/server.crt" 2>/dev/null || true
+  done
 fi
 
 echo "=== 4/6 Redémarrage nginx + portails ==="
 docker compose up -d --build nginx cert-portal it-portal
 
-echo "=== 5/6 Rechargement réseau Cursor (navigateur intégré) ==="
-pkill -f "utility-sub-type=network.mojom.NetworkService.*user-data-dir=$HOME/.config/Cursor" 2>/dev/null || true
+echo "=== 5/6 Rechargement réseau navigateurs intégrés (Electron) ==="
+pkill -f "utility-sub-type=network.mojom.NetworkService.*user-data-dir=$HOME/.config/" 2>/dev/null || true
 sleep 2
 
 echo "=== 6/6 Validation TLS ==="

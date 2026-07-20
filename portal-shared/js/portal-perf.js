@@ -289,11 +289,17 @@
   // Panel snapshot cache (instant tab revisit)
   const panelSnap = new Map();
 
+  // Un snapshot pris pendant un chargement (FR « Chargement… » ou EN
+  // « Loading… ») figerait le panneau lors de la restauration.
+  function snapshotIsLoading(html) {
+    return /Chargement|Loading…|portal-doc-loading|fp-skeleton/.test(html);
+  }
+
   function rememberPanel(tabId) {
     const panel = document.getElementById(`tab-${tabId}`);
     if (!panel) return;
     const root = panel.querySelector('[id$="-root"], .cc-tp-root, .fp-panel-body');
-    if (root && root.innerHTML && root.innerHTML.indexOf('Chargement') === -1) {
+    if (root && root.innerHTML && !snapshotIsLoading(root.innerHTML)) {
       panelSnap.set(tabId, root.innerHTML);
     }
   }

@@ -30,7 +30,7 @@ sudo bash scripts/install_ca_system.sh
 
 # NSS utilisateur (Chromium)
 bash scripts/trust_ca_chromium.sh
-# Puis redémarrer Cursor
+# Puis redémarrer le navigateur
 ```
 
 ## Déploiement full-auto

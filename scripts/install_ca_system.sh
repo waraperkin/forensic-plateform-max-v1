@@ -33,4 +33,4 @@ mkdir -p /etc/chromium/policies/managed /etc/opt/chrome/policies/managed 2>/dev/
 echo '{"ImportEnterpriseRoots": true}' > /etc/chromium/policies/managed/cybercorp.json
 cp /etc/chromium/policies/managed/cybercorp.json /etc/opt/chrome/policies/managed/cybercorp.json 2>/dev/null || true
 
-echo "CA CyberCorp installée. Redémarrez Cursor si le navigateur intégré était ouvert avant l'installation."
+echo "CA CyberCorp installée. Redémarrez le navigateur s'il était ouvert avant l'installation."

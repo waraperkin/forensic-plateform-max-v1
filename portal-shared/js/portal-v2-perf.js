@@ -208,11 +208,16 @@
     }
   }
 
+  // Filtre anti-snapshot « en chargement » (FR + EN + squelettes)
+  function snapIsLoadingV2(html) {
+    return /Chargement|Loading…|portal-doc-loading|fp-skeleton/.test(html || '');
+  }
+
   function rememberPanelV2(tabId) {
     const panel = document.getElementById(`tab-${tabId}`);
     if (!panel) return;
     const root = panel.querySelector('[id$="-root"], .cc-tp-root');
-    if (!root || !root.innerHTML || root.innerHTML.indexOf('Chargement') !== -1) return;
+    if (!root || !root.innerHTML || snapIsLoadingV2(root.innerHTML)) return;
     try {
       const c = compressSnap(root.innerHTML);
       sessionStorage.setItem(SNAP_PREFIX + tabId, JSON.stringify({ ts: Date.now(), c }));
@@ -228,7 +233,7 @@
         const html = decompressSnap(o.c);
         const panel = document.getElementById(`tab-${tabId}`);
         const root = panel && panel.querySelector('[id$="-root"], .cc-tp-root');
-        if (root && html) {
+        if (root && html && !snapIsLoadingV2(html)) {
           root.innerHTML = html;
           stabilizePanelRoot(root);
           if (PP.scanVirtualTables) PP.scanVirtualTables(root);
@@ -237,7 +242,7 @@
       }
     } catch (_) { /* ignore */ }
     const cached = cacheGetV2(`snap-${tabId}`);
-    if (cached && cached.html) {
+    if (cached && cached.html && !snapIsLoadingV2(cached.html)) {
       const panel = document.getElementById(`tab-${tabId}`);
       const root = panel && panel.querySelector('[id$="-root"], .cc-tp-root');
       if (root) {

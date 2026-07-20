@@ -39,9 +39,10 @@ echo "Import CA dans NSS utilisateur..."
 import_ca "$HOME/.pki/nssdb"
 import_ca "$HOME/.config/chromium"
 import_ca "$HOME/.config/google-chrome"
-import_ca "$HOME/.config/Cursor/Crashpad"
-import_ca "$HOME/.config/Cursor/Partitions/cursor-browser"
-import_ca "$HOME/.config/Cursor"
+# Navigateurs intégrés type Electron/VS Code : partitions NSS par application
+for part in "$HOME"/.config/*/Partitions/*; do
+  [[ -d "$part" ]] && import_ca "$part"
+done
 
-echo "Terminé. Redémarrez Cursor pour le navigateur intégré."
+echo "Terminé. Redémarrez le navigateur (ou l'IDE) pour prendre en compte la CA."
 echo "Si l'erreur persiste : sudo bash scripts/install_ca_system.sh"

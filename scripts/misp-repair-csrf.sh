@@ -55,8 +55,11 @@ done
 bash "$ROOT/scripts/misp-configure-host.sh"
 
 # 4 — Portail CERT + nginx (volume docs + config)
+# NE PAS recréer misp ici : config.php/bootstrap.php vivent dans le FS du
+# conteneur (seul app/files est un volume) — un force-recreate effacerait
+# le patch App.base + disable_baseurl_coercion appliqué juste avant (CSRF 400).
 log "Portail CERT + nginx — rebuild/recreate"
-docker compose up -d --build --force-recreate cert-portal nginx misp 2>/dev/null || true
+docker compose up -d --build --force-recreate cert-portal nginx 2>/dev/null || true
 sleep 10
 
 code=$(docker exec forensic-nginx wget -q -O /dev/null --no-check-certificate -S \

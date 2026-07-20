@@ -2,7 +2,7 @@
 """
 Vérification navigateur intégrée — lit les snapshots pour erreurs UI réelles.
 Usage: lancer après navigation manuelle ou via liste d'URLs en argument.
-Référence: utiliser le navigateur Cursor sur http://localhost:5601/dashboards
+Référence: utiliser un navigateur sur http://localhost:5601/dashboards
 """
 from __future__ import annotations
 

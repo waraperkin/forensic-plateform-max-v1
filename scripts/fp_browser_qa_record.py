@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Enregistre une étape QA depuis le navigateur Cursor (CLI pour l'agent)."""
+"""Enregistre une étape QA depuis le navigateur intégré (CLI)."""
 from __future__ import annotations
 
 import argparse
@@ -11,7 +11,7 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]
 
 from fp_browser_qa_lib import BROWSER_RESULTS, utc_now  # noqa: E402
 
-CURSOR_OUT = Path("/tmp/fp-ui-browser-qa-results.json")
+MCP_OUT = Path("/tmp/fp-ui-browser-qa-results.json")
 
 
 def main() -> int:
@@ -24,15 +24,15 @@ def main() -> int:
     ap.add_argument("--reset", action="store_true")
     args = ap.parse_args()
 
-    if args.reset or not CURSOR_OUT.is_file():
-        data = {"updated_at": utc_now(), "engine": "cursor_mcp", "steps": []}
-        CURSOR_OUT.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    if args.reset or not MCP_OUT.is_file():
+        data = {"updated_at": utc_now(), "engine": "browser_mcp", "steps": []}
+        MCP_OUT.write_text(json.dumps(data, indent=2), encoding="utf-8")
         BROWSER_RESULTS.write_text(json.dumps(data, indent=2), encoding="utf-8")
         if args.reset and args.ok is None:
             print("reset OK")
             return 0
 
-    data = json.loads(CURSOR_OUT.read_text(encoding="utf-8"))
+    data = json.loads(MCP_OUT.read_text(encoding="utf-8"))
     if args.ok is None:
         print("specify --ok 0|1", file=sys.stderr)
         return 2
@@ -53,7 +53,7 @@ def main() -> int:
     data["global_status"] = "OK" if fails == 0 else "FAIL"
     data["updated_at"] = utc_now()
 
-    CURSOR_OUT.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    MCP_OUT.write_text(json.dumps(data, indent=2), encoding="utf-8")
     BROWSER_RESULTS.write_text(json.dumps(data, indent=2), encoding="utf-8")
     print(f"recorded {args.name} ok={args.ok}")
     return 0

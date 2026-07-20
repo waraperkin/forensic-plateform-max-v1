@@ -13,7 +13,8 @@ else
     echo "[misp-sanitize-bootstrap] Container $CONTAINER absent"
     exit 1
   fi
-  _exec() { docker exec "$CONTAINER" "$@"; }
+  # -i obligatoire : le heredoc python ci-dessous est passé via stdin
+  _exec() { docker exec -i "$CONTAINER" "$@"; }
 fi
 
 _exec python3 - "$BOOT" "$MARKER" <<'PY'

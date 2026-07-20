@@ -258,7 +258,11 @@
   function renderDocumentationRoot() {
     const root = document.getElementById('portal-documentation-root');
     if (!root) return;
-    if (root.__docBound && root.querySelector('#portal-doc-content')) return;
+    // Garde anti double-rendu : valide uniquement si le DOM rendu est encore
+    // celui construit ici (une restauration de snapshot via innerHTML détruit
+    // les listeners — il faut alors re-rendre, sinon panneau figé).
+    const liveContent = root.querySelector('#portal-doc-content');
+    if (root.__docBound && liveContent && root.__docContentEl === liveContent) return;
     try {
       root.__docBound = true;
       root.innerHTML = `<div class="portal-doc-layout">
@@ -270,6 +274,7 @@
       <label class="fp-checkbox-inline"><input type="checkbox" id="portal-training-toggle"> ${esc(i18n.t('docs.guided_path'))}</label>
       <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" id="portal-doc-tour-btn">${esc(i18n.t('docs.start_tour'))}</button>
     </div>`;
+    root.__docContentEl = root.querySelector('#portal-doc-content');
 
     const nav = document.getElementById('portal-doc-nav');
     let firstId = 'platform_inventory';

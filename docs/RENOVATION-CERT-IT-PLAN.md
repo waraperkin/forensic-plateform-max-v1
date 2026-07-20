@@ -1,6 +1,6 @@
 # Plan de rénovation CERT/IT — Forensic Minimal
 
-Branche : `codex/renovation-cert-it-platform`  
+Branche : `renovation/cert-it-platform`  
 Date baseline : 2026-07-11
 
 ## 1. Baseline initiale (avant corrections)
@@ -113,7 +113,7 @@ docker compose up -d
 ## 11. Validation finale (Windows `C:\Users\siaka\forensic-minimal`)
 
 ```bash
-git fetch origin && git checkout codex/renovation-cert-it-platform && git pull
+git fetch origin && git checkout renovation/cert-it-platform && git pull
 bash scripts/detect-port-conflicts.sh
 ./scripts/preflight-full-start.sh
 ./forensic.sh -full-start

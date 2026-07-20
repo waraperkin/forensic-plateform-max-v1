@@ -567,10 +567,16 @@ start_activation_layers() {
   fp_try "Portal CERT Master UI verify" portal_cert_master_ui_verify
   fp_try "Portal auth UI verify" portal_auth_ui_verify
 
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
 }
 
 start_automated_tests() {
+  # Ne JAMAIS réactiver set -e inconditionnellement : full_start/orchestrateur
+  # tournent avec errexit désactivé — un set -e forcé ici tuait le script en
+  # fin de full_start ([ … ] && set -e) et sautait les phases finales de
+  # l'orchestrateur (santé globale, verify-platform-ready, rapport).
+  local _had_e=0
+  case $- in *e*) _had_e=1;; esac
   step "8/8 Tests automatiques minimaux"
   set +e
   fp_try "Health endpoints" _start_health_check
@@ -580,7 +586,8 @@ start_automated_tests() {
   if [ "${FP_START_SKIP_UPLOAD:-0}" != "1" ] && [ -x "$DIR/scripts/portal_upload_ti_test.sh" ]; then
     fp_try_optional "Upload test TI (portail)" bash "$DIR/scripts/portal_upload_ti_test.sh"
   fi
-  set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
+  return 0
 }
 
 _start_health_check() {
@@ -982,7 +989,7 @@ full_start_orchestrator() {
     if ! fp_bootstrap_fresh_machine; then
       err "Bootstrap machine vierge échoué — corriger puis relancer ./forensic.sh -full-start"
       command -v fp_full_start_final_report >/dev/null 2>&1 && fp_full_start_final_report 1
-      [ "$_e" -eq 1 ] && set -e
+      if [ "$_e" -eq 1 ]; then set -e; fi
       return 1
     fi
   else
@@ -1004,7 +1011,7 @@ full_start_orchestrator() {
 
   if ! fp_phase0_dependencies; then
     command -v fp_full_start_final_report >/dev/null 2>&1 && fp_full_start_final_report 1
-    [ "$_e" -eq 1 ] && set -e
+    if [ "$_e" -eq 1 ]; then set -e; fi
     return 1
   fi
 
@@ -1014,7 +1021,7 @@ full_start_orchestrator() {
     if ! fp_verify_monorepo; then
       err "Monorepo invalide — arrêt orchestrateur"
       command -v fp_full_start_final_report >/dev/null 2>&1 && fp_full_start_final_report 1
-      [ "$_e" -eq 1 ] && set -e
+      if [ "$_e" -eq 1 ]; then set -e; fi
       return 1
     fi
   fi
@@ -1045,7 +1052,7 @@ full_start_orchestrator() {
     fp_full_start_final_report "$fs_rc"
   fi
 
-  [ "$_e" -eq 1 ] && set -e
+  if [ "$_e" -eq 1 ]; then set -e; fi
   return "$fs_rc"
 }
 
@@ -1079,7 +1086,7 @@ full_start() {
       err "Docker inaccessible — impossible de démarrer la plateforme."
       err "  Vérifier : docker ps"
       err "  Groupe docker : newgrp docker  (ou rouvrir le terminal)"
-      [ "$_start_had_e" -eq 1 ] && set -e
+      if [ "$_start_had_e" -eq 1 ]; then set -e; fi
       return 1
     fi
     command -v fp_bind_compose_cmds >/dev/null 2>&1 && fp_bind_compose_cmds
@@ -1107,7 +1114,7 @@ full_start() {
       err "  • Diagnostic : docker ps && docker network ls"
       err "  • Inspect   : docker network inspect ${FP_NET_NAME:-fp-final2_forensic-net}"
       err "  • Logs      : tail -50 logs/forensic_network.log"
-      [ "$_start_had_e" -eq 1 ] && set -e
+      if [ "$_start_had_e" -eq 1 ]; then set -e; fi
       return 1
     fi
   fi
@@ -1294,7 +1301,7 @@ full_start() {
 
   local _rc=0
   [ "${#START_FAIL[@]}" -eq 0 ] || _rc=1
-  [ "$_start_had_e" -eq 1 ] && set -e
+  if [ "$_start_had_e" -eq 1 ]; then set -e; fi
   return "$_rc"
 }
 
@@ -1353,7 +1360,7 @@ fast_start() {
 
   # PHASE 0 — dépendances + Docker
   if ! fp_phase0_dependencies; then
-    [ "$_e" -eq 1 ] && set -e
+    if [ "$_e" -eq 1 ]; then set -e; fi
     return 1
   fi
 
@@ -1456,7 +1463,7 @@ fast_start() {
 
   local rc=0
   [ "${#START_FAIL[@]}" -eq 0 ] || rc=1
-  [ "$_e" -eq 1 ] && set -e
+  if [ "$_e" -eq 1 ]; then set -e; fi
   return "$rc"
 }
 

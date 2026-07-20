@@ -15,6 +15,7 @@ from detection_intel_master_lib import (  # noqa: E402
     index_sigma_rules_os,
     run_sigma_convert,
     save_state,
+    sigma_rules_count_ts,
     tag_sketch_labels,
 )
 from timesketch_zones_lib import run_analyzers_on_sketch, sketch_context  # noqa: E402
@@ -49,8 +50,11 @@ def main() -> int:
             ran += 1
 
     save_state("sigma_master", {"os_indexed": os_n, "imported": imp, "skipped": skip, "views": views, "convert": conv_ok, "analyzer_runs": ran})
-    print(f"[sigma-master-setup] OK os={os_n} import={imp} views={views} analyzer={ran}")
-    return 0 if os_n >= 400 and imp >= 350 else 1
+    # Idempotence : sur un re-run les règles existent déjà (imp=0) — on juge
+    # sur le total présent dans Timesketch, pas sur les imports frais.
+    ts_total = max(imp + skip, sigma_rules_count_ts())
+    print(f"[sigma-master-setup] OK os={os_n} import={imp} ts_total={ts_total} views={views} analyzer={ran}")
+    return 0 if os_n >= 400 and ts_total >= 350 else 1
 
 
 if __name__ == "__main__":

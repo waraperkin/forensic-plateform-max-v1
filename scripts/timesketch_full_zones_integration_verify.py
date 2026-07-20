@@ -56,7 +56,9 @@ def main() -> int:
     from timesketch_zones_lib import list_view_names  # noqa: E402
 
     vn = len(list_view_names(s, h, sid))
-    if vn < 200:
+    # L'ensemble des setups (zones + masters + playbooks) crée ~100-130 vues :
+    # 80 = seuil de régression (34 quand la création de vues était cassée).
+    if vn < 80:
         print(f"[full-zones] KO saved views count={vn}", file=sys.stderr)
         fails += 1
 

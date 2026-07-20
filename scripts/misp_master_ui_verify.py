@@ -8,7 +8,7 @@ import requests
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "scripts"))
 
-from misp_master_lib import MISP_URL, ko, metrics, misp_req, ok, ui_session  # noqa: E402
+from misp_master_lib import MISP_UI_URL, ko, metrics, misp_req, ok, ui_session  # noqa: E402
 
 BAD = (
     "internal server error",
@@ -35,7 +35,7 @@ UI_ZONES = [
 
 
 def check_page(session: requests.Session, path: str, label: str) -> bool:
-    url = f"{MISP_URL}{path}"
+    url = f"{MISP_UI_URL}{path}"
     try:
         r = session.get(url, timeout=45, allow_redirects=True)
         if "login" in r.url and path != "/users/login":
@@ -61,7 +61,7 @@ def check_page(session: requests.Session, path: str, label: str) -> bool:
 
 def main() -> int:
     fails = 0
-    print(f"[misp-master-ui] base={MISP_URL}")
+    print(f"[misp-master-ui] base={MISP_UI_URL}")
 
     s = ui_session()
     if not s:
@@ -83,7 +83,7 @@ def main() -> int:
         ko(f"API me: {exc}")
         fails += 1
 
-    r = s.get(f"{MISP_URL}/", timeout=20, allow_redirects=True)
+    r = s.get(f"{MISP_UI_URL}/", timeout=20, allow_redirects=True)
     if r.status_code >= 400:
         ko(f"root HTTP {r.status_code}")
         fails += 1

@@ -123,7 +123,7 @@ fp_ensure_docker() {
     err "Binaire docker introuvable dans PATH"
     err "  (installation Docker hors scope de forensic.sh — vérifier l'hôte)"
     fp_log install "docker binary missing"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 1
   fi
 
@@ -132,7 +132,7 @@ fp_ensure_docker() {
     FP_COMPOSE="docker compose"
     ok "Docker accessible (docker ps OK)"
     fp_log install "docker OK"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 0
   fi
 
@@ -142,7 +142,7 @@ fp_ensure_docker() {
     FP_COMPOSE="sudo -n docker compose"
     warn "Docker accessible via sudo -n (groupe docker : newgrp docker ou nouveau terminal)"
     fp_log install "docker OK (sudo -n)"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 0
   fi
 
@@ -150,7 +150,7 @@ fp_ensure_docker() {
   err "  Vérifier que dockerd répond sur cet hôte, puis : docker ps"
   err "  Si groupe docker : newgrp docker  (ou rouvrir le terminal)"
   fp_log install "docker INACCESSIBLE (docker ps failed)"
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 1
 }
 
@@ -308,7 +308,7 @@ pre_install() {
   fi
 
   fp_log install "=== pre_install end ==="
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 0
 }
 
@@ -345,7 +345,7 @@ cleanup_processes() {
   fi
 
   fp_log start "=== cleanup_processes end ==="
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 0
 }
 
@@ -372,7 +372,7 @@ cleanup_ports() {
   if [ "${#occupied[@]}" -eq 0 ]; then
     ok "Ports critiques libres ou détenus par containers FP"
     fp_log start "ports OK"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 0
   fi
 
@@ -381,7 +381,7 @@ cleanup_ports() {
 
   if [ "${FP_KILL_PORTS:-0}" != "1" ]; then
     warn "Pour libérer auto : FP_KILL_PORTS=1 ./forensic.sh start"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 0
   fi
 
@@ -401,7 +401,7 @@ cleanup_ports() {
       fp_log start "killed PID(s) $pids on port $p"
     fi
   done
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 0
 }
 
@@ -634,7 +634,7 @@ fp_network_repair() {
 
   if ! command -v docker >/dev/null 2>&1; then
     err "docker introuvable — impossible de réparer le réseau"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 1
   fi
 
@@ -642,7 +642,7 @@ fp_network_repair() {
   if ! fp_ensure_docker; then
     err "Docker inaccessible — réparation réseau impossible (pas de migration subnet)"
     _fp_net_log "ÉCHEC : docker inaccessible"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 1
   fi
   fp_bind_compose_cmds 2>/dev/null || true
@@ -686,7 +686,7 @@ fp_network_repair() {
     _fp_net_force_remove "$FP_NET_NAME"
     local _fb_rc=0
     _fp_net_try_fallback "$target_subnet" || _fb_rc=$?
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return "$_fb_rc"
   fi
 
@@ -697,7 +697,7 @@ fp_network_repair() {
     _fp_net_force_remove "$FP_NET_NAME"
     local _fb_rc=0
     _fp_net_try_fallback "$target_subnet" || _fb_rc=$?
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return "$_fb_rc"
   fi
 
@@ -719,13 +719,13 @@ fp_network_repair() {
     elif [ "$create_rc" -eq 2 ]; then
       err "Docker inaccessible lors de la création réseau — pas de fallback subnet"
       _fp_net_log "create abort: docker down (rc=2)"
-      [ "$_had_e" -eq 1 ] && set -e
+      if [ "$_had_e" -eq 1 ]; then set -e; fi
       return 1
     elif [ "$create_rc" -eq 3 ]; then
       warn "Subnet $target_subnet en conflit — fallback automatique"
       _fp_net_log "subnet conflict → fallback"
       _fp_net_force_remove "$FP_NET_NAME"
-      _fp_net_try_fallback "$target_subnet" || { [ "$_had_e" -eq 1 ] && set -e; return 1; }
+      _fp_net_try_fallback "$target_subnet" || { if [ "$_had_e" -eq 1 ]; then set -e; fi; return 1; }
     else
       warn "Création directe échouée (rc=$create_rc) — 2e tentative"
       _fp_net_force_remove "$FP_NET_NAME"
@@ -736,7 +736,7 @@ fp_network_repair() {
         _fp_net_log "réseau créé (2e tentative) subnet=$target_subnet"
       elif [ "$create_rc" -eq 2 ]; then
         err "Docker inaccessible — pas de fallback subnet"
-        [ "$_had_e" -eq 1 ] && set -e
+        if [ "$_had_e" -eq 1 ]; then set -e; fi
         return 1
       else
         warn "2e tentative échouée — essai création via docker compose"
@@ -745,7 +745,7 @@ fp_network_repair() {
           _fp_net_log "réseau créé via compose"
         else
           warn "Compose fallback échoué — fallback subnet alternatif"
-          _fp_net_try_fallback "$target_subnet" || { [ "$_had_e" -eq 1 ] && set -e; return 1; }
+          _fp_net_try_fallback "$target_subnet" || { if [ "$_had_e" -eq 1 ]; then set -e; fi; return 1; }
         fi
       fi
     fi
@@ -761,13 +761,13 @@ fp_network_repair() {
   if [ -z "$final_subnet" ]; then
     err "Réseau '$FP_NET_NAME' introuvable après réparation"
     _fp_net_log "ÉCHEC FINAL : réseau introuvable"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 1
   fi
   if [ "$final_label" != "$expected_label" ]; then
     err "Réseau présent mais label Compose toujours incorrect ('$final_label' ≠ '$expected_label')"
     _fp_net_log "ÉCHEC FINAL : label incorrect"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 1
   fi
   ok "Réseau prêt : $FP_NET_NAME ($final_subnet · label='$final_label')"
@@ -778,7 +778,7 @@ fp_network_repair() {
 
   _fp_net_log "=== fp_network_repair end : $FP_NET_NAME ($final_subnet, label=$final_label) ==="
 
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 0
 }
 
@@ -1099,7 +1099,7 @@ status_full() {
   echo ""
   # Rétablir les flags shell tels qu'ils étaient
   [ "$_had_p" -eq 1 ] && set -o pipefail
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 0
 }
 
@@ -1151,7 +1151,7 @@ fp_diagnose_logs() {
 
   if ! command -v docker >/dev/null 2>&1; then
     warn "docker absent — diagnostic impossible"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 0
   fi
 
@@ -1225,7 +1225,7 @@ fp_diagnose_logs() {
   fi
   fp_log start "=== fp_diagnose_logs end (hits=$hits hint='$FP_DIAG_HINT') ==="
 
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 0
 }
 
@@ -1269,7 +1269,7 @@ fp_auto_repair_loop() {
     if _fp_run_tests_silent; then
       ok "Validation OK à la tentative $attempt/$max"
       fp_log start "auto_repair attempt=$attempt → ALL OK"
-      [ "$_had_e" -eq 1 ] && set -e
+      if [ "$_had_e" -eq 1 ]; then set -e; fi
       return 0
     fi
 
@@ -1281,7 +1281,7 @@ fp_auto_repair_loop() {
       err "Nombre max de tentatives atteint ($max)"
       _fp_print_final_diagnostic
       fp_log start "auto_repair ÉCHEC FINAL après $max tentatives"
-      [ "$_had_e" -eq 1 ] && set -e
+      if [ "$_had_e" -eq 1 ]; then set -e; fi
       return 1
     fi
 
@@ -1331,7 +1331,7 @@ fp_auto_repair_loop() {
     attempt=$((attempt+1))
   done
 
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 1
 }
 
@@ -1479,7 +1479,7 @@ fp_start_tests() {
   info "Bilan tests: ${ok_count} OK · ${fail_count} KO"
   fp_log start "bilan tests: OK=$ok_count FAIL=$fail_count"
 
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   [ "$fail_count" -eq 0 ]
 }
 
@@ -2161,18 +2161,18 @@ fp_bootstrap_fresh_machine() {
   fp_log_init
   fp_log install "=== fp_bootstrap_fresh_machine ==="
 
-  _fp_bootstrap_ensure_openssl || { [ "$_had_e" -eq 1 ] && set -e; return 1; }
+  _fp_bootstrap_ensure_openssl || { if [ "$_had_e" -eq 1 ]; then set -e; fi; return 1; }
   _fp_bootstrap_apt_extras || true
-  _fp_bootstrap_env_file || { [ "$_had_e" -eq 1 ] && set -e; return 1; }
+  _fp_bootstrap_env_file || { if [ "$_had_e" -eq 1 ]; then set -e; fi; return 1; }
   _fp_bootstrap_patch_env_host
   _fp_bootstrap_cert_dirs
-  _fp_bootstrap_generate_tls || { [ "$_had_e" -eq 1 ] && set -e; return 1; }
+  _fp_bootstrap_generate_tls || { if [ "$_had_e" -eq 1 ]; then set -e; fi; return 1; }
   _fp_bootstrap_sync_cert_links
   _fp_bootstrap_cert_permissions
-  _fp_bootstrap_verify_nginx_tls || { [ "$_had_e" -eq 1 ] && set -e; return 1; }
-  _fp_regenerate_velociraptor_config || { [ "$_had_e" -eq 1 ] && set -e; return 1; }
+  _fp_bootstrap_verify_nginx_tls || { if [ "$_had_e" -eq 1 ]; then set -e; fi; return 1; }
+  _fp_regenerate_velociraptor_config || { if [ "$_had_e" -eq 1 ]; then set -e; fi; return 1; }
   _fp_bootstrap_generate_configs
-  _fp_bootstrap_validate_host_configs || { [ "$_had_e" -eq 1 ] && set -e; return 1; }
+  _fp_bootstrap_validate_host_configs || { if [ "$_had_e" -eq 1 ]; then set -e; fi; return 1; }
   if command -v docker >/dev/null 2>&1; then
     fp_ensure_docker >/dev/null 2>&1 || true
     _fp_bootstrap_external_networks || warn "Réseaux externes partiels (helk_net / velociraptor_net)"
@@ -2184,7 +2184,7 @@ fp_bootstrap_fresh_machine() {
   if _fp_is_ipv4 "$(_fp_aws_public_ipv4 2>/dev/null || true)" 2>/dev/null; then
     info "AWS détecté — vérifier le Security Group (TCP 80/443) et utiliser l'IP publique affichée par ./forensic.sh urls"
   fi
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 0
 }
 
@@ -2277,7 +2277,7 @@ fp_verify_system() {
     _fp_orch_note "sudo: absent"
   fi
 
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 0
 }
 
@@ -2309,7 +2309,7 @@ fp_install_dependencies_extended() {
 
   if [ "${#missing[@]}" -eq 0 ]; then
     ok "Dépendances étendues présentes: ${extra[*]}"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 0
   fi
 
@@ -2329,7 +2329,7 @@ fp_install_dependencies_extended() {
     warn "apt-get absent — installer manuellement: $pkgs_uniq"
   fi
 
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 0
 }
 
@@ -2352,7 +2352,7 @@ fp_verify_monorepo() {
   done
   if [ "${#missing[@]}" -gt 0 ]; then
     _fp_orch_note "Monorepo incomplet: ${missing[*]}"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 1
   fi
 
@@ -2375,7 +2375,7 @@ fp_verify_monorepo() {
   [ "$nfix" -gt 0 ] && info "$nfix script(s) rendus exécutables"
 
   ok "Structure monorepo OK"
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 0
 }
 
@@ -2398,7 +2398,7 @@ fp_full_start_health_global() {
   if [ -z "$body" ]; then
     warn "/api/health/global injoignable ($base)"
     _fp_orch_note "health/global: injoignable"
-    [ "$_had_e" -eq 1 ] && set -e
+    if [ "$_had_e" -eq 1 ]; then set -e; fi
     return 1
   fi
 
@@ -2454,7 +2454,7 @@ sys.exit(0 if down == 0 else 1)
     fi
   done
 
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return "$rc"
 }
 
@@ -2508,7 +2508,7 @@ fp_full_start_extended_tests() {
   fi
 
   info "Bilan tests orchestrateur: ${FP_ORCH_TEST_OK} OK · ${FP_ORCH_TEST_FAIL} KO"
-  [ "$_had_e" -eq 1 ] && set -e
+  if [ "$_had_e" -eq 1 ]; then set -e; fi
   return 0
 }
 

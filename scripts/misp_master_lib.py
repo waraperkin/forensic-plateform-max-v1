@@ -28,8 +28,17 @@ MISP_CANDIDATES = [u for u in [
     "http://forensic-misp:80",
 ] if u]
 
-EMAIL = os.environ.get("MISP_ADMIN_EMAIL", "admin@forensic.local")
-PASSWORD = os.environ.get("MISP_ADMIN_PASSWORD", "F0r3ns1c_MISP_2024!")
+def _env_file_value(key: str) -> str:
+    env = ROOT / ".env"
+    if env.is_file():
+        for line in env.read_text().splitlines():
+            if line.startswith(f"{key}="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return ""
+
+
+EMAIL = os.environ.get("MISP_ADMIN_EMAIL") or _env_file_value("MISP_ADMIN_EMAIL") or "admin@forensic.local"
+PASSWORD = os.environ.get("MISP_ADMIN_PASSWORD") or _env_file_value("MISP_ADMIN_PASSWORD") or "F0r3ns1c_MISP_2024!"
 API_KEY = os.environ.get("MISP_ADMIN_API_KEY", "")
 
 OS_URL = os.environ.get("OS_URL", os.environ.get("OPENSEARCH_URL", "http://localhost:9200")).rstrip("/")
@@ -74,6 +83,29 @@ def resolve_misp_url() -> str:
 
 
 MISP_URL = resolve_misp_url()
+
+# UI (login CSRF) : le port direct 8090 ne porte pas le sous-chemin /misp —
+# le formulaire (action=/misp/users/login) n'y est joignable qu'à travers le
+# reverse proxy nginx. On résout donc une base UI distincte de la base API.
+MISP_UI_CANDIDATES = [u for u in [
+    os.environ.get("MISP_UI_URL", "").rstrip("/"),
+    "https://127.0.0.1/misp",
+    "https://localhost/misp",
+] if u]
+
+
+def resolve_misp_ui_url() -> str:
+    for base in MISP_UI_CANDIDATES:
+        try:
+            r = requests.get(f"{base}/users/login", timeout=8, verify=False)
+            if r.status_code == 200 and "_Token" in r.text:
+                return base.rstrip("/")
+        except requests.RequestException:
+            continue
+    return MISP_URL
+
+
+MISP_UI_URL = resolve_misp_ui_url()
 
 
 def ok(msg: str) -> None:
@@ -645,7 +677,7 @@ def ui_session() -> requests.Session | None:
     try:
         s = requests.Session()
         s.verify = False
-        r = s.get(f"{MISP_URL}/users/login", timeout=25)
+        r = s.get(f"{MISP_UI_URL}/users/login", timeout=25)
         if r.status_code != 200:
             return None
         key = re.search(r'name="data\[_Token\]\[key\]"[^>]*value="([^"]+)"', r.text)
@@ -660,7 +692,13 @@ def ui_session() -> requests.Session | None:
             "data[User][email]": EMAIL,
             "data[User][password]": PASSWORD,
         }
-        r2 = s.post(f"{MISP_URL}/users/login", data=data, allow_redirects=False, timeout=30)
+        r2 = s.post(
+            f"{MISP_UI_URL}/users/login",
+            data=data,
+            headers={"Referer": f"{MISP_UI_URL}/users/login"},
+            allow_redirects=False,
+            timeout=30,
+        )
         if r2.status_code not in (302, 303):
             return None
         return s

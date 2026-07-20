@@ -62,18 +62,21 @@ TS_CONTEXT_LINKS = """
 
 
 def deploy_context_links() -> bool:
+    # Le fichier est bind-mounté :ro dans le conteneur (docker-compose.yml) —
+    # docker cp échoue (device or resource busy). On met à jour la SOURCE du
+    # montage côté hôte puis on redémarre le conteneur pour recharger.
     text = CONTEXT_PATH.read_text(encoding="utf-8") if CONTEXT_PATH.is_file() else ""
+    changed = False
     if "fp_opensearch_host" not in text:
         text = text.rstrip() + "\n" + TS_CONTEXT_LINKS
         CONTEXT_PATH.write_text(text, encoding="utf-8")
+        changed = True
+    if not changed:
+        print("[crosspivot-ts-os] OK context_links.yaml déjà à jour")
+        return True
     try:
-        subprocess.run(
-            ["docker", "cp", str(CONTEXT_PATH), f"{WEB}:/etc/timesketch/context_links.yaml"],
-            check=True,
-            timeout=30,
-        )
-        subprocess.run(["docker", "restart", WEB], check=True, timeout=60, capture_output=True)
-        print("[crosspivot-ts-os] OK context_links.yaml déployé")
+        subprocess.run(["docker", "restart", WEB], check=True, timeout=120, capture_output=True)
+        print("[crosspivot-ts-os] OK context_links.yaml déployé (restart)")
         return True
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         print(f"[crosspivot-ts-os] WARN deploy context_links: {exc}", file=sys.stderr)

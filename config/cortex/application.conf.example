@@ -1,0 +1,35 @@
+# Généré par scripts/generate-thehive-cortex-conf.sh — ne pas éditer à la main.
+play.http.secret.key = "__GENERATED_FROM_ENV__"
+
+application.baseUrl = "https://__HOST__/cortex"
+
+# Active l’auth HTTP Basic pour les healthchecks / scripts internes (réseau Docker isolé).
+auth.method.basic = true
+
+search {
+  index = cortex
+  uri   = "http://opensearch-node1:9200"
+}
+
+analyzer {
+  urls = ["https://__HOST__/analyzers.json"]
+  fork-join-executor {
+    parallelism-min    = 2
+    parallelism-factor = 2.0
+    parallelism-max    = 4
+  }
+}
+
+responder {
+  urls = ["https://__HOST__/responders.json"]
+}
+
+job {
+  runner    = [docker, process]
+  directory = "/tmp/cortex-jobs"
+}
+
+cache.job = 10 minutes
+
+# FP Master — API automation (scripts cortex_master_*)
+play.filters.disabled = [play.filters.csrf.CSRFFilter, play.filters.allowedhosts.AllowedHostsFilter]

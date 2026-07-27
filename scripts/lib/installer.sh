@@ -1462,7 +1462,7 @@ fp_start_tests() {
   local portal_user portal_pass portal_code portal_host
   portal_host=$(fp_url_identity 2>/dev/null || fp_detect_public_ip 2>/dev/null || echo "127.0.0.1")
   portal_user=$(grep -E '^PORTAL_ADMIN_USER=' "${DIR:-.}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || echo "admin")
-  portal_pass=$(grep -E '^CERT_PORTAL_SECRET=' "${DIR:-.}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || echo "F0r3ns1c_Portal_2024!")
+  portal_pass=$(grep -E '^CERT_PORTAL_SECRET=' "${DIR:-.}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || echo "")
   portal_code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 12 \
     -X POST "http://127.0.0.1:${FP_CERT_PORTAL_PORT:-3000}/api/auth/login" \
     -H 'Content-Type: application/json' \
@@ -1659,42 +1659,27 @@ ENV_ALIASES = {
 
 CANONICAL_REQUIRED = ("POSTGRES_PASSWORD", "PUBLIC_HOST", "CERT_PORTAL_SECRET")
 
-# Mots de passe labo documentés (README / Centre d'accès) — remplacent Fp_* aléatoires
-LAB_SECRETS = {
-    "POSTGRES_PASSWORD": "F0r3ns1c_PG_2024!",
-    "REDIS_PASSWORD": "F0r3ns1c_Redis_2024!",
-    "MINIO_ROOT_PASSWORD": "F0r3ns1c_Minio_2024!",
-    "TIMESKETCH_PASSWORD": "F0r3ns1c_TS_2024!",
-    "OPENCTI_ADMIN_PASSWORD": "F0r3ns1c_CTI_2024!",
-    "MISP_ADMIN_PASSWORD": "F0r3ns1c_MISP_2024!",
-    "MYSQL_ROOT_PASSWORD": "F0r3ns1c_MySQL_2024!",
-    "MYSQL_PASSWORD": "F0r3ns1c_MySQL_2024!",
-    "GRAFANA_ADMIN_PASSWORD": "F0r3ns1c_GF_2024!",
-    "THEHIVE_ADMIN_PASSWORD": "secret",
-    "THEHIVE_SECRET": "forensic-thehive-secret-2024-changeme-in-prod",
-    "CORTEX_SECRET": "forensic-cortex-secret-2024-changeme-in-prod",
-    "CORTEX_ADMIN_PASSWORD": "forensic-cortex-secret-2024-changeme-in-prod",
-    "CERT_PORTAL_SECRET": "F0r3ns1c_Portal_2024!",
-    "IT_PORTAL_SECRET": "F0r3ns1c_IT_Portal_2024!",
-    "PORTAINER_ADMIN_PASSWORD": "F0r3ns1c_Portainer_2024!",
-    "PORTAL_ADMIN_USER": "admin",
-    "PORTAL_ADMIN_PASSWORD": "F0r3ns1c_Portal_2024!",
-}
+# P-04 : chaque déploiement génère des secrets ALÉATOIRES forts — plus de
+# mots de passe labo partagés entre installations (F0r3ns1c_*). Les scripts
+# de test doivent lire les valeurs depuis .env, jamais de constantes.
+NON_SECRET_KEYS = ("PORTAL_ADMIN_USER",)
 
 def gen_secret(k: str) -> str:
-    if k in LAB_SECRETS:
-        return LAB_SECRETS[k]
+    if k in NON_SECRET_KEYS:
+        return "admin"
     if k == "OPENCTI_ENCRYPTION_KEY":
         return base64.b64encode(secrets.token_bytes(32)).decode()
     if k == "MISP_ENCRYPTION_KEY":
         return secrets.token_hex(16)
-    # MISP exige une authkey hex 40 chars (20 octets) — jamais Fp_/urlsafe
+    # MISP exige une authkey hex 40 chars (20 octets)
     if k == "MISP_ADMIN_API_KEY":
         return secrets.token_hex(20)
     if k.endswith("_ID") or "TOKEN" in k:
         return str(uuid.uuid4())
     if k in ("CORTEX_SECRET", "THEHIVE_API_KEY", "CORTEX_API_KEY"):
         return secrets.token_hex(16 if "API" in k else 32)
+    if "SECRET" in k or "PASSWORD" in k or "KEY" in k:
+        return f"Fp_{secrets.token_urlsafe(24)}"
     return f"Fp_{secrets.token_urlsafe(12)}"
 
 def is_optional(k: str) -> bool:
@@ -1781,11 +1766,8 @@ DEFAULTS = {
     "MISP_ADMIN_EMAIL": "admin@forensic.local",
     "THEHIVE_ADMIN_LOGIN": "admin",
     "VELOCIRAPTOR_ADMIN_USER": "admin",
-    "VELOCIRAPTOR_ADMIN_PASSWORD": "F0r3ns1c_VR_2024!",
+    # P-04 : aucun secret dans DEFAULTS — générés aléatoirement plus bas (SECRET_LIKE)
     "PORTAL_ADMIN_USER": "admin",
-    "PORTAL_ADMIN_PASSWORD": "F0r3ns1c_Portal_2024!",
-    "CERT_PORTAL_SECRET": "F0r3ns1c_Portal_2024!",
-    "IT_PORTAL_SECRET": "F0r3ns1c_IT_Portal_2024!",
     "PUBLIC_HOST": host,
     "TIMESKETCH_EXTERNAL_URL": f"https://{host}/timesketch",
     "MISP_PUBLIC_BASE_URL": f"https://{host}/misp",
@@ -1801,10 +1783,12 @@ for k, dv in DEFAULTS.items():
     if k not in existing or existing[k] == "":
         existing[k] = dv
 
-# Secrets labo : toujours appliqués si clé migrée depuis alias FR ou valeur vide
-for k, lab_val in LAB_SECRETS.items():
+# Secrets : générés aléatoirement si clé migrée depuis alias FR ou valeur vide (P-04)
+SECRET_LIKE = tuple(s for s in CRITICAL + tuple(DEFAULTS.keys()) + tuple(existing.keys())
+                    if any(t in s for t in ("SECRET", "PASSWORD", "KEY", "TOKEN")))
+for k in SECRET_LIKE:
     if k in alias_migrated or not existing.get(k):
-        existing[k] = lab_val
+        existing[k] = gen_secret(k)
 
 # Toujours remplacer les placeholders IP lab (192.0.2.9) par l'IP détectée
 for k in HOST_KEYS:

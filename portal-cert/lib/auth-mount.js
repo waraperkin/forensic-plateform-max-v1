@@ -4,24 +4,29 @@ const store = require('./auth-store');
 const session = require('./auth-session');
 const { createAuthRouter } = require('./auth-routes');
 
-/** APIs historiques — inchangées pour IT proxy, scripts forensic, uploads token. */
-const LEGACY_API_PREFIXES = [
+/**
+ * Gate API — deny by default (correctif audit P-01).
+ * Seuls les préfixes ci-dessous sont publics (healthchecks, auth, téléchargement
+ * du certificat CA, callback d'activation). TOUT le reste de /api/* exige une
+ * session valide (401 sinon).
+ */
+const PUBLIC_API_PREFIXES = [
+  '/api/auth/',
   '/api/health',
+  '/api/cert/health',
+  '/api/it/health',
   '/api/config',
-  '/api/credentials',
   '/api/ssl-fingerprint',
   '/api/ssl-cert',
-  '/api/stats',
-  '/api/uploads',
-  '/api/it-uploads',
-  '/api/upload',
-  '/api/tokens',
-  '/api/purge',
+  '/api/logs/ui-error',
+  '/api/webhook/',
+];
+
+// Health de services (lecture seule, monitoring externe autorisé)
+const PUBLIC_HEALTH_SUFFIXES = [
   '/api/services',
   '/api/services/catalog',
   '/api/services/health',
-  '/api/pivots',
-  '/api/health/global',
   '/api/opensearch/health',
   '/api/helk/health',
   '/api/velociraptor/health',
@@ -37,30 +42,23 @@ const LEGACY_API_PREFIXES = [
   '/api/minio/health',
   '/api/logstash/health',
   '/api/ingest-worker/health',
-  '/api/it/health',
-  '/api/logs/ui-error',
-  '/api/cases',
-  '/api/master',
-  '/api/webhook',
 ];
 
-const ANALYST_WRITE_BLOCK = [
-  '/api/upload',
-  '/api/tokens',
+// Écritures interdites au rôle lecture seule « viewer » (s'il est créé un
+// jour). Les rôles existants — admin, analyst — sont opérationnels et
+// conservent l'accès en écriture ; seules les actions destructives sont
+// réservées à admin (ci-dessous).
+const WRITE_BLOCK_READ_ROLES = new Set(['viewer']);
+
+// Écritures destructives réservées à admin seul.
+const ADMIN_ONLY_WRITE_PREFIXES = [
   '/api/purge',
-  '/api/uploads/',
 ];
 
-const ANALYST_WRITE_ALLOW = [
-  '/api/auth/logout',
-  '/api/auth/session',
-  '/api/auth/mfa/setup',
-  '/api/auth/mfa/activate',
-  '/api/auth/mfa/disable',
-];
-
-function isLegacyApi(path) {
-  return LEGACY_API_PREFIXES.some((p) => path === p || path.startsWith(p));
+function isPublicApi(path) {
+  if (PUBLIC_API_PREFIXES.some((p) => path === p || path.startsWith(p))) return true;
+  if (PUBLIC_HEALTH_SUFFIXES.some((p) => path === p || path.startsWith(p))) return true;
+  return false;
 }
 
 function mountAuth(app) {
@@ -71,13 +69,7 @@ function mountAuth(app) {
   app.use('/api/auth', createAuthRouter());
 
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api/overview') || req.path.startsWith('/api/audit') || req.path.startsWith('/api/reports')) {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Authentification requise' });
-      }
-      return next();
-    }
-
+    // Activation / assets publics / documentation statique
     if (
       req.path.startsWith('/api/auth/activate')
       || req.path === '/api/auth/activate-info'
@@ -88,14 +80,21 @@ function mountAuth(app) {
       return next();
     }
 
-    if (req.path.startsWith('/api/auth/')) return next();
+    // API publiques (healthchecks, login, certificat CA)
+    if (isPublicApi(req.path)) return next();
 
-    if (isLegacyApi(req.path)) {
-      if (req.user?.role === 'analyst' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-        const blocked = ANALYST_WRITE_BLOCK.some((p) => req.path === p || req.path.startsWith(p));
-        const allowed = ANALYST_WRITE_ALLOW.some((p) => req.path.startsWith(p));
-        if (blocked && !allowed) {
-          return res.status(403).json({ error: 'Accès lecture seule (analyst)' });
+    // À partir d'ici : toute route /api/* exige une session.
+    if (req.path.startsWith('/api/')) {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Authentification requise' });
+      }
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        if (ADMIN_ONLY_WRITE_PREFIXES.some((p) => req.path === p || req.path.startsWith(p))
+          && req.user.role !== 'admin') {
+          return res.status(403).json({ error: 'Droits administrateur requis' });
+        }
+        if (WRITE_BLOCK_READ_ROLES.has(req.user.role)) {
+          return res.status(403).json({ error: 'Accès lecture seule' });
         }
       }
       return next();

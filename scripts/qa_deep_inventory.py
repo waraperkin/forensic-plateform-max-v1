@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-BASE = os.environ.get("BASE_URL", "https://192.0.2.9").rstrip("/")
+BASE = os.environ.get("BASE_URL", "https://localhost").rstrip("/")
 ROOT = Path(__file__).resolve().parent.parent
 ISSUES: list[dict] = []
 

@@ -31,10 +31,10 @@ if [[ -z "$QA_BACKUP_PATH" ]] && [[ "${QA_V2_AUTO_BACKUP:-0}" == "1" ]]; then
 fi
 
 if [[ "$SKIP_DOCKER" != "1" ]]; then
-  log "docker compose build cert-portal + control-planes"
-  docker compose build cert-portal cybercorp-sekoia-controlplane cybercorp-sentinelone-controlplane
+  log "docker compose build cert-portal"
+  docker compose build cert-portal
   log "docker compose up -d"
-  docker compose up -d cert-portal cybercorp-sekoia-controlplane cybercorp-sentinelone-controlplane
+  docker compose up -d cert-portal
   for _ in $(seq 1 45); do
     if curl -sf "$CERT_PORTAL_URL/api/health" >/dev/null 2>&1; then
       log "portail prêt"

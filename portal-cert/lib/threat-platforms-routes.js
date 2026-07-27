@@ -303,11 +303,13 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     res.json({ sekoia, sentinelone: s1 });
   });
 
-  // Catch-all proxy : conserve méthode, query, body
+  // Catch-all proxy : conserve méthode, query, body — restreint à une allowlist
+  // de ressources (correctif audit P-06) et sans fuite de topologie interne.
+  const ALLOWED_PROXY_RE = /^\/(sekoia|s1)\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
-    if (!mapped) {
-      return res.status(404).json({ error: 'Plateforme inconnue (sekoia|s1)', items: [] });
+    if (!mapped || !ALLOWED_PROXY_RE.test(req.path)) {
+      return res.status(404).json({ error: 'Plateforme ou ressource inconnue', items: [] });
     }
     // Gestion des secrets : écriture réservée aux administrateurs
     if (/\/config(\/|$)/.test(req.path) && ['PUT', 'POST', 'DELETE'].includes(req.method)) {
@@ -338,8 +340,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
         configured: false,
         items: [],
         count: 0,
-        error: `Control-plane injoignable (${e.code || e.message})`,
-        upstream: url,
+        error: `Control-plane injoignable (${e.code || 'erreur réseau'})`,
       });
     }
   });

@@ -2,11 +2,19 @@
 # Connecteurs TI (API keys) : docker compose --profile connectors-ti up -d
 # Mode turbo (cadence max) : bash scripts/opencti-ti-turbo.sh
 
+# P-19 : rotation des logs conteneurs
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 services:
 
   connector-export-report-pdf:
     image: opencti/connector-export-report-pdf:6.2.18
     container_name: forensic-connector-export-pdf
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -22,6 +30,7 @@ services:
   connector-export-file-stix:
     image: opencti/connector-export-file-stix:6.2.18
     container_name: forensic-connector-export-stix
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -37,6 +46,7 @@ services:
   connector-export-file-csv:
     image: opencti/connector-export-file-csv:6.2.18
     container_name: forensic-connector-export-csv
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -52,6 +62,7 @@ services:
   connector-export-file-txt:
     image: opencti/connector-export-file-txt:6.2.18
     container_name: forensic-connector-export-txt
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -67,6 +78,7 @@ services:
   connector-import-file-stix:
     image: opencti/connector-import-file-stix:6.2.18
     container_name: forensic-connector-import-stix
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -82,6 +94,7 @@ services:
   connector-import-document:
     image: opencti/connector-import-document:6.2.18
     container_name: forensic-connector-import-document
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -97,6 +110,7 @@ services:
   connector-mitre-atlas:
     image: opencti/connector-mitre-atlas:6.2.18
     container_name: forensic-connector-mitre-atlas
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -113,6 +127,7 @@ services:
   connector-disarm:
     image: opencti/connector-disarm-framework:6.2.18
     container_name: forensic-connector-disarm
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -134,6 +149,7 @@ services:
     profiles: [connectors-ti]
     image: opencti/connector-alienvault:6.2.18
     container_name: forensic-connector-alienvault
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -164,6 +180,7 @@ services:
     profiles: [connectors-ti]
     image: opencti/connector-abuseipdb:6.2.18
     container_name: forensic-connector-abuseipdb
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -182,6 +199,7 @@ services:
     profiles: [connectors-ti]
     image: opencti/connector-shodan:6.2.18
     container_name: forensic-connector-shodan
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -201,6 +219,7 @@ services:
     profiles: [connectors-ti]
     image: opencti/connector-ipinfo:6.2.18
     container_name: forensic-connector-ipinfo
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -218,6 +237,7 @@ services:
   connector-malwarebazaar:
     image: opencti/connector-malwarebazaar-recent-additions:6.2.18
     container_name: forensic-connector-malwarebazaar
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -239,6 +259,7 @@ services:
   connector-urlhaus:
     image: opencti/connector-urlhaus:6.2.18
     container_name: forensic-connector-urlhaus
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -256,6 +277,7 @@ services:
   connector-vxvault:
     image: opencti/connector-vxvault:6.2.18
     container_name: forensic-connector-vxvault
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -275,6 +297,7 @@ services:
     profiles: [connectors-ti]
     image: opencti/connector-cyber-campaign-collection:6.2.18
     container_name: forensic-connector-apt-campaign
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -293,6 +316,7 @@ services:
   connector-threatfox:
     image: opencti/connector-threatfox:6.2.18
     container_name: forensic-connector-threatfox
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -309,6 +333,7 @@ services:
   connector-abuse-ssl:
     image: opencti/connector-abuse-ssl:6.2.18
     container_name: forensic-connector-abuse-ssl
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -326,6 +351,7 @@ services:
   connector-cisa-known-exploited-vulnerabilities:
     image: opencti/connector-cisa-known-exploited-vulnerabilities:6.2.18
     container_name: forensic-connector-cisa-kev
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -343,6 +369,7 @@ services:
     profiles: [connectors-ti]
     image: opencti/connector-dns-twist:6.2.18
     container_name: forensic-connector-dns-twist
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti

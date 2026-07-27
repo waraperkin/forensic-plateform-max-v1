@@ -1,0 +1,78 @@
+# Généré par scripts/generate-thehive-cortex-conf.sh — ne pas éditer à la main.
+play.http.secret.key = "__GENERATED_FROM_ENV__"
+
+application.baseUrl = "https://__HOST__/thehive"
+play.http.context = "/thehive"
+
+# JanusGraph : Cassandra (données) + OpenSearch (index Elasticsearch-compatible)
+db.janusgraph.storage {
+  backend = cql
+  hostname = ["cassandra"]
+  cql {
+    cluster-name = forensic-thp
+    keyspace = thehive
+  }
+}
+
+db.janusgraph.index.search {
+  backend = elasticsearch
+  hostname = ["opensearch-node1"]
+  index-name = thehive
+}
+
+scalligraph.modules += org.thp.thehive.connector.cortex.CortexModule
+scalligraph.modules += org.thp.thehive.connector.misp.MispModule
+
+storage {
+  provider = s3
+  s3 {
+    bucket             = "artefacts"
+    endpoint           = "http://minio:9000"
+    region             = "us-east-1"
+    chunkSize          = 1 MB
+    readTimeout        = 1 minute
+    writeTimeout       = 1 minute
+    usePathAccessStyle = true
+    accessKey          = "forensicadmin"
+    secretKey          = "__GENERATED_FROM_ENV__"
+  }
+}
+
+cortex {
+  servers = [
+    {
+      name     = "Cortex-Forensic"
+      url      = "http://cortex:9001"
+      auth.type = bearer
+      auth.key  = "cortex-api-key-dev-changeme"
+    }
+  ]
+  refreshDelay         = 5 minutes
+  statusCheckInterval  = 1 minute
+}
+
+misp {
+  servers = [
+    {
+      name      = "MISP-Forensic"
+      url       = "http://misp"
+      auth.type = key
+      auth.key  = "misp-api-key-dev-changeme"
+      purpose   = ImportAndExport
+      maxAge    = 7 days
+    }
+  ]
+  interval = 5 minutes
+}
+
+notification.webhook.endpoints = [
+  {
+    name    = "forensic-portal"
+    url     = "http://cert-portal:3000/api/webhook/thehive"
+    version = 0
+    auth { type = noauth }
+    includedTheHiveOrganisations = ["*"]
+  }
+]
+
+play.filters.disabled += play.filters.csrf.CSRFFilter

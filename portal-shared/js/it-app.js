@@ -40,11 +40,11 @@ function renderQ() {
   });
   const check = validator.validateQueue(files);
   const valid = files.filter((f) => validator.validateFile(f).valid);
-  document.getElementById('ubtn').disabled = valid.length === 0 || !tokenValue;
+  document.getElementById('ubtn').disabled = valid.length === 0 || !tokenData;
 }
 
 function addF(nf) {
-  if (!tokenValue) {
+  if (!tokenData) {
     ForensicUI.toast(i18n.t('it.no_token_message'), 'warn');
   }
   for (const f of nf) {
@@ -113,7 +113,8 @@ function showItSections(locked) {
 
 async function refreshItUi() {
   if (window.ItDashboard) await ItDashboard.loadItDashboard(tokenData);
-  if (window.ItOperations) await ItOperations.loadItOperations(tokenValue);
+  // '__cookie__' = session portée par le cookie HttpOnly (pas de token en URL)
+  if (window.ItOperations) await ItOperations.loadItOperations(tokenValue || (tokenData ? '__cookie__' : null));
 }
 
 async function init() {
@@ -159,32 +160,25 @@ async function init() {
   await loadConfig();
 
   const token = getToken();
+  tokenValue = token; // peut être null : après redirection, le cookie HttpOnly prend le relais
   document.getElementById('loading').style.display = 'none';
 
-  if (!token) {
-    const banner = document.getElementById('it-no-token-banner');
-    if (banner) {
-      banner.style.display = 'block';
-      banner.textContent = i18n.t('it.no_token_message');
-    }
-    const invalidEl = document.getElementById('invalid');
-    if (invalidEl) invalidEl.style.display = 'none';
-    showItSections(true);
-    await refreshItUi();
-    bindItUploadZone();
-    return;
-  }
-  tokenValue = token;
-
   try {
-    const d = await api.get(`api/token/verify?token=${encodeURIComponent(token)}`);
+    // Sans token dans l'URL, /api/token/verify lit le cookie it_token côté serveur.
+    const d = await api.get(token ? `api/token/verify?token=${encodeURIComponent(token)}` : 'api/token/verify');
     if (!d.valid) {
-      if (d.code === 'TOKEN_EXHAUSTED') {
+      const banner = document.getElementById('it-no-token-banner');
+      if (!token && banner) {
+        banner.style.display = 'block';
+        banner.textContent = i18n.t('it.no_token_message');
+      } else if (d.code === 'TOKEN_EXHAUSTED') {
         document.getElementById('exhausted').style.display = 'block';
         document.getElementById('exhausted').innerHTML = `⚠️ ${i18n.t('it.token_exhausted', { detail: ForensicUtils.escapeHtml(d.error || '') })}`;
-      } else {
+      } else if (token) {
         document.getElementById('invalid').style.display = 'block';
         document.getElementById('invalid').textContent = `❌ ${d.error || i18n.t('it.token_invalid')}`;
+      } else if (banner) {
+        banner.textContent = `❌ ${d.error || i18n.t('it.token_invalid')}`;
       }
       showItSections(true);
       await refreshItUi();
@@ -213,13 +207,13 @@ async function init() {
 
 async function doUpload() {
   const validFiles = files.filter((f) => validator.validateFile(f).valid);
-  if (!validFiles.length || !tokenValue) return;
+  if (!validFiles.length || !tokenData) return;
 
   document.getElementById('ubtn').disabled = true;
   document.getElementById('success').style.display = 'none';
 
   const fd = new FormData();
-  fd.append('token', tokenValue);
+  if (tokenValue) fd.append('token', tokenValue); // sinon : cookie HttpOnly it_token
   fd.append('submitter_name', document.getElementById('submitter').value || 'IT Team');
   fd.append('submitter_email', document.getElementById('email').value || '');
   fd.append('notes', document.getElementById('notes').value || '');
@@ -281,7 +275,7 @@ async function doUpload() {
         log(i18n.t('msg.token_usage_unique_upload_desactive'), 'warn');
       }
 
-      if (window.ItOperations) await ItOperations.loadItOperations(tokenValue);
+      if (window.ItOperations) await ItOperations.loadItOperations(tokenValue || (tokenData ? '__cookie__' : null));
     }
   } catch (e) {
     log(`❌ ${e.message || e}`, 'err');

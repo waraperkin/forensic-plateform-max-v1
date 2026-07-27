@@ -8,7 +8,7 @@ import sys
 import urllib.request
 import ssl
 
-HOST = os.environ.get("PUBLIC_HOST", "192.0.2.9")
+HOST = os.environ.get("PUBLIC_HOST", "localhost")
 BASE = f"https://{HOST}".rstrip("/")
 CTX = ssl.create_default_context()
 CTX.check_hostname = False

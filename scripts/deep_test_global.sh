@@ -10,7 +10,10 @@ CERT_URL="${CERT_URL:-https://localhost}"
 IT_URL="${IT_URL:-https://localhost/it}"
 OS_URL="${OS_URL:-http://localhost:9200}"
 TS_URL="${TIMESKETCH_URL:-http://localhost:5000}"
-GRAFANA_URL="${GRAFANA_URL:-https://192.0.2.9/grafana}"
+# P-15 : hôte dynamique (PUBLIC_HOST / détection) — plus d'IP codée en dur
+. "$ROOT/scripts/lib/host-ip.sh" 2>/dev/null || true
+_fp_host="$(fp_url_identity 2>/dev/null | head -n1 || echo localhost)"
+GRAFANA_URL="${GRAFANA_URL:-https://${_fp_host}/grafana}"
 RUN_ID="WARA-$(date +%Y%m%d-%H%M%S)"
 LOG_DIR="${ROOT}/logs/deep-test-${RUN_ID}"
 mkdir -p "$LOG_DIR"

@@ -9,7 +9,7 @@ import sys
 import urllib.error
 import urllib.request
 
-HOST = os.environ.get("PUBLIC_HOST", "192.0.2.9")
+HOST = os.environ.get("PUBLIC_HOST", "localhost")
 BASE = f"https://{HOST}".rstrip("/")
 HELK_ES = os.environ.get("HELK_ES_URL", "http://127.0.0.1:19200")
 CTX = ssl.create_default_context()

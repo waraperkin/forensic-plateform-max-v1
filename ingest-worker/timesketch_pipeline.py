@@ -23,7 +23,10 @@ log = logging.getLogger("ingest-worker")
 
 TS_URL = os.environ.get("TIMESKETCH_URL", "http://timesketch-web:5000")
 TS_USER = os.environ.get("TIMESKETCH_USER", "admin")
-TS_PASSWORD = os.environ.get("TIMESKETCH_PASSWORD", "F0r3ns1c_TS_2024!")
+# P-04 : pas de secret par défaut — l'absence désactive l'upload Timesketch
+TS_PASSWORD = os.environ.get("TIMESKETCH_PASSWORD", "")
+if not TS_PASSWORD:
+    log.warning("TIMESKETCH_PASSWORD absent — import Timesketch désactivé")
 OS_URL = os.environ.get("OPENSEARCH_URL", "http://opensearch-node1:9200")
 MIN_EVENTS_PLASO = int(os.environ.get("TIMESKETCH_PLASO_MIN_EVENTS", "50"))
 

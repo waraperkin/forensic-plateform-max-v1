@@ -203,6 +203,10 @@ pre_start() {
   info "Génération timesketch.conf..."
   bash "$DIR/scripts/generate-timesketch-conf.sh"
 
+  # TheHive / Cortex configs (P-04 : secrets depuis .env) ──────
+  info "Génération application.conf TheHive/Cortex..."
+  bash "$DIR/scripts/generate-thehive-cortex-conf.sh"
+
   # vm.max_map_count (requis OpenSearch) ───────────────────────
   local mc
   mc=$(cat /proc/sys/vm/max_map_count 2>/dev/null || echo 0)
@@ -2780,34 +2784,43 @@ reset() {
 # ──────────────────────────────────────────────────────────────
 urls() {
   local IP aws_pub
-  IP=$(fp_detect_public_host 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
+  IP=$(fp_detect_public_host 2>/dev/null | head -n1 || hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
   aws_pub=$(_fp_aws_public_ipv4 2>/dev/null || true)
-  local FP
+  local FP REVEAL=""
   FP=$(cat config/nginx/ssl/fingerprint.txt 2>/dev/null | head -1 || echo "—")
+  # P-04 : les secrets ne sont JAMAIS affichés en clair par défaut.
+  # ./forensic.sh urls --reveal affiche les valeurs de .env (usage local admin).
+  [ "${1:-}" = "--reveal" ] && REVEAL=1
+  _cred() { # _cred <clé .env> — masque ou révèle
+    local v
+    v=$(grep -m1 "^$1=" .env 2>/dev/null | cut -d= -f2- || true)
+    if [ -z "$v" ]; then echo "(définir $1 dans .env)";
+    elif [ -n "$REVEAL" ]; then echo "$v";
+    else echo "${v:0:4}•••••• (--reveal pour afficher)"; fi
+  }
   echo ""
   echo -e "${CYAN}╔════════════════════════════════════════════════════════════════════╗${NC}"
   echo -e "${CYAN}║              ACCÈS À LA PLATEFORME v2.1 (HTTPS)                  ║${NC}"
   echo -e "${CYAN}╠════════════════════════════════════════════════════════════════════╣${NC}"
   echo -e "${CYAN}║${NC} ${GREEN}Portail CERT${NC}              https://${IP}/"
-  echo -e "${CYAN}║${NC}   admin / F0r3ns1c_Portal_2024!  (ou grep CERT_PORTAL_SECRET .env)"
+  echo -e "${CYAN}║${NC}   ${PORTAL_ADMIN_USER:-admin} / $(_cred PORTAL_ADMIN_PASSWORD)"
   echo -e "${CYAN}║${NC} ${GREEN}Portail IT${NC} (TLS chiffré)   https://${IP}/it/?token=<TOKEN>"
   echo -e "${CYAN}╠════════════════════════════════════════════════════════════════════╣${NC}"
   echo -e "${CYAN}║${NC} ${GREEN}OpenSearch Dashboards${NC}    https://${IP}/dashboards/"
   echo -e "${CYAN}║${NC} ${GREEN}Grafana${NC}                   https://${IP}/grafana/"
-  echo -e "${CYAN}║${NC}   admin / F0r3ns1c_GF_2024!"
+  echo -e "${CYAN}║${NC}   admin / $(_cred GRAFANA_ADMIN_PASSWORD)"
   echo -e "${CYAN}║${NC} ${GREEN}OpenCTI${NC}                   https://${IP}/cti/"
-  echo -e "${CYAN}║${NC}   admin@forensic.local / F0r3ns1c_CTI_2024!"
+  echo -e "${CYAN}║${NC}   ${OPENCTI_ADMIN_EMAIL:-admin@forensic.local} / $(_cred OPENCTI_ADMIN_PASSWORD)"
   echo -e "${CYAN}║${NC} ${GREEN}TheHive${NC}                   https://${IP}/thehive/"
-  echo -e "${CYAN}║${NC}   admin@thehive.local / secret"
+  echo -e "${CYAN}║${NC}   ${THEHIVE_ADMIN_LOGIN:-admin@thehive.local} / $(_cred THEHIVE_ADMIN_PASSWORD)"
   echo -e "${CYAN}╠════════════════════════════════════════════════════════════════════╣${NC}"
   echo -e "${CYAN}║${NC} ${YELLOW}Timesketch${NC}    (port dédié) http://${IP}:5000/"
-  echo -e "${CYAN}║${NC}   admin / F0r3ns1c_TS_2024!"
+  echo -e "${CYAN}║${NC}   ${TIMESKETCH_USER:-admin} / $(_cred TIMESKETCH_PASSWORD)"
   echo -e "${CYAN}║${NC} ${YELLOW}MISP${NC}          (port dédié) http://${IP}:8090/"
-  echo -e "${CYAN}║${NC}   admin@forensic.local / F0r3ns1c_MISP_2024!"
+  echo -e "${CYAN}║${NC}   ${MISP_ADMIN_EMAIL:-admin@forensic.local} / $(_cred MISP_ADMIN_PASSWORD)"
   echo -e "${CYAN}║${NC} ${YELLOW}Cortex${NC}                    http://${IP}:9003/  (setup org au 1er accès)"
   echo -e "${CYAN}║${NC} ${YELLOW}MinIO Console${NC}             http://${IP}:9001/"
-  echo -e "${CYAN}║${NC}   forensicadmin / F0r3ns1c_Minio_2024!"
-  echo -e "${CYAN}║${NC} ${YELLOW}Portainer${NC}                 https://${IP}:9443/"
+  echo -e "${CYAN}║${NC}   ${MINIO_ROOT_USER:-forensicadmin} / $(_cred MINIO_ROOT_PASSWORD)"
   echo -e "${CYAN}╠════════════════════════════════════════════════════════════════════╣${NC}"
   echo -e "${CYAN}║${NC}  🔒 Cert auto-signé — accepter l'avertissement navigateur"
   echo -e "${CYAN}║${NC}  Fingerprint: ${FP}"
@@ -2818,6 +2831,7 @@ urls() {
   fi
   echo -e "${CYAN}╠════════════════════════════════════════════════════════════════════╣${NC}"
   echo -e "${CYAN}║${NC}  Logstash → Beats :5044  JSON :5045  Syslog :5140/udp  HEC :5555"
+  echo -e "${CYAN}║${NC}  Services internes bindés sur 127.0.0.1 — accès externe via Nginx"
   echo -e "${CYAN}╚════════════════════════════════════════════════════════════════════╝${NC}"
   echo ""
   echo -e "${YELLOW}⚡ Si données existantes → ./forensic.sh fix-data${NC}"
@@ -3129,7 +3143,7 @@ case "${1:-help}" in
   health)         health ;;
   logs)           logs "$@" ;;
   backup)         backup ;;
-  urls)           urls ;;
+  urls)           urls "${2:-}" ;;
   reset)          reset ;;
   fix-opensearch) fix_opensearch ;;
   align-host|align-public-host)
@@ -3325,7 +3339,7 @@ case "${1:-help}" in
     echo "  health            Vérifier tous les endpoints"
     echo "  logs [service]    Logs temps réel"
     echo "  backup            Sauvegarder PostgreSQL"
-    echo "  urls              Afficher URLs + credentials"
+    echo "  urls [--reveal]   Afficher URLs + credentials (masqués par défaut)"
     echo "  update-portals    Rebuild cert-portal + it-portal (--no-cache)"
     echo "  fix-data          ⚡ Corriger mapping données existantes + reset MISP"
     echo "  misp-init         🔑 Reset credentials MISP manuellement"

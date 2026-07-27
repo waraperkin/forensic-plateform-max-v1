@@ -14,7 +14,10 @@ function formatOpsSize(n) {
 }
 
 async function fetchItOperations(token) {
-  const r = await fetch(`api/token/operations?token=${encodeURIComponent(token)}`, { credentials: 'same-origin' });
+  // '__cookie__' = la session est portée par le cookie HttpOnly it_token :
+  // on appelle l'API sans paramètre, le serveur lit le cookie.
+  const q = token && token !== '__cookie__' ? `?token=${encodeURIComponent(token)}` : '';
+  const r = await fetch(`api/token/operations${q}`, { credentials: 'same-origin' });
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
   return r.json();
 }

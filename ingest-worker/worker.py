@@ -33,14 +33,25 @@ logging.basicConfig(
 )
 log = logging.getLogger("ingest-worker")
 
-REDIS_URL = os.environ.get("REDIS_URL", "redis://:F0r3ns1c_Redis_2024!@redis:6379")
+# P-04 : aucun secret codé en dur. Les credentials viennent de l'environnement
+# (docker-compose injecte MINIO_ROOT_USER/PASSWORD et REDIS_URL depuis .env).
+# En l'absence de valeur, le worker échoue explicitement plutôt que d'utiliser
+# un mot de passe par défaut.
+def _required(name: str) -> str:
+    v = os.environ.get(name, "")
+    if not v:
+        log.error("Variable d'environnement obligatoire absente : %s", name)
+        raise SystemExit(f"Configuration incomplète : {name} manquant (voir .env.example)")
+    return v
+
+REDIS_URL = _required("REDIS_URL")
 QUEUE_KEY = os.environ.get("INGEST_QUEUE_KEY", "fp:ingest:queue")
 TIMESKETCH_IMPORT_TIMEOUT_SEC = int(os.environ.get("TIMESKETCH_IMPORT_TIMEOUT_SEC", "120"))
 TIMESKETCH_BACKOFF_SEC = int(os.environ.get("TIMESKETCH_BACKOFF_SEC", "300"))
 TIMESKETCH_IMPORT_WORKERS = int(os.environ.get("TIMESKETCH_IMPORT_WORKERS", "2"))
 MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT", "minio:9000")
-MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY", "forensicadmin")
-MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY", "F0r3ns1c_Minio_2024!")
+MINIO_ACCESS_KEY = _required("MINIO_ACCESS_KEY")
+MINIO_SECRET_KEY = _required("MINIO_SECRET_KEY")
 OS_URL = os.environ.get("OPENSEARCH_URL", "http://opensearch-node1:9200")
 LOGSTASH_HOST = os.environ.get("LOGSTASH_HOST", "logstash")
 LOGSTASH_PORT = int(os.environ.get("LOGSTASH_PORT", "5045"))

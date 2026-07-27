@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VR = ROOT / "velociraptor"
-BASE_URL = os.environ.get("BASE_URL", "https://192.0.2.9").rstrip("/")
+BASE_URL = os.environ.get("BASE_URL", "https://localhost").rstrip("/")
 
 CHECKS: list[tuple[str, bool, str]] = []
 

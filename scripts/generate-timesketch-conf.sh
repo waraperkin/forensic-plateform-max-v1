@@ -33,7 +33,7 @@ fi
 if [ -z "$HOST_IP" ] && [ -f "$DIR/scripts/lib/host-ip.sh" ]; then
   # shellcheck source=/dev/null
   . "$DIR/scripts/lib/host-ip.sh"
-  HOST_IP=$(fp_resolve_public_host 2>/dev/null || true)
+  HOST_IP=$(fp_resolve_public_host 2>/dev/null | head -n1 || true)
 fi
 HOST_IP="${HOST_IP:-localhost}"
 EXTERNAL_URL="${TIMESKETCH_EXTERNAL_URL:-}"

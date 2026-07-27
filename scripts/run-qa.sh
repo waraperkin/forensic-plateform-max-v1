@@ -16,10 +16,10 @@ SKIP_DOCKER="${SKIP_DOCKER:-0}"
 log() { echo "[run-qa] $*"; }
 
 if [[ "$SKIP_DOCKER" != "1" ]]; then
-  log "docker compose build cert-portal cybercorp-sekoia-controlplane cybercorp-sentinelone-controlplane"
-  docker compose build cert-portal cybercorp-sekoia-controlplane cybercorp-sentinelone-controlplane
-  log "docker compose up -d cert-portal cybercorp-sekoia-controlplane cybercorp-sentinelone-controlplane"
-  docker compose up -d cert-portal cybercorp-sekoia-controlplane cybercorp-sentinelone-controlplane
+  log "docker compose build cert-portal"
+  docker compose build cert-portal
+  log "docker compose up -d cert-portal"
+  docker compose up -d cert-portal
   for i in $(seq 1 40); do
     if curl -sf "$CERT_PORTAL_URL/api/health" >/dev/null 2>&1; then
       log "portail prêt"

@@ -102,3 +102,17 @@ helk/sigma/.git/
 
 # Runtime VR lab collections
 velociraptor/lab-collections/*.json
+
+# --- Artefacts runtime générés par hôte (P-15/P-41) ---
+config/nginx/ssl/fingerprint.txt
+nginx/certs/server/server.ext
+nginx/certs/server/server.csr.cnf
+nginx/certs/server/*.crt
+nginx/certs/server/*.key
+nginx/certs/ca/*.crt
+nginx/certs/ca/*.key
+scripts/bin/
+config/timesketch/timesketch.conf
+config/portainer/admin-password
+config/thehive/application.conf
+config/cortex/application.conf

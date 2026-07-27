@@ -103,7 +103,15 @@ async function ensureBootstrapAdmin() {
   const db = loadUsers();
   if (db.users.length > 0) return;
   const user = process.env.PORTAL_ADMIN_USER || 'admin';
-  const pass = process.env.PORTAL_ADMIN_PASSWORD || 'F0r3ns1c_Portal_2024!';
+  // P-04 : pas de mot de passe par défaut exploitable. En l'absence de
+  // PORTAL_ADMIN_PASSWORD, un mot de passe aléatoire est généré et affiché
+  // UNE fois dans les logs du conteneur (à changer à la première connexion).
+  let pass = process.env.PORTAL_ADMIN_PASSWORD;
+  if (!pass) {
+    pass = crypto.randomBytes(12).toString('base64url');
+    console.warn(`[auth-store] PORTAL_ADMIN_PASSWORD absent — mot de passe admin initial généré : ${pass}`);
+    console.warn('[auth-store] Changez-le immédiatement après la première connexion (ou définissez PORTAL_ADMIN_PASSWORD dans .env).');
+  }
   const now = new Date().toISOString();
   db.users.push({
     id: uuidv4(),

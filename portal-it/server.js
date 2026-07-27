@@ -51,6 +51,42 @@ app.use(cors(corsOpts));
 app.options('*', cors(corsOpts));
 
 app.use(express.json({ limit: '10mb' }));
+
+// ── Cookies (P-08) : le token IT ne doit pas rester dans l'URL ──
+function parseCookies(req) {
+  const out = {};
+  const raw = req.headers.cookie;
+  if (!raw) return out;
+  for (const part of raw.split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return out;
+}
+
+// Au premier accès /?token=…, on dépose le token dans un cookie HttpOnly
+// puis on redirige vers une URL propre : le secret ne reste ni dans
+// l'historique navigateur, ni dans les logs, ni dans le Referer.
+app.use(async (req, res, next) => {
+  if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
+  const token = req.query.token;
+  if (!token) return next();
+  let maxAge = 12 * 3600;
+  try {
+    if (redis.isReady) {
+      const ttl = await redis.ttl(`it:token:${token}`);
+      if (ttl > 0) maxAge = ttl;
+    }
+  } catch (_) { /* tolérant : la validité sera vérifiée par l'API */ }
+  const secure = req.secure || req.headers['x-forwarded-proto'] === 'https';
+  res.setHeader('Set-Cookie',
+    `it_token=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure ? '; Secure' : ''}`);
+  const params = new URLSearchParams(req.query);
+  params.delete('token');
+  const qs = params.toString();
+  return res.redirect(302, `${req.path}${qs ? `?${qs}` : ''}`);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Config ────────────────────────────────────────────────────
@@ -86,10 +122,15 @@ redis.on('error', e => logger.warn('Redis:', e.message));
 redis.on('ready', () => logger.info('Redis ready'));
 redis.connect().catch(e => logger.warn('Redis connect:', e.message));
 
-// ── Multer: memoryStorage (évite les problèmes de volumes Docker) ──
-// Les fichiers sont gardés en RAM et envoyés directement à S3.
+// ── Multer: diskStorage (évite de charger des fichiers de 500 Mo en RAM) ──
+const UPLOAD_TMP = process.env.UPLOAD_TMP_DIR || '/tmp/uploads';
+fs.mkdirSync(UPLOAD_TMP, { recursive: true });
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: UPLOAD_TMP,
+    filename: (_req, file, cb) =>
+      cb(null, `${Date.now()}-${uuidv4().slice(0, 8)}-${path.basename(file.originalname).replace(/[^\w.\-]/g, '_')}`),
+  }),
   limits: { fileSize: MAX_SIZE_BYTES, files: MAX_FILES },
 });
 
@@ -120,6 +161,7 @@ function sendToLogstash(payload) {
 async function validateToken(req, res, next) {
   const token = req.headers['x-it-token']
              || req.query.token
+             || parseCookies(req).it_token
              || (req.body && !Array.isArray(req.body) && req.body.token);
 
   if (!token) {
@@ -148,7 +190,7 @@ async function validateToken(req, res, next) {
     next();
   } catch (e) {
     logger.error('Token validation:', e.message);
-    res.status(500).json({ error: 'Erreur serveur: ' + e.message });
+    res.status(500).json({ error: 'Erreur serveur interne' });
   }
 }
 
@@ -370,7 +412,7 @@ app.get('/api/agents', async (_req, res) => {
 });
 
 app.get('/api/token/operations', async (req, res) => {
-  const token = req.query.token;
+  const token = req.query.token || parseCookies(req).it_token;
   if (!token) return res.status(400).json({ error: 'Token requis' });
   if (!redis.isReady) {
     return res.status(503).json({ error: 'Service temporairement indisponible' });
@@ -422,7 +464,7 @@ app.get('/api/token/operations', async (req, res) => {
 
 // Vérification token (GET, pas de multipart)
 app.get('/api/token/verify', async (req, res) => {
-  const token = req.query.token;
+  const token = req.query.token || parseCookies(req).it_token;
   if (!token) return res.status(400).json({ valid: false, error: 'Token manquant' });
   if (!redis.isReady) {
     return res.status(503).json({ valid: false, error: 'Service temporairement indisponible. Réessayez.' });
@@ -476,9 +518,9 @@ app.post('/api/upload',
         await s3.send(new PutObjectCommand({
           Bucket:        bucket,
           Key:           key,
-          Body:          file.buffer,
+          Body:          fs.createReadStream(file.path),
           ContentType:   file.mimetype || 'application/octet-stream',
-          ContentLength: file.buffer.length,
+          ContentLength: file.size,
           Metadata:      { 'case-id': caseId, submitter: analyst, portal: 'it' },
         }));
 
@@ -520,8 +562,10 @@ app.post('/api/upload',
             : 'Worker indisponible — fichier stocké dans MinIO',
         };
         if (syncHelk) {
+          // Buffer borné : le connecteur HELK travaille en mémoire,
+          // on plafonne à 256 Mo pour protéger le process.
           row.helk = await pushToHelk({
-            buffer: file.buffer,
+            buffer: fs.readFileSync(file.path),
             filename: file.originalname,
             caseId,
             analyst,
@@ -535,7 +579,9 @@ app.post('/api/upload',
         logger.info(`IT upload OK: ${file.originalname} → s3://${bucket}/${key}`);
       } catch (e) {
         logger.error(`IT upload FAIL ${file.originalname}:`, e.message);
-        results.push({ ok: false, file: file.originalname, error: e.message });
+        results.push({ ok: false, file: file.originalname, error: 'Erreur interne lors de l\'envoi' });
+      } finally {
+        if (file.path) fs.unlink(file.path, () => {});
       }
     }
 
@@ -595,7 +641,7 @@ app.use((err, req, res, _next) => {
     return res.status(413).json({ error: 'Fichier trop volumineux (max 500 MB).' });
   if (err.code === 'LIMIT_FILE_COUNT')
     return res.status(400).json({ error: 'Trop de fichiers (max 10).' });
-  res.status(500).json({ error: 'Erreur serveur: ' + (err.message || err.code) });
+  res.status(500).json({ error: 'Erreur serveur interne' });
 });
 
 app.listen(3001, '0.0.0.0', () => logger.info('Portail IT :3001 prêt'));

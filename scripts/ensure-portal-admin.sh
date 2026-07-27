@@ -32,9 +32,14 @@ fi
 USER=$(fp_env_val "PORTAL_ADMIN_USER" "admin")
 PASS=$(fp_env_val "PORTAL_ADMIN_PASSWORD" "")
 if [ -z "$PASS" ]; then
-  PASS=$(fp_env_val "CERT_PORTAL_SECRET" "F0r3ns1c_Portal_2024!")
+  # P-04 : pas de mot de passe labo codé en dur — repli sur CERT_PORTAL_SECRET
+  PASS=$(fp_env_val "CERT_PORTAL_SECRET" "")
 fi
-HOST=$(fp_url_identity 2>/dev/null || fp_detect_public_ip 2>/dev/null || fp_env_val "PUBLIC_HOST" "127.0.0.1")
+if [ -z "$PASS" ]; then
+  echo "[ensure-portal-admin] ERREUR: ni PORTAL_ADMIN_PASSWORD ni CERT_PORTAL_SECRET définis (.env)" >&2
+  exit 1
+fi
+HOST=$(fp_url_identity 2>/dev/null | head -n1 || fp_detect_public_ip 2>/dev/null | head -n1 || fp_env_val "PUBLIC_HOST" "127.0.0.1")
 HOST=$(fp_normalize_host "$HOST" 2>/dev/null || echo "$HOST")
 CONTAINER="${FP_CERT_PORTAL_CONTAINER:-forensic-cert-portal}"
 CERT_PORT="${FP_CERT_PORTAL_PORT:-3000}"

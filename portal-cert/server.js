@@ -36,6 +36,7 @@ const { mountAuth } = require('./lib/auth-mount');
 const { createOverviewRouter } = require('./lib/platform-overview');
 const { createAuditRouter, appendAuditFile } = require('./lib/audit-log');
 const { createUiErrorRouter } = require('./lib/ui-error-log');
+const portalSession = require('./lib/auth-session');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -105,14 +106,28 @@ const TEXT_TYPES = new Set(['log','txt','syslog','out','csv','tsv','json','jsonl
 // Types binaires → MinIO uniquement
 const BINARY_TYPES = new Set(['evtx','evt','pcap','pcapng','cap','gz','zip','bin','e01','plaso','dump']);
 
+// Uploads sur disque (correctif audit P-07) — plus de bufferisation 5 Go en RAM.
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: '/tmp/uploads',
+    filename: (_req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}-${path.basename(file.originalname).replace(/[^\w.-]+/g, '_').slice(-80)}`),
+  }),
   limits: { fileSize: MAX_SIZE_BYTES, files: MAX_FILES },
 });
 
 const wsClients = new Set();
 function broadcast(d){ const m=JSON.stringify(d); wsClients.forEach(ws=>{try{ws.send(m);}catch(_){wsClients.delete(ws);}}); }
-app.ws('/ws/logs', ws=>{ wsClients.add(ws); ws.on('close',()=>wsClients.delete(ws)); ws.send(JSON.stringify({type:'connected'})); });
+// WebSocket authentifié (correctif audit P-01) : session cookie obligatoire.
+app.ws('/ws/logs', (ws, req)=>{
+  try {
+    const cookies = (req.headers.cookie||'').split(';').map(s=>s.trim());
+    const raw = cookies.find(c=>c.startsWith(`${portalSession.COOKIE_NAME}=`));
+    const token = raw ? decodeURIComponent(raw.slice(portalSession.COOKIE_NAME.length+1)) : null;
+    const payload = token ? portalSession.verify(token) : null;
+    if (!payload) { ws.close(4401, 'Authentification requise'); return; }
+  } catch { ws.close(4401, 'Authentification requise'); return; }
+  wsClients.add(ws); ws.on('close',()=>wsClients.delete(ws)); ws.send(JSON.stringify({type:'connected'}));
+});
 
 function sendToLogstash(payload) {
   return new Promise(resolve=>{
@@ -398,7 +413,8 @@ app.post('/api/upload', uploadLimiter, upload.array('files',50), async (req,res)
     const ts=new Date().toISOString();
     const result={ok:false,file:file.originalname,uploadId,bucket};
     try {
-      await s3.send(new PutObjectCommand({Bucket:bucket,Key:key,Body:file.buffer,ContentLength:file.size,ContentType:file.mimetype||'application/octet-stream',Metadata:{'case-id':caseId,analyst,'upload-id':uploadId,portal:'cert'}}));
+      // Corps streamé depuis le disque temporaire — jamais de buffer complet en RAM.
+      await s3.send(new PutObjectCommand({Bucket:bucket,Key:key,Body:fs.createReadStream(file.path),ContentLength:file.size,ContentType:file.mimetype||'application/octet-stream',Metadata:{'case-id':caseId,analyst,'upload-id':uploadId,portal:'cert'}}));
       const uploadTags = ['cert-portal'];
       if (fromVelociraptor) uploadTags.push('velociraptor');
       const metaDoc={'@timestamp':ts,upload_id:uploadId,case_id:caseId,analyst,os_type:osType,priority,portal:'cert',file:{name:file.originalname,size:file.size},storage:{bucket,key},event:{module: fromVelociraptor ? 'velociraptor-ingest' : 'cert-upload',category:'file',action:'uploaded'},tags:uploadTags};
@@ -422,9 +438,9 @@ app.post('/api/upload', uploadLimiter, upload.array('files',50), async (req,res)
       result.ingest_queued = queued;
       if (!queued) {
         result.ingest_note = 'Worker indisponible — ingestion asynchrone en attente (Redis)';
-        // Fallback synchrone pour petits fichiers texte uniquement
+        // Fallback synchrone pour petits fichiers texte uniquement (lecture depuis disque)
         if (TEXT_TYPES.has(ext) && !BINARY_TYPES.has(ext) && file.size < 50 * 1024 * 1024) {
-          result.content_indexed = await parseAndIndex(file.buffer, file.originalname, caseId, analyst, osType);
+          result.content_indexed = await parseAndIndex(fs.readFileSync(file.path), file.originalname, caseId, analyst, osType);
         }
         // Ne pas envoyer de fichiers bruts à Timesketch (headersMapping requis) — utiliser ingest-worker
         result.timesketch_note = 'Timesketch via ingest-worker indisponible — relancer Redis/worker';
@@ -433,21 +449,27 @@ app.post('/api/upload', uploadLimiter, upload.array('files',50), async (req,res)
       }
 
       if (sendHelk) {
-        result.helk = await pushToHelk({
-          buffer: file.buffer,
-          filename: file.originalname,
-          caseId,
-          analyst,
-          osType,
-          portal: 'cert',
-          uploadId,
-          priority,
-          tags: ['cert-upload'],
-        });
+        // HELK : buffer limité aux fichiers ≤ 256 Mo (au-delà, le worker s'en charge)
+        if (file.size <= 256 * 1024 * 1024) {
+          result.helk = await pushToHelk({
+            buffer: fs.readFileSync(file.path),
+            filename: file.originalname,
+            caseId,
+            analyst,
+            osType,
+            portal: 'cert',
+            uploadId,
+            priority,
+            tags: ['cert-upload'],
+          });
+        } else {
+          result.helk = { skipped: true, reason: 'file_too_large_for_inline_push' };
+        }
       }
 
       broadcast({type:'upload',file:file.originalname,bucket,caseId,priority,ts});
-    } catch(e){ result.ok=false; result.error=e.message; }
+    } catch(e){ result.ok=false; result.error='Erreur interne upload'; logger.error('upload:',e.message); }
+    finally { if (file.path) fs.unlink(file.path, ()=>{}); }
     results.push(result);
   }
   res.json({results,caseId});
@@ -488,7 +510,7 @@ app.delete('/api/uploads/:docId', async (req,res) => {
     }
     await os.delete({index:realIndex,id:realId});
     res.json({success:true,deleted:realId,index:realIndex});
-  } catch(e){res.status(500).json({error:e.message});}
+  } catch(e){logger.error('api:',e.message);res.status(500).json({error:'Erreur interne'});}
 });
 
 app.post('/api/tokens/generate', tokenLimiter, async (req,res) => {
@@ -502,7 +524,7 @@ app.post('/api/tokens/generate', tokenLimiter, async (req,res) => {
     await os.index({index:'forensic-tokens',id:tokenId,body:{...td,'@timestamp':now.toISOString()}});
     auditAction('token_generate', req, { case_id, token_id: tokenId, analyst: analyst || req.user?.username });
     res.json({success:true,token_id:tokenId,token,expires_at:expiresAt,it_portal_url:td.it_portal_url,ssl_fingerprint:FINGERPRINT});
-  } catch(e){res.status(500).json({error:e.message});}
+  } catch(e){logger.error('api:',e.message);res.status(500).json({error:'Erreur interne'});}
 });
 
 app.get('/api/tokens', async (req,res) => {
@@ -564,7 +586,7 @@ app.delete('/api/tokens/:tokenId', async (req,res) => {
     if(out.notFound) return res.status(404).json({error:'Token introuvable'});
     auditAction('token_revoke', req, { token_id: req.params.tokenId });
     res.json({success:true,deleted:out.deleted});
-  } catch(e){res.status(500).json({error:e.message});}
+  } catch(e){logger.error('api:',e.message);res.status(500).json({error:'Erreur interne'});}
 });
 
 const PURGE_LOG_INDICES = [
@@ -685,7 +707,7 @@ app.post('/api/purge', async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (e) {
     logger.error('purge:', e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: 'Erreur interne' });
   }
 });
 

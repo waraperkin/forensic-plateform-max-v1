@@ -17,6 +17,13 @@ include:
 #    https://localhost:9443/    → Portainer
 # ==============================================================
 
+# P-19 : rotation des logs conteneurs (évite de saturer le disque)
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 networks:
   forensic-net:
     driver: bridge
@@ -66,6 +73,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: forensic-postgres
+    logging: *default-logging
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -87,6 +95,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: forensic-redis
+    logging: *default-logging
     restart: unless-stopped
     command: >
       redis-server
@@ -110,6 +119,7 @@ services:
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
     container_name: forensic-rabbitmq
+    logging: *default-logging
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
@@ -130,6 +140,7 @@ services:
   cassandra:
     image: cassandra:4.1
     container_name: forensic-cassandra
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - CASSANDRA_CLUSTER_NAME=forensic-thp
@@ -157,8 +168,9 @@ services:
 # ═══════════════════════════════════════════════════════════════
 
   minio:
-    image: minio/minio:latest
+    image: ${MINIO_IMAGE:-minio/minio:latest}
     container_name: forensic-minio
+    logging: *default-logging
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -168,8 +180,8 @@ services:
     volumes:
       - minio-data:/data
     ports:
-      - "${FP_MINIO_PORT:-9000}:9000"
-      - "${FP_MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${FP_MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${FP_MINIO_CONSOLE_PORT:-9001}:9001"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.20
@@ -181,8 +193,9 @@ services:
       start_period: 15s
 
   minio-init:
-    image: minio/mc:latest
+    image: ${MINIO_MC_IMAGE:-minio/mc:latest}
     container_name: forensic-minio-init
+    logging: *default-logging
     restart: on-failure
     depends_on:
       minio:
@@ -206,6 +219,7 @@ services:
       context: ./docker/opensearch
       dockerfile: Dockerfile
     container_name: forensic-opensearch-1
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - cluster.name=forensic-cluster
@@ -213,11 +227,12 @@ services:
       - discovery.seed_hosts=opensearch-node2
       - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2
       - bootstrap.memory_lock=true
-      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+      - OPENSEARCH_JAVA_OPTS=-Xms${OPENSEARCH_HEAP:-2g} -Xmx${OPENSEARCH_HEAP:-2g}
       - DISABLE_INSTALL_DEMO_CONFIG=true
       - DISABLE_SECURITY_PLUGIN=true
+      # P-03 : CORS restreint — jamais * (navigateurs autorisés : origine locale uniquement)
       - http.cors.enabled=true
-      - http.cors.allow-origin=*
+      - http.cors.allow-origin=${OPENSEARCH_CORS_ORIGIN:-http://localhost:5601}
       - http.cors.allow-headers=X-Requested-With,Content-Type,Content-Length,Authorization
       - indices.query.bool.max_clause_count=4096
     ulimits:
@@ -230,12 +245,14 @@ services:
     volumes:
       - opensearch-data1:/usr/share/opensearch/data
     ports:
-      - "${FP_OS_PORT:-9200}:9200"
+      # P-03 : exposition limitée à l'hôte — le trafic externe passe par Nginx
+      - "127.0.0.1:${FP_OS_PORT:-9200}:9200"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.30
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf --max-time 5 http://localhost:9200/_cluster/health | grep -qvE '\"status\":\"red\"'"]
+      # P-10 : tolérant — HTTP joignable suffit (un cluster "red" reste diagnostiquable)
+      test: ["CMD-SHELL", "curl -sf --max-time 5 http://localhost:9200/ >/dev/null || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 30
@@ -247,6 +264,7 @@ services:
       context: ./docker/opensearch
       dockerfile: Dockerfile
     container_name: forensic-opensearch-2
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - cluster.name=forensic-cluster
@@ -254,7 +272,7 @@ services:
       - discovery.seed_hosts=opensearch-node1
       - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2
       - bootstrap.memory_lock=true
-      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+      - OPENSEARCH_JAVA_OPTS=-Xms${OPENSEARCH_HEAP:-2g} -Xmx${OPENSEARCH_HEAP:-2g}
       - DISABLE_INSTALL_DEMO_CONFIG=true
       - DISABLE_SECURITY_PLUGIN=true
     ulimits:
@@ -273,6 +291,7 @@ services:
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:2.12.0
     container_name: forensic-opensearch-dashboards
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - OPENSEARCH_HOSTS=["http://opensearch-node1:9200","http://opensearch-node2:9200"]
@@ -280,7 +299,7 @@ services:
       - SERVER_BASEPATH=/dashboards
       - SERVER_REWRITEBASEPATH=true
     ports:
-      - "${FP_OSD_PORT:-5601}:5601"
+      - "127.0.0.1:${FP_OSD_PORT:-5601}:5601"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.32
@@ -291,6 +310,7 @@ services:
   opensearch-init:
     image: curlimages/curl:8.5.0
     container_name: forensic-opensearch-init
+    logging: *default-logging
     restart: on-failure
     depends_on:
       opensearch-node1:
@@ -313,6 +333,7 @@ services:
   logstash:
     image: opensearchproject/logstash-oss-with-opensearch-output-plugin:8.9.0
     container_name: forensic-logstash
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - LS_JAVA_OPTS=-Xms512m -Xmx512m
@@ -342,6 +363,7 @@ services:
       context: ./ingest-worker
       dockerfile: Dockerfile
     container_name: forensic-ingest-worker
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
@@ -374,6 +396,7 @@ services:
   filebeat:
     image: docker.elastic.co/beats/filebeat-oss:8.9.0
     container_name: forensic-filebeat
+    logging: *default-logging
     restart: unless-stopped
     user: root
     environment:
@@ -381,8 +404,9 @@ services:
     volumes:
       - ./config/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
       - /var/log:/hostlogs:ro
+      # P-09 : pas de montage /var/run/docker.sock (équivalent root sur l'hôte).
+      # La collecte des logs conteneurs se fait via le chemin ci-dessous.
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       forensic-net:
         ipv4_address: 172.26.0.34
@@ -400,8 +424,9 @@ services:
 # ═══════════════════════════════════════════════════════════════
 
   timesketch-web:
-    image: us-docker.pkg.dev/osdfir-registry/timesketch/timesketch:latest
+    image: ${TIMESKETCH_IMAGE:-us-docker.pkg.dev/osdfir-registry/timesketch/timesketch:latest}
     container_name: forensic-timesketch-web
+    logging: *default-logging
     restart: unless-stopped
     entrypoint: ["/bin/bash", "/opt/fp-timesketch/entrypoint-wrapper.sh"]
     command: ["timesketch-web"]
@@ -445,7 +470,7 @@ services:
       - timesketch-data:/var/log/timesketch
       - timesketch-uploads:/usr/share/timesketch/uploads
     ports:
-      - "${FP_TIMESKETCH_PORT:-5000}:5000"
+      - "127.0.0.1:${FP_TIMESKETCH_PORT:-5000}:5000"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.40
@@ -471,6 +496,7 @@ services:
         BASE_IMAGE: us-docker.pkg.dev/osdfir-registry/timesketch/timesketch:latest
     image: forensic-timesketch-worker:fp
     container_name: forensic-timesketch-worker
+    logging: *default-logging
     restart: unless-stopped
     entrypoint: ["/bin/bash", "/opt/fp-timesketch/entrypoint-wrapper.sh"]
     command: ["timesketch-worker"]
@@ -523,8 +549,9 @@ services:
         condition: service_healthy
 
   timesketch-init:
-    image: us-docker.pkg.dev/osdfir-registry/timesketch/timesketch:latest
+    image: ${TIMESKETCH_IMAGE:-us-docker.pkg.dev/osdfir-registry/timesketch/timesketch:latest}
     container_name: forensic-timesketch-init
+    logging: *default-logging
     restart: "no"
     entrypoint: ["/bin/bash", "/scripts/timesketch-create-admin.sh"]
     volumes:
@@ -561,6 +588,7 @@ services:
   opencti:
     image: opencti/platform:6.2.18
     container_name: forensic-opencti
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - NODE_OPTIONS=--max-old-space-size=4096
@@ -594,7 +622,7 @@ services:
     volumes:
       - opencti-data:/opt/opencti/sessions
     ports:
-      - "${FP_OPENCTI_PORT:-8080}:8080"
+      - "127.0.0.1:${FP_OPENCTI_PORT:-8080}:8080"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.50
@@ -619,6 +647,7 @@ services:
   connector-mitre:
     image: opencti/connector-mitre:6.2.18
     container_name: forensic-connector-mitre
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -639,6 +668,7 @@ services:
   connector-cve:
     image: opencti/connector-cve:6.2.18
     container_name: forensic-connector-cve
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -660,6 +690,7 @@ services:
   connector-opencti-datasets:
     image: opencti/connector-opencti:6.2.18
     container_name: forensic-connector-datasets
+    logging: *default-logging
     restart: always
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
@@ -684,6 +715,7 @@ services:
   misp-db:
     image: mariadb:10.11
     container_name: forensic-misp-db
+    logging: *default-logging
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -703,8 +735,9 @@ services:
       start_period: 30s
 
   misp:
-    image: ghcr.io/misp/misp-docker/misp-core:latest
+    image: ${MISP_CORE_IMAGE:-ghcr.io/misp/misp-docker/misp-core:latest}
     container_name: forensic-misp
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - BASE_URL=${MISP_PUBLIC_BASE_URL:-https://localhost/misp}
@@ -735,7 +768,7 @@ services:
       # App.base + anti-CSRF auto-réparateurs (survivent aux recréations)
       - ./config/misp-custom/:/custom/:ro
     ports:
-      - "${FP_MISP_PORT:-8090}:80"
+      - "127.0.0.1:${FP_MISP_PORT:-8090}:80"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.61
@@ -758,6 +791,7 @@ services:
   thehive:
     image: strangebee/thehive:5.3
     container_name: forensic-thehive
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - JVM_OPTS=-Xms512m -Xmx1g
@@ -766,7 +800,7 @@ services:
       - thehive-data:/opt/thehive/data
       - ./config/thehive/application.conf:/etc/thehive/application.conf:ro
     ports:
-      - "${FP_THEHIVE_PORT:-9002}:9000"
+      - "127.0.0.1:${FP_THEHIVE_PORT:-9002}:9000"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.70
@@ -787,6 +821,7 @@ services:
   cortex:
     image: thehiveproject/cortex:3.2.1-1
     container_name: forensic-cortex
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - SECRET=${CORTEX_SECRET}
@@ -796,7 +831,7 @@ services:
       - ./config/cortex/application.conf:/etc/cortex/application.conf:ro
       # Pas de montage docker.sock : voir config/cortex/application.conf (runner process-only).
     ports:
-      - "${FP_CORTEX_PORT:-9003}:9001"
+      - "127.0.0.1:${FP_CORTEX_PORT:-9003}:9001"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.71
@@ -813,6 +848,7 @@ services:
   thehive-init:
     image: curlimages/curl:8.5.0
     container_name: forensic-thehive-init
+    logging: *default-logging
     restart: "no"
     depends_on:
       thehive:
@@ -838,8 +874,9 @@ services:
 # ═══════════════════════════════════════════════════════════════
 
   grafana:
-    image: grafana/grafana-oss:10.4.3
+    image: ${GRAFANA_IMAGE:-grafana/grafana-oss:10.4.3}
     container_name: forensic-grafana
+    logging: *default-logging
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-c"]
     command:
@@ -851,7 +888,6 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_INSTALL_PLUGINS=grafana-opensearch-datasource 2.17.2,yesoreyeram-infinity-datasource
       - GF_EXPLORE_ENABLED=true
-      - GF_ALERTING_ENABLED=false
       - GF_UNIFIED_ALERTING_ENABLED=true
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor tempoSearch
       - GF_SERVER_PROTOCOL=http
@@ -860,16 +896,17 @@ services:
       - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN:-localhost}
       - GF_SERVER_ENFORCE_DOMAIN=false
       - GF_LIVE_ALLOWED_ORIGINS=${GRAFANA_ALLOWED_ORIGINS:-https://localhost,http://localhost,https://127.0.0.1,http://127.0.0.1}
+      # Embedding requis pour les iframes du portail — limité au même site
       - GF_SECURITY_ALLOW_EMBEDDING=true
-      - GF_SECURITY_COOKIE_SAMESITE=none
+      - GF_SECURITY_COOKIE_SAMESITE=${GRAFANA_COOKIE_SAMESITE:-lax}
       - GF_SECURITY_COOKIE_SECURE=true
       - GF_SECURITY_CSRF_TRUSTED_ORIGINS=${GRAFANA_CSRF_ORIGINS:-https://localhost,http://localhost,https://127.0.0.1,http://127.0.0.1}
-      - GF_CORS_ENABLED=true
-      - GF_CORS_ALLOW_CREDENTIALS=true
-      - GF_CORS_ALLOW_ORIGIN=${GRAFANA_CORS_ORIGIN:-https://localhost,http://localhost}
+      # P-02 : CORS désactivé (le portail embarque Grafana en iframe, pas en fetch cross-origin)
+      - GF_CORS_ENABLED=false
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      # P-02 : accès anonyme limité à la consultation (Viewer), jamais Admin
+      - GF_AUTH_ANONYMOUS_ENABLED=${GRAFANA_ANONYMOUS_ENABLED:-true}
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
     volumes:
       - grafana-data:/var/lib/grafana
       - ./config/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
@@ -882,7 +919,7 @@ services:
       - ./dashboards/grafana/helk:/var/lib/grafana/dashboards/helk:ro
       - ./dashboards/grafana/velociraptor:/var/lib/grafana/dashboards/velociraptor:ro
     ports:
-      - "${FP_GRAFANA_PORT:-3001}:3000"
+      - "127.0.0.1:${FP_GRAFANA_PORT:-3001}:3000"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.80
@@ -900,6 +937,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.51.2
     container_name: forensic-prometheus
+    logging: *default-logging
     restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -909,7 +947,7 @@ services:
       - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     ports:
-      - "${FP_PROMETHEUS_PORT:-9090}:9090"
+      - "127.0.0.1:${FP_PROMETHEUS_PORT:-9090}:9090"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.81
@@ -917,13 +955,14 @@ services:
   loki:
     image: grafana/loki:2.9.4
     container_name: forensic-loki
+    logging: *default-logging
     restart: unless-stopped
     command: -config.file=/etc/loki/loki-config.yml
     volumes:
       - ./config/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
       - loki-data:/loki
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.82
@@ -931,14 +970,15 @@ services:
   tempo:
     image: grafana/tempo:2.4.1
     container_name: forensic-tempo
+    logging: *default-logging
     restart: unless-stopped
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     volumes:
       - ./config/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
       - tempo-data:/var/tempo
     ports:
-      - "3200:3200"
-      - "4318:4318"
+      - "127.0.0.1:3200:3200"
+      - "127.0.0.1:4318:4318"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.83
@@ -952,6 +992,7 @@ services:
       context: ./helk/scripts
       dockerfile: Dockerfile.bridge
     container_name: forensic-helk-bridge
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - HELK_ES_URL=http://helk-elasticsearch:9200
@@ -985,6 +1026,7 @@ services:
       context: .
       dockerfile: docker/ti-sync/Dockerfile
     container_name: forensic-ti-sync
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - OPENSEARCH_URL=http://opensearch-node1:9200
@@ -1011,6 +1053,7 @@ services:
   helk-sigma-runner:
     image: python:3.11-slim
     container_name: forensic-helk-sigma-runner
+    logging: *default-logging
     restart: unless-stopped
     working_dir: /app
     environment:
@@ -1039,6 +1082,7 @@ services:
       context: ./velociraptor/export
       dockerfile: Dockerfile.bridge
     container_name: forensic-velociraptor-bridge
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - CERT_PORTAL_URL=http://cert-portal:3000
@@ -1088,6 +1132,7 @@ services:
       context: .
       dockerfile: ./portal-cert/Dockerfile
     container_name: forensic-cert-portal
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - MINIO_ENDPOINT=minio:9000
@@ -1115,6 +1160,10 @@ services:
       - CORTEX_ADMIN_PASSWORD=${CORTEX_ADMIN_PASSWORD:-}
       - IT_PORTAL_SECRET=${IT_PORTAL_SECRET}
       - CERT_PORTAL_SECRET=${CERT_PORTAL_SECRET}
+      # P-14 : secret HMAC dédié aux sessions (repli sur CERT_PORTAL_SECRET)
+      - PORTAL_SESSION_SECRET=${PORTAL_SESSION_SECRET:-${CERT_PORTAL_SECRET}}
+      - SEKOIA_CONTROLPLANE_URL=${SEKOIA_CONTROLPLANE_URL:-http://sekoia-controlplane:8901}
+      - S1_CONTROLPLANE_URL=${S1_CONTROLPLANE_URL:-http://s1-controlplane:8902}
       - PORTAL_ADMIN_USER=${PORTAL_ADMIN_USER:-admin}
       - PORTAL_ADMIN_PASSWORD=${PORTAL_ADMIN_PASSWORD:-${CERT_PORTAL_SECRET}}
       - OLLAMA_URL=${OLLAMA_URL:-}
@@ -1150,7 +1199,7 @@ services:
       - CREDENTIALS_SYNC_INTERVAL_MS=120000
       - CREDENTIALS_SNAPSHOT_PATH=/shared-uploads/credentials-snapshot.json
     ports:
-      - "${FP_CERT_PORTAL_PORT:-3000}:3000"
+      - "127.0.0.1:${FP_CERT_PORTAL_PORT:-3000}:3000"
     volumes:
       - cert-portal-uploads:/tmp/uploads
       - shared-uploads:/shared-uploads
@@ -1177,6 +1226,7 @@ services:
       context: .
       dockerfile: ./portal-it/Dockerfile
     container_name: forensic-it-portal
+    logging: *default-logging
     restart: unless-stopped
     environment:
       - MINIO_ENDPOINT=minio:9000
@@ -1200,7 +1250,7 @@ services:
       - NODE_ENV=production
       - PORT=3001
     ports:
-      - "${FP_IT_PORTAL_PORT:-3002}:3001"
+      - "127.0.0.1:${FP_IT_PORTAL_PORT:-3002}:3001"
     volumes:
       - shared-uploads:/shared-uploads
     networks:
@@ -1223,8 +1273,9 @@ services:
 # ═══════════════════════════════════════════════════════════════
 
   nginx:
-    image: nginx:1.25-alpine
+    image: nginx:1.27-alpine
     container_name: forensic-nginx
+    logging: *default-logging
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"

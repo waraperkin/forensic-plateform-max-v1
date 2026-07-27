@@ -2,7 +2,18 @@
 
 const crypto = require('crypto');
 
-const SECRET = process.env.PORTAL_SESSION_SECRET || 'fp-portal-session-change-me-in-prod';
+// P-14 : le secret de session vient de l'environnement. En production,
+// l'absence de PORTAL_SESSION_SECRET est bloquante ; hors production, un
+// secret aléatoire éphèbre est généré au démarrage (les sessions ne
+// survivent pas au redémarrage, ce qui est sûr par défaut).
+let SECRET = process.env.PORTAL_SESSION_SECRET;
+if (!SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('PORTAL_SESSION_SECRET est obligatoire en production (à définir dans .env)');
+  }
+  SECRET = crypto.randomBytes(32).toString('hex');
+  console.warn('[auth-session] PORTAL_SESSION_SECRET absent — secret éphèbre généré (sessions invalidées au redémarrage)');
+}
 const MAX_AGE_MS = parseInt(process.env.PORTAL_SESSION_MAX_AGE_MS || String(8 * 3600 * 1000), 10);
 const COOKIE_NAME = 'fp_portal_session';
 

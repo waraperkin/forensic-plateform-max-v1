@@ -1,0 +1,36 @@
+# NOTICE — Composants tiers et attributions
+
+Cybercorp Forensic Platform (forensic-minimal-v2)
+Copyright (c) 2026 waraperkin — code propre sous licence MIT (voir LICENSE).
+
+Ce dépôt orchestre et/ou redistribue des composants tiers qui restent soumis
+à leurs licences respectives :
+
+## Composants orchestrés (images Docker, non redistribués dans le dépôt)
+
+- OpenSearch & OpenSearch Dashboards — Apache License 2.0
+- OpenSearch Logstash OSS — Apache License 2.0
+- Elastic Filebeat OSS — Apache License 2.0
+- Grafana OSS, Loki, Tempo, Prometheus — AGPL-3.0 / Apache-2.0
+- Timesketch (OSDFIR) — Apache License 2.0
+- OpenCTI et connecteurs — Apache License 2.0
+- MISP (misp-docker) — GPL-3.0 / BSD (selon composants)
+- TheHive & Cortex (TheHive Project / StrangeBee) — AGPL-3.0
+- Velociraptor DFIR — AGPL-3.0
+- MinIO — AGPL-3.0
+- PostgreSQL, Redis, RabbitMQ, Cassandra, MariaDB, Nginx — licences permissives respectives
+
+## Contenu redistribué dans le dépôt
+
+- `helk/` — HELK (Roberto Rodriguez / Cyb3rWard0g, OTRF) — GPL-3.0
+  https://github.com/Cyb3rWard0g/HELK
+- `helk/sigma/` — règles Sigma (SigmaHQ) — DRL 1.1 (Detection Rule License)
+  https://github.com/SigmaHQ/sigma — attribution requise, voir `helk/sigma/README.md`
+- `velociraptor/artifacts/official/` — Velociraptor artifact exchange — AGPL-3.0
+- Documents PDF de référence éventuels : redistribution à vérifier cas par cas
+  (certains supports de formation sont sous licence CC avec attribution).
+
+## Marques
+
+« Cybercorp », les noms de produits et logos cités appartiennent à leurs
+détenteurs respectifs. Leur usage ici est strictement descriptif.

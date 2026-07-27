@@ -29,7 +29,7 @@ cd forensic-minimal-v2
 ./forensic.sh -full-start
 ```
 
-À l’issue d’un `-full-start` réussi, **aucune étape manuelle** : détection IP AWS, TLS, MISP, HELK, Velociraptor, nginx, identité site (Palo Alto) et vérification des 11 services sont automatiques.
+À l’issue d’un `-full-start` réussi, **aucune étape manuelle** : détection IP AWS, TLS, MISP, HELK, Velociraptor, nginx, identité site (Palo Alto) et vérification des services (16/16) sont automatiques.
 
 - **Accès** : `https://<IP-publique>/` (affiché en fin de script)
 - **16/16 services** vérifiés via `/api/health/global` (Timesketch, MISP, Velociraptor, HELK, etc.)
@@ -261,16 +261,13 @@ Tous les services passent par **HTTPS** (certificat auto-signé — accepter l�
 
 **Timesketch direct (sans Nginx) :** `http://<IP>:5000/`
 
-**Identifiants portail CERT (premier boot) :** après bootstrap, connexion **`admin` / `F0r3ns1c_Portal_2024!`** (valeur `CERT_PORTAL_SECRET` dans `.env`). Le full-start exécute `ensure-portal-admin.sh` pour aligner le compte local. Dépannage manuel : `./forensic.sh repair-env` ou `./scripts/reset-portal-admin.sh`.
+**Identifiants portail CERT (premier boot) :** après bootstrap, connexion **`admin` / valeur de `PORTAL_ADMIN_PASSWORD`** (définie dans `.env`). Si la variable est absente, un **mot de passe aléatoire est généré et affiché une fois dans les logs du conteneur** (`docker logs forensic-cert-portal`). Le full-start exécute `ensure-portal-admin.sh` pour aligner le compte local. Dépannage manuel : `./forensic.sh repair-env` ou `./scripts/reset-portal-admin.sh`.
 
-Les autres secrets labo sont dans `.env` (Centre d’accès du portail CERT) — **ne jamais committer ce fichier**.
+Les secrets effectifs sont dans `.env` (Centre d’accès du portail CERT, ou `./forensic.sh urls --reveal`) — **ne jamais committer ce fichier**.
 
 ### Secrets et mots de passe labo (`lib/platform-secrets.js`)
 
-Le fichier `lib/platform-secrets.js` contient des **valeurs par défaut de démonstration** (`F0r3ns1c_*_2024!`, etc.) utilisées uniquement lorsque :
-
-- le bootstrap n’a pas encore généré de `.env`, ou
-- une variable d’environnement n’est pas définie en mode lab local.
+Le fichier `lib/platform-secrets.js` contient des **valeurs par défaut de démonstration** (`F0r3ns1c_*_2024!`, etc.) utilisées **uniquement en mode dev** (`NODE_ENV != production`, voir `lib/cors-policy.js → isDevMode()`). En production, une variable absente renvoie une valeur vide / un fallback neutre — jamais un mot de passe codé en dur (audit P-04).
 
 **En production**, le premier `./forensic.sh -full-start` génère des secrets aléatoires dans `.env` (non versionné). Ces defaults lab ne doivent **jamais** être considérés comme des identifiants réels : changez-les systématiquement via `.env` ou les variables d’environnement du déploiement. Le Centre d’accès du portail CERT affiche les credentials effectifs après bootstrap.
 
@@ -281,7 +278,7 @@ Le fichier `lib/platform-secrets.js` contient des **valeurs par défaut de démo
 ### Vérification rapide
 
 ```bash
-# Santé agrégée (11 services)
+# Santé agrégée (16 services)
 curl -sk https://<IP>/api/health/global | jq .
 
 # Commandes intégrées
@@ -385,8 +382,8 @@ docker logs velociraptor-server --tail 30 2>/dev/null || true
 Par défaut la plateforme utilise **`https://<IP-publique>/`** (pas le DNS EC2). Le bootstrap détecte l'IP via IMDS AWS.
 
 ```bash
-git clone https://github.com/waraperkin/forensic-minimal.git
-cd forensic-minimal
+git clone https://github.com/waraperkin/forensic-minimal-v2.git
+cd forensic-minimal-v2
 ./forensic.sh -full-start
 # Security Group AWS : TCP 80 + 443 ouverts
 ```

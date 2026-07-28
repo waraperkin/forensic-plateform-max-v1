@@ -60,6 +60,7 @@ volumes:
   cert-portal-uploads:
   it-portal-uploads:
   shared-uploads:
+  sekoia-cp-data:
   velociraptor-sidecar-data:
     external: true
     name: velociraptor-sidecar_velociraptor-data
@@ -1124,6 +1125,74 @@ services:
         condition: service_started
 
 # ═══════════════════════════════════════════════════════════════
+#  COUCHE SEKOIA.IO — control-plane v2, monitoring, SentinelOne
+# ═══════════════════════════════════════════════════════════════
+
+  sekoia-controlplane:
+    build:
+      context: ./connectors/sekoia-controlplane
+      dockerfile: Dockerfile
+    container_name: sekoia-controlplane
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      # Secrets Sekoia : saisis dans « Threat Platforms → Configuration » et
+      # stockés chiffrés (Fernet) sur /data. SEKOIA_SECRETS_KEY est la clé
+      # Fernet du store (générée par scripts/generate-secrets.sh).
+      - SEKOIA_SECRETS_KEY=${SEKOIA_SECRETS_KEY:-}
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-}
+      - SECRETS_PATH=/data/sekoia-secrets.enc
+      - CONTROLPLANE_PORT=8901
+    volumes:
+      - sekoia-cp-data:/data
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.97
+
+  sekoia-monitor:
+    build:
+      context: ./connectors/sekoia-monitor
+      dockerfile: Dockerfile
+    container_name: sekoia-monitor
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - SEKOIA_CONTROLPLANE_URL=http://sekoia-controlplane:8901
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-}
+      - OPENSEARCH_URL=http://opensearch-node1:9200
+      - POLL_INTERVAL_S=${SEKOIA_POLL_INTERVAL_S:-60}
+      - ALERT_INTERVAL_S=${SEKOIA_ALERT_INTERVAL_S:-60}
+      - SILENCE_MINUTES=${SEKOIA_SILENCE_MINUTES:-60}
+      - DROP_RATIO=${SEKOIA_DROP_RATIO:-0.5}
+      - HOSTNAME_SILENCE_HOURS=${SEKOIA_HOSTNAME_SILENCE_HOURS:-24}
+      - ALERT_WEBHOOK_URL=${SEKOIA_ALERT_WEBHOOK_URL:-}
+      - MONITOR_PORT=8903
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.98
+    depends_on:
+      sekoia-controlplane:
+        condition: service_healthy
+      opensearch-node1:
+        condition: service_healthy
+
+  s1-controlplane:
+    build:
+      context: ./connectors/sentinelone-controlplane
+      dockerfile: Dockerfile
+    container_name: s1-controlplane
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - S1_API_TOKEN=${S1_API_TOKEN:-}
+      - S1_BASE_URL=${S1_BASE_URL:-}
+      - S1_LAB_DEMO=${S1_LAB_DEMO:-true}
+      - CONTROLPLANE_PORT=8902
+    networks:
+      forensic-net:
+        ipv4_address: 172.26.0.99
+
+# ═══════════════════════════════════════════════════════════════
 #  PORTAIL CERT — Portail principal CERT/SOC
 # ═══════════════════════════════════════════════════════════════
 
@@ -1164,6 +1233,7 @@ services:
       - PORTAL_SESSION_SECRET=${PORTAL_SESSION_SECRET:-${CERT_PORTAL_SECRET}}
       - SEKOIA_CONTROLPLANE_URL=${SEKOIA_CONTROLPLANE_URL:-http://sekoia-controlplane:8901}
       - S1_CONTROLPLANE_URL=${S1_CONTROLPLANE_URL:-http://s1-controlplane:8902}
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-}
       - PORTAL_ADMIN_USER=${PORTAL_ADMIN_USER:-admin}
       - PORTAL_ADMIN_PASSWORD=${PORTAL_ADMIN_PASSWORD:-${CERT_PORTAL_SECRET}}
       - OLLAMA_URL=${OLLAMA_URL:-}

@@ -1,0 +1,19 @@
+# Gitleaks — forensic-plateform-max-v1
+# Les exemples/documentations ne contiennent que des placeholders.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders et exemples documentés"
+paths = [
+  '''\.env\.example$''',
+  '''\.example$''',
+  '''docs/''',
+  '''README''',
+  '''AUDIT''',
+  '''RUN_VALIDATION\.md$''',
+  '''RAPPORT''',
+  '''helk/''',
+  '''velociraptor/''',
+]

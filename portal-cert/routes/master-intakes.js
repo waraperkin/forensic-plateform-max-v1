@@ -49,7 +49,10 @@ async function searchOpenSearch(os) {
 
 async function fetchSekoiaCp(axios) {
   try {
+    const token = (process.env.INTERNAL_API_TOKEN || '').trim();
+    const headers = token ? { 'X-Internal-Token': token } : {};
     const r = await axios.get(`${SEKOIA_URL}/control/sekoia/intakes`, {
+      headers,
       timeout: 20000,
       validateStatus: () => true,
     });

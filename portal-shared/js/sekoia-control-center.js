@@ -458,7 +458,7 @@
     }
     if (xdr.sub === 'timeline') {
       if (!xdr.merged.length) { host.innerHTML = '<p class="fp-muted">Aucun événement corrélé</p>'; return; }
-      host.innerHTML = `<ul class=i18n.t('msg.cc_timeline_cc_timeline_xdr')>${xdr.merged.slice(0, 800).map((m) => {
+      host.innerHTML = `<ul class="${i18n.t('msg.cc_timeline_cc_timeline_xdr')}">${xdr.merged.slice(0, 800).map((m) => {
         const cls = m.source === 'Sekoia' ? 'cc-src-sek' : 'cc-src-s1';
         return `<li><span class="cc-tl-ts">${esc(m.ts || '—')}</span><span class="cc-xdr-src ${cls}">${esc(m.source)}</span><span class="cc-tl-host">${esc(m.host || '')}</span><span class="cc-tl-msg">${esc(m.summary || m.type)}</span></li>`;
       }).join('')}</ul>`;

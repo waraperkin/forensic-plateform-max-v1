@@ -1,0 +1,74 @@
+# CI — forensic-plateform-max-v1
+# Bloque : secrets commités, erreurs shell, régressions Python/JS, compose invalide.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_ENABLE_COMMENTS: false
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck (scripts maison uniquement — helk/velociraptor vendorisés exclus)
+        run: |
+          shopt -s globstar nullglob
+          files=$(git ls-files '*.sh' | grep -v '^helk/' | grep -v '^velociraptor/' | tr '\n' ' ')
+          [ -z "$files" ] && exit 0
+          shellcheck -S error $files
+
+  python-connectors:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        connector: [sekoia-controlplane, sekoia-monitor]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: deps
+        run: |
+          pip install -r connectors/${{ matrix.connector }}/requirements.txt
+          pip install pytest pytest-asyncio
+      - name: pytest
+        run: |
+          cd connectors/${{ matrix.connector }}
+          python -m pytest -q
+
+  node-portals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Vérification syntaxe JS (tous les fichiers trackés)
+        run: |
+          fail=0
+          for f in $(git ls-files '*.js' | grep -v '^helk/' | grep -v '^velociraptor/'); do
+            node --check "$f" || fail=1
+          done
+          exit $fail
+
+  compose-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker compose config
+        run: |
+          cp .env.example .env
+          docker compose -f docker-compose.yml config --quiet

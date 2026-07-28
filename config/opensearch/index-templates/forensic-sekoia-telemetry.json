@@ -1,0 +1,47 @@
+{
+  "index_patterns": ["forensic-sekoia-telemetry-on-demand*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.refresh_interval": "1s",
+      "index.mapping.total_fields.limit": 4000,
+      "index.mapping.ignore_malformed": true
+    },
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "strings_as_keyword": {
+            "match_mapping_type": "string",
+            "mapping": { "type": "keyword", "ignore_above": 2048, "fields": { "text": { "type": "text" } } }
+          }
+        }
+      ],
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "_ingested_at": { "type": "date" },
+        "_source_platform": { "type": "keyword" },
+        "_collection": { "type": "keyword" },
+        "message": { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 2048 } } },
+        "host": { "properties": { "hostname": { "type": "keyword" }, "name": { "type": "keyword" }, "ip": { "type": "keyword" } } },
+        "log": { "properties": { "hostname": { "type": "keyword" } } },
+        "source": { "properties": { "ip": { "type": "keyword" }, "port": { "type": "long" } } },
+        "destination": { "properties": { "ip": { "type": "keyword" }, "port": { "type": "long" } } },
+        "user": { "properties": { "name": { "type": "keyword" } } },
+        "event": { "properties": { "action": { "type": "keyword" }, "category": { "type": "keyword" }, "created": { "type": "date" } } },
+        "sekoiaio": {
+          "properties": {
+            "intake": {
+              "properties": {
+                "uuid": { "type": "keyword" },
+                "dialect": { "type": "keyword" },
+                "dialect_uuid": { "type": "keyword" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "priority": 300
+}

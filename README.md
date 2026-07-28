@@ -71,6 +71,7 @@ Galerie complète (25 captures portails + outils) : [`docs/PORTAL/SCREENS.md`](d
 | **Incident Response** | TheHive, Cortex |
 | **Observabilité** | Grafana, Prometheus, Loki, Tempo |
 | **Hunting & DFIR** | HELK (sidecar ES/Kibana/Logstash), Velociraptor |
+| **Couche Sekoia.io** | `sekoia-controlplane` (inventaires CRUD, alertes, collecte), `sekoia-monitor` (volumétrie temps réel, alertes d'ingestion) — voir [`docs/SEKOIA.md`](docs/SEKOIA.md) |
 | **Infrastructure** | PostgreSQL, Redis, RabbitMQ, Cassandra |
 
 ### Flux de données (schéma logique)

@@ -287,6 +287,11 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     return null;
   }
 
+  // Jeton interne partagé avec les control-planes (WP-S1) — transmis en en-tête
+  // X-Internal-Token sur tous les appels upstream. Jamais exposé au navigateur.
+  const INTERNAL_API_TOKEN = (process.env.INTERNAL_API_TOKEN || '').trim();
+  const internalHeaders = INTERNAL_API_TOKEN ? { 'X-Internal-Token': INTERNAL_API_TOKEN } : {};
+
   router.get('/health', async (_req, res) => {
     const probe = async (base, name) => {
       try {
@@ -305,7 +310,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
 
   // Catch-all proxy : conserve méthode, query, body — restreint à une allowlist
   // de ressources (correctif audit P-06) et sans fuite de topologie interne.
-  const ALLOWED_PROXY_RE = /^\/(sekoia|s1)\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory)(\/|$)/;
+  const ALLOWED_PROXY_RE = /^\/(sekoia|s1)\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
     if (!mapped || !ALLOWED_PROXY_RE.test(req.path)) {
@@ -324,6 +329,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
         url,
         params: req.query,
         data: ['GET', 'HEAD'].includes(req.method) ? undefined : (req.body || {}),
+        headers: { ...internalHeaders },
         timeout: 60000,
         validateStatus: () => true,
       });

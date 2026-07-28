@@ -95,3 +95,59 @@ async def test_pas_dalerte_si_sain(monkeypatch):
     monkeypatch.setattr(monitor, "os_search", fake_search)
     alerts = await monitor.evaluate_alerts(FakeClient())
     assert alerts == []
+
+
+# ── Automatisation TheHive (P6) ───────────────────────────────────────────────
+def test_thehive_enabled_guard(monkeypatch):
+    monkeypatch.setattr(monitor, "SEKOIA_AUTO_THEHIVE", True)
+    monkeypatch.setattr(monitor, "THEHIVE_URL", "")
+    monkeypatch.setattr(monitor, "THEHIVE_API_KEY", "k")
+    assert not monitor.thehive_enabled()  # URL manquante → désactivé
+    monkeypatch.setattr(monitor, "THEHIVE_URL", "http://thehive:9000")
+    assert monitor.thehive_enabled()
+    monkeypatch.setattr(monitor, "SEKOIA_AUTO_THEHIVE", False)
+    assert not monitor.thehive_enabled()  # garde explicite
+
+
+@pytest.mark.asyncio
+async def test_thehive_case_payload(monkeypatch):
+    monkeypatch.setattr(monitor, "THEHIVE_URL", "http://thehive:9000")
+    monkeypatch.setattr(monitor, "THEHIVE_API_KEY", "secret-key")
+    posted = {}
+
+    class Resp:
+        status_code = 201
+        text = "{}"
+
+    class C:
+        async def post(self, url, headers=None, json=None, timeout=None):
+            posted.update(url=url, headers=headers, json=json)
+            return Resp()
+
+    ok = await monitor.create_thehive_case(C(), {
+        "rule": "intake_silent", "severity": "critical", "intake_name": "Win-DC",
+        "message": "Intake silencieux", "fingerprint": "fp123"})
+    assert ok
+    assert posted["url"] == "http://thehive:9000/api/v1/case"
+    assert posted["headers"]["Authorization"] == "Bearer secret-key"
+    assert posted["json"]["severity"] == 4  # critical → 4
+    assert posted["json"]["sourceRef"] == "fp123"
+    assert "sekoia" in posted["json"]["tags"]
+    assert "Win-DC" in posted["json"]["title"]
+
+
+@pytest.mark.asyncio
+async def test_thehive_case_http_error(monkeypatch):
+    monkeypatch.setattr(monitor, "THEHIVE_URL", "http://thehive:9000")
+    monkeypatch.setattr(monitor, "THEHIVE_API_KEY", "k")
+
+    class Resp:
+        status_code = 401
+        text = "unauthorized"
+
+    class C:
+        async def post(self, url, headers=None, json=None, timeout=None):
+            return Resp()
+
+    ok = await monitor.create_thehive_case(C(), {"rule": "x", "fingerprint": "f"})
+    assert ok is False  # erreur HTTP → False, pas d'exception

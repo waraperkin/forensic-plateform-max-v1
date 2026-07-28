@@ -15,6 +15,7 @@ const express = require('express');
 const INTAKES_INDEX = 'sekoia-intakes-*';
 const VOLUMETRY_INDEX = 'sekoia-volumetry-*';
 const UPLOADS_INDEX = 'forensic-uploads*';
+const ALERTS_INDEX = 'sekoia-alerts-*';
 
 async function searchIntakes(os) {
   try {
@@ -198,6 +199,46 @@ function createMasterIngestMetaRoutes(deps) {
     } catch (err) {
       logger?.warn?.('master/ingest_hostnames:', err.message);
       res.status(502).json({ error: 'ingest_hostnames_unavailable', count: 0, items: [] });
+    }
+  });
+
+  // Alertes d'ingestion émises par sekoia-monitor (volumétrie, drop, silence…)
+  router.get('/master/ingest_alerts', async (_req, res) => {
+    try {
+      const r = await os.search({
+        index: ALERTS_INDEX,
+        size: 200,
+        body: {
+          query: { match_all: {} },
+          sort: [{ '@timestamp': { order: 'desc' } }],
+        },
+      });
+      const items = (r.body.hits?.hits || []).map((h) => ({ _id: h._id, ...(h._source || {}) }));
+      res.json({ count: items.length, items });
+    } catch (err) {
+      logger?.warn?.('master/ingest_alerts:', err.message);
+      res.status(502).json({ error: 'ingest_alerts_unavailable', count: 0, items: [] });
+    }
+  });
+
+  // Acquittement d'une alerte par fingerprint (update_by_query, index datés)
+  router.post('/master/ingest_alerts/ack', async (req, res) => {
+    try {
+      const fingerprint = String(req.body?.fingerprint || '').trim();
+      if (!fingerprint) return res.status(400).json({ ok: false, error: 'fingerprint_required' });
+      const r = await os.updateByQuery({
+        index: ALERTS_INDEX,
+        refresh: true,
+        body: {
+          query: { term: { 'fingerprint.keyword': fingerprint } },
+          script: { source: "ctx._source.status = 'acknowledged'", lang: 'painless' },
+        },
+      });
+      const updated = r.body?.updated || 0;
+      res.json({ ok: true, updated });
+    } catch (err) {
+      logger?.warn?.('master/ingest_alerts/ack:', err.message);
+      res.status(502).json({ ok: false, error: 'ack_unavailable' });
     }
   });
 

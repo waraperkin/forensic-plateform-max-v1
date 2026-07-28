@@ -66,6 +66,77 @@
     if (r && (r.ok || r.configured !== false)) { TC.toast(i18n.t('msg.action_effectuee'), 'ok'); if (after) after(); }
     else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
   }
+  // ── Modales CRUD génériques (P5) ──────────────────────────────────────────
+  // fields = [{key, label, type: 'text'|'textarea'|'number'|'checkbox'|'select', options?, required?, placeholder?}]
+  function crudForm(title, fields, initial) {
+    return new Promise((resolve) => {
+      const ov = document.createElement('div');
+      ov.className = 'cc-modal-overlay';
+      const inputs = fields.map((f) => {
+        const v = initial && initial[f.key] != null ? initial[f.key] : '';
+        const req = f.required ? ' <span class="fp-muted">*</span>' : '';
+        if (f.type === 'textarea') {
+          return `<label class="fp-label">${esc(f.label)}${req}<textarea class="fp-input" id="crud-${esc(f.key)}" rows="7" placeholder="${esc(f.placeholder || '')}">${esc(v)}</textarea></label>`;
+        }
+        if (f.type === 'checkbox') {
+          return `<label class="fp-checkbox-inline"><input type="checkbox" id="crud-${esc(f.key)}"${v ? ' checked' : ''}> ${esc(f.label)}</label>`;
+        }
+        if (f.type === 'select') {
+          const opts = (f.options || []).map((o) => `<option value="${esc(o.value)}"${String(o.value) === String(v) ? ' selected' : ''}>${esc(o.label)}</option>`).join('');
+          return `<label class="fp-label">${esc(f.label)}${req}<select class="fp-select" id="crud-${esc(f.key)}">${opts}</select></label>`;
+        }
+        return `<label class="fp-label">${esc(f.label)}${req}<input class="fp-input" id="crud-${esc(f.key)}" type="${f.type === 'number' ? 'number' : 'text'}" value="${esc(v)}" placeholder="${esc(f.placeholder || '')}" autocomplete="off"></label>`;
+      }).join('');
+      ov.innerHTML = `<div class="cc-modal cc-modal-wide"><h3>${esc(title)}</h3>
+        <div class="cc-crud-form">${inputs}</div>
+        <div class="fp-actions-row fp-section-spaced">
+          <button type="button" class="fp-btn fp-btn-ghost" data-x="cancel">Annuler</button>
+          <button type="button" class="fp-btn fp-btn-primary" data-x="ok">Valider</button></div></div>`;
+      document.body.appendChild(ov);
+      const done = (val2) => { ov.remove(); resolve(val2); };
+      ov.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-x]');
+        if (e.target === ov || (b && b.dataset.x === 'cancel')) return done(null);
+        if (b && b.dataset.x === 'ok') {
+          const out = {};
+          for (const f of fields) {
+            const el = ov.querySelector(`#crud-${CSS.escape(f.key)}`);
+            if (!el) continue;
+            if (f.type === 'checkbox') out[f.key] = el.checked;
+            else if (f.type === 'number') out[f.key] = el.value === '' ? null : Number(el.value);
+            else out[f.key] = el.value;
+          }
+          for (const f of fields) {
+            if (f.required && (out[f.key] == null || String(out[f.key]).trim() === '')) {
+              TC.toast(`Champ requis : ${f.label}`, 'warn');
+              return;
+            }
+          }
+          return done(out);
+        }
+      });
+      ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') done(null); });
+    });
+  }
+  function confirmBox(title, message) {
+    return new Promise((resolve) => {
+      const ov = document.createElement('div');
+      ov.className = 'cc-modal-overlay';
+      ov.innerHTML = `<div class="cc-modal"><h3>${esc(title)}</h3>
+        <p>${esc(message)}</p>
+        <div class="fp-actions-row fp-section-spaced">
+          <button type="button" class="fp-btn fp-btn-ghost" data-x="cancel">Annuler</button>
+          <button type="button" class="fp-btn fp-btn-danger" data-x="ok">Supprimer</button></div></div>`;
+      document.body.appendChild(ov);
+      const done = (v) => { ov.remove(); resolve(v); };
+      ov.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-x]');
+        if (e.target === ov || (b && b.dataset.x === 'cancel')) return done(false);
+        if (b && b.dataset.x === 'ok') return done(true);
+      });
+      ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') done(false); });
+    });
+  }
   function listToMap(list) {
     const m = {}; (list || []).forEach((x) => { m[x.label == null ? 'n/a' : x.label] = x.count; }); return m;
   }
@@ -80,6 +151,7 @@
   const CC_SUBS = [
     ['overview', "Vue d'ensemble"], ['inventaire', 'Inventaire'], ['connectors', 'Connectors'],
     ['modules', 'Modules'], ['formats', 'Formats'], ['playbooks', 'Playbooks'],
+    ['rules', i18n.t('msg.regles')], ['alerts-ingest', 'Alertes ingestion'],
     ['stats', i18n.t('msg.stats_avancees')], ['audit', 'Audit'],
     ['querybuilder', 'Query Builder'], ['dashboard', i18n.t('msg.dashboard_builder')], ['assetprofile', 'Asset Profile'],
   ];
@@ -99,6 +171,13 @@
       ['Type', (r) => pick(r, ['type'])], ['Description', (r) => pick(r, ['description'])]],
     playbooks: [['Nom', (r) => pick(r, ['name'])], ['Statut', (r) => String(pick(r, ['enabled', 'status']) ?? '')],
       [i18n.t('msg.declencheur'), (r) => pick(r, ['trigger', 'short_name'])], ['UUID', (r) => pick(r, ['uuid', 'id'])]],
+    rules: [['Règle', (r) => pick(r, ['rule_name', 'name'])], ['Type', (r) => pick(r, ['rule_type', 'type'])],
+      ['Sévérité', (r) => String(pick(r, ['rule_severity', 'severity']) ?? '')],
+      ['Activée', (r) => { const e = pick(r, ['rule_enabled', 'enabled']); return e == null ? '—' : (e ? '✔' : '✘'); }],
+      ['Dialectes', (r) => pick(r, ['rule_dialect_names'])]],
+    'alerts-ingest': [['Date', (r) => pick(r, ['@timestamp'])], ['Règle', (r) => pick(r, ['rule'])],
+      ['Sévérité', (r) => pick(r, ['severity'])], ['Intake', (r) => pick(r, ['intake_name', 'log_hostname'])],
+      ['Message', (r) => pick(r, ['message'])], ['Statut', (r) => pick(r, ['status'])]],
   };
 
   async function loadSekoiaCC() {
@@ -121,6 +200,12 @@
         'dash-rm': (el) => { const e = SE(); if (e) e.dashRemoveWidget(parseInt(el.dataset.idx, 10)); },
         'cc-rename-intake': async (el) => { const name = await askText(i18n.t('msg.renommer_lintake'), 'Nouveau nom', el.dataset.name || ''); if (name) action(`/sekoia/intakes/${encodeURIComponent(el.dataset.id)}`, { method: 'PATCH', body: { name } }, () => ccLoadSection('inventaire', true)); },
         'cc-rename-conn': async (el) => { const name = await askText(i18n.t('msg.renommer_le_connecteur'), 'Nouveau nom', el.dataset.name || ''); if (name) action(`/sekoia/connectors/${encodeURIComponent(el.dataset.id)}`, { method: 'PATCH', body: { name } }, () => ccLoadSection('connectors', true)); },
+        // ── CRUD (P5) ──
+        'cc-new': () => ccCrudNew(),
+        'cc-edit-item': (el) => ccCrudEdit(parseInt(el.dataset.idx, 10)),
+        'cc-del-item': (el) => ccCrudDelete(parseInt(el.dataset.idx, 10)),
+        'cc-toggle-item': (el) => ccCrudToggle(parseInt(el.dataset.idx, 10)),
+        'cc-ack-alert': (el) => ccAckAlert(parseInt(el.dataset.idx, 10)),
       });
       const debouncedCcList = (window.PortalPerf && window.PortalPerf.debounce)
         ? window.PortalPerf.debounce(() => ccRenderList(), 120) : () => ccRenderList();
@@ -163,7 +248,7 @@
       await ccEnsureInventory(true);
       return ccRenderBody();
     }
-    if (['connectors', 'modules', 'formats', 'playbooks'].includes(cc.sub)) {
+    if (['connectors', 'modules', 'formats', 'playbooks', 'rules', 'alerts-ingest'].includes(cc.sub)) {
       cc.loaded[cc.sub] = false;
       await ccLoadSection(cc.sub, true);
       return;
@@ -192,10 +277,21 @@
     cc.loaded.inv = true;
   }
   async function ccLoadSection(key, force) {
-    const map = { connectors: '/sekoia/connectors', modules: '/sekoia/modules', formats: '/sekoia/formats', playbooks: '/sekoia/playbooks' };
+    const map = { connectors: '/sekoia/connectors', modules: '/sekoia/modules', formats: '/sekoia/formats',
+      playbooks: '/sekoia/playbooks', rules: '/sekoia/rules', 'alerts-ingest': '/api/master/ingest_alerts' };
     if (!map[key]) return;
     if (cc.loaded[key] && !force) return;
-    const env = await TC.api(map[key]); cc[key] = env.items || []; cc.loaded[key] = true; cc._env = env;
+    let env;
+    if (map[key].startsWith('/api/')) {
+      // Routes /api/master/* (hors proxy /api/threat) — fetch direct, même session.
+      try {
+        const r = await fetch(map[key], { credentials: 'include', cache: 'no-store' });
+        env = await r.json();
+      } catch (_) { env = { items: [], error: 'Endpoint indisponible' }; }
+    } else {
+      env = await TC.api(map[key]);
+    }
+    cc[key] = env.items || []; cc.loaded[key] = true; cc._env = env;
     if (cc.sub === key) ccRenderBody();
   }
 
@@ -226,7 +322,7 @@
       cc.audit = a.items || [];
       return ccRenderAuditMini();
     }
-    if (['connectors', 'modules', 'formats', 'playbooks'].includes(sub)) {
+    if (['connectors', 'modules', 'formats', 'playbooks', 'rules', 'alerts-ingest'].includes(sub)) {
       await ccLoadSection(sub);
       if (ccRenderStale(gen)) return;
       return ccRenderExplorer(sub, cc[sub]);
@@ -261,9 +357,11 @@
   }
   function ccRenderExplorer(key, items) {
     const body = document.getElementById('cc-body'); if (!body) return;
+    const canCreate = ['inventaire', 'playbooks', 'rules'].includes(key);
     body.innerHTML = `<div class="cc-tp-filterbar">
         <input class="fp-input fp-input-sm" id="cc-q" placeholder="🔎 Recherche libre…" value="${esc(cc.filt[key] || '')}">
         <span class="cc-tp-filter-actions">
+          ${canCreate ? '<button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-new">＋ Nouveau</button>' : ''}
           <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-refresh-sub">↻ Rafraîchir</button>
           <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-reset">↺ Réinitialiser</button>
           ${TC.exportButtons()}</span>
@@ -284,19 +382,185 @@
     columns.push({ label: 'Actions', render: (r) => {
       const idx = filtered.indexOf(r);
       let btns = `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-detail" data-idx="${idx}">Détail</button>`;
-      if (key === 'inventaire') btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-rename-intake" data-id="${esc(pick(r, ['intake_uuid', 'uuid']))}" data-name="${esc(pick(r, ['intake_name', 'name']) || '')}">Renommer</button>`;
+      if (key === 'inventaire') {
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-rename-intake" data-id="${esc(pick(r, ['intake_uuid', 'uuid']))}" data-name="${esc(pick(r, ['intake_name', 'name']) || '')}">Renommer</button>`;
+        const st = String(pick(r, ['intake_status']) || '').toLowerCase();
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-toggle-item" data-idx="${idx}">${st === 'enabled' || st === 'active' ? 'Désactiver' : 'Activer'}</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-edit-item" data-idx="${idx}">Éditer</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm cc-btn-danger" data-act="cc-del-item" data-idx="${idx}">Supprimer</button>`;
+      }
       if (key === 'connectors') btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-rename-conn" data-id="${esc(pick(r, ['uuid', 'id', 'connector_configuration_uuid']))}" data-name="${esc(pick(r, ['name']) || '')}">Renommer</button>`;
+      if (key === 'rules') {
+        const en = pick(r, ['rule_enabled', 'enabled']);
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-toggle-item" data-idx="${idx}">${en ? 'Désactiver' : 'Activer'}</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-edit-item" data-idx="${idx}">Éditer</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm cc-btn-danger" data-act="cc-del-item" data-idx="${idx}">Supprimer</button>`;
+      }
+      if (key === 'playbooks') {
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-edit-item" data-idx="${idx}">Éditer</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm cc-btn-danger" data-act="cc-del-item" data-idx="${idx}">Supprimer</button>`;
+      }
+      if (key === 'alerts-ingest' && pick(r, ['status']) !== 'acknowledged') {
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-ack-alert" data-idx="${idx}">Acquitter</button>`;
+      }
       return btns;
     } });
     host.innerHTML = TC.table(columns, filtered, { empty: 'Aucun élément' });
+  }
+  // Pivots inter-outils (P6) : OpenSearch Discover filtré + Timesketch.
+  function ccPivotLinks(it) {
+    if (!window.SocPivotLinks || cc.sub !== 'alerts-ingest') return '';
+    const P = window.SocPivotLinks;
+    const base = P.baseUrl();
+    if (!base) return '';
+    const links = [];
+    const host = pick(it, ['log_hostname']);
+    if (host) {
+      const q = `_index:forensic-sekoia-telemetry* AND log.hostname:"${String(host).replace(/"/g, '')}"`;
+      links.push(`<a class="fp-btn fp-btn-ghost fp-btn-sm" target="_blank" rel="noopener"
+        href="${esc(`${base}/dashboards/app/discover#/?q=${encodeURIComponent(q)}`)}">Discover — ${esc(host)} ↗</a>`);
+    }
+    const iu = pick(it, ['intake_uuid']);
+    if (iu) {
+      const q = `_index:forensic-sekoia-telemetry* AND sekoiaio.intake.uuid:"${String(iu).replace(/"/g, '')}"`;
+      links.push(`<a class="fp-btn fp-btn-ghost fp-btn-sm" target="_blank" rel="noopener"
+        href="${esc(`${base}/dashboards/app/discover#/?q=${encodeURIComponent(q)}`)}">Discover — intake ↗</a>`);
+    }
+    links.push(`<a class="fp-btn fp-btn-ghost fp-btn-sm" target="_blank" rel="noopener"
+      href="${esc(P.timesketchUrl({ caseId: '' }))}">Timesketch ↗</a>`);
+    return `<div class="fp-actions-row fp-section-spaced">${links.join('')}</div>`;
   }
   function ccDetail(idx) {
     const host = document.getElementById('cc-detail'); if (!host) return;
     const it = cc.current[idx]; if (!it) return;
     host.innerHTML = `<div class="cc-tp-detail-card"><h4 class="fp-section-sub">Détail — ${esc(pick(it, ['name', 'intake_name', 'uuid', 'id']) || '')}</h4>
+      ${ccPivotLinks(it)}
       <pre class="cc-payload"><code>${esc(JSON.stringify(it, null, 2))}</code></pre></div>`;
     host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
+
+  /* ── CRUD UI (P5) : intakes / rules / playbooks + acquittement alertes ───── */
+  function ccReloadCurrent() { cc.loaded[cc.sub] = false; ccRefreshSub(); }
+
+  async function ccCrudNew() {
+    const key = cc.sub;
+    if (key === 'inventaire') {
+      const v = await crudForm('Nouvel intake', [
+        { key: 'name', label: 'Nom', type: 'text', required: true },
+        { key: 'format_uuid', label: 'Format UUID', type: 'text', required: true, placeholder: 'uuid du format d’intake' },
+        { key: 'entity_name', label: 'Entité', type: 'text', placeholder: 'nom de l’entité (optionnel)' },
+      ]);
+      if (!v) return;
+      const body = { name: v.name, format_uuid: v.format_uuid };
+      if (v.entity_name) body.entity_name = v.entity_name;
+      return action('/sekoia/intakes', { method: 'POST', body }, ccReloadCurrent);
+    }
+    if (key === 'rules') {
+      const v = await crudForm('Nouvelle règle', [
+        { key: 'name', label: 'Nom', type: 'text', required: true },
+        { key: 'severity', label: 'Sévérité (0-100)', type: 'number', placeholder: '50' },
+        { key: 'description', label: 'Description', type: 'text' },
+        { key: 'payload', label: 'Payload (pattern / SIGMA)', type: 'textarea', required: true },
+      ]);
+      if (!v) return;
+      const body = { name: v.name, payload: v.payload };
+      if (v.severity != null) body.severity = v.severity;
+      if (v.description) body.description = v.description;
+      return action('/sekoia/rules', { method: 'POST', body }, ccReloadCurrent);
+    }
+    if (key === 'playbooks') {
+      const v = await crudForm('Nouveau playbook', [
+        { key: 'name', label: 'Nom', type: 'text', required: true },
+      ]);
+      if (!v) return;
+      return action('/sekoia/playbooks', { method: 'POST', body: { name: v.name } }, ccReloadCurrent);
+    }
+  }
+
+  async function ccCrudEdit(idx) {
+    const key = cc.sub; const r = cc.current[idx]; if (!r) return;
+    if (key === 'inventaire') {
+      const id = pick(r, ['intake_uuid', 'uuid']); if (!id) return;
+      const v = await crudForm('Éditer l’intake', [
+        { key: 'name', label: 'Nom', type: 'text', required: true },
+        { key: 'entity_name', label: 'Entité', type: 'text' },
+      ], { name: pick(r, ['intake_name', 'name']) || '', entity_name: pick(r, ['entity_name']) || '' });
+      if (!v) return;
+      return action(`/sekoia/intakes/${encodeURIComponent(id)}`, { method: 'PATCH', body: v }, ccReloadCurrent);
+    }
+    if (key === 'rules') {
+      const id = pick(r, ['rule_uuid', 'uuid']); if (!id) return;
+      const v = await crudForm('Éditer la règle', [
+        { key: 'name', label: 'Nom', type: 'text', required: true },
+        { key: 'severity', label: 'Sévérité (0-100)', type: 'number' },
+        { key: 'description', label: 'Description', type: 'text' },
+        { key: 'payload', label: 'Payload (pattern / SIGMA)', type: 'textarea' },
+      ], {
+        name: pick(r, ['rule_name', 'name']) || '',
+        severity: pick(r, ['rule_severity', 'severity']),
+        description: pick(r, ['rule_description', 'description']) || '',
+        payload: pick(r, ['rule_payload', 'payload']) || '',
+      });
+      if (!v) return;
+      const body = { name: v.name };
+      if (v.severity != null) body.severity = v.severity;
+      if (v.description) body.description = v.description;
+      if (v.payload) body.payload = v.payload;
+      return action(`/sekoia/rules/${encodeURIComponent(id)}`, { method: 'PATCH', body }, ccReloadCurrent);
+    }
+    if (key === 'playbooks') {
+      const id = pick(r, ['uuid', 'id']); if (!id) return;
+      const v = await crudForm('Éditer le playbook', [
+        { key: 'name', label: 'Nom', type: 'text', required: true },
+      ], { name: pick(r, ['name']) || '' });
+      if (!v) return;
+      return action(`/sekoia/playbooks/${encodeURIComponent(id)}`, { method: 'PATCH', body: v }, ccReloadCurrent);
+    }
+  }
+
+  async function ccCrudDelete(idx) {
+    const key = cc.sub; const r = cc.current[idx]; if (!r) return;
+    const names = { inventaire: 'l’intake', rules: 'la règle', playbooks: 'le playbook' };
+    if (!names[key]) return;
+    const label = pick(r, ['intake_name', 'rule_name', 'name', 'uuid', 'id']) || '';
+    const ok = await confirmBox('Confirmer la suppression',
+      `Supprimer définitivement ${names[key]} « ${label} » ? Cette action est irréversible.`);
+    if (!ok) return;
+    const ids = { inventaire: pick(r, ['intake_uuid', 'uuid']), rules: pick(r, ['rule_uuid', 'uuid']), playbooks: pick(r, ['uuid', 'id']) };
+    const bases = { inventaire: '/sekoia/intakes', rules: '/sekoia/rules', playbooks: '/sekoia/playbooks' };
+    if (!ids[key]) return;
+    return action(`${bases[key]}/${encodeURIComponent(ids[key])}`, { method: 'DELETE' }, ccReloadCurrent);
+  }
+
+  async function ccCrudToggle(idx) {
+    const key = cc.sub; const r = cc.current[idx]; if (!r) return;
+    if (key === 'inventaire') {
+      const id = pick(r, ['intake_uuid', 'uuid']); if (!id) return;
+      const enabled = String(pick(r, ['intake_status', 'status']) || '').toLowerCase() === 'enabled';
+      return action(`/sekoia/intakes/${encodeURIComponent(id)}/${enabled ? 'disable' : 'enable'}`, { method: 'POST' }, ccReloadCurrent);
+    }
+    if (key === 'rules') {
+      const id = pick(r, ['rule_uuid', 'uuid']); if (!id) return;
+      const enabled = !!pick(r, ['rule_enabled', 'enabled']);
+      return action(`/sekoia/rules/${encodeURIComponent(id)}/${enabled ? 'disable' : 'enable'}`, { method: 'POST' }, ccReloadCurrent);
+    }
+  }
+
+  async function ccAckAlert(idx) {
+    const r = cc.current[idx]; if (!r) return;
+    const fp = pick(r, ['fingerprint']); if (!fp) { TC.toast('Fingerprint absent — acquittement impossible', 'warn'); return; }
+    try {
+      const resp = await fetch('/api/master/ingest_alerts/ack', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fingerprint: fp }),
+      });
+      const j = await resp.json().catch(() => ({}));
+      if (resp.ok && j.ok) { TC.toast(i18n.t('msg.action_effectuee'), 'ok'); ccReloadCurrent(); }
+      else TC.toast(j.error || i18n.t('msg.echec'), 'warn');
+    } catch (_) { TC.toast(i18n.t('msg.echec'), 'warn'); }
+  }
+
   function ccExportOrEnterprise(fmt) {
     if (cc.sub === 'assetprofile' && window.SekoiaEnterprise && profileHasData()) {
       const d = window.SekoiaEnterprise._profileData;

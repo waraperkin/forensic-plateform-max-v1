@@ -62,6 +62,41 @@ Si la télémétrie locale (`forensic-sekoia-telemetry*`) est absente,
 
 Webhook sortant optionnel : `SEKOIA_ALERT_WEBHOOK_URL`.
 
+### Automatisation CERT — TheHive (optionnel)
+
+Avec `SEKOIA_AUTO_THEHIVE=true` + `THEHIVE_API_KEY` (+ `SEKOIA_THEHIVE_URL`,
+défaut `http://thehive:9000`), chaque nouvelle alerte d'ingestion crée un
+**case TheHive** (`POST /api/v1/case`) : titre `[Sekoia] <règle> — <cible>`,
+sévérité mappée (critical→4 … low→1), tags `sekoia,ingestion,<règle>`,
+`sourceRef` = fingerprint (traçabilité). Le dédoublonnage fingerprint+cooldown
+garantit un case par incident. Une erreur TheHive n'interrompt jamais la
+boucle d'alertes.
+
+## Portail — Control Center Sekoia (UI)
+
+Onglet **Sekoia CC** (`portal-shared/js/sekoia-control-center.js`) :
+
+- **Inventaires CRUD** : intakes, règles, playbooks — création, édition,
+  suppression (confirmation), activation/désactivation, recherche libre.
+- **Alertes ingestion** : flux `sekoia-alerts-*` via
+  `GET /api/master/ingest_alerts`, **acquittement** par fingerprint
+  (`POST /api/master/ingest_alerts/ack`, update_by_query).
+- **Pivots inter-outils** : depuis le détail d'une alerte, liens OpenSearch
+  Discover pré-filtrés (`log.hostname`, `sekoiaio.intake.uuid`) et Timesketch.
+- Routes portail associées : `portal-cert/routes/master-ingest-meta.js`
+  (`/api/master/ingest_status`, `/ingest_volume`, `/ingest_hostnames`,
+  `/ingest_alerts`).
+
+## Validation post-déploiement
+
+```bash
+./scripts/validate-sekoia.sh
+```
+
+Smoke test VM fraîche : santé des 3 services, refus 401 sans token, endpoints
+authentifiés (intakes/rules/coverage), présence des indices `sekoia-*`.
+Cibles surchargeables via `BASE_CP` / `BASE_S1` / `BASE_MON` / `BASE_OS`.
+
 ## API interne (extrait)
 
 Base : `http://sekoia-controlplane:8901` — en-tête `X-Internal-Token`.
@@ -96,5 +131,7 @@ Base : `http://sekoia-controlplane:8901` — en-tête `X-Internal-Token`.
 
 ```bash
 cd connectors/sekoia-controlplane && python -m pytest -q   # 14 tests
-cd connectors/sekoia-monitor && python -m pytest -q        # 6 tests
+cd connectors/sekoia-monitor && python -m pytest -q        # 9 tests
+node --check portal-shared/js/sekoia-control-center.js
+node --check portal-cert/routes/master-ingest-meta.js
 ```

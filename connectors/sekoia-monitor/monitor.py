@@ -21,6 +21,8 @@ Deux boucles asyncio :
    - intake_disabled    : intake passé en état non-enabled
    - Écrit sekoia-alerts-YYYY.MM (dédoublonnage par empreinte règle+cible, cooldown)
    - Webhook sortant optionnel (ALERT_WEBHOOK_URL)
+   - Automatisation CERT optionnelle : case TheHive par alerte
+     (SEKOIA_AUTO_THEHIVE=true + THEHIVE_URL + THEHIVE_API_KEY)
 
 Santé : GET /health (port MONITOR_PORT, défaut 8903).
 """
@@ -54,6 +56,12 @@ DROP_RATIO = float(os.environ.get("DROP_RATIO", "0.5"))
 HOSTNAME_SILENCE_HOURS = int(os.environ.get("HOSTNAME_SILENCE_HOURS", "24"))
 ALERT_COOLDOWN_S = int(os.environ.get("ALERT_COOLDOWN_S", "3600"))
 ALERT_WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "")
+# Automatisation CERT : création automatique de cases TheHive sur nouvelle alerte
+THEHIVE_URL = os.environ.get("THEHIVE_URL", "").rstrip("/")
+THEHIVE_API_KEY = os.environ.get("THEHIVE_API_KEY", "")
+SEKOIA_AUTO_THEHIVE = os.environ.get("SEKOIA_AUTO_THEHIVE", "false").lower() in ("1", "true", "yes")
+# Sévérité TheHive v5 : 1=low, 2=medium, 3=high, 4=critical
+THEHIVE_SEVERITY = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 MONITOR_PORT = int(os.environ.get("MONITOR_PORT", "8903"))
 
 STATE = {
@@ -281,6 +289,34 @@ def _fingerprint(rule: str, target: str) -> str:
     return hashlib.sha256(f"{rule}:{target}".encode()).hexdigest()[:24]
 
 
+def thehive_enabled() -> bool:
+    return bool(SEKOIA_AUTO_THEHIVE and THEHIVE_URL and THEHIVE_API_KEY)
+
+
+async def create_thehive_case(client: httpx.AsyncClient, alert: dict) -> bool:
+    """Crée un case TheHive depuis une alerte d'ingestion. True si créé (HTTP 2xx)."""
+    target = (alert.get("intake_name") or alert.get("log_hostname")
+              or alert.get("intake_uuid") or "inconnu")
+    payload = {
+        "title": f"[Sekoia] {alert.get('rule')} — {target}",
+        "description": alert.get("message") or "",
+        "severity": THEHIVE_SEVERITY.get(str(alert.get("severity", "medium")), 2),
+        "tags": ["sekoia", "ingestion", str(alert.get("rule", "alert"))],
+        "source": "sekoia-monitor",
+        "sourceRef": alert.get("fingerprint", ""),
+    }
+    res = await client.post(
+        f"{THEHIVE_URL}/api/v1/case",
+        headers={"Authorization": f"Bearer {THEHIVE_API_KEY}"},
+        json=payload, timeout=15,
+    )
+    if 200 <= res.status_code < 300:
+        log.info("thehive: case créé (%s)", alert.get("fingerprint"))
+        return True
+    log.warning("thehive: HTTP %s — %s", res.status_code, res.text[:200])
+    return False
+
+
 async def _recent_alerts(client: httpx.AsyncClient) -> set[str]:
     res = await os_search(client, f"sekoia-alerts-{_month_suffix()}", {
         "size": 500,
@@ -387,6 +423,12 @@ async def alerter_loop():
                             await client.post(ALERT_WEBHOOK_URL, json={"alerts": alerts}, timeout=10)
                         except httpx.HTTPError as exc:
                             log.warning("webhook: %s", exc)
+                    if thehive_enabled():
+                        for a in alerts:
+                            try:
+                                await create_thehive_case(client, a)
+                            except httpx.HTTPError as exc:
+                                log.warning("thehive: %s", exc)
                 STATE["alerts_open"] = len(alerts)
                 STATE["last_alert_eval_ts"] = _now_iso()
             except Exception as exc:

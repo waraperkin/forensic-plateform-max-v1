@@ -763,6 +763,13 @@
 [data-edition="cybercorp"] .cc-modal .fp-input { width: 100%; margin-top: 0.3rem; }
 [data-edition="cybercorp"] .cc-modal-msg { margin: 0 0 0.4rem; color: var(--text); }
 [data-edition="cybercorp"] .cc-modal-actions { margin-top: 1rem; justify-content: flex-end; gap: 0.5rem; }
+/* CRUD (P5) : modale large + formulaire générique */
+[data-edition="cybercorp"] .cc-modal-wide { max-width: 640px; max-height: 86vh; overflow-y: auto; }
+[data-edition="cybercorp"] .cc-crud-form { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.6rem; }
+[data-edition="cybercorp"] .cc-crud-form textarea.fp-input { font-family: var(--font-mono, monospace); font-size: 0.82rem; resize: vertical; }
+[data-edition="cybercorp"] .fp-btn-danger { background: var(--danger, #e5484d); color: #fff; border: 1px solid transparent; }
+[data-edition="cybercorp"] .fp-btn-danger:hover:not(:disabled) { filter: brightness(1.1); }
+[data-edition="cybercorp"] .cc-btn-danger { color: var(--danger, #e5484d); }
 /* Aide contextuelle du panneau Configuration */
 [data-edition="cybercorp"] .cc-cfg-help { display: block; margin-top: 0.25rem; font-size: 0.78rem; color: var(--text-muted); }
 [data-edition="cybercorp"] .cc-cfg-card .fp-label { margin-bottom: 0.7rem; }

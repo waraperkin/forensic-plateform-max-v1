@@ -116,6 +116,35 @@ Base : `http://sekoia-controlplane:8901` — en-tête `X-Internal-Token`.
 | GET | `/control/sekoia/alerts` · `POST /alerts/{id}/status` · `/comment` | cycle de vie alertes SOC |
 | GET | `/control/sekoia/stats` · `/coverage` | statistiques + matrice de couverture |
 | POST | `/control/sekoia/fetch` | collecte ciblée d'événements (jobs, bornés) |
+| **v2.1** | | |
+| POST | `/control/sekoia/events/search` | recherche Lucene libre (jobs Sekoia, bornée) |
+| GET/POST/PATCH | `/control/sekoia/entities[/{id}]` | gestion des entités (asset management) |
+| GET | `/control/sekoia/rules/{id}` | détail d'une règle (payload complet) |
+| POST | `/control/sekoia/intakes/bulk` · `/rules/bulk` | activation/désactivation en masse (≤ 200 ids) |
+| GET | `/control/sekoia/local/timeseries?intake_uuid=&hours=` | séries volumétrie locale par intake |
+| GET | `/control/sekoia/local/top-hostnames?hours=&size=` | top `log.hostname` par volume |
+
+## Onglets Control Center (v2.1)
+
+| Onglet | Contenu |
+|---|---|
+| Événements | recherche Lucene libre, résultats tabulaires, détail JSON |
+| IOC / CTI | recherche fédérée OpenCTI + MISP + OpenSearch, verdict, actions TheHive/Cortex |
+| Couverture | matrice formats × règles, gaps de détection mis en évidence |
+| Volumétrie | courbes temps réel par intake, top hostnames, tableau |
+| Testeur logs | détection de format d'échantillons + formats Sekoia suggérés |
+| Inventaire / Règles | sélection multiple + activation/désactivation **en masse** |
+
+## Dashboard Grafana
+
+`Sekoia — Ingestion & Volumétrie` (uid `sekoia-ingestion`, dossier *Sekoia*) :
+volume par intake, alertes ouvertes, intakes silencieux, alertes par sévérité,
+top hostnames, volumétrie totale — datasource `OpenSearch-Sekoia` (`sekoia-*`),
+rafraîchissement 1 min. Provisionné via
+`config/grafana/provisioning/{datasources,dashboards}/sekoia.yml` +
+`dashboards/grafana/sekoia/sekoia-ingestion.json`.
+
+Voir aussi `docs/INTERCONNEXIONS.md` pour les routes CTI (`/api/cti/*`).
 
 ## Dépannage
 
@@ -130,8 +159,9 @@ Base : `http://sekoia-controlplane:8901` — en-tête `X-Internal-Token`.
 ## Tests
 
 ```bash
-cd connectors/sekoia-controlplane && python -m pytest -q   # 14 tests
+cd connectors/sekoia-controlplane && python -m pytest -q   # 26 tests
 cd connectors/sekoia-monitor && python -m pytest -q        # 9 tests
 node --check portal-shared/js/sekoia-control-center.js
 node --check portal-cert/routes/master-ingest-meta.js
+node --check portal-cert/routes/cti-routes.js
 ```

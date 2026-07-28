@@ -310,7 +310,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
 
   // Catch-all proxy : conserve méthode, query, body — restreint à une allowlist
   // de ressources (correctif audit P-06) et sans fuite de topologie interne.
-  const ALLOWED_PROXY_RE = /^\/(sekoia|s1)\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage)(\/|$)/;
+  const ALLOWED_PROXY_RE = /^\/(sekoia|s1)\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
     if (!mapped || !ALLOWED_PROXY_RE.test(req.path)) {

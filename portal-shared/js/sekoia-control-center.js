@@ -145,13 +145,17 @@
   /* ════════════════════════ SEKOIA CONTROL CENTER ════════════════════════ */
   const cc = { sub: 'overview', inv: [], stats: null, counts: null, env: {},
     connectors: [], modules: [], formats: [], playbooks: [], audit: [],
-    loaded: {}, current: [], filt: {} };
+    loaded: {}, current: [], filt: {},
+    sel: { rules: new Set(), inventaire: new Set() },
+    events: [], evQuery: {}, iocResult: null, coverage: null, volum: null };
   let ccRenderGen = 0;
   function ccRenderStale(gen) { return gen !== ccRenderGen || !document.getElementById('cc-body'); }
   const CC_SUBS = [
     ['overview', "Vue d'ensemble"], ['inventaire', 'Inventaire'], ['connectors', 'Connectors'],
     ['modules', 'Modules'], ['formats', 'Formats'], ['playbooks', 'Playbooks'],
     ['rules', i18n.t('msg.regles')], ['alerts-ingest', 'Alertes ingestion'],
+    ['events', 'Événements'], ['ioc', 'IOC / CTI'], ['coverage', 'Couverture'],
+    ['volumetry', 'Volumétrie'], ['logtester', 'Testeur logs'],
     ['stats', i18n.t('msg.stats_avancees')], ['audit', 'Audit'],
     ['querybuilder', 'Query Builder'], ['dashboard', i18n.t('msg.dashboard_builder')], ['assetprofile', 'Asset Profile'],
   ];
@@ -206,6 +210,19 @@
         'cc-del-item': (el) => ccCrudDelete(parseInt(el.dataset.idx, 10)),
         'cc-toggle-item': (el) => ccCrudToggle(parseInt(el.dataset.idx, 10)),
         'cc-ack-alert': (el) => ccAckAlert(parseInt(el.dataset.idx, 10)),
+        // ── v2.1 : événements, IOC/CTI, volumétrie, log tester, bulk ──
+        'cc-run-events': () => ccRunEvents(),
+        'cc-ev-detail': (el) => ccEventDetail(parseInt(el.dataset.idx, 10)),
+        'cc-run-ioc': () => ccRunIoc(),
+        'cc-thehive-ioc': () => ccIocToTheHive(),
+        'cc-cortex-ioc': () => ccIocToCortex(),
+        'cc-run-coverage': () => ccRunCoverage(),
+        'cc-run-volumetry': () => ccRunVolumetry(),
+        'cc-run-logtest': () => ccRunLogTest(),
+        'cc-sel-toggle': (el) => ccSelToggle(el.dataset.id),
+        'cc-sel-all': () => ccSelAll(),
+        'cc-bulk-enable': () => ccBulkApply('enable'),
+        'cc-bulk-disable': () => ccBulkApply('disable'),
       });
       const debouncedCcList = (window.PortalPerf && window.PortalPerf.debounce)
         ? window.PortalPerf.debounce(() => ccRenderList(), 120) : () => ccRenderList();
@@ -253,6 +270,11 @@
       await ccLoadSection(cc.sub, true);
       return;
     }
+    // v2.1 : onglets à données « live » — on relance l'action principale
+    if (cc.sub === 'events') { if (cc.events.length) return ccRunEvents(); return ccRenderBody(); }
+    if (cc.sub === 'ioc') { if (cc.iocResult) return ccRunIoc(); return ccRenderBody(); }
+    if (cc.sub === 'coverage') return ccRunCoverage();
+    if (cc.sub === 'volumetry') { cc.loaded.volumetry = false; return ccRunVolumetry(); }
     if (cc.sub === 'audit') return ccRenderBody();
     ccRenderBody();
   }
@@ -316,6 +338,14 @@
     if (sub === 'overview') { await ccEnsureInventory(); if (ccRenderStale(gen)) return; return ccRenderOverview(); }
     if (sub === 'inventaire') { await ccEnsureInventory(); if (ccRenderStale(gen)) return; return ccRenderExplorer('inventaire', cc.inv); }
     if (sub === 'stats') { await ccEnsureInventory(); if (ccRenderStale(gen)) return; return ccRenderStats(); }
+    if (sub === 'events') return ccRenderEvents();
+    if (sub === 'ioc') return ccRenderIoc();
+    if (sub === 'coverage') { ccRenderCoverage(); if (!cc.loaded.coverage) ccRunCoverage(); return; }
+    if (sub === 'volumetry') {
+      await ccEnsureInventory(); if (ccRenderStale(gen)) return;
+      ccRenderVolumetry(); if (!cc.loaded.volumetry) ccRunVolumetry(); return;
+    }
+    if (sub === 'logtester') return ccRenderLogTester();
     if (sub === 'audit') {
       const a = await TC.api('/audit');
       if (ccRenderStale(gen)) return;
@@ -358,10 +388,14 @@
   function ccRenderExplorer(key, items) {
     const body = document.getElementById('cc-body'); if (!body) return;
     const canCreate = ['inventaire', 'playbooks', 'rules'].includes(key);
+    const bulkable = ['inventaire', 'rules'].includes(key);
     body.innerHTML = `<div class="cc-tp-filterbar">
         <input class="fp-input fp-input-sm" id="cc-q" placeholder="🔎 Recherche libre…" value="${esc(cc.filt[key] || '')}">
         <span class="cc-tp-filter-actions">
           ${canCreate ? '<button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-new">＋ Nouveau</button>' : ''}
+          ${bulkable ? `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sel-all">☑ Tout</button>
+            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-bulk-enable">Activer (<span id="cc-sel-n">${cc.sel[key].size}</span>)</button>
+            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-bulk-disable">Désactiver</button>` : ''}
           <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-refresh-sub">↻ Rafraîchir</button>
           <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-reset">↺ Réinitialiser</button>
           ${TC.exportButtons()}</span>
@@ -379,6 +413,13 @@
     cc.current = filtered;
     const stat = document.getElementById('cc-stat'); if (stat) stat.innerHTML = `<span class="fp-muted">${filtered.length} élément(s)</span>`;
     const columns = cols.map(([label, fn]) => ({ label, render: (r) => esc(String(fn(r) ?? '—')) }));
+    // v2.1 : sélection multiple (bulk enable/disable) sur intakes + règles
+    if (['inventaire', 'rules'].includes(key)) {
+      columns.unshift({ label: '', render: (r) => {
+        const id = ccIdOf(key, r);
+        return `<input type="checkbox" data-act="cc-sel-toggle" data-id="${esc(id)}"${cc.sel[key].has(id) ? ' checked' : ''} aria-label="Sélection">`;
+      } });
+    }
     columns.push({ label: 'Actions', render: (r) => {
       const idx = filtered.indexOf(r);
       let btns = `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-detail" data-idx="${idx}">Détail</button>`;
@@ -609,6 +650,295 @@
         { label: 'Cible', render: (a) => esc(a.target_id || '—') },
         { label: 'Statut', render: (a) => a.status === 'ok' ? '<span class="fp-tag fp-tag-ok">ok</span>' : `<span class="fp-tag fp-tag-danger">${esc(a.status || '?')}</span>` },
       ], (cc.audit || []).slice(0, 50), { empty: i18n.t('msg.aucune_modification_enregistree') });
+  }
+
+  /* ═══════════════════════ v2.1 — onglets avancés ═══════════════════════════ */
+  function ccIdOf(key, r) {
+    return pick(r, key === 'rules' ? ['rule_uuid', 'uuid'] : ['intake_uuid', 'uuid']) || '';
+  }
+  function ccSelToggle(id) {
+    const s = cc.sel[cc.sub]; if (!s || !id) return;
+    if (s.has(id)) s.delete(id); else s.add(id);
+    const n = document.getElementById('cc-sel-n'); if (n) n.textContent = s.size;
+  }
+  function ccSelAll() {
+    const s = cc.sel[cc.sub]; if (!s) return;
+    const items = ccFiltered(cc.sub, cc[cc.sub] || cc.inv || []);
+    const all = items.length > 0 && items.every((r) => s.has(ccIdOf(cc.sub, r)));
+    items.forEach((r) => { const id = ccIdOf(cc.sub, r); if (all) s.delete(id); else if (id) s.add(id); });
+    ccRenderList();
+  }
+  async function ccBulkApply(act) {
+    const s = cc.sel[cc.sub];
+    if (!s || !s.size) { TC.toast('Aucun élément sélectionné', 'warn'); return; }
+    const base = cc.sub === 'rules' ? '/sekoia/rules/bulk' : '/sekoia/intakes/bulk';
+    const r = await TC.api(base, { method: 'POST', body: { ids: [...s], action: act } });
+    if (r && (r.ok || r.done != null)) {
+      TC.toast(`${act === 'enable' ? 'Activation' : 'Désactivation'} — ${r.done ?? 0} OK / ${r.failed ?? 0} échec(s)`, r.failed ? 'warn' : 'ok');
+      s.clear(); ccReloadCurrent();
+    } else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  // ── Onglet Événements : recherche Lucene libre (jobs Sekoia) ──────────────
+  function ccRenderEvents() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    const q = cc.evQuery || {};
+    body.innerHTML = `<div class="cc-tp-fetchform">
+      <div class="fp-form-row">
+        <label class="fp-label" style="flex:1">Requête Lucene Sekoia
+          <input class="fp-input" id="cc-ev-q" value="${esc(q.q || '')}" placeholder='log.hostname:"SRV-01" AND event.code:"4625"'></label>
+      </div>
+      <div class="fp-form-row fp-grid-3">
+        <label class="fp-label">Plage
+          <select class="fp-select" id="cc-ev-tr">${['1h', '24h', '7d', '30d'].map((t) => `<option${q.timeRange === t ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label class="fp-label">Max événements
+          <select class="fp-select" id="cc-ev-max">${[100, 1000, 5000, 20000].map((m) => `<option${q.maxEvents === m ? ' selected' : ''}>${m}</option>`).join('')}</select></label>
+        <label class="fp-label">&nbsp;<button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-events">Rechercher</button></label>
+      </div></div>
+      <div id="cc-ev-result" class="cc-tp-result"></div>`;
+    if (cc.events.length) ccRenderEventsResult();
+  }
+  async function ccRunEvents() {
+    const query = { q: val('cc-ev-q').trim(), timeRange: val('cc-ev-tr') || '24h',
+      maxEvents: parseInt(val('cc-ev-max') || '1000', 10) };
+    if (!query.q) { TC.toast('Requête vide', 'warn'); return; }
+    cc.evQuery = query;
+    const out = document.getElementById('cc-ev-result');
+    if (out) out.innerHTML = '<p class="fp-muted">Recherche en cours (job Sekoia — jusqu’à 3 min)…</p>';
+    const r = await TC.api('/sekoia/events/search', { method: 'POST', body: query });
+    cc.events = (r && r.items) || []; cc.evMeta = r || {};
+    ccRenderEventsResult();
+  }
+  function ccRenderEventsResult() {
+    const out = document.getElementById('cc-ev-result'); if (!out) return;
+    const meta = cc.evMeta || {};
+    const head = `<p class="fp-muted">${cc.events.length} événement(s)${meta.total != null ? ` / ${meta.total} au total` : ''}${meta.truncated ? ' — tronqué' : ''}${meta.error ? ` — <span class="fp-tag fp-tag-danger">${esc(meta.error)}</span>` : ''}</p>`;
+    out.innerHTML = head + TC.table([
+      { label: 'Horodatage', render: (e) => esc(tsOf(e) || '—') },
+      { label: 'Host', render: (e) => esc(TC.deep(e, 'log.hostname') || TC.deep(e, 'host.hostname') || '—') },
+      { label: 'Intake', render: (e) => esc(String(TC.deep(e, 'sekoiaio.intake.uuid') || '—').slice(0, 8)) },
+      { label: 'Action', render: (e) => esc(TC.deep(e, 'event.action') || TC.deep(e, 'event.code') || '—') },
+      { label: 'Message', render: (e) => esc(String(pick(e, ['message']) || '').slice(0, 160)) },
+      { label: '', render: (e) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-ev-detail" data-idx="${cc.events.indexOf(e)}">JSON</button>` },
+    ], cc.events.slice(0, 500), { empty: 'Aucun événement' });
+  }
+  function ccEventDetail(idx) {
+    const e = cc.events[idx]; if (!e) return;
+    const ov = document.createElement('div');
+    ov.className = 'cc-modal-overlay';
+    ov.innerHTML = `<div class="cc-modal cc-modal-wide"><h3>Événement</h3>
+      <pre class="cc-payload"><code>${esc(JSON.stringify(e, null, 2))}</code></pre>
+      <div class="fp-actions-row fp-section-spaced"><button type="button" class="fp-btn fp-btn-ghost" data-x="cancel">Fermer</button></div></div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (ev2) => { if (ev2.target === ov || ev2.target.closest('[data-x]')) ov.remove(); });
+  }
+
+  // ── Onglet IOC / CTI : recherche fédérée OpenCTI + MISP + OpenSearch ──────
+  function ccRenderIoc() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    body.innerHTML = `<div class="cc-tp-fetchform">
+      <div class="fp-form-row">
+        <label class="fp-label" style="flex:1">IOC (IP, domaine, hash, URL…)
+          <input class="fp-input" id="cc-ioc-q" value="${esc(cc.iocQuery || '')}" placeholder="1.2.3.4 / evil.example / sha256…"></label>
+        <button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-ioc">Recherche fédérée</button>
+      </div></div>
+      <div id="cc-ioc-result" class="cc-tp-result"></div>`;
+    if (cc.iocResult) ccRenderIocResult();
+  }
+  function ccIocType(q) {
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(q)) return 'ip';
+    if (/^[a-f0-9]{32}$/i.test(q)) return 'md5';
+    if (/^[a-f0-9]{40}$/i.test(q)) return 'sha1';
+    if (/^[a-f0-9]{64}$/i.test(q)) return 'sha256';
+    if (/^https?:\/\//i.test(q)) return 'url';
+    if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(q)) return 'domain';
+    return 'other';
+  }
+  async function ccRunIoc() {
+    const q = val('cc-ioc-q').trim(); if (!q) { TC.toast('IOC vide', 'warn'); return; }
+    cc.iocQuery = q;
+    const out = document.getElementById('cc-ioc-result');
+    if (out) out.innerHTML = '<p class="fp-muted">Interrogation OpenCTI + MISP + OpenSearch…</p>';
+    try {
+      const r = await fetch(`/api/master/ioc_search?q=${encodeURIComponent(q)}`, { credentials: 'include', cache: 'no-store' });
+      cc.iocResult = await r.json();
+    } catch (_) { cc.iocResult = { error: 'Endpoint indisponible' }; }
+    ccRenderIocResult();
+  }
+  function ccRenderIocResult() {
+    const out = document.getElementById('cc-ioc-result'); if (!out) return;
+    const r = cc.iocResult || {};
+    if (r.error) { out.innerHTML = `<p><span class="fp-tag fp-tag-danger">${esc(r.error)}</span></p>`; return; }
+    const badge = r.known
+      ? `<span class="fp-tag fp-tag-danger">Connu — ${esc((r.seen_in || []).join(', '))}</span>`
+      : '<span class="fp-tag fp-tag-ok">Non référencé dans les sources CTI</span>';
+    const srcBlock = (name, s, cols) => `<div class="cc-stat-block fp-section-spaced"><h4 class="fp-section-sub">${name} — ${s.count ?? 0} hit(s)${s.error ? ` <span class="fp-tag fp-tag-danger">${esc(s.error)}</span>` : ''}${s.configured === false ? ' <span class="fp-tag">non configuré</span>' : ''}</h4>
+      ${TC.table(cols, (s.items || []).slice(0, 25), { empty: 'Aucun hit' })}</div>`;
+    const so = r.sources || {};
+    out.innerHTML = `<div class="fp-actions-row fp-section-spaced">${badge}
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-thehive-ioc">Case TheHive</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-cortex-ioc">Analyser (Cortex)</button></div>
+      ${srcBlock('OpenCTI', so.opencti || {}, [
+        { label: 'Type', render: (i2) => esc(i2.kind || '') },
+        { label: 'Valeur', render: (i2) => esc(String(i2.value || '').slice(0, 120)) },
+        { label: 'Nom', render: (i2) => esc(i2.name || '—') },
+        { label: 'Score', render: (i2) => String(i2.score ?? i2.confidence ?? '—') },
+      ])}
+      ${srcBlock('MISP', so.misp || {}, [
+        { label: 'Type', render: (i2) => esc(i2.type || '') },
+        { label: 'Catégorie', render: (i2) => esc(i2.category || '') },
+        { label: 'Valeur', render: (i2) => esc(String(i2.value || '').slice(0, 120)) },
+        { label: 'Event', render: (i2) => esc(String(i2.event_id || '—')) },
+      ])}
+      ${srcBlock('OpenSearch TI (local)', so.opensearch || {}, [
+        { label: 'Index', render: (i2) => esc(i2.index || '') },
+        { label: 'Valeur', render: (i2) => esc(String(i2.value || '').slice(0, 120)) },
+        { label: 'Date', render: (i2) => esc(i2.created || '—') },
+      ])}`;
+  }
+  async function ccIocToTheHive() {
+    const q = cc.iocQuery; if (!q) return;
+    const r = cc.iocResult || {};
+    try {
+      const resp = await fetch('/api/cti/thehive/case', { method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: `[CTI] IOC ${q.slice(0, 80)}`,
+          description: `IOC ${q}\nSources : ${(r.seen_in || []).join(', ') || 'aucune'}\nHits : ${r.total ?? 0}`,
+          severity: r.known ? 'high' : 'low', tags: ['cti', 'ioc'],
+          observables: [{ data: q, dataType: ccIocType(q), ioc: !!r.known }] }) });
+      const j = await resp.json().catch(() => ({}));
+      TC.toast(j.ok ? 'Case TheHive créé' : (j.error || i18n.t('msg.echec')), j.ok ? 'ok' : 'warn');
+    } catch (_) { TC.toast(i18n.t('msg.echec'), 'warn'); }
+  }
+  async function ccIocToCortex() {
+    const q = cc.iocQuery; if (!q) return;
+    try {
+      const resp = await fetch('/api/cti/cortex/analyze', { method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: q, dataType: ccIocType(q) }) });
+      const j = await resp.json().catch(() => ({}));
+      const okN = (j.jobs || []).filter((x) => x.ok).length;
+      TC.toast(j.ok ? `Cortex : ${okN} analyse(s) lancée(s)` : (j.error || i18n.t('msg.echec')), j.ok ? 'ok' : 'warn');
+    } catch (_) { TC.toast(i18n.t('msg.echec'), 'warn'); }
+  }
+
+  // ── Onglet Couverture : matrice formats × règles (gaps de détection) ──────
+  async function ccRunCoverage() {
+    const r = await TC.api('/sekoia/coverage');
+    cc.coverage = r || {}; cc.loaded.coverage = true;
+    if (cc.sub === 'coverage') ccRenderCoverage();
+  }
+  function ccRenderCoverage() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    const c = cc.coverage;
+    if (!c) { body.innerHTML = TC.tableLoading(3, i18n.t('ui.loading')); return; }
+    const s = c.summary || {}; const rows = c.coverage || [];
+    body.innerHTML = `<div class="cc-tp-dashgrid">
+        ${TC.statCard('Formats avec règles', s.formats_with_rules ?? rows.length, 'accent')}
+        ${TC.statCard('Formats ingérés', s.formats_ingested ?? '—')}
+        ${TC.statCard('Ingérés SANS règle', s.ingested_without_rules ?? (c.gaps || []).length, 'warn')}</div>
+      <div class="fp-actions-row fp-section-spaced"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-run-coverage">↻ Rafraîchir</button></div>`
+      + TC.table([
+        { label: 'Format', render: (r2) => esc(r2.format_name || r2.format_uuid || '—') },
+        { label: 'Règles', render: (r2) => String(r2.rules_count ?? 0) },
+        { label: 'Ingéré', render: (r2) => (r2.ingested ? '✔' : '✘') },
+        { label: 'Gap', render: (r2) => (r2.gap ? '<span class="fp-tag fp-tag-danger">GAP — intake actif sans règle</span>' : '') },
+      ], rows, { empty: c.error ? esc(c.error) : 'Aucune donnée de couverture' });
+  }
+
+  // ── Onglet Volumétrie : séries temps réel + top hostnames ─────────────────
+  function ccRenderVolumetry() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    body.innerHTML = `<div class="cc-tp-fetchform"><div class="fp-form-row fp-grid-3">
+        <label class="fp-label">Fenêtre
+          <select class="fp-select" id="cc-vol-h">${[6, 24, 72, 168].map((h) => `<option value="${h}"${cc.volHours === h ? ' selected' : ''}>${h} h</option>`).join('')}</select></label>
+        <label class="fp-label">Intake (optionnel)
+          <select class="fp-select" id="cc-vol-intake"><option value="">Tous</option>
+            ${(cc.inv || []).map((i2) => { const u = pick(i2, ['intake_uuid', 'uuid']) || ''; return `<option value="${esc(u)}"${cc.volIntake === u ? ' selected' : ''}>${esc(pick(i2, ['intake_name', 'name']) || '')}</option>`; }).join('')}</select></label>
+        <label class="fp-label">&nbsp;<button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-volumetry">Charger</button></label>
+      </div></div>
+      <div class="cc-tp-grid"><div id="cc-vol-ts" class="cc-tp-chart"></div><div id="cc-vol-hosts" class="cc-tp-chart"></div></div>
+      <div id="cc-vol-table"></div>`;
+  }
+  async function ccRunVolumetry() {
+    const hours = parseInt(val('cc-vol-h') || '24', 10) || 24;
+    const intake = val('cc-vol-intake') || '';
+    cc.volHours = hours; cc.volIntake = intake;
+    const qs = `?hours=${hours}${intake ? `&intake_uuid=${encodeURIComponent(intake)}` : ''}`;
+    const [ts, hosts] = await Promise.all([
+      TC.api(`/sekoia/local/timeseries${qs}`),
+      TC.api(`/sekoia/local/top-hostnames${qs}&size=20`),
+    ]);
+    cc.volum = { ts: ts || {}, hosts: hosts || {} }; cc.loaded.volumetry = true;
+    if (cc.sub !== 'volumetry') return;
+    const nameOf = (u) => {
+      const f = (cc.inv || []).find((i2) => pick(i2, ['intake_uuid', 'uuid']) === u);
+      return f ? (pick(f, ['intake_name', 'name']) || String(u).slice(0, 8)) : String(u).slice(0, 8);
+    };
+    const series = [];
+    if (ts && ts.available) {
+      series.push({ name: 'Total', type: 'line', showSymbol: false, smooth: true,
+        lineStyle: { width: 2.5 }, data: (ts.total || []).map((p) => [p.ts, p.count]) });
+      (ts.series || []).slice(0, 5).forEach((s2) => series.push({ name: nameOf(s2.intake_uuid),
+        type: 'line', showSymbol: false, smooth: true, data: (s2.points || []).map((p) => [p.ts, p.count]) }));
+    }
+    TC.chart('cc-vol-ts', { tooltip: { trigger: 'axis' },
+      legend: { type: 'scroll' },
+      grid: { left: 56, right: 16, top: 34, bottom: 28 },
+      xAxis: { type: 'time' }, yAxis: { type: 'value', name: 'events/h' }, series }, 300);
+    const items = (hosts && hosts.items) || [];
+    TC.chart('cc-vol-hosts', TC.barOption(
+      Object.fromEntries(items.slice(0, 12).map((h) => [h.log_hostname, h.count])), '#0A84FF'), 300);
+    const tbl = document.getElementById('cc-vol-table');
+    if (tbl) tbl.innerHTML = `<h4 class="fp-section-sub fp-section-spaced">Top hostnames (${items.length})</h4>`
+      + TC.table([
+        { label: 'log.hostname', render: (h) => esc(h.log_hostname || '—') },
+        { label: 'Volume', render: (h) => String(h.count ?? 0) },
+        { label: 'Dernier événement', render: (h) => esc(h.last_seen || '—') },
+      ], items, { empty: (ts && ts.error) || 'Pas de données de volumétrie (télémétrie locale absente)' });
+  }
+
+  // ── Onglet Testeur de logs : détection de format + suggestion Sekoia ──────
+  function ccRenderLogTester() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    body.innerHTML = `<div class="cc-tp-fetchform">
+      <label class="fp-label">Collez des échantillons de logs (une ligne par événement, max 20)
+        <textarea class="fp-input" id="cc-lt-samples" rows="8" placeholder='<34>Oct 11 22:14:15 myhost su: session opened&#10;CEF:0|Vendor|Product|1.0|100|evt|5|src=1.2.3.4&#10;{"@timestamp":"2026-07-29T00:00:00Z","message":"…"}'></textarea></label>
+      <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-logtest">Détecter le format</button></div></div>
+      <div id="cc-lt-result" class="cc-tp-result"></div>`;
+  }
+  async function ccRunLogTest() {
+    const samples = val('cc-lt-samples').split('\n').map((s) => s.trim()).filter(Boolean);
+    if (!samples.length) { TC.toast('Aucun échantillon', 'warn'); return; }
+    let r;
+    try {
+      const resp = await fetch('/api/master/logformat/detect', { method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ samples }) });
+      r = await resp.json();
+    } catch (_) { r = { error: 'Endpoint indisponible' }; }
+    const out = document.getElementById('cc-lt-result'); if (!out) return;
+    if (r.error) { out.innerHTML = `<p><span class="fp-tag fp-tag-danger">${esc(r.error)}</span></p>`; return; }
+    if (!cc.loaded.formats) ccLoadSection('formats'); // pré-charge pour suggestions ultérieures
+    const dom = r.dominant || {};
+    const kw = { cef: ['cef', 'arcsight'], leef: ['leef', 'qradar'], json: ['json'],
+      'winevent-xml': ['windows', 'event'], 'syslog-5424': ['syslog'], 'syslog-3164': ['syslog'],
+      kv: ['kv', 'key'], csv: ['csv'], clf: ['apache', 'nginx', 'http', 'access'] }[dom.format] || [];
+    const suggestions = (cc.formats || []).filter((f) => {
+      const n = String(pick(f, ['name', 'title', 'slug']) || '').toLowerCase();
+      return kw.some((k) => n.includes(k));
+    }).slice(0, 8);
+    out.innerHTML = `<p class="fp-section-spaced">Format dominant : <span class="fp-tag">${esc(dom.format || 'n/a')}</span>
+        — ${Math.round((dom.ratio || 0) * 100)}% des ${r.count} ligne(s)</p>`
+      + TC.table([
+        { label: 'Échantillon', render: (d) => esc(String(d.sample).slice(0, 120)) },
+        { label: 'Format détecté', render: (d) => `<span class="fp-tag">${esc(d.name)}</span>` },
+        { label: 'Confiance', render: (d) => `${Math.round((d.confidence || 0) * 100)}%` },
+      ], r.detections || [], { empty: 'Aucune ligne' })
+      + (suggestions.length ? `<h4 class="fp-section-sub fp-section-spaced">Formats Sekoia suggérés</h4>`
+        + TC.table([
+          { label: 'Format', render: (f) => esc(pick(f, ['name', 'title', 'slug']) || '—') },
+          { label: 'UUID', render: (f) => esc(pick(f, ['uuid', 'id']) || '—') },
+        ], suggestions, { empty: '—' }) : '');
   }
 
   /* ════════════════════════════ XDR VIEW ════════════════════════════════ */

@@ -919,6 +919,7 @@ services:
       - ./dashboards/grafana/forensic-legacy:/var/lib/grafana/dashboards/forensic-legacy:ro
       - ./dashboards/grafana/helk:/var/lib/grafana/dashboards/helk:ro
       - ./dashboards/grafana/velociraptor:/var/lib/grafana/dashboards/velociraptor:ro
+      - ./dashboards/grafana/sekoia:/var/lib/grafana/dashboards/sekoia:ro
     ports:
       - "127.0.0.1:${FP_GRAFANA_PORT:-3001}:3000"
     networks:
@@ -1230,6 +1231,12 @@ services:
       - PORTAINER_ADMIN_PASSWORD=${PORTAINER_ADMIN_PASSWORD}
       - CORTEX_SECRET=${CORTEX_SECRET}
       - CORTEX_ADMIN_PASSWORD=${CORTEX_ADMIN_PASSWORD:-}
+      # Interconnexions CTI (routes /api/cti/*, /api/master/ioc_search)
+      - CORTEX_URL=${CORTEX_URL:-http://cortex:9001}
+      - CORTEX_API_KEY=${CORTEX_API_KEY:-}
+      - MISP_URL=${MISP_URL:-http://misp:80}
+      - MISP_ADMIN_API_KEY=${MISP_ADMIN_API_KEY:-}
+      - THEHIVE_API_KEY=${THEHIVE_API_KEY:-}
       - IT_PORTAL_SECRET=${IT_PORTAL_SECRET}
       - CERT_PORTAL_SECRET=${CERT_PORTAL_SECRET}
       # P-14 : secret HMAC dédié aux sessions (repli sur CERT_PORTAL_SECRET)

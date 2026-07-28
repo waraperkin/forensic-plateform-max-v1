@@ -32,6 +32,7 @@ const { createMasterRoutes } = require('./lib/master-routes');
 const { createMasterIntakesRoutes } = require('./routes/master-intakes');
 const { createMasterIngestErrorsRoutes } = require('./routes/master-ingest-errors');
 const { createMasterIngestMetaRoutes } = require('./routes/master-ingest-meta');
+const { createCtiRoutes } = require('./routes/cti-routes');
 const { mountAuth } = require('./lib/auth-mount');
 const { createOverviewRouter } = require('./lib/platform-overview');
 const { createAuditRouter, appendAuditFile } = require('./lib/audit-log');
@@ -750,6 +751,7 @@ app.use('/api', createMasterRoutes({ os, axios, CFG, logger, getServicesCheck })
 app.use('/api', createMasterIntakesRoutes({ os, logger, axios }));
 app.use('/api', createMasterIngestErrorsRoutes({ os, logger }));
 app.use('/api', createMasterIngestMetaRoutes({ os, logger }));
+app.use('/api', createCtiRoutes({ axios, os, logger }));
 app.use('/api', createHelkRoutes({ logger }));
 app.use('/api', createVelociraptorRoutes({ logger, os }));
 app.use('/api', createForensicReportRoutes({ os, logger }));

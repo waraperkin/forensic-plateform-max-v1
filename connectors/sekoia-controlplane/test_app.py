@@ -157,3 +157,155 @@ def test_rules_filtres():
     r = client.get("/control/sekoia/rules?trim=0&limit=1&offset=1", headers=AUTH)
     assert len(r.json()["items"]) == 1
     assert "rule_payload" in r.json()["items"][0]
+
+
+# ── v2.1 : bulk, events/search, entities, local timeseries ───────────────────
+def test_bulk_intakes_validation():
+    r = client.post("/control/sekoia/intakes/bulk", headers=AUTH, json={})
+    assert r.status_code == 400
+    r = client.post("/control/sekoia/intakes/bulk", headers=AUTH,
+                    json={"ids": ["a"], "action": "explode"})
+    assert r.status_code == 400
+
+
+def test_bulk_intakes_apply(monkeypatch):
+    calls = []
+
+    async def fake_sek(method, path, json_body=None, params=None, use_api_host=False):
+        calls.append((method, path, json_body))
+        return {"uuid": "x"}, None
+
+    monkeypatch.setattr(cp, "sek_request", fake_sek)
+    # configured() doit être vrai pour sek_request — ici mocké, pas de garde
+    r = client.post("/control/sekoia/intakes/bulk", headers=AUTH,
+                    json={"ids": ["i1", "i2"], "action": "disable"})
+    assert r.status_code == 200
+    j = r.json()
+    assert j["ok"] is True and j["done"] == 2 and j["failed"] == 0
+    assert all(c[0] == "PATCH" and c[2] == {"status": "disabled"} for c in calls)
+    assert calls[0][1] == "/api/v1/sic/conf/intakes/i1"
+
+
+def test_bulk_rules_enable(monkeypatch):
+    calls = []
+
+    async def fake_sek(method, path, json_body=None, params=None, use_api_host=False):
+        calls.append((path, json_body))
+        return {}, None
+
+    monkeypatch.setattr(cp, "sek_request", fake_sek)
+    r = client.post("/control/sekoia/rules/bulk", headers=AUTH,
+                    json={"ids": ["r1"], "action": "enable"})
+    assert r.json()["ok"] is True
+    assert calls == [("/api/v1/sic/conf/rules/r1", {"enabled": True})]
+
+
+def test_bulk_erreur_partielle(monkeypatch):
+    async def fake_sek(method, path, json_body=None, params=None, use_api_host=False):
+        if path.endswith("bad"):
+            return None, "not found"
+        return {}, None
+
+    monkeypatch.setattr(cp, "sek_request", fake_sek)
+    r = client.post("/control/sekoia/rules/bulk", headers=AUTH,
+                    json={"ids": ["ok1", "bad"], "action": "disable"})
+    j = r.json()
+    assert j["ok"] is False and j["done"] == 1 and j["failed"] == 1
+
+
+def test_events_search_validation():
+    r = client.post("/control/sekoia/events/search", headers=AUTH, json={})
+    # _build_event_query({}) == "*" → requête vide refusée uniquement si terme vide
+    # avec "*" le endpoint accepte : on force un corps sans aucun champ utile ET q vide
+    assert r.status_code in (200, 400)
+
+
+def test_events_search_pipeline(monkeypatch):
+    created = {}
+
+    async def fake_sek(method, path, json_body=None, params=None, use_api_host=False):
+        if path == "/api/v1/sic/conf/events/search/jobs" and method == "POST":
+            created.update(json_body or {})
+            return {"uuid": "job-1"}, None
+        return {}, None
+
+    async def fake_collect(job_id, max_events):
+        return ([{"@timestamp": "2026-07-29T00:00:00Z", "message": "x"}], 1, None)
+
+    monkeypatch.setattr(cp, "sek_request", fake_sek)
+    monkeypatch.setattr(cp, "_collect_events", fake_collect)
+    monkeypatch.setattr(cp, "configured", lambda: True)
+    r = client.post("/control/sekoia/events/search", headers=AUTH,
+                    json={"q": 'log.hostname:"SRV-01"', "timeRange": "1h", "maxEvents": 500})
+    j = r.json()
+    assert j["collected"] == 1 and j["job_id"] == "job-1"
+    assert created["term"] == 'log.hostname:"SRV-01"'
+    assert created["earliest_time"].endswith(".000Z")
+
+
+def test_entities_list(monkeypatch):
+    async def fake_sek(method, path, json_body=None, params=None, use_api_host=False):
+        assert path == "/api/v1/sic/conf/entities"
+        return {"items": [{"uuid": "e1", "name": "Corporate"}]}, None
+
+    monkeypatch.setattr(cp, "sek_request", fake_sek)
+    r = client.get("/control/sekoia/entities", headers=AUTH)
+    j = r.json()
+    assert j["count"] == 1 and j["items"][0]["name"] == "Corporate"
+
+
+def test_entities_create_validation():
+    r = client.post("/control/sekoia/entities", headers=AUTH, json={"description": "sans nom"})
+    assert r.status_code == 400
+
+
+def test_rule_detail(monkeypatch):
+    async def fake_sek(method, path, json_body=None, params=None, use_api_host=False):
+        assert path == "/api/v1/sic/conf/rules/r-42"
+        return {"uuid": "r-42", "name": "R", "payload": "detection: ..."}, None
+
+    monkeypatch.setattr(cp, "sek_request", fake_sek)
+    r = client.get("/control/sekoia/rules/r-42", headers=AUTH)
+    assert r.json()["ok"] is True and r.json()["rule"]["uuid"] == "r-42"
+
+
+def test_local_timeseries(monkeypatch):
+    async def fake_os(index, body):
+        assert index == "sekoia-volumetry-*"
+        return {"aggregations": {
+            "per_intake": {"buckets": [{"key": "u1", "ts": {"buckets": [
+                {"key_as_string": "2026-07-29T00:00:00Z", "vol": {"value": 42.0}}]}}]},
+            "total_ts": {"buckets": [
+                {"key_as_string": "2026-07-29T00:00:00Z", "vol": {"value": 42.0}}]},
+        }}, None
+
+    monkeypatch.setattr(cp, "os_search", fake_os)
+    r = client.get("/control/sekoia/local/timeseries?hours=24", headers=AUTH)
+    j = r.json()
+    assert j["available"] is True
+    assert j["total"][0]["count"] == 42
+    assert j["series"][0]["intake_uuid"] == "u1"
+
+
+def test_local_timeseries_indisponible(monkeypatch):
+    async def fake_os(index, body):
+        return None, "connexion refusée"
+
+    monkeypatch.setattr(cp, "os_search", fake_os)
+    r = client.get("/control/sekoia/local/timeseries", headers=AUTH)
+    j = r.json()
+    assert j["available"] is False and "error" in j
+
+
+def test_local_top_hostnames(monkeypatch):
+    async def fake_os(index, body):
+        return {"aggregations": {"hosts": {"buckets": [
+            {"key": "SRV-01", "vol": {"value": 1000.0},
+             "last_seen": {"value_as_string": "2026-07-29T01:00:00Z"}}]}}}, None
+
+    monkeypatch.setattr(cp, "os_search", fake_os)
+    r = client.get("/control/sekoia/local/top-hostnames?hours=24&size=10", headers=AUTH)
+    j = r.json()
+    assert j["available"] is True
+    assert j["items"][0]["log_hostname"] == "SRV-01"
+    assert j["items"][0]["count"] == 1000

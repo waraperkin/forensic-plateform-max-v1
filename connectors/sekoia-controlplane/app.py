@@ -59,7 +59,7 @@ FORMAT_MAP = {
 }
 DIALECT_REGEX = re.compile(r'sekoiaio\.intake\.dialect_uuid:\s*"(.*?)"')
 
-app = FastAPI(title="sekoia-controlplane", version="2.0.0", docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="sekoia-controlplane", version="2.1.0", docs_url=None, redoc_url=None, openapi_url=None)
 
 
 # ── Auth interne ──────────────────────────────────────────────────────────────
@@ -1088,6 +1088,201 @@ async def fetch_events(request: Request):
         "total": total, "collected": len(events), "max_events": max_events,
         "truncated": truncated, "forward_timesketch": bool(body.get("toTimesketch")),
     })
+
+
+# ═══════════════════════ v2.1 — extensions plateforme ════════════════════════
+# OpenSearch local (indices écrits par sekoia-monitor) — volumétrie réelle.
+OS_URL = os.environ.get("OPENSEARCH_URL", "http://opensearch-node1:9200").rstrip("/")
+OS_USER = os.environ.get("OPENSEARCH_USER", "")
+OS_PASSWORD = os.environ.get("OPENSEARCH_PASSWORD", "")
+
+
+async def os_search(index: str, body: dict) -> tuple[Optional[dict], Optional[str]]:
+    """Requête _search sur l'OpenSearch local. (payload, erreur)."""
+    auth = (OS_USER, OS_PASSWORD) if OS_PASSWORD else None
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, auth=auth) as c:
+            r = await c.post(f"{OS_URL}/{index}/_search", json=body)
+        if r.status_code >= 400:
+            return None, f"OpenSearch HTTP {r.status_code}"
+        return r.json(), None
+    except httpx.HTTPError as exc:
+        return None, str(exc)
+
+
+# ── Recherche d'événements libre (au-delà de la console Sekoia) ──────────────
+@app.post("/control/sekoia/events/search", dependencies=[Depends(require_internal_token)])
+async def events_search(request: Request):
+    """Recherche d'événements par requête libre (Lucene Sekoia) via jobs.
+
+    Body : { q | rawQuery, timeRange | fromTime/toTime, maxEvents }.
+    Réutilise le pipeline jobs éprouvé de /fetch. Réponse bornée (EVENTS_MAX_CAP).
+    """
+    body = await request.json()
+    term = (body.get("q") or body.get("rawQuery") or body.get("raw_query") or "").strip()
+    if not term:
+        term = _build_event_query(body)
+    if not term:
+        return JSONResponse({"error": "Requête vide", "items": []}, status_code=400)
+    earliest, latest = _resolve_range(body)
+    query_info = {"term": term, "earliest_time": earliest, "latest_time": latest}
+    try:
+        max_events = int(body.get("maxEvents") or body.get("max_events") or 1000)
+    except (TypeError, ValueError):
+        max_events = 1000
+    max_events = max(EVENTS_PAGE, min(max_events, EVENTS_MAX_CAP))
+
+    if not configured():
+        return envelope([], extra={"query": query_info,
+                                   "note": "Sekoia non configuré — recherche indisponible"})
+    job, err = await sek_request("POST", "/api/v1/sic/conf/events/search/jobs", json_body=query_info)
+    if err:
+        return envelope([], error=err, extra={"query": query_info})
+    job_id = (job or {}).get("uuid") or (job or {}).get("id")
+    events, total, err = ([], None, err)
+    if job_id:
+        events, total, err = await _collect_events(job_id, max_events)
+    return envelope(events, error=err, source="sekoia-events", extra={
+        "query": query_info, "job_id": job_id, "total": total,
+        "collected": len(events), "max_events": max_events,
+        "truncated": bool(total and total > len(events)),
+    })
+
+
+# ── Entités Sekoia (asset management) ─────────────────────────────────────────
+@app.get("/control/sekoia/entities", dependencies=[Depends(require_internal_token)])
+async def list_entities():
+    items, offset, err = [], 0, None
+    while True:
+        payload, err = await sek_request(
+            "GET", "/api/v1/sic/conf/entities",
+            params={"limit": PAGE_LIMIT, "offset": offset})
+        if err:
+            break
+        batch = (payload or {}).get("items") or []
+        items.extend(batch)
+        if len(batch) < PAGE_LIMIT or len(items) >= PAGE_LIMIT * MAX_PAGES:
+            break
+        offset += PAGE_LIMIT
+    return envelope(items, error=err, extra={"resource": "entities"})
+
+
+@app.post("/control/sekoia/entities", dependencies=[Depends(require_internal_token)])
+async def create_entity(request: Request):
+    body = await request.json()
+    if not (body.get("name") or "").strip():
+        return JSONResponse({"ok": False, "error": "name requis"}, status_code=400)
+    payload, err = await sek_request("POST", "/api/v1/sic/conf/entities", json_body=body)
+    invalidate_cache()
+    return {"ok": err is None, "error": err, "entity": payload}
+
+
+@app.patch("/control/sekoia/entities/{entity_id}", dependencies=[Depends(require_internal_token)])
+async def patch_entity(entity_id: str, request: Request):
+    body = await request.json()
+    payload, err = await sek_request("PATCH", f"/api/v1/sic/conf/entities/{entity_id}", json_body=body)
+    invalidate_cache()
+    return {"ok": err is None, "error": err, "entity": payload, "id": entity_id}
+
+
+# ── Détail d'une règle (payload complet, sans trim) ───────────────────────────
+@app.get("/control/sekoia/rules/{rule_id}", dependencies=[Depends(require_internal_token)])
+async def rule_detail(rule_id: str):
+    payload, err = await sek_request("GET", f"/api/v1/sic/conf/rules/{rule_id}")
+    return {"ok": err is None, "error": err, "rule": payload, "id": rule_id}
+
+
+# ── Opérations en masse (absentes de la console Sekoia) ───────────────────────
+async def _bulk_apply(ids: list, action: str, patch_path: str, patch_body: dict) -> dict:
+    results = []
+    for i in ids:
+        _, err = await sek_request("PATCH", patch_path.format(id=i), json_body=patch_body)
+        results.append({"id": i, "ok": err is None, "error": err})
+    invalidate_cache()
+    return {"ok": all(r["ok"] for r in results), "action": action,
+            "done": sum(1 for r in results if r["ok"]), "failed": sum(1 for r in results if not r["ok"]),
+            "results": results}
+
+
+def _parse_bulk(body: dict) -> tuple[list, str, Optional[JSONResponse]]:
+    ids = [str(x) for x in (body.get("ids") or []) if x][:200]
+    action = str(body.get("action") or "").lower()
+    if not ids:
+        return [], action, JSONResponse({"ok": False, "error": "ids[] requis (max 200)"}, status_code=400)
+    if action not in ("enable", "disable"):
+        return ids, action, JSONResponse({"ok": False, "error": "action enable|disable requis"}, status_code=400)
+    return ids, action, None
+
+
+@app.post("/control/sekoia/intakes/bulk", dependencies=[Depends(require_internal_token)])
+async def bulk_intakes(request: Request):
+    ids, action, bad = _parse_bulk(await request.json())
+    if bad:
+        return bad
+    return await _bulk_apply(ids, action, "/api/v1/sic/conf/intakes/{id}",
+                             {"status": "enabled" if action == "enable" else "disabled"})
+
+
+@app.post("/control/sekoia/rules/bulk", dependencies=[Depends(require_internal_token)])
+async def bulk_rules(request: Request):
+    ids, action, bad = _parse_bulk(await request.json())
+    if bad:
+        return bad
+    return await _bulk_apply(ids, action, "/api/v1/sic/conf/rules/{id}",
+                             {"enabled": action == "enable"})
+
+
+# ── Volumétrie locale temps réel (indices sekoia-monitor) ────────────────────
+@app.get("/control/sekoia/local/timeseries", dependencies=[Depends(require_internal_token)])
+async def local_timeseries(intake_uuid: str = "", hours: int = 24):
+    """Séries temporelles de volumétrie par intake — données locales RÉELLES."""
+    hours = max(1, min(hours, 24 * 30))
+    interval = "1h" if hours <= 72 else "1d"
+    filters: list = [{"range": {"@timestamp": {"gte": f"now-{hours}h"}}}]
+    if intake_uuid:
+        filters.append({"term": {"intake_uuid": intake_uuid}})
+    body = {"size": 0, "query": {"bool": {"filter": filters}}, "aggs": {
+        "per_intake": {"terms": {"field": "intake_uuid", "size": 25}, "aggs": {
+            "ts": {"date_histogram": {"field": "@timestamp", "fixed_interval": interval},
+                   "aggs": {"vol": {"sum": {"field": "count_1h"}}}}}},
+        "total_ts": {"date_histogram": {"field": "@timestamp", "fixed_interval": interval},
+                     "aggs": {"vol": {"sum": {"field": "count_1h"}}}}}}
+    res, err = await os_search("sekoia-volumetry-*", body)
+    if err:
+        return {"available": False, "error": err, "series": [], "total": []}
+    aggs = (res or {}).get("aggregations") or {}
+
+    def points(buckets):
+        return [{"ts": p.get("key_as_string"), "count": round((p.get("vol") or {}).get("value") or 0)}
+                for p in buckets]
+
+    series = [{"intake_uuid": b["key"], "points": points(b["ts"]["buckets"])}
+              for b in aggs.get("per_intake", {}).get("buckets", [])]
+    total = points(aggs.get("total_ts", {}).get("buckets", []))
+    return {"available": bool(total), "interval": interval, "hours": hours,
+            "series": series, "total": total}
+
+
+@app.get("/control/sekoia/local/top-hostnames", dependencies=[Depends(require_internal_token)])
+async def local_top_hostnames(hours: int = 24, size: int = 50, intake_uuid: str = ""):
+    """Top log.hostname par volume — suivi des sources derrière chaque intake."""
+    hours = max(1, min(hours, 24 * 30))
+    size = max(1, min(size, 500))
+    filters: list = [{"range": {"@timestamp": {"gte": f"now-{hours}h"}}}]
+    if intake_uuid:
+        filters.append({"term": {"intake_uuid": intake_uuid}})
+    body = {"size": 0, "query": {"bool": {"filter": filters}}, "aggs": {
+        "hosts": {"terms": {"field": "log_hostname", "size": size}, "aggs": {
+            "vol": {"sum": {"field": "count_1h"}},
+            "last_seen": {"max": {"field": "@timestamp"}}}}}}
+    res, err = await os_search("sekoia-volumetry-*", body)
+    if err:
+        return {"available": False, "error": err, "items": []}
+    items = [{"log_hostname": b["key"],
+              "count": round((b.get("vol") or {}).get("value") or 0),
+              "last_seen": (b.get("last_seen") or {}).get("value_as_string")}
+             for b in ((res or {}).get("aggregations") or {}).get("hosts", {}).get("buckets", [])]
+    return {"available": bool(items), "hours": hours, "count": len(items), "items": items}
 
 
 if __name__ == "__main__":

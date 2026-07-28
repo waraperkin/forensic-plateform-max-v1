@@ -1,0 +1,141 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        {
+          "bucketAggs": [
+            { "field": "intake_uuid", "id": "3", "settings": { "min_doc_count": 1, "order": "desc", "orderBy": "_term", "size": "10" }, "type": "terms" },
+            { "field": "@timestamp", "id": "2", "settings": { "interval": "auto", "min_doc_count": 0, "trimEdges": 0 }, "type": "date_histogram" }
+          ],
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+          "metrics": [ { "field": "count_1h", "id": "1", "type": "sum" } ],
+          "query": "_index:sekoia-volumetry-*",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Volume par intake (events/h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 9, "w": 4, "x": 16, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": [ "lastNotNull" ], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "targets": [
+        {
+          "bucketAggs": [ { "field": "@timestamp", "id": "2", "settings": { "interval": "auto", "min_doc_count": 0, "trimEdges": 0 }, "type": "date_histogram" } ],
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+          "metrics": [ { "id": "1", "type": "count" } ],
+          "query": "_index:sekoia-alerts-* AND status:open",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Alertes ingestion ouvertes",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 9, "w": 4, "x": 20, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": [ "lastNotNull" ], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "targets": [
+        {
+          "bucketAggs": [ { "field": "@timestamp", "id": "2", "settings": { "interval": "auto", "min_doc_count": 0, "trimEdges": 0 }, "type": "date_histogram" } ],
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+          "metrics": [ { "id": "1", "type": "count" } ],
+          "query": "_index:sekoia-intakes-* AND silent:true",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Intakes silencieux",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "showPoints": "never", "stacking": { "group": "A", "mode": "normal" } }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        {
+          "bucketAggs": [
+            { "field": "severity", "id": "3", "settings": { "min_doc_count": 1, "order": "desc", "orderBy": "_term", "size": "5" }, "type": "terms" },
+            { "field": "@timestamp", "id": "2", "settings": { "interval": "auto", "min_doc_count": 0, "trimEdges": 0 }, "type": "date_histogram" }
+          ],
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+          "metrics": [ { "id": "1", "type": "count" } ],
+          "query": "_index:sekoia-alerts-*",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Alertes ingestion par sévérité",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+      "fieldConfig": { "defaults": { "color": { "mode": "continuous-BlYlRd" }, "custom": { "align": "auto", "displayMode": "gradient-gauge" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "id": 5,
+      "options": { "showHeader": true, "sortBy": [ { "desc": true, "displayName": "Sum" } ] },
+      "targets": [
+        {
+          "bucketAggs": [
+            { "field": "log_hostname", "id": "3", "settings": { "min_doc_count": 1, "order": "desc", "orderBy": "_term", "size": "15" }, "type": "terms" }
+          ],
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+          "metrics": [ { "field": "count_1h", "id": "1", "type": "sum" } ],
+          "query": "_index:sekoia-volumetry-*",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Top log.hostname (volume)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "#0A84FF" }, "custom": { "drawStyle": "bars", "fillOpacity": 40, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 17 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false }, "tooltip": { "mode": "single", "sort": "none" } },
+      "targets": [
+        {
+          "bucketAggs": [ { "field": "@timestamp", "id": "2", "settings": { "interval": "auto", "min_doc_count": 0, "trimEdges": 0 }, "type": "date_histogram" } ],
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "sekoia-volumetry" },
+          "metrics": [ { "field": "count_1h", "id": "1", "type": "sum" } ],
+          "query": "_index:sekoia-volumetry-*",
+          "refId": "A",
+          "timeField": "@timestamp"
+        }
+      ],
+      "title": "Volumétrie totale plateforme (events/h)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "tags": [ "sekoia", "ingestion", "monitoring" ],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Sekoia — Ingestion & Volumétrie",
+  "uid": "sekoia-ingestion",
+  "version": 1
+}

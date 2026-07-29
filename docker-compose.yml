@@ -1133,7 +1133,7 @@ services:
     build:
       context: ./connectors/sekoia-controlplane
       dockerfile: Dockerfile
-    container_name: sekoia-controlplane
+    container_name: forensic-sekoia-controlplane
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -1154,7 +1154,7 @@ services:
     build:
       context: ./connectors/sekoia-monitor
       dockerfile: Dockerfile
-    container_name: sekoia-monitor
+    container_name: forensic-sekoia-monitor
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -1184,7 +1184,7 @@ services:
     build:
       context: ./connectors/sentinelone-controlplane
       dockerfile: Dockerfile
-    container_name: s1-controlplane
+    container_name: forensic-s1-controlplane
     restart: unless-stopped
     logging: *default-logging
     environment:

@@ -127,6 +127,35 @@ def th_query(
     return data if isinstance(data, list) else []
 
 
+def wait_ready(wait_s: int = 300) -> bool:
+    """Patiente jusqu'à ce que l'API TheHive réponde (moteur + index en chauffe
+    après thehive-init — un appel immédiat lève une exception et fait échouer
+    le setup Master sur un simple problème de timing)."""
+    import time
+
+    deadline = time.monotonic() + wait_s
+    attempt = 0
+    while time.monotonic() < deadline:
+        attempt += 1
+        try:
+            r = requests.get(
+                f"{TH_URL}/api/status",
+                auth=HTTPBasicAuth(ADMIN_LOGIN, ADMIN_PASS),
+                timeout=15,
+                verify=False,
+            )
+            if r.status_code == 200:
+                ok(f"TheHive API prête (essai {attempt})")
+                return True
+        except Exception:
+            pass
+        print(f"[thehive-master] API non prête — retry 15s (essai {attempt})",
+              file=sys.stderr)
+        time.sleep(15)
+    ko(f"TheHive API toujours injoignable après {wait_s}s")
+    return False
+
+
 def metrics() -> dict[str, Any]:
     status = th_req("GET", "/api/status", org="", user=ADMIN_LOGIN, password=ADMIN_PASS)
     versions = status.get("versions", {})

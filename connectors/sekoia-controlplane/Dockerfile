@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && groupadd -r cp && useradd -r -g cp -d /app cp \
     && mkdir -p /data && chown cp:cp /data
 
-COPY app.py analytics.py .
+COPY app.py analytics.py sol.py .
 USER cp
 
 EXPOSE 8901

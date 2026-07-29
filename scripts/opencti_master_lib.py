@@ -280,18 +280,45 @@ def register_fp_ti_connector(s: requests.Session) -> bool:
     return False
 
 
-def activate_connectors(s: requests.Session) -> int:
-    """Compte les connecteurs master actifs (activation via docker / registerConnector)."""
-    active = 0
-    for c in metrics(s)["connectors"]:
-        name = c.get("name", "")
-        if not any(frag.lower() in name.lower() for frag in MASTER_CONNECTOR_NAMES):
-            continue
-        if c.get("active"):
-            active += 1
-        elif any(o in name for o in OPTIONAL_CONNECTOR_FRAGMENTS):
-            ok(f"connecteur optionnel inactif {name}")
-            active += 1
+def activate_connectors(s: requests.Session, min_active: int = 6,
+                        wait_s: int = 240) -> int:
+    """Compte les connecteurs master actifs (activation via docker / registerConnector).
+
+    Les images connecteurs peuvent encore être en pull/démarrage quand le
+    setup s'exécute (déploiement frais) : on patiente jusqu'à `wait_s`
+    secondes tant que le seuil `min_active` n'est pas atteint, au lieu
+    d'échouer immédiatement sur un simple problème de timing.
+    """
+    import time
+
+    deadline = time.monotonic() + wait_s
+    attempt = 0
+    while True:
+        attempt += 1
+        active = 0
+        try:
+            conns = metrics(s)["connectors"]
+        except Exception as exc:  # OpenCTI encore en chauffe
+            if time.monotonic() < deadline:
+                print(f"[opencti-master] attente OpenCTI GraphQL ({exc}) — retry 15s",
+                      file=sys.stderr)
+                time.sleep(15)
+                continue
+            raise
+        for c in conns:
+            name = c.get("name", "")
+            if not any(frag.lower() in name.lower() for frag in MASTER_CONNECTOR_NAMES):
+                continue
+            if c.get("active"):
+                active += 1
+            elif any(o in name for o in OPTIONAL_CONNECTOR_FRAGMENTS):
+                ok(f"connecteur optionnel inactif {name}")
+                active += 1
+        if active >= min_active or active == 0 or time.monotonic() >= deadline:
+            break
+        print(f"[opencti-master] connecteurs actifs={active} < {min_active} "
+              f"— attente 15s (essai {attempt})", file=sys.stderr)
+        time.sleep(15)
     if active:
         ok(f"connecteurs master actifs={active}")
     return active

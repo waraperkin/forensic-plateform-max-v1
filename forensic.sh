@@ -363,7 +363,17 @@ fp_try() {
   local label="$1"
   shift
   info "► ${label}"
-  if "$@"; then
+  # La sortie de l'étape est TOUJOURS journalisée dans FP_LOG_START : sans
+  # elle, un échec (ex. script Python Master) ne laisse aucune trace
+  # exploitable dans logs/forensic_start.log (diagnostic aveugle constaté
+  # au déploiement 2026-07-29).
+  local _log="${FP_LOG_START:-$DIR/logs/forensic_start.log}"
+  mkdir -p "$(dirname "$_log")" 2>/dev/null || true
+  echo "[$(date '+%Y-%m-%dT%H:%M:%S%z')] ► ${label}" >> "$_log" 2>/dev/null || true
+  "$@" >> "$_log" 2>&1
+  local rc=$?
+  echo "[$(date '+%Y-%m-%dT%H:%M:%S%z')] ■ ${label} → rc=${rc}" >> "$_log" 2>/dev/null || true
+  if [ "$rc" -eq 0 ]; then
     START_OK+=("$label")
     ok "$label"
     return 0
@@ -373,7 +383,7 @@ fp_try() {
   # des échecs d'activation sont des problèmes de timing (services encore en
   # chauffe, cluster yellow) qui passent au second essai.
   START_FAIL_CMD["$label"]="$(printf '%q ' "$@")"
-  warn "$label — échec"
+  warn "$label — échec (rc=${rc}, voir ${_log})"
   return 1
 }
 
@@ -2821,13 +2831,15 @@ urls() {
   echo -e "${CYAN}║${NC} ${GREEN}TheHive${NC}                   https://${IP}/thehive/"
   echo -e "${CYAN}║${NC}   ${THEHIVE_ADMIN_LOGIN:-admin@thehive.local} / $(_cred THEHIVE_ADMIN_PASSWORD)"
   echo -e "${CYAN}╠════════════════════════════════════════════════════════════════════╣${NC}"
-  echo -e "${CYAN}║${NC} ${YELLOW}Timesketch${NC}    (port dédié) http://${IP}:5000/"
+  echo -e "${CYAN}║${NC} ${YELLOW}Timesketch${NC}                https://${IP}/timesketch/"
   echo -e "${CYAN}║${NC}   ${TIMESKETCH_USER:-admin} / $(_cred TIMESKETCH_PASSWORD)"
-  echo -e "${CYAN}║${NC} ${YELLOW}MISP${NC}          (port dédié) http://${IP}:8090/"
+  echo -e "${CYAN}║${NC} ${YELLOW}MISP${NC}                      https://${IP}/misp/users/login"
   echo -e "${CYAN}║${NC}   ${MISP_ADMIN_EMAIL:-admin@forensic.local} / $(_cred MISP_ADMIN_PASSWORD)"
-  echo -e "${CYAN}║${NC} ${YELLOW}Cortex${NC}                    http://${IP}:9003/  (setup org au 1er accès)"
-  echo -e "${CYAN}║${NC} ${YELLOW}MinIO Console${NC}             http://${IP}:9001/"
+  echo -e "${CYAN}║${NC} ${YELLOW}Cortex${NC}    (local VM)      http://localhost:9003/  (setup org au 1er accès)"
+  echo -e "${CYAN}║${NC} ${YELLOW}MinIO${NC}     (local VM)      http://localhost:9001/"
   echo -e "${CYAN}║${NC}   ${MINIO_ROOT_USER:-forensicadmin} / $(_cred MINIO_ROOT_PASSWORD)"
+  echo -e "${CYAN}║${NC}   → Cortex/MinIO bindés 127.0.0.1 : ssh -L 9003:localhost:9003 \\"
+  echo -e "${CYAN}║${NC}     -L 9001:localhost:9001 user@${IP}"
   echo -e "${CYAN}╠════════════════════════════════════════════════════════════════════╣${NC}"
   echo -e "${CYAN}║${NC}  🔒 Cert auto-signé — accepter l'avertissement navigateur"
   echo -e "${CYAN}║${NC}  Fingerprint: ${FP}"

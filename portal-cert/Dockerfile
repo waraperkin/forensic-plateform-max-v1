@@ -19,6 +19,8 @@ COPY portal-cert/lib/master-routes.js ./lib/master-routes.js
 COPY portal-cert/routes/master-intakes.js ./routes/master-intakes.js
 COPY portal-cert/routes/master-ingest-errors.js ./routes/master-ingest-errors.js
 COPY portal-cert/routes/master-ingest-meta.js ./routes/master-ingest-meta.js
+COPY portal-cert/routes/cti-routes.js ./routes/cti-routes.js
+COPY portal-cert/routes/incident-routes.js ./routes/incident-routes.js
 COPY portal-cert/routes/helk-routes.js ./routes/helk-routes.js
 COPY portal-cert/routes/velociraptor-routes.js ./routes/velociraptor-routes.js
 COPY portal-cert/routes/forensic-report-routes.js ./routes/forensic-report-routes.js

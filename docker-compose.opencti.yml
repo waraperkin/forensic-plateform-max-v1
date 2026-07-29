@@ -150,7 +150,7 @@ services:
     image: opencti/connector-alienvault:6.2.18
     container_name: forensic-connector-alienvault
     logging: *default-logging
-    restart: always
+    restart: on-failure:5
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
       - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
@@ -181,7 +181,7 @@ services:
     image: opencti/connector-abuseipdb:6.2.18
     container_name: forensic-connector-abuseipdb
     logging: *default-logging
-    restart: always
+    restart: on-failure:5
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
       - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
@@ -200,7 +200,7 @@ services:
     image: opencti/connector-shodan:6.2.18
     container_name: forensic-connector-shodan
     logging: *default-logging
-    restart: always
+    restart: on-failure:5
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
       - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
@@ -220,7 +220,7 @@ services:
     image: opencti/connector-ipinfo:6.2.18
     container_name: forensic-connector-ipinfo
     logging: *default-logging
-    restart: always
+    restart: on-failure:5
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
       - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
@@ -298,7 +298,7 @@ services:
     image: opencti/connector-cyber-campaign-collection:6.2.18
     container_name: forensic-connector-apt-campaign
     logging: *default-logging
-    restart: always
+    restart: on-failure:5
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
       - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}
@@ -370,7 +370,7 @@ services:
     image: opencti/connector-dns-twist:6.2.18
     container_name: forensic-connector-dns-twist
     logging: *default-logging
-    restart: always
+    restart: on-failure:5
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
       - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}

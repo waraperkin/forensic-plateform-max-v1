@@ -2426,12 +2426,12 @@ sys.exit(0 if down == 0 else 1)
   local checks=(
     "HELK|${base}/api/helk/status|200"
     "Velociraptor|${base}/api/velociraptor/status|200"
-    "Timesketch|http://localhost:5000/login|200,301,302"
+    "Timesketch|http://localhost:5000/login|200,301,302,308"
     "Grafana|${base}/grafana/api/health|200"
     "OpenSearch|http://localhost:9200/_cluster/health|200"
     "MISP|${base}/misp/users/login|200,301,302"
     "TheHive|http://localhost:9002/thehive/api/status|200"
-    "Cortex|http://localhost:9001/api/status|200,401"
+    "Cortex|http://localhost:9003/api/status|200,401"
     "Nginx|${base}/|200,301,302"
   )
   local entry name url expects c

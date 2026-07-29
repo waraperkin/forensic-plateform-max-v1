@@ -24,6 +24,7 @@ from thehive_master_lib import (  # noqa: E402
     save_state,
     start_thehive_stack,
     sync_integrations,
+    wait_ready,
 )
 
 
@@ -32,6 +33,8 @@ def main() -> int:
     print(f"[thehive-master-setup] URL={TH_URL}")
 
     start_thehive_stack()
+    if not wait_ready():
+        return 1
     ensure_cert_organisation()
 
     m = metrics()

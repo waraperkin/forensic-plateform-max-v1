@@ -20,6 +20,7 @@ STATIC_TESTS=(
   test_velociraptor_config.sh
   test_velociraptor_sidecar_wiring.sh
   test_proxy_subpath_config.sh
+  test_portal_dockerfile_deps.sh
   test_bootstrap_fresh_install.sh
   test_bootstrap_prepare_host.sh
   test_bootstrap_env_corrupt.sh

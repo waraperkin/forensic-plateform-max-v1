@@ -1,5 +1,5 @@
 {
-  "version": "2026.07.21-docs1",
+  "version": "2026.07.29-docs2",
   "lang": "fr",
   "group": "guides",
   "documents": [
@@ -20,6 +20,12 @@
       "title": "Guide analyste SOC/DFIR",
       "path": "/docs/fr/analyst-guide.html",
       "source": "docs/fr/analyst-guide.md"
+    },
+    {
+      "slug": "sekoia-control-center",
+      "title": "Sekoia Control Center",
+      "path": "/docs/fr/sekoia-control-center.html",
+      "source": "docs/fr/sekoia-control-center.md"
     },
     {
       "slug": "operations-guide",

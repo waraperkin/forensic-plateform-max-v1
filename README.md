@@ -1,8 +1,8 @@
-# Forensic Minimal — Plateforme SOC / DFIR
+# Forensic Plateform MAX — Plateforme SOC / DFIR
 
-Plateforme forensic et SOC **clé en main**, pensée pour le lab, la formation et les équipes CERT/DFIR. Elle regroupe ingestion, SIEM, threat intelligence, gestion d’incidents, timelines, hunting et collecte endpoint derrière un point d’entrée HTTPS unique.
+Plateforme forensic et SOC **clé en main**, pensée pour le lab, la formation et les équipes CERT/DFIR. Elle regroupe ingestion, SIEM, threat intelligence, gestion d’incidents, timelines, hunting et collecte endpoint derrière un point d’entrée HTTPS unique, avec une **couche Sekoia.io v2.1** (Control Center complet) et des portails CERT/IT premium FR/EN en mode dark/light.
 
-**Dépôt :** [`waraperkin/forensic-minimal-v2`](https://github.com/waraperkin/forensic-minimal-v2) — snapshot portable, QA navigateur et correctifs proxy (MISP, Timesketch, Velociraptor).
+**Dépôt :** [`waraperkin/forensic-plateform-max-v1`](https://github.com/waraperkin/forensic-plateform-max-v1) — snapshot portable, QA navigateur et correctifs proxy (MISP, Timesketch, Velociraptor).
 
 **Public cible :** analystes SOC, ingénieurs DFIR, formateurs, lab interne.
 
@@ -10,12 +10,12 @@ Plateforme forensic et SOC **clé en main**, pensée pour le lab, la formation e
 
 ## Overview
 
-Forensic Minimal déploie une stack Docker orchestrée par un seul script. **Sur une VM AWS fraîche (recommandé : `/opt/forensic-minimal-v2`) :**
+Forensic Minimal déploie une stack Docker orchestrée par un seul script. **Sur une VM AWS fraîche (recommandé : `/opt/forensic-plateform-max-v1`) :**
 
 ```bash
 sudo mkdir -p /opt
-sudo git clone https://github.com/waraperkin/forensic-minimal-v2.git /opt/forensic-minimal-v2
-cd /opt/forensic-minimal-v2
+sudo git clone https://github.com/waraperkin/forensic-plateform-max-v1.git /opt/forensic-plateform-max-v1
+cd /opt/forensic-plateform-max-v1
 ./scripts/preflight-full-start.sh
 ./forensic.sh -full-start
 ```
@@ -23,8 +23,8 @@ cd /opt/forensic-minimal-v2
 Alternative (répertoire courant) :
 
 ```bash
-git clone https://github.com/waraperkin/forensic-minimal-v2.git
-cd forensic-minimal-v2
+git clone https://github.com/waraperkin/forensic-plateform-max-v1.git
+cd forensic-plateform-max-v1
 ./scripts/preflight-full-start.sh
 ./forensic.sh -full-start
 ```
@@ -98,6 +98,29 @@ Les bridges `helk-bridge` et `velociraptor-bridge` synchronisent les sidecars av
 
 ---
 
+## Couche Sekoia.io (v2.1) — Sekoia Control Center
+
+La couche Sekoia dépasse largement la console Sekoia standard : le **Sekoia Control Center** (portail CERT) offre 13 onglets pilotés par l'API Sekoia et par la télémétrie locale.
+
+- **Inventaires CRUD complets** : intakes, règles (pattern / SIGMA, sévérité 0-100), playbooks, connecteurs, modules, formats — création, édition, suppression, recherche avancée, filtrage dynamique, **actions en masse** (activation / désactivation).
+- **Monitoring d'ingestion temps réel** : volumétrie par intake / source / `log.hostname`, top hostnames, dernier événement, **alertes automatiques** (chute de volumétrie, intake muet, hostname absent, anomalie de parsing) avec **acquittement** tracé, dashboard Grafana *Sekoia Ingestion*.
+- **Recherche d'événements** : requêtes Lucene asynchrones sur les événements Sekoia (plage et limite paramétrables).
+- **Couverture de détection** : matrice formats × règles, détection des intakes actifs sans règle (GAP).
+- **Testeur de logs** : détection automatique du format d'un échantillon (CEF, LEEF, syslog RFC3164/5424, JSON, CSV, key=value, XML…) et suggestion des formats Sekoia correspondants.
+- **IOC / CTI fédéré** : un observable est interrogé simultanément dans **OpenCTI + MISP + OpenSearch** ; pivots en un clic vers **TheHive** (création de case, aussi automatique sur alerte critique) et **Cortex** (analyseurs).
+- **XDR** : timeline fusionnée Sekoia + SentinelOne, graphe de corrélation.
+- **API interne documentée** : toutes les actions passent par `/api/sekoia/*` — voir [`docs/SEKOIA.md`](docs/SEKOIA.md) et [`docs/INTERCONNEXIONS.md`](docs/INTERCONNEXIONS.md).
+- **UX premium** : interface FR/EN intégrale, dark/light, badges de sévérité, focus visible, `prefers-reduced-motion` respecté. Documentation portail : *Guides → Sekoia Control Center* (FR/EN).
+
+Validation de bout en bout de la couche :
+
+```bash
+./scripts/validate-sekoia.sh            # services, routes API, télémétrie, CTI
+python -m pytest connectors/sekoia-controlplane/test_app.py connectors/sekoia-monitor/test_monitor.py   # 35 tests
+```
+
+---
+
 ## Prerequisites
 
 | Exigence | Recommandation |
@@ -133,8 +156,8 @@ Sur l’hôte, les ports suivants doivent être libres (ou détenus par cette st
 ### 1. Cloner le dépôt
 
 ```bash
-git clone https://github.com/waraperkin/forensic-minimal-v2.git
-cd forensic-minimal-v2
+git clone https://github.com/waraperkin/forensic-plateform-max-v1.git
+cd forensic-plateform-max-v1
 ```
 
 ### 2. (Recommandé) Pré-vol statique
@@ -181,8 +204,8 @@ Sur une machine vierge, **aucune configuration manuelle** n’est requise :
 Procédure recommandée sur une instance **vierge** (Ubuntu 22.04+ ou Debian 12) :
 
 ```bash
-git clone https://github.com/waraperkin/forensic-minimal-v2.git
-cd forensic-minimal-v2
+git clone https://github.com/waraperkin/forensic-plateform-max-v1.git
+cd forensic-plateform-max-v1
 ./scripts/preflight-full-start.sh
 ./forensic.sh -full-start
 ```
@@ -383,8 +406,8 @@ docker logs velociraptor-server --tail 30 2>/dev/null || true
 Par défaut la plateforme utilise **`https://<IP-publique>/`** (pas le DNS EC2). Le bootstrap détecte l'IP via IMDS AWS.
 
 ```bash
-git clone https://github.com/waraperkin/forensic-minimal-v2.git
-cd forensic-minimal-v2
+git clone https://github.com/waraperkin/forensic-plateform-max-v1.git
+cd forensic-plateform-max-v1
 ./forensic.sh -full-start
 # Security Group AWS : TCP 80 + 443 ouverts
 ```
@@ -580,7 +603,7 @@ forensic-minimal/
 
 ## License & credits
 
-- Projet **forensic-minimal-v2** — plateforme CYBERCORP / lab SOC ([GitHub](https://github.com/waraperkin/forensic-minimal-v2)).
+- Projet **forensic-plateform-max-v1** — plateforme CYBERCORP / lab SOC ([GitHub](https://github.com/waraperkin/forensic-plateform-max-v1)).
 - Composants tiers sous leurs licences respectives (OpenSearch, Grafana, OpenCTI, MISP, TheHive, Timesketch, Velociraptor, HELK, Sigma, etc.).
 - Règles Sigma HELK : voir `helk/sigma/LICENSE`.
 

@@ -864,7 +864,7 @@
       'create-key': async () => { const name = await askText(i18n.t('msg.nouvelle_cle_api'), i18n.t('msg.nom_de_la_cle'), 'cybercorp-readonly'); if (name) action('/sekoia/apikeys', { method: 'POST', body: { name } }, loadSekoiaApiKeys); },
       'rename-key': async (el) => {
         const k = keyData.items.find((x) => x.uuid === el.dataset.id);
-        const name = await askText(i18n.t('msg.renommer_la_cle_api'), 'Nouveau nom', (k && k.name) || '');
+        const name = await askText(i18n.t('msg.renommer_la_cle_api'), i18n.t('msg.nouveau_nom'), (k && k.name) || '');
         if (name) action(`/sekoia/apikeys/${encodeURIComponent(el.dataset.id)}`, { method: 'PATCH', body: { name } }, loadSekoiaApiKeys);
       },
       'toggle-tag': async (el) => {

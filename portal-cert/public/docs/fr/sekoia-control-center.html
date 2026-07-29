@@ -1,0 +1,81 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">Le <strong>Sekoia Control Center</strong> (v2.1) est le centre de pilotage complet de votre SIEM Sekoia.io : inventaires éditables, monitoring d'ingestion temps réel, recherche d'événements, fédération CTI et automatisation CERT — bien au-delà des fonctionnalités de la console Sekoia standard.</p>
+
+  <h3>Les 13 onglets</h3>
+  <table class="portal-doc-table">
+    <thead><tr><th>Onglet</th><th>Fonction</th></tr></thead>
+    <tbody>
+      <tr><td>Vue d'ensemble</td><td>Compteurs intakes / règles / connecteurs / formats, graphiques de répartition, santé globale</td></tr>
+      <tr><td>Inventaire</td><td>Intakes : création, édition, renommage, suppression, recherche, filtrage, actions en masse (activer / désactiver)</td></tr>
+      <tr><td>Règles</td><td>Règles de détection : CRUD complet, payload pattern / SIGMA, sévérité 0-100, activation en masse</td></tr>
+      <tr><td>Playbooks</td><td>Playbooks Sekoia : CRUD, déclencheurs, statut</td></tr>
+      <tr><td>Connectors</td><td>Connecteurs : inventaire, renommage, configuration</td></tr>
+      <tr><td>Modules</td><td>Modules Sekoia et leurs configurations</td></tr>
+      <tr><td>Formats</td><td>Formats de logs (parsers) référencés, taxonomie</td></tr>
+      <tr><td>Alertes ingestion</td><td>Alertes de supervision : chute de volumétrie, drop d'intake, hostname silencieux, anomalies de parsing — avec acquittement</td></tr>
+      <tr><td>Événements</td><td>Recherche Lucene temps réel sur les événements Sekoia (job asynchrone, plage et limite paramétrables)</td></tr>
+      <tr><td>IOC / CTI</td><td>Recherche fédérée d'observables : OpenCTI + MISP + OpenSearch local ; création de case TheHive et analyse Cortex en un clic</td></tr>
+      <tr><td>Couverture</td><td>Matrice formats × règles : détecte les intakes actifs sans règle de détection (GAP)</td></tr>
+      <tr><td>Volumétrie</td><td>Événements par intake / source / hostname, top hostnames, dernier événement reçu (télémétrie locale OpenSearch)</td></tr>
+      <tr><td>Testeur logs</td><td>Détection automatique du format d'un échantillon (CEF, LEEF, syslog RFC3164/5424, JSON, CSV, kv, XML…) et suggestion des formats Sekoia correspondants</td></tr>
+      <tr><td>Audit</td><td>Journal des modifications effectuées depuis le portail</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Monitoring d'ingestion</h3>
+  <p>La plateforme ingère une télémétrie locale dans OpenSearch (<code>forensic-sekoia-telemetry-*</code>) qui alimente :</p>
+  <ul>
+    <li><strong>Volumétrie</strong> par intake, par source et par <code>log.hostname</code> sur des fenêtres de 1 h à 7 j ;</li>
+    <li><strong>Top hostnames</strong> par intake avec date du dernier événement ;</li>
+    <li><strong>Alertes automatiques</strong> : chute de volumétrie, intake muet, hostname absent, anomalie d'ingestion ou de parsing ;</li>
+    <li><strong>Acquittement</strong> des alertes par fingerprint, tracé dans l'audit ;</li>
+    <li>Dashboard Grafana dédié <em>Sekoia Ingestion</em> (volumes, eps, alertes).</li>
+  </ul>
+
+  <h3>Fédération CTI et pivots inter-outils</h3>
+  <pre class="mermaid">flowchart LR
+    classDef portal fill:#0d47a1,stroke:#42a5f5,color:#fff
+    classDef cti fill:#880e4f,stroke:#f48fb1,color:#fce4ec
+    classDef data fill:#1b5e20,stroke:#81c784,color:#e8f5e9
+
+    CC["Sekoia Control Center<br/>Onglet IOC / CTI"]:::portal
+    OCTI["OpenCTI"]:::cti
+    MISP["MISP"]:::cti
+    OS[("OpenSearch<br/>forensic-sekoia-telemetry-*")]:::data
+    HIVE["TheHive<br/>création de case"]:::cti
+    CORTEX["Cortex<br/>analyseurs"]:::cti
+
+    CC --> OCTI & MISP & OS
+    CC --> HIVE & CORTEX</pre>
+  <ul>
+    <li><strong>Recherche fédérée</strong> : un IOC (IP, domaine, hash, URL) est interrogé simultanément dans OpenCTI, MISP et les index locaux ; le badge « Connu » liste les sources où il apparaît ;</li>
+    <li><strong>Case TheHive</strong> : création d'un case pré-rempli avec l'IOC et le contexte ;</li>
+    <li><strong>Analyse Cortex</strong> : lancement des analyseurs disponibles sur l'observable ;</li>
+    <li>La détection Sekoia peut aussi <strong>créer automatiquement</strong> des cases TheHive sur alerte critique.</li>
+  </ul>
+
+  <h3>API interne</h3>
+  <p>Toutes les actions du Control Center passent par l'API interne du portail (<code>/api/sekoia/*</code>), documentée dans <code>docs/SEKOIA.md</code> :</p>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Route</th><th>Usage</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET/POST /api/sekoia/intakes</code>, <code>PATCH/DELETE /api/sekoia/intakes/:uuid</code></td><td>CRUD intakes</td></tr>
+      <tr><td><code>GET/POST /api/sekoia/rules</code>, <code>PATCH/DELETE /api/sekoia/rules/:uuid</code></td><td>CRUD règles</td></tr>
+      <tr><td><code>GET/POST /api/sekoia/playbooks</code>, <code>PATCH/DELETE /api/sekoia/playbooks/:uuid</code></td><td>CRUD playbooks</td></tr>
+      <tr><td><code>POST /api/sekoia/intakes/bulk</code>, <code>/api/sekoia/rules/bulk</code></td><td>Activation / désactivation en masse</td></tr>
+      <tr><td><code>POST /api/sekoia/events/search</code></td><td>Recherche d'événements (job Lucene)</td></tr>
+      <tr><td><code>GET /api/sekoia/local/timeseries</code>, <code>/api/sekoia/local/top-hostnames</code></td><td>Volumétrie locale</td></tr>
+      <tr><td><code>POST /api/sekoia/cti/ioc</code></td><td>Recherche IOC fédérée OpenCTI + MISP + OpenSearch</td></tr>
+      <tr><td><code>POST /api/sekoia/cti/ioc/thehive-case</code>, <code>/api/sekoia/cti/ioc/cortex</code></td><td>Pivots TheHive / Cortex</td></tr>
+      <tr><td><code>POST /api/sekoia/logformat/detect</code></td><td>Détection de format de log</td></tr>
+      <tr><td><code>GET /api/sekoia/coverage</code></td><td>Matrice de couverture formats × règles</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Prérequis</h3>
+  <ul>
+    <li><code>SEKOIA_API_KEY</code> (droits lecture + écriture sur intakes / règles / playbooks) dans <code>.env</code> ;</li>
+    <li>Connecteurs CTI optionnels : <code>OPENCTI_TOKEN</code>, <code>MISP_KEY</code>, <code>THEHIVE_API_KEY</code>, <code>CORTEX_API_KEY</code> — les sources non configurées sont simplement marquées « non configuré » ;</li>
+    <li>Validation de bout en bout : <code>./scripts/validate-sekoia.sh</code>.</li>
+  </ul>
+</div>

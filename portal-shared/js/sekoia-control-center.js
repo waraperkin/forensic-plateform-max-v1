@@ -13,6 +13,20 @@
   if (!window.ThreatCommon) return;
   const TC = window.ThreatCommon;
   const esc = TC.esc;
+  // Alias i18n pour la section "sekoia" des dictionnaires FR/EN.
+  const T = (k, vars) => i18n.t(`sekoia.${k}`, vars);
+
+  // Badge de sévérité premium : accepte un score 0-100 ou un libellé texte.
+  function sevBadge(v) {
+    if (v == null || v === '') return '—';
+    let level = String(v).toLowerCase();
+    if (!Number.isNaN(Number(v)) && Number.isFinite(Number(v))) {
+      const n = Number(v);
+      level = n >= 80 ? 'critical' : n >= 60 ? 'high' : n >= 40 ? 'medium' : n >= 20 ? 'low' : 'info';
+    }
+    if (!['critical', 'high', 'medium', 'low', 'info'].includes(level)) level = 'info';
+    return `<span class="sev-badge sev-${level}">${esc(level)}</span>`;
+  }
 
   function stabilizeChartContainer(elOrId) {
     const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
@@ -48,8 +62,8 @@
       ov.innerHTML = `<div class="cc-modal"><h3>${esc(title)}</h3>
         <label class="fp-label">${esc(label)}<input class="fp-input" id="cc-cc-asktext"></label>
         <div class="fp-actions-row fp-section-spaced">
-          <button type="button" class="fp-btn fp-btn-ghost" data-x="cancel">Annuler</button>
-          <button type="button" class="fp-btn fp-btn-primary" data-x="ok">Valider</button></div></div>`;
+          <button type="button" class="fp-btn fp-btn-ghost" data-x="cancel">${esc(T("act_cancel"))}</button>
+          <button type="button" class="fp-btn fp-btn-primary" data-x="ok">${esc(T("act_validate"))}</button></div></div>`;
       document.body.appendChild(ov);
       const inp = ov.querySelector('#cc-cc-asktext'); inp.value = initial || ''; inp.focus();
       const done = (v) => { ov.remove(); resolve(v); };
@@ -90,8 +104,8 @@
       ov.innerHTML = `<div class="cc-modal cc-modal-wide"><h3>${esc(title)}</h3>
         <div class="cc-crud-form">${inputs}</div>
         <div class="fp-actions-row fp-section-spaced">
-          <button type="button" class="fp-btn fp-btn-ghost" data-x="cancel">Annuler</button>
-          <button type="button" class="fp-btn fp-btn-primary" data-x="ok">Valider</button></div></div>`;
+          <button type="button" class="fp-btn fp-btn-ghost" data-x="cancel">${esc(T("act_cancel"))}</button>
+          <button type="button" class="fp-btn fp-btn-primary" data-x="ok">${esc(T("act_validate"))}</button></div></div>`;
       document.body.appendChild(ov);
       const done = (val2) => { ov.remove(); resolve(val2); };
       ov.addEventListener('click', (e) => {
@@ -108,7 +122,7 @@
           }
           for (const f of fields) {
             if (f.required && (out[f.key] == null || String(out[f.key]).trim() === '')) {
-              TC.toast(`Champ requis : ${f.label}`, 'warn');
+              TC.toast(T("msg_champ_requis", { label: f.label }), 'warn');
               return;
             }
           }
@@ -125,8 +139,8 @@
       ov.innerHTML = `<div class="cc-modal"><h3>${esc(title)}</h3>
         <p>${esc(message)}</p>
         <div class="fp-actions-row fp-section-spaced">
-          <button type="button" class="fp-btn fp-btn-ghost" data-x="cancel">Annuler</button>
-          <button type="button" class="fp-btn fp-btn-danger" data-x="ok">Supprimer</button></div></div>`;
+          <button type="button" class="fp-btn fp-btn-ghost" data-x="cancel">${esc(T("act_cancel"))}</button>
+          <button type="button" class="fp-btn fp-btn-danger" data-x="ok">${esc(T("act_delete"))}</button></div></div>`;
       document.body.appendChild(ov);
       const done = (v) => { ov.remove(); resolve(v); };
       ov.addEventListener('click', (e) => {
@@ -151,37 +165,37 @@
   let ccRenderGen = 0;
   function ccRenderStale(gen) { return gen !== ccRenderGen || !document.getElementById('cc-body'); }
   const CC_SUBS = [
-    ['overview', "Vue d'ensemble"], ['inventaire', 'Inventaire'], ['connectors', 'Connectors'],
-    ['modules', 'Modules'], ['formats', 'Formats'], ['playbooks', 'Playbooks'],
-    ['rules', i18n.t('msg.regles')], ['alerts-ingest', 'Alertes ingestion'],
-    ['events', 'Événements'], ['ioc', 'IOC / CTI'], ['coverage', 'Couverture'],
-    ['volumetry', 'Volumétrie'], ['logtester', 'Testeur logs'],
-    ['stats', i18n.t('msg.stats_avancees')], ['audit', 'Audit'],
+    ['overview', T("tab_overview")], ['inventaire', T("tab_inventaire")], ['connectors', T("tab_connectors")],
+    ['modules', T("tab_modules")], ['formats', T("tab_formats")], ['playbooks', T("tab_playbooks")],
+    ['rules', i18n.t('msg.regles')], ['alerts-ingest', T("tab_alerts_ingest")],
+    ['events', T("tab_events")], ['ioc', T("tab_ioc")], ['coverage', T("tab_coverage")],
+    ['volumetry', T("tab_volumetry")], ['logtester', T("tab_logtester")],
+    ['stats', i18n.t('msg.stats_avancees')], ['audit', T("tab_audit")],
     ['querybuilder', 'Query Builder'], ['dashboard', i18n.t('msg.dashboard_builder')], ['assetprofile', 'Asset Profile'],
   ];
   const SE = () => window.SekoiaEnterprise;
   const CC_COLS = {
-    inventaire: [['Intake', (r) => pick(r, ['intake_name', 'name'])],
-      ['Format', (r) => r.intake_format_name_via_script || r.intake_format_name],
-      ['Module', (r) => r.module_name], ['Connecteur', (r) => r.connector_name],
-      ['Statut', (r) => r.intake_status]],
-    connectors: [['Nom', (r) => pick(r, ['name'])], ['Type', (r) => pick(r, ['connector_type', 'type'])],
-      ['Statut', (r) => pick(r, ['display_status', 'status'])], [i18n.t('msg.cree'), (r) => pick(r, ['created_at'])],
+    inventaire: [[T("col_intake"), (r) => pick(r, ['intake_name', 'name'])],
+      [T("col_format"), (r) => r.intake_format_name_via_script || r.intake_format_name],
+      [T("col_module"), (r) => r.module_name], [T("col_connecteur"), (r) => r.connector_name],
+      [T("col_statut"), (r) => r.intake_status]],
+    connectors: [[T("col_nom"), (r) => pick(r, ['name'])], [T("col_type"), (r) => pick(r, ['connector_type', 'type'])],
+      [T("col_statut"), (r) => pick(r, ['display_status', 'status'])], [i18n.t('msg.cree'), (r) => pick(r, ['created_at'])],
       ['MAJ', (r) => pick(r, ['updated_at'])]],
-    modules: [['Configuration', (r) => pick(r, ['name'])], ['Module', (r) => TC.deep(r, 'module.name') || r.module_name],
-      ['Catégories', (r) => { const c = TC.deep(r, 'module.categories'); return Array.isArray(c) ? c.join(', ') : r.module_categories; }],
+    modules: [[T("col_configuration"), (r) => pick(r, ['name'])], [T("col_module"), (r) => TC.deep(r, 'module.name') || r.module_name],
+      [T("col_categories"), (r) => { const c = TC.deep(r, 'module.categories'); return Array.isArray(c) ? c.join(', ') : r.module_categories; }],
       ['Module UUID', (r) => pick(r, ['module_uuid'])]],
-    formats: [['Nom', (r) => pick(r, ['name', 'title', 'slug'])], ['UUID', (r) => pick(r, ['uuid', 'id'])],
-      ['Type', (r) => pick(r, ['type'])], ['Description', (r) => pick(r, ['description'])]],
-    playbooks: [['Nom', (r) => pick(r, ['name'])], ['Statut', (r) => String(pick(r, ['enabled', 'status']) ?? '')],
+    formats: [[T("col_nom"), (r) => pick(r, ['name', 'title', 'slug'])], ['UUID', (r) => pick(r, ['uuid', 'id'])],
+      [T("col_type"), (r) => pick(r, ['type'])], [T("form_description"), (r) => pick(r, ['description'])]],
+    playbooks: [[T("col_nom"), (r) => pick(r, ['name'])], [T("col_statut"), (r) => String(pick(r, ['enabled', 'status']) ?? '')],
       [i18n.t('msg.declencheur'), (r) => pick(r, ['trigger', 'short_name'])], ['UUID', (r) => pick(r, ['uuid', 'id'])]],
-    rules: [['Règle', (r) => pick(r, ['rule_name', 'name'])], ['Type', (r) => pick(r, ['rule_type', 'type'])],
-      ['Sévérité', (r) => String(pick(r, ['rule_severity', 'severity']) ?? '')],
-      ['Activée', (r) => { const e = pick(r, ['rule_enabled', 'enabled']); return e == null ? '—' : (e ? '✔' : '✘'); }],
-      ['Dialectes', (r) => pick(r, ['rule_dialect_names'])]],
-    'alerts-ingest': [['Date', (r) => pick(r, ['@timestamp'])], ['Règle', (r) => pick(r, ['rule'])],
-      ['Sévérité', (r) => pick(r, ['severity'])], ['Intake', (r) => pick(r, ['intake_name', 'log_hostname'])],
-      ['Message', (r) => pick(r, ['message'])], ['Statut', (r) => pick(r, ['status'])]],
+    rules: [[T("col_regle"), (r) => pick(r, ['rule_name', 'name'])], [T("col_type"), (r) => pick(r, ['rule_type', 'type'])],
+      [T("col_severite"), (r) => sevBadge(pick(r, ['rule_severity', 'severity']))],
+      [T("col_activee"), (r) => { const e = pick(r, ['rule_enabled', 'enabled']); return e == null ? '—' : (e ? '✔' : '✘'); }],
+      [T("col_dialectes"), (r) => pick(r, ['rule_dialect_names'])]],
+    'alerts-ingest': [[T("col_date"), (r) => pick(r, ['@timestamp'])], [T("col_regle"), (r) => pick(r, ['rule'])],
+      [T("col_severite"), (r) => sevBadge(pick(r, ['severity']))], [T("col_intake"), (r) => pick(r, ['intake_name', 'log_hostname'])],
+      [T("col_message"), (r) => pick(r, ['message'])], [T("col_statut"), (r) => pick(r, ['status'])]],
   };
 
   async function loadSekoiaCC() {
@@ -202,8 +216,8 @@
         'dash-load': () => { const e = SE(); if (e) e.dashLoad(); },
         'dash-png': () => { const e = SE(); if (e) e.dashExportPng(); },
         'dash-rm': (el) => { const e = SE(); if (e) e.dashRemoveWidget(parseInt(el.dataset.idx, 10)); },
-        'cc-rename-intake': async (el) => { const name = await askText(i18n.t('msg.renommer_lintake'), 'Nouveau nom', el.dataset.name || ''); if (name) action(`/sekoia/intakes/${encodeURIComponent(el.dataset.id)}`, { method: 'PATCH', body: { name } }, () => ccLoadSection('inventaire', true)); },
-        'cc-rename-conn': async (el) => { const name = await askText(i18n.t('msg.renommer_le_connecteur'), 'Nouveau nom', el.dataset.name || ''); if (name) action(`/sekoia/connectors/${encodeURIComponent(el.dataset.id)}`, { method: 'PATCH', body: { name } }, () => ccLoadSection('connectors', true)); },
+        'cc-rename-intake': async (el) => { const name = await askText(i18n.t('msg.renommer_lintake'), T("form_nouveau_nom"), el.dataset.name || ''); if (name) action(`/sekoia/intakes/${encodeURIComponent(el.dataset.id)}`, { method: 'PATCH', body: { name } }, () => ccLoadSection('inventaire', true)); },
+        'cc-rename-conn': async (el) => { const name = await askText(i18n.t('msg.renommer_le_connecteur'), T("form_nouveau_nom"), el.dataset.name || ''); if (name) action(`/sekoia/connectors/${encodeURIComponent(el.dataset.id)}`, { method: 'PATCH', body: { name } }, () => ccLoadSection('connectors', true)); },
         // ── CRUD (P5) ──
         'cc-new': () => ccCrudNew(),
         'cc-edit-item': (el) => ccCrudEdit(parseInt(el.dataset.idx, 10)),
@@ -232,8 +246,8 @@
     }
     root.innerHTML = `<div class="cc-cc-shell">
       <div class="cc-cc-toolbar fp-actions-row">
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-refresh-sub">↻ Rafraîchir</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-reset-all">↺ Tout réinitialiser</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-refresh-sub">${esc(T("act_refresh"))}</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-reset-all">${esc(T("act_reset_all"))}</button>
       </div>
       <div class="cc-cc-subnav">${CC_SUBS.map(([k, l]) => `<button type="button" class="fp-btn fp-btn-sm cc-subtab${k === cc.sub ? ' active' : ''}" data-act="cc-sub" data-sub="${k}">${l}</button>`).join('')}</div>
       <div class="cc-cc-quick">
@@ -390,14 +404,14 @@
     const canCreate = ['inventaire', 'playbooks', 'rules'].includes(key);
     const bulkable = ['inventaire', 'rules'].includes(key);
     body.innerHTML = `<div class="cc-tp-filterbar">
-        <input class="fp-input fp-input-sm" id="cc-q" placeholder="🔎 Recherche libre…" value="${esc(cc.filt[key] || '')}">
+        <input class="fp-input fp-input-sm" id="cc-q" placeholder="${esc(T("ph_search"))}" value="${esc(cc.filt[key] || '')}">
         <span class="cc-tp-filter-actions">
-          ${canCreate ? '<button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-new">＋ Nouveau</button>' : ''}
-          ${bulkable ? `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sel-all">☑ Tout</button>
-            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-bulk-enable">Activer (<span id="cc-sel-n">${cc.sel[key].size}</span>)</button>
-            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-bulk-disable">Désactiver</button>` : ''}
-          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-refresh-sub">↻ Rafraîchir</button>
-          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-reset">↺ Réinitialiser</button>
+          ${canCreate ? `<button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-new">${esc(T("act_new"))}</button>` : ''}
+          ${bulkable ? `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sel-all">${esc(T("act_select_all"))}</button>
+            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-bulk-enable">${esc(T("act_enable"))} (<span id="cc-sel-n">${cc.sel[key].size}</span>)</button>
+            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-bulk-disable">${esc(T("act_disable"))}</button>` : ''}
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-refresh-sub">${esc(T("act_refresh"))}</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-reset">${esc(T("act_reset"))}</button>
           ${TC.exportButtons()}</span>
       </div>
       <div id="cc-stat" class="cc-cc-statline"></div>
@@ -407,11 +421,11 @@
   }
   function ccRenderList() {
     const host = document.getElementById('cc-list'); if (!host) return;
-    const key = cc.sub; const cols = CC_COLS[key] || [['Nom', (r) => pick(r, ['name', 'uuid', 'id'])]];
-    host.innerHTML = TC.tableLoading(cols.length + 1, 'Chargement du tableau…');
+    const key = cc.sub; const cols = CC_COLS[key] || [[T("col_nom"), (r) => pick(r, ['name', 'uuid', 'id'])]];
+    host.innerHTML = TC.tableLoading(cols.length + 1, i18n.t('ui.loading'));
     const filtered = ccFiltered(key, cc[key] || cc.inv || []);
     cc.current = filtered;
-    const stat = document.getElementById('cc-stat'); if (stat) stat.innerHTML = `<span class="fp-muted">${filtered.length} élément(s)</span>`;
+    const stat = document.getElementById('cc-stat'); if (stat) stat.innerHTML = `<span class="fp-muted">${T("msg_hits", { n: filtered.length })}</span>`;
     const columns = cols.map(([label, fn]) => ({ label, render: (r) => esc(String(fn(r) ?? '—')) }));
     // v2.1 : sélection multiple (bulk enable/disable) sur intakes + règles
     if (['inventaire', 'rules'].includes(key)) {
@@ -422,31 +436,31 @@
     }
     columns.push({ label: 'Actions', render: (r) => {
       const idx = filtered.indexOf(r);
-      let btns = `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-detail" data-idx="${idx}">Détail</button>`;
+      let btns = `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-detail" data-idx="${idx}">${esc(T("act_detail"))}</button>`;
       if (key === 'inventaire') {
-        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-rename-intake" data-id="${esc(pick(r, ['intake_uuid', 'uuid']))}" data-name="${esc(pick(r, ['intake_name', 'name']) || '')}">Renommer</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-rename-intake" data-id="${esc(pick(r, ['intake_uuid', 'uuid']))}" data-name="${esc(pick(r, ['intake_name', 'name']) || '')}">${esc(T("act_rename"))}</button>`;
         const st = String(pick(r, ['intake_status']) || '').toLowerCase();
-        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-toggle-item" data-idx="${idx}">${st === 'enabled' || st === 'active' ? 'Désactiver' : 'Activer'}</button>`;
-        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-edit-item" data-idx="${idx}">Éditer</button>`;
-        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm cc-btn-danger" data-act="cc-del-item" data-idx="${idx}">Supprimer</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-toggle-item" data-idx="${idx}">${st === 'enabled' || st === 'active' ? T("act_disable") : T("act_enable")}</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-edit-item" data-idx="${idx}">${esc(T("act_edit"))}</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm cc-btn-danger" data-act="cc-del-item" data-idx="${idx}">${esc(T("act_delete"))}</button>`;
       }
-      if (key === 'connectors') btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-rename-conn" data-id="${esc(pick(r, ['uuid', 'id', 'connector_configuration_uuid']))}" data-name="${esc(pick(r, ['name']) || '')}">Renommer</button>`;
+      if (key === 'connectors') btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-rename-conn" data-id="${esc(pick(r, ['uuid', 'id', 'connector_configuration_uuid']))}" data-name="${esc(pick(r, ['name']) || '')}">${esc(T("act_rename"))}</button>`;
       if (key === 'rules') {
         const en = pick(r, ['rule_enabled', 'enabled']);
-        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-toggle-item" data-idx="${idx}">${en ? 'Désactiver' : 'Activer'}</button>`;
-        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-edit-item" data-idx="${idx}">Éditer</button>`;
-        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm cc-btn-danger" data-act="cc-del-item" data-idx="${idx}">Supprimer</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-toggle-item" data-idx="${idx}">${en ? T("act_disable") : T("act_enable")}</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-edit-item" data-idx="${idx}">${esc(T("act_edit"))}</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm cc-btn-danger" data-act="cc-del-item" data-idx="${idx}">${esc(T("act_delete"))}</button>`;
       }
       if (key === 'playbooks') {
-        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-edit-item" data-idx="${idx}">Éditer</button>`;
-        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm cc-btn-danger" data-act="cc-del-item" data-idx="${idx}">Supprimer</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-edit-item" data-idx="${idx}">${esc(T("act_edit"))}</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm cc-btn-danger" data-act="cc-del-item" data-idx="${idx}">${esc(T("act_delete"))}</button>`;
       }
       if (key === 'alerts-ingest' && pick(r, ['status']) !== 'acknowledged') {
-        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-ack-alert" data-idx="${idx}">Acquitter</button>`;
+        btns += ` <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-ack-alert" data-idx="${idx}">${esc(T("act_ack"))}</button>`;
       }
       return btns;
     } });
-    host.innerHTML = TC.table(columns, filtered, { empty: 'Aucun élément' });
+    host.innerHTML = TC.table(columns, filtered, { empty: T("msg_aucun_element") });
   }
   // Pivots inter-outils (P6) : OpenSearch Discover filtré + Timesketch.
   function ccPivotLinks(it) {
@@ -474,7 +488,7 @@
   function ccDetail(idx) {
     const host = document.getElementById('cc-detail'); if (!host) return;
     const it = cc.current[idx]; if (!it) return;
-    host.innerHTML = `<div class="cc-tp-detail-card"><h4 class="fp-section-sub">Détail — ${esc(pick(it, ['name', 'intake_name', 'uuid', 'id']) || '')}</h4>
+    host.innerHTML = `<div class="cc-tp-detail-card"><h4 class="fp-section-sub">${esc(T("act_detail"))} — ${esc(pick(it, ['name', 'intake_name', 'uuid', 'id']) || '')}</h4>
       ${ccPivotLinks(it)}
       <pre class="cc-payload"><code>${esc(JSON.stringify(it, null, 2))}</code></pre></div>`;
     host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -486,10 +500,10 @@
   async function ccCrudNew() {
     const key = cc.sub;
     if (key === 'inventaire') {
-      const v = await crudForm('Nouvel intake', [
-        { key: 'name', label: 'Nom', type: 'text', required: true },
-        { key: 'format_uuid', label: 'Format UUID', type: 'text', required: true, placeholder: 'uuid du format d’intake' },
-        { key: 'entity_name', label: 'Entité', type: 'text', placeholder: 'nom de l’entité (optionnel)' },
+      const v = await crudForm(T("form_nouvel_intake"), [
+        { key: 'name', label: T("form_nom"), type: 'text', required: true },
+        { key: 'format_uuid', label: T("form_format_uuid"), type: 'text', required: true, placeholder: 'uuid du format d’intake' },
+        { key: 'entity_name', label: T("form_entite"), type: 'text', placeholder: 'nom de l’entité (optionnel)' },
       ]);
       if (!v) return;
       const body = { name: v.name, format_uuid: v.format_uuid };
@@ -497,11 +511,11 @@
       return action('/sekoia/intakes', { method: 'POST', body }, ccReloadCurrent);
     }
     if (key === 'rules') {
-      const v = await crudForm('Nouvelle règle', [
-        { key: 'name', label: 'Nom', type: 'text', required: true },
-        { key: 'severity', label: 'Sévérité (0-100)', type: 'number', placeholder: '50' },
-        { key: 'description', label: 'Description', type: 'text' },
-        { key: 'payload', label: 'Payload (pattern / SIGMA)', type: 'textarea', required: true },
+      const v = await crudForm(T("form_nouvelle_regle"), [
+        { key: 'name', label: T("form_nom"), type: 'text', required: true },
+        { key: 'severity', label: T("form_severite"), type: 'number', placeholder: '50' },
+        { key: 'description', label: T("form_description"), type: 'text' },
+        { key: 'payload', label: T("form_payload"), type: 'textarea', required: true },
       ]);
       if (!v) return;
       const body = { name: v.name, payload: v.payload };
@@ -510,8 +524,8 @@
       return action('/sekoia/rules', { method: 'POST', body }, ccReloadCurrent);
     }
     if (key === 'playbooks') {
-      const v = await crudForm('Nouveau playbook', [
-        { key: 'name', label: 'Nom', type: 'text', required: true },
+      const v = await crudForm(T("form_nouveau_playbook"), [
+        { key: 'name', label: T("form_nom"), type: 'text', required: true },
       ]);
       if (!v) return;
       return action('/sekoia/playbooks', { method: 'POST', body: { name: v.name } }, ccReloadCurrent);
@@ -522,20 +536,20 @@
     const key = cc.sub; const r = cc.current[idx]; if (!r) return;
     if (key === 'inventaire') {
       const id = pick(r, ['intake_uuid', 'uuid']); if (!id) return;
-      const v = await crudForm('Éditer l’intake', [
-        { key: 'name', label: 'Nom', type: 'text', required: true },
-        { key: 'entity_name', label: 'Entité', type: 'text' },
+      const v = await crudForm(T("form_editer_intake"), [
+        { key: 'name', label: T("form_nom"), type: 'text', required: true },
+        { key: 'entity_name', label: T("form_entite"), type: 'text' },
       ], { name: pick(r, ['intake_name', 'name']) || '', entity_name: pick(r, ['entity_name']) || '' });
       if (!v) return;
       return action(`/sekoia/intakes/${encodeURIComponent(id)}`, { method: 'PATCH', body: v }, ccReloadCurrent);
     }
     if (key === 'rules') {
       const id = pick(r, ['rule_uuid', 'uuid']); if (!id) return;
-      const v = await crudForm('Éditer la règle', [
-        { key: 'name', label: 'Nom', type: 'text', required: true },
-        { key: 'severity', label: 'Sévérité (0-100)', type: 'number' },
-        { key: 'description', label: 'Description', type: 'text' },
-        { key: 'payload', label: 'Payload (pattern / SIGMA)', type: 'textarea' },
+      const v = await crudForm(T("form_editer_regle"), [
+        { key: 'name', label: T("form_nom"), type: 'text', required: true },
+        { key: 'severity', label: T("form_severite"), type: 'number' },
+        { key: 'description', label: T("form_description"), type: 'text' },
+        { key: 'payload', label: T("form_payload"), type: 'textarea' },
       ], {
         name: pick(r, ['rule_name', 'name']) || '',
         severity: pick(r, ['rule_severity', 'severity']),
@@ -551,8 +565,8 @@
     }
     if (key === 'playbooks') {
       const id = pick(r, ['uuid', 'id']); if (!id) return;
-      const v = await crudForm('Éditer le playbook', [
-        { key: 'name', label: 'Nom', type: 'text', required: true },
+      const v = await crudForm(T("form_editer_playbook"), [
+        { key: 'name', label: T("form_nom"), type: 'text', required: true },
       ], { name: pick(r, ['name']) || '' });
       if (!v) return;
       return action(`/sekoia/playbooks/${encodeURIComponent(id)}`, { method: 'PATCH', body: v }, ccReloadCurrent);
@@ -561,11 +575,11 @@
 
   async function ccCrudDelete(idx) {
     const key = cc.sub; const r = cc.current[idx]; if (!r) return;
-    const names = { inventaire: 'l’intake', rules: 'la règle', playbooks: 'le playbook' };
+    const names = { inventaire: T("what_intake"), rules: T("what_regle"), playbooks: T("what_playbook") };
     if (!names[key]) return;
     const label = pick(r, ['intake_name', 'rule_name', 'name', 'uuid', 'id']) || '';
-    const ok = await confirmBox('Confirmer la suppression',
-      `Supprimer définitivement ${names[key]} « ${label} » ? Cette action est irréversible.`);
+    const ok = await confirmBox(T("msg_confirmer_suppr_titre"),
+      T("msg_confirmer_suppr", { what: names[key], name: label }));
     if (!ok) return;
     const ids = { inventaire: pick(r, ['intake_uuid', 'uuid']), rules: pick(r, ['rule_uuid', 'uuid']), playbooks: pick(r, ['uuid', 'id']) };
     const bases = { inventaire: '/sekoia/intakes', rules: '/sekoia/rules', playbooks: '/sekoia/playbooks' };
@@ -589,7 +603,7 @@
 
   async function ccAckAlert(idx) {
     const r = cc.current[idx]; if (!r) return;
-    const fp = pick(r, ['fingerprint']); if (!fp) { TC.toast('Fingerprint absent — acquittement impossible', 'warn'); return; }
+    const fp = pick(r, ['fingerprint']); if (!fp) { TC.toast(T("msg_fingerprint_absent"), 'warn'); return; }
     try {
       const resp = await fetch('/api/master/ingest_alerts/ack', {
         method: 'POST', credentials: 'include',
@@ -615,7 +629,7 @@
     return !!(window.SekoiaEnterprise && window.SekoiaEnterprise._profileData);
   }
   function ccExport(fmt) {
-    const key = cc.sub; const cols = CC_COLS[key] || [['Nom', (r) => pick(r, ['name', 'uuid', 'id'])]];
+    const key = cc.sub; const cols = CC_COLS[key] || [[T("col_nom"), (r) => pick(r, ['name', 'uuid', 'id'])]];
     const rows = cc.current && cc.current.length ? cc.current : ccFiltered(key, cc[key] || cc.inv || []);
     if (fmt === 'json') return TC.exportJSON(`sekoia-${key}.json`, rows);
     const flat = rows.map((it) => { const o = {}; cols.forEach(([l, fn]) => { o[l] = fn(it); }); return o; });
@@ -643,10 +657,10 @@
     const body = document.getElementById('cc-body'); if (!body) return;
     body.innerHTML = `<div class="fp-actions-row fp-section-spaced"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-open" data-tab="audit-center">Ouvrir l’Audit Center ↗</button></div>`
       + TC.table([
-        { label: 'Horodatage', render: (a) => esc(a.ts || '—') },
+        { label: T("col_horodatage"), render: (a) => esc(a.ts || '—') },
         { label: 'Utilisateur', render: (a) => esc(a.user || '—') },
-        { label: 'Type', render: (a) => esc(a.type || '—') },
-        { label: 'Action', render: (a) => `<span class="fp-tag">${esc(a.action || '—')}</span>` },
+        { label: T("col_type"), render: (a) => esc(a.type || '—') },
+        { label: T("col_action"), render: (a) => `<span class="fp-tag">${esc(a.action || '—')}</span>` },
         { label: 'Cible', render: (a) => esc(a.target_id || '—') },
         { label: 'Statut', render: (a) => a.status === 'ok' ? '<span class="fp-tag fp-tag-ok">ok</span>' : `<span class="fp-tag fp-tag-danger">${esc(a.status || '?')}</span>` },
       ], (cc.audit || []).slice(0, 50), { empty: i18n.t('msg.aucune_modification_enregistree') });
@@ -670,11 +684,11 @@
   }
   async function ccBulkApply(act) {
     const s = cc.sel[cc.sub];
-    if (!s || !s.size) { TC.toast('Aucun élément sélectionné', 'warn'); return; }
+    if (!s || !s.size) { TC.toast(T("msg_aucune_selection"), 'warn'); return; }
     const base = cc.sub === 'rules' ? '/sekoia/rules/bulk' : '/sekoia/intakes/bulk';
     const r = await TC.api(base, { method: 'POST', body: { ids: [...s], action: act } });
     if (r && (r.ok || r.done != null)) {
-      TC.toast(`${act === 'enable' ? 'Activation' : 'Désactivation'} — ${r.done ?? 0} OK / ${r.failed ?? 0} échec(s)`, r.failed ? 'warn' : 'ok');
+      TC.toast(T("msg_bulk", { action: act === 'enable' ? T("act_enable") : T("act_disable"), done: r.done ?? 0, failed: r.failed ?? 0 }), r.failed ? 'warn' : 'ok');
       s.clear(); ccReloadCurrent();
     } else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
   }
@@ -685,15 +699,15 @@
     const q = cc.evQuery || {};
     body.innerHTML = `<div class="cc-tp-fetchform">
       <div class="fp-form-row">
-        <label class="fp-label" style="flex:1">Requête Lucene Sekoia
+        <label class="fp-label" style="flex:1">${esc(T("lbl_requete_lucene"))}
           <input class="fp-input" id="cc-ev-q" value="${esc(q.q || '')}" placeholder='log.hostname:"SRV-01" AND event.code:"4625"'></label>
       </div>
       <div class="fp-form-row fp-grid-3">
-        <label class="fp-label">Plage
+        <label class="fp-label">${esc(T("lbl_plage"))}
           <select class="fp-select" id="cc-ev-tr">${['1h', '24h', '7d', '30d'].map((t) => `<option${q.timeRange === t ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
-        <label class="fp-label">Max événements
+        <label class="fp-label">${esc(T("lbl_max_events"))}
           <select class="fp-select" id="cc-ev-max">${[100, 1000, 5000, 20000].map((m) => `<option${q.maxEvents === m ? ' selected' : ''}>${m}</option>`).join('')}</select></label>
-        <label class="fp-label">&nbsp;<button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-events">Rechercher</button></label>
+        <label class="fp-label">&nbsp;<button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-events">${esc(T("act_search"))}</button></label>
       </div></div>
       <div id="cc-ev-result" class="cc-tp-result"></div>`;
     if (cc.events.length) ccRenderEventsResult();
@@ -701,10 +715,10 @@
   async function ccRunEvents() {
     const query = { q: val('cc-ev-q').trim(), timeRange: val('cc-ev-tr') || '24h',
       maxEvents: parseInt(val('cc-ev-max') || '1000', 10) };
-    if (!query.q) { TC.toast('Requête vide', 'warn'); return; }
+    if (!query.q) { TC.toast(T("msg_requete_vide"), 'warn'); return; }
     cc.evQuery = query;
     const out = document.getElementById('cc-ev-result');
-    if (out) out.innerHTML = '<p class="fp-muted">Recherche en cours (job Sekoia — jusqu’à 3 min)…</p>';
+    if (out) out.innerHTML = `<p class="fp-muted">${esc(T("msg_recherche_job"))}</p>`;
     const r = await TC.api('/sekoia/events/search', { method: 'POST', body: query });
     cc.events = (r && r.items) || []; cc.evMeta = r || {};
     ccRenderEventsResult();
@@ -712,15 +726,15 @@
   function ccRenderEventsResult() {
     const out = document.getElementById('cc-ev-result'); if (!out) return;
     const meta = cc.evMeta || {};
-    const head = `<p class="fp-muted">${cc.events.length} événement(s)${meta.total != null ? ` / ${meta.total} au total` : ''}${meta.truncated ? ' — tronqué' : ''}${meta.error ? ` — <span class="fp-tag fp-tag-danger">${esc(meta.error)}</span>` : ''}</p>`;
+    const head = `<p class="fp-muted">${T("msg_events_count", { n: cc.events.length })}${meta.total != null ? T("msg_sur_total", { total: meta.total }) : ''}${meta.truncated ? T("msg_tronque") : ''}${meta.error ? ` — <span class="fp-tag fp-tag-danger">${esc(meta.error)}</span>` : ''}</p>`;
     out.innerHTML = head + TC.table([
-      { label: 'Horodatage', render: (e) => esc(tsOf(e) || '—') },
-      { label: 'Host', render: (e) => esc(TC.deep(e, 'log.hostname') || TC.deep(e, 'host.hostname') || '—') },
+      { label: T("col_horodatage"), render: (e) => esc(tsOf(e) || '—') },
+      { label: T("col_host"), render: (e) => esc(TC.deep(e, 'log.hostname') || TC.deep(e, 'host.hostname') || '—') },
       { label: 'Intake', render: (e) => esc(String(TC.deep(e, 'sekoiaio.intake.uuid') || '—').slice(0, 8)) },
-      { label: 'Action', render: (e) => esc(TC.deep(e, 'event.action') || TC.deep(e, 'event.code') || '—') },
-      { label: 'Message', render: (e) => esc(String(pick(e, ['message']) || '').slice(0, 160)) },
+      { label: T("col_action"), render: (e) => esc(TC.deep(e, 'event.action') || TC.deep(e, 'event.code') || '—') },
+      { label: T("col_message"), render: (e) => esc(String(pick(e, ['message']) || '').slice(0, 160)) },
       { label: '', render: (e) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-ev-detail" data-idx="${cc.events.indexOf(e)}">JSON</button>` },
-    ], cc.events.slice(0, 500), { empty: 'Aucun événement' });
+    ], cc.events.slice(0, 500), { empty: T("msg_aucun_evenement") });
   }
   function ccEventDetail(idx) {
     const e = cc.events[idx]; if (!e) return;
@@ -738,9 +752,9 @@
     const body = document.getElementById('cc-body'); if (!body) return;
     body.innerHTML = `<div class="cc-tp-fetchform">
       <div class="fp-form-row">
-        <label class="fp-label" style="flex:1">IOC (IP, domaine, hash, URL…)
+        <label class="fp-label" style="flex:1">${esc(T("lbl_ioc"))}
           <input class="fp-input" id="cc-ioc-q" value="${esc(cc.iocQuery || '')}" placeholder="1.2.3.4 / evil.example / sha256…"></label>
-        <button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-ioc">Recherche fédérée</button>
+        <button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-ioc">${esc(T("act_search_fed"))}</button>
       </div></div>
       <div id="cc-ioc-result" class="cc-tp-result"></div>`;
     if (cc.iocResult) ccRenderIocResult();
@@ -755,14 +769,14 @@
     return 'other';
   }
   async function ccRunIoc() {
-    const q = val('cc-ioc-q').trim(); if (!q) { TC.toast('IOC vide', 'warn'); return; }
+    const q = val('cc-ioc-q').trim(); if (!q) { TC.toast(T("msg_ioc_vide"), 'warn'); return; }
     cc.iocQuery = q;
     const out = document.getElementById('cc-ioc-result');
-    if (out) out.innerHTML = '<p class="fp-muted">Interrogation OpenCTI + MISP + OpenSearch…</p>';
+    if (out) out.innerHTML = `<p class="fp-muted">${esc(T("msg_ioc_loading"))}</p>`;
     try {
       const r = await fetch(`/api/master/ioc_search?q=${encodeURIComponent(q)}`, { credentials: 'include', cache: 'no-store' });
       cc.iocResult = await r.json();
-    } catch (_) { cc.iocResult = { error: 'Endpoint indisponible' }; }
+    } catch (_) { cc.iocResult = { error: T("msg_endpoint_ko") }; }
     ccRenderIocResult();
   }
   function ccRenderIocResult() {
@@ -770,30 +784,30 @@
     const r = cc.iocResult || {};
     if (r.error) { out.innerHTML = `<p><span class="fp-tag fp-tag-danger">${esc(r.error)}</span></p>`; return; }
     const badge = r.known
-      ? `<span class="fp-tag fp-tag-danger">Connu — ${esc((r.seen_in || []).join(', '))}</span>`
-      : '<span class="fp-tag fp-tag-ok">Non référencé dans les sources CTI</span>';
-    const srcBlock = (name, s, cols) => `<div class="cc-stat-block fp-section-spaced"><h4 class="fp-section-sub">${name} — ${s.count ?? 0} hit(s)${s.error ? ` <span class="fp-tag fp-tag-danger">${esc(s.error)}</span>` : ''}${s.configured === false ? ' <span class="fp-tag">non configuré</span>' : ''}</h4>
-      ${TC.table(cols, (s.items || []).slice(0, 25), { empty: 'Aucun hit' })}</div>`;
+      ? `<span class="fp-tag fp-tag-danger">${esc(T("msg_connu", { sources: (r.seen_in || []).join(', ') }))}</span>`
+      : '<span class="fp-tag fp-tag-ok">' + esc(T("msg_non_reference")) + '</span>';
+    const srcBlock = (name, s, cols) => `<div class="cc-stat-block fp-section-spaced"><h4 class="fp-section-sub">${name} — ${T("msg_hits", { n: s.count ?? 0 })}${s.error ? ` <span class="fp-tag fp-tag-danger">${esc(s.error)}</span>` : ''}${s.configured === false ? ` <span class="fp-tag">${esc(T("msg_non_configure"))}</span>` : ''}</h4>
+      ${TC.table(cols, (s.items || []).slice(0, 25), { empty: T("msg_aucun_hit") })}</div>`;
     const so = r.sources || {};
     out.innerHTML = `<div class="fp-actions-row fp-section-spaced">${badge}
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-thehive-ioc">Case TheHive</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-cortex-ioc">Analyser (Cortex)</button></div>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-thehive-ioc">${esc(T("act_thehive_case"))}</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-cortex-ioc">${esc(T("act_cortex"))}</button></div>
       ${srcBlock('OpenCTI', so.opencti || {}, [
-        { label: 'Type', render: (i2) => esc(i2.kind || '') },
-        { label: 'Valeur', render: (i2) => esc(String(i2.value || '').slice(0, 120)) },
-        { label: 'Nom', render: (i2) => esc(i2.name || '—') },
-        { label: 'Score', render: (i2) => String(i2.score ?? i2.confidence ?? '—') },
+        { label: T("col_type"), render: (i2) => esc(i2.kind || '') },
+        { label: T("col_valeur"), render: (i2) => esc(String(i2.value || '').slice(0, 120)) },
+        { label: T("col_nom"), render: (i2) => esc(i2.name || '—') },
+        { label: T("col_score"), render: (i2) => String(i2.score ?? i2.confidence ?? '—') },
       ])}
       ${srcBlock('MISP', so.misp || {}, [
-        { label: 'Type', render: (i2) => esc(i2.type || '') },
-        { label: 'Catégorie', render: (i2) => esc(i2.category || '') },
-        { label: 'Valeur', render: (i2) => esc(String(i2.value || '').slice(0, 120)) },
-        { label: 'Event', render: (i2) => esc(String(i2.event_id || '—')) },
+        { label: T("col_type"), render: (i2) => esc(i2.type || '') },
+        { label: T("col_categorie"), render: (i2) => esc(i2.category || '') },
+        { label: T("col_valeur"), render: (i2) => esc(String(i2.value || '').slice(0, 120)) },
+        { label: T("col_event"), render: (i2) => esc(String(i2.event_id || '—')) },
       ])}
       ${srcBlock('OpenSearch TI (local)', so.opensearch || {}, [
-        { label: 'Index', render: (i2) => esc(i2.index || '') },
-        { label: 'Valeur', render: (i2) => esc(String(i2.value || '').slice(0, 120)) },
-        { label: 'Date', render: (i2) => esc(i2.created || '—') },
+        { label: T("col_index"), render: (i2) => esc(i2.index || '') },
+        { label: T("col_valeur"), render: (i2) => esc(String(i2.value || '').slice(0, 120)) },
+        { label: T("col_date"), render: (i2) => esc(i2.created || '—') },
       ])}`;
   }
   async function ccIocToTheHive() {
@@ -807,7 +821,7 @@
           severity: r.known ? 'high' : 'low', tags: ['cti', 'ioc'],
           observables: [{ data: q, dataType: ccIocType(q), ioc: !!r.known }] }) });
       const j = await resp.json().catch(() => ({}));
-      TC.toast(j.ok ? 'Case TheHive créé' : (j.error || i18n.t('msg.echec')), j.ok ? 'ok' : 'warn');
+      TC.toast(j.ok ? T("msg_case_cree") : (j.error || i18n.t('msg.echec')), j.ok ? 'ok' : 'warn');
     } catch (_) { TC.toast(i18n.t('msg.echec'), 'warn'); }
   }
   async function ccIocToCortex() {
@@ -818,7 +832,7 @@
         body: JSON.stringify({ data: q, dataType: ccIocType(q) }) });
       const j = await resp.json().catch(() => ({}));
       const okN = (j.jobs || []).filter((x) => x.ok).length;
-      TC.toast(j.ok ? `Cortex : ${okN} analyse(s) lancée(s)` : (j.error || i18n.t('msg.echec')), j.ok ? 'ok' : 'warn');
+      TC.toast(j.ok ? T("msg_cortex_lance", { n: okN }) : (j.error || i18n.t('msg.echec')), j.ok ? 'ok' : 'warn');
     } catch (_) { TC.toast(i18n.t('msg.echec'), 'warn'); }
   }
 
@@ -834,28 +848,28 @@
     if (!c) { body.innerHTML = TC.tableLoading(3, i18n.t('ui.loading')); return; }
     const s = c.summary || {}; const rows = c.coverage || [];
     body.innerHTML = `<div class="cc-tp-dashgrid">
-        ${TC.statCard('Formats avec règles', s.formats_with_rules ?? rows.length, 'accent')}
-        ${TC.statCard('Formats ingérés', s.formats_ingested ?? '—')}
-        ${TC.statCard('Ingérés SANS règle', s.ingested_without_rules ?? (c.gaps || []).length, 'warn')}</div>
-      <div class="fp-actions-row fp-section-spaced"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-run-coverage">↻ Rafraîchir</button></div>`
+        ${TC.statCard(T("msg_formats_avec_regles"), s.formats_with_rules ?? rows.length, 'accent')}
+        ${TC.statCard(T("msg_formats_ingeres"), s.formats_ingested ?? '—')}
+        ${TC.statCard(T("msg_ingere_sans_regle"), s.ingested_without_rules ?? (c.gaps || []).length, 'warn')}</div>
+      <div class="fp-actions-row fp-section-spaced"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-run-coverage">${esc(T("act_refresh"))}</button></div>`
       + TC.table([
-        { label: 'Format', render: (r2) => esc(r2.format_name || r2.format_uuid || '—') },
-        { label: 'Règles', render: (r2) => String(r2.rules_count ?? 0) },
-        { label: 'Ingéré', render: (r2) => (r2.ingested ? '✔' : '✘') },
-        { label: 'Gap', render: (r2) => (r2.gap ? '<span class="fp-tag fp-tag-danger">GAP — intake actif sans règle</span>' : '') },
-      ], rows, { empty: c.error ? esc(c.error) : 'Aucune donnée de couverture' });
+        { label: T("col_format"), render: (r2) => esc(r2.format_name || r2.format_uuid || '—') },
+        { label: T("col_regles"), render: (r2) => String(r2.rules_count ?? 0) },
+        { label: T("col_ingere"), render: (r2) => (r2.ingested ? '✔' : '✘') },
+        { label: T("col_gap"), render: (r2) => (r2.gap ? `<span class="fp-tag fp-tag-danger">${esc(T("msg_gap"))}</span>` : '') },
+      ], rows, { empty: c.error ? esc(c.error) : T("msg_aucune_couverture") });
   }
 
   // ── Onglet Volumétrie : séries temps réel + top hostnames ─────────────────
   function ccRenderVolumetry() {
     const body = document.getElementById('cc-body'); if (!body) return;
     body.innerHTML = `<div class="cc-tp-fetchform"><div class="fp-form-row fp-grid-3">
-        <label class="fp-label">Fenêtre
+        <label class="fp-label">${esc(T("lbl_fenetre"))}
           <select class="fp-select" id="cc-vol-h">${[6, 24, 72, 168].map((h) => `<option value="${h}"${cc.volHours === h ? ' selected' : ''}>${h} h</option>`).join('')}</select></label>
-        <label class="fp-label">Intake (optionnel)
-          <select class="fp-select" id="cc-vol-intake"><option value="">Tous</option>
+        <label class="fp-label">${esc(T("lbl_intake_opt"))}
+          <select class="fp-select" id="cc-vol-intake"><option value="">${esc(T("lbl_tous"))}</option>
             ${(cc.inv || []).map((i2) => { const u = pick(i2, ['intake_uuid', 'uuid']) || ''; return `<option value="${esc(u)}"${cc.volIntake === u ? ' selected' : ''}>${esc(pick(i2, ['intake_name', 'name']) || '')}</option>`; }).join('')}</select></label>
-        <label class="fp-label">&nbsp;<button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-volumetry">Charger</button></label>
+        <label class="fp-label">&nbsp;<button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-volumetry">${esc(T("act_load"))}</button></label>
       </div></div>
       <div class="cc-tp-grid"><div id="cc-vol-ts" class="cc-tp-chart"></div><div id="cc-vol-hosts" class="cc-tp-chart"></div></div>
       <div id="cc-vol-table"></div>`;
@@ -890,32 +904,32 @@
     TC.chart('cc-vol-hosts', TC.barOption(
       Object.fromEntries(items.slice(0, 12).map((h) => [h.log_hostname, h.count])), '#0A84FF'), 300);
     const tbl = document.getElementById('cc-vol-table');
-    if (tbl) tbl.innerHTML = `<h4 class="fp-section-sub fp-section-spaced">Top hostnames (${items.length})</h4>`
+    if (tbl) tbl.innerHTML = `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_top_hostnames", { n: items.length }))}</h4>`
       + TC.table([
         { label: 'log.hostname', render: (h) => esc(h.log_hostname || '—') },
-        { label: 'Volume', render: (h) => String(h.count ?? 0) },
-        { label: 'Dernier événement', render: (h) => esc(h.last_seen || '—') },
-      ], items, { empty: (ts && ts.error) || 'Pas de données de volumétrie (télémétrie locale absente)' });
+        { label: T("col_volume"), render: (h) => String(h.count ?? 0) },
+        { label: T("col_dernier_evt"), render: (h) => esc(h.last_seen || '—') },
+      ], items, { empty: (ts && ts.error) || T("msg_pas_de_volumetrie") });
   }
 
   // ── Onglet Testeur de logs : détection de format + suggestion Sekoia ──────
   function ccRenderLogTester() {
     const body = document.getElementById('cc-body'); if (!body) return;
     body.innerHTML = `<div class="cc-tp-fetchform">
-      <label class="fp-label">Collez des échantillons de logs (une ligne par événement, max 20)
+      <label class="fp-label">${esc(T("lbl_samples"))}
         <textarea class="fp-input" id="cc-lt-samples" rows="8" placeholder='<34>Oct 11 22:14:15 myhost su: session opened&#10;CEF:0|Vendor|Product|1.0|100|evt|5|src=1.2.3.4&#10;{"@timestamp":"2026-07-29T00:00:00Z","message":"…"}'></textarea></label>
-      <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-logtest">Détecter le format</button></div></div>
+      <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-logtest">${esc(T("act_detect"))}</button></div></div>
       <div id="cc-lt-result" class="cc-tp-result"></div>`;
   }
   async function ccRunLogTest() {
     const samples = val('cc-lt-samples').split('\n').map((s) => s.trim()).filter(Boolean);
-    if (!samples.length) { TC.toast('Aucun échantillon', 'warn'); return; }
+    if (!samples.length) { TC.toast(T("msg_aucun_echantillon"), 'warn'); return; }
     let r;
     try {
       const resp = await fetch('/api/master/logformat/detect', { method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ samples }) });
       r = await resp.json();
-    } catch (_) { r = { error: 'Endpoint indisponible' }; }
+    } catch (_) { r = { error: T("msg_endpoint_ko") }; }
     const out = document.getElementById('cc-lt-result'); if (!out) return;
     if (r.error) { out.innerHTML = `<p><span class="fp-tag fp-tag-danger">${esc(r.error)}</span></p>`; return; }
     if (!cc.loaded.formats) ccLoadSection('formats'); // pré-charge pour suggestions ultérieures
@@ -927,16 +941,16 @@
       const n = String(pick(f, ['name', 'title', 'slug']) || '').toLowerCase();
       return kw.some((k) => n.includes(k));
     }).slice(0, 8);
-    out.innerHTML = `<p class="fp-section-spaced">Format dominant : <span class="fp-tag">${esc(dom.format || 'n/a')}</span>
+    out.innerHTML = `<p class="fp-section-spaced">${esc(T("msg_dominant"))} : <span class="fp-tag">${esc(dom.format || 'n/a')}</span>
         — ${Math.round((dom.ratio || 0) * 100)}% des ${r.count} ligne(s)</p>`
       + TC.table([
-        { label: 'Échantillon', render: (d) => esc(String(d.sample).slice(0, 120)) },
-        { label: 'Format détecté', render: (d) => `<span class="fp-tag">${esc(d.name)}</span>` },
-        { label: 'Confiance', render: (d) => `${Math.round((d.confidence || 0) * 100)}%` },
-      ], r.detections || [], { empty: 'Aucune ligne' })
-      + (suggestions.length ? `<h4 class="fp-section-sub fp-section-spaced">Formats Sekoia suggérés</h4>`
+        { label: T("col_echantillon"), render: (d) => esc(String(d.sample).slice(0, 120)) },
+        { label: T("col_format_detecte"), render: (d) => `<span class="fp-tag">${esc(d.name)}</span>` },
+        { label: T("col_confiance"), render: (d) => `${Math.round((d.confidence || 0) * 100)}%` },
+      ], r.detections || [], { empty: T("msg_aucune_ligne") })
+      + (suggestions.length ? `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_formats_suggeres"))}</h4>`
         + TC.table([
-          { label: 'Format', render: (f) => esc(pick(f, ['name', 'title', 'slug']) || '—') },
+          { label: T("col_format"), render: (f) => esc(pick(f, ['name', 'title', 'slug']) || '—') },
           { label: 'UUID', render: (f) => esc(pick(f, ['uuid', 'id']) || '—') },
         ], suggestions, { empty: '—' }) : '');
   }
@@ -974,7 +988,7 @@
       </div>
       <div class="fp-actions-row">
         <button type="button" class="fp-btn fp-btn-primary" data-act="xdr-run">Corréler Sekoia + SentinelOne</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="xdr-run">↻ Rafraîchir</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="xdr-run">${esc(T("act_refresh"))}</button>
       </div>
     </div><div id="xdr-result" class="cc-tp-result"></div>`;
   }
@@ -1051,8 +1065,8 @@
       return;
     }
     if (xdr.sub === 'timeline') {
-      if (!xdr.merged.length) { host.innerHTML = '<p class="fp-muted">Aucun événement corrélé</p>'; return; }
-      host.innerHTML = `<ul class="${i18n.t('msg.cc_timeline_cc_timeline_xdr')}">${xdr.merged.slice(0, 800).map((m) => {
+      if (!xdr.merged.length) { host.innerHTML = `<p class="fp-muted">${esc(T("msg_aucun_evt_correle"))}</p>`; return; }
+      host.innerHTML = `<ul class="cc-timeline cc-timeline-xdr">${xdr.merged.slice(0, 800).map((m) => {
         const cls = m.source === 'Sekoia' ? 'cc-src-sek' : 'cc-src-s1';
         return `<li><span class="cc-tl-ts">${esc(m.ts || '—')}</span><span class="cc-xdr-src ${cls}">${esc(m.source)}</span><span class="cc-tl-host">${esc(m.host || '')}</span><span class="cc-tl-msg">${esc(m.summary || m.type)}</span></li>`;
       }).join('')}</ul>`;
@@ -1060,18 +1074,18 @@
     }
     if (xdr.sub === 'sekoia') {
       host.innerHTML = TC.table([
-        { label: 'Horodatage', render: (e) => esc(tsOf(e) || '—') },
-        { label: 'Host', render: (e) => esc(TC.deep(e, 'log.hostname') || TC.deep(e, 'host.hostname') || '—') },
+        { label: T("col_horodatage"), render: (e) => esc(tsOf(e) || '—') },
+        { label: T("col_host"), render: (e) => esc(TC.deep(e, 'log.hostname') || TC.deep(e, 'host.hostname') || '—') },
         { label: 'Source IP', render: (e) => esc(TC.deep(e, 'source.ip') || '—') },
         { label: 'event.category', render: (e) => esc(TC.deep(e, 'event.category') || '—') },
-        { label: 'Message', render: (e) => esc(String(pick(e, ['message', 'event.action']) || '').slice(0, 140)) },
+        { label: T("col_message"), render: (e) => esc(String(pick(e, ['message', 'event.action']) || '').slice(0, 140)) },
       ], xdr.sek, { empty: i18n.t('msg.aucun_event_sekoia') });
       return;
     }
     if (xdr.sub === 's1') {
       host.innerHTML = TC.table([
-        { label: 'Type', render: (e) => `<span class="fp-tag">${esc(e._kind || 'event')}</span>` },
-        { label: 'Horodatage', render: (e) => esc(tsOf(e) || '—') },
+        { label: T("col_type"), render: (e) => `<span class="fp-tag">${esc(e._kind || 'event')}</span>` },
+        { label: T("col_horodatage"), render: (e) => esc(tsOf(e) || '—') },
         { label: i18n.t('table_cols.detail'), render: (e) => esc(String(TC.deep(e, 'threatInfo.threatName') || pick(e, ['primaryDescription', 'description']) || '').slice(0, 160)) },
       ], xdr.s1, { empty: i18n.t('msg.aucune_donnee_sentinelone') });
       return;
@@ -1112,7 +1126,7 @@
     const bar = document.getElementById('au-bar'); if (!bar) return;
     const opt = (arr, cur) => ['<option value="">— tous —</option>'].concat(arr.map((x) => `<option value="${esc(x)}"${cur === x ? ' selected' : ''}>${esc(x)}</option>`)).join('');
     bar.innerHTML = `<div class="cc-tp-filterbar">
-      <input class="fp-input fp-input-sm" id="au-q" placeholder="🔎 Recherche libre…" value="${esc(audit.filt.q)}">
+      <input class="fp-input fp-input-sm" id="au-q" placeholder="${esc(T("ph_search"))}" value="${esc(audit.filt.q)}">
       <label class="cc-flt-date">Du <input class="fp-input fp-input-sm" id="au-from" type="datetime-local" value="${esc(audit.filt.from)}"></label>
       <label class="cc-flt-date">Au <input class="fp-input fp-input-sm" id="au-to" type="datetime-local" value="${esc(audit.filt.to)}"></label>
       <select class="fp-select fp-input-sm" id="au-platform" title="Plateforme">${opt(auUniq('platform'), audit.filt.platform)}</select>
@@ -1120,8 +1134,8 @@
       <select class="fp-select fp-input-sm" id="au-action" title="Action">${opt(auUniq('action'), audit.filt.action)}</select>
       <select class="fp-select fp-input-sm" id="au-user" title="Utilisateur">${opt(auUniq('user'), audit.filt.user)}</select>
       <span class="cc-tp-filter-actions">
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="au-reload">↻ Rafraîchir</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="au-reset">↺ Réinitialiser</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="au-reload">${esc(T("act_refresh"))}</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="au-reset">${esc(T("act_reset"))}</button>
         ${TC.exportButtons()}</span>
     </div>`;
   }
@@ -1162,11 +1176,11 @@
     const rows = auFiltered();
     const stat = document.getElementById('au-stat'); if (stat) stat.innerHTML = `<span class="fp-muted">${rows.length} / ${audit.items.length} entrée(s)</span>`;
     host.innerHTML = TC.table([
-      { label: 'Horodatage', render: (a) => esc(a.ts || '—') },
+      { label: T("col_horodatage"), render: (a) => esc(a.ts || '—') },
       { label: 'Utilisateur', render: (a) => esc(a.user || '—') + (a.role ? ` <span class="fp-muted">(${esc(a.role)})</span>` : '') },
       { label: 'Plateforme', render: (a) => esc(a.platform || '—') },
-      { label: 'Type', render: (a) => esc(a.type || '—') },
-      { label: 'Action', render: (a) => `<span class="fp-tag">${esc(a.action || '—')}</span>` },
+      { label: T("col_type"), render: (a) => esc(a.type || '—') },
+      { label: T("col_action"), render: (a) => `<span class="fp-tag">${esc(a.action || '—')}</span>` },
       { label: 'Cible', render: (a) => esc(a.target_id || '—') },
       { label: i18n.t('table_cols.detail'), render: (a) => esc(a.summary || '') },
       { label: 'Statut', render: (a) => a.status === 'ok' ? '<span class="fp-tag fp-tag-ok">ok</span>' : `<span class="fp-tag fp-tag-danger">${esc(a.status || '?')} ${a.http || ''}</span>` },

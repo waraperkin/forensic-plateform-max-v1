@@ -1,0 +1,81 @@
+<div class="portal-doc-article">
+  <p class="portal-doc-lead">The <strong>Sekoia Control Center</strong> (v2.1) is the full management plane for your Sekoia.io SIEM: editable inventories, real-time ingestion monitoring, event search, CTI federation and CERT automation — far beyond the standard Sekoia console capabilities.</p>
+
+  <h3>The 13 tabs</h3>
+  <table class="portal-doc-table">
+    <thead><tr><th>Tab</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>Overview</td><td>Intake / rule / connector / format counters, distribution charts, global health</td></tr>
+      <tr><td>Inventory</td><td>Intakes: create, edit, rename, delete, search, dynamic filtering, bulk actions (enable / disable)</td></tr>
+      <tr><td>Rules</td><td>Detection rules: full CRUD, pattern / SIGMA payload, 0-100 severity, bulk enable / disable</td></tr>
+      <tr><td>Playbooks</td><td>Sekoia playbooks: CRUD, triggers, status</td></tr>
+      <tr><td>Connectors</td><td>Connectors: inventory, renaming, configuration</td></tr>
+      <tr><td>Modules</td><td>Sekoia modules and their configurations</td></tr>
+      <tr><td>Formats</td><td>Referenced log formats (parsers), taxonomy</td></tr>
+      <tr><td>Ingestion alerts</td><td>Supervision alerts: volume drop, silent intake, missing hostname, parsing anomalies — with acknowledgement</td></tr>
+      <tr><td>Events</td><td>Real-time Lucene search on Sekoia events (async job, tunable range and limit)</td></tr>
+      <tr><td>IOC / CTI</td><td>Federated observable lookup: OpenCTI + MISP + local OpenSearch; one-click TheHive case creation and Cortex analysis</td></tr>
+      <tr><td>Coverage</td><td>Formats × rules matrix: flags active intakes with no detection rule (GAP)</td></tr>
+      <tr><td>Volumetry</td><td>Events per intake / source / hostname, top hostnames, last event seen (local OpenSearch telemetry)</td></tr>
+      <tr><td>Log tester</td><td>Automatic format detection for log samples (CEF, LEEF, syslog RFC3164/5424, JSON, CSV, key=value, XML…) with matching Sekoia format suggestions</td></tr>
+      <tr><td>Audit</td><td>Journal of every change made from the portal</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Ingestion monitoring</h3>
+  <p>The platform ingests local telemetry into OpenSearch (<code>forensic-sekoia-telemetry-*</code>) which powers:</p>
+  <ul>
+    <li><strong>Volumetry</strong> per intake, per source and per <code>log.hostname</code> over 1 h to 7 d windows;</li>
+    <li><strong>Top hostnames</strong> per intake with last-event timestamps;</li>
+    <li><strong>Automatic alerts</strong>: volume drop, silent intake, missing hostname, ingestion or parsing anomaly;</li>
+    <li><strong>Acknowledgement</strong> of alerts by fingerprint, traced in the audit log;</li>
+    <li>Dedicated Grafana dashboard <em>Sekoia Ingestion</em> (volumes, eps, alerts).</li>
+  </ul>
+
+  <h3>CTI federation and cross-tool pivots</h3>
+  <pre class="mermaid">flowchart LR
+    classDef portal fill:#0d47a1,stroke:#42a5f5,color:#fff
+    classDef cti fill:#880e4f,stroke:#f48fb1,color:#fce4ec
+    classDef data fill:#1b5e20,stroke:#81c784,color:#e8f5e9
+
+    CC["Sekoia Control Center<br/>IOC / CTI tab"]:::portal
+    OCTI["OpenCTI"]:::cti
+    MISP["MISP"]:::cti
+    OS[("OpenSearch<br/>forensic-sekoia-telemetry-*")]:::data
+    HIVE["TheHive<br/>case creation"]:::cti
+    CORTEX["Cortex<br/>analyzers"]:::cti
+
+    CC --> OCTI & MISP & OS
+    CC --> HIVE & CORTEX</pre>
+  <ul>
+    <li><strong>Federated search</strong>: an IOC (IP, domain, hash, URL) is queried simultaneously against OpenCTI, MISP and local indices; the "Known" badge lists every source where it appears;</li>
+    <li><strong>TheHive case</strong>: one-click case creation pre-filled with the IOC and its context;</li>
+    <li><strong>Cortex analysis</strong>: launch available analyzers on the observable;</li>
+    <li>Sekoia detections can also <strong>automatically</strong> create TheHive cases on critical alerts.</li>
+  </ul>
+
+  <h3>Internal API</h3>
+  <p>Every Control Center action goes through the portal internal API (<code>/api/sekoia/*</code>), documented in <code>docs/SEKOIA.md</code>:</p>
+  <table class="portal-doc-table portal-doc-table-compact">
+    <thead><tr><th>Route</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET/POST /api/sekoia/intakes</code>, <code>PATCH/DELETE /api/sekoia/intakes/:uuid</code></td><td>Intake CRUD</td></tr>
+      <tr><td><code>GET/POST /api/sekoia/rules</code>, <code>PATCH/DELETE /api/sekoia/rules/:uuid</code></td><td>Rule CRUD</td></tr>
+      <tr><td><code>GET/POST /api/sekoia/playbooks</code>, <code>PATCH/DELETE /api/sekoia/playbooks/:uuid</code></td><td>Playbook CRUD</td></tr>
+      <tr><td><code>POST /api/sekoia/intakes/bulk</code>, <code>/api/sekoia/rules/bulk</code></td><td>Bulk enable / disable</td></tr>
+      <tr><td><code>POST /api/sekoia/events/search</code></td><td>Event search (Lucene job)</td></tr>
+      <tr><td><code>GET /api/sekoia/local/timeseries</code>, <code>/api/sekoia/local/top-hostnames</code></td><td>Local volumetry</td></tr>
+      <tr><td><code>POST /api/sekoia/cti/ioc</code></td><td>Federated IOC lookup (OpenCTI + MISP + OpenSearch)</td></tr>
+      <tr><td><code>POST /api/sekoia/cti/ioc/thehive-case</code>, <code>/api/sekoia/cti/ioc/cortex</code></td><td>TheHive / Cortex pivots</td></tr>
+      <tr><td><code>POST /api/sekoia/logformat/detect</code></td><td>Log format detection</td></tr>
+      <tr><td><code>GET /api/sekoia/coverage</code></td><td>Formats × rules coverage matrix</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Prerequisites</h3>
+  <ul>
+    <li><code>SEKOIA_API_KEY</code> (read + write rights on intakes / rules / playbooks) in <code>.env</code>;</li>
+    <li>Optional CTI connectors: <code>OPENCTI_TOKEN</code>, <code>MISP_KEY</code>, <code>THEHIVE_API_KEY</code>, <code>CORTEX_API_KEY</code> — unconfigured sources are simply flagged "not configured";</li>
+    <li>End-to-end validation: <code>./scripts/validate-sekoia.sh</code>.</li>
+  </ul>
+</div>

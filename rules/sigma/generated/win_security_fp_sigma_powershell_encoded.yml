@@ -1,0 +1,14 @@
+title: FP-SIGMA-powershell-encoded
+id: fp-sigma-powershell-encoded
+status: stable
+description: Encoded PowerShell
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    message: '*powershell*encoded*'
+  condition: selection
+tags:
+  - attack.t1059.001
+level: high

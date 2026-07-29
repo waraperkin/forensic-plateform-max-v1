@@ -83,7 +83,7 @@ def load_sigma_yaml_files(limit: int = 500) -> list[tuple[str, str]]:
     if not SIGMA_DIR.is_dir():
         return []
     out: list[tuple[str, str]] = []
-    for p in sorted(SIGMA_DIR.glob("fp-sigma-*.yml"))[:limit]:
+    for p in sorted(SIGMA_DIR.glob("win_security_fp_sigma_*.yml"))[:limit]:
         out.append((p.name, p.read_text(encoding="utf-8")))
     return out
 

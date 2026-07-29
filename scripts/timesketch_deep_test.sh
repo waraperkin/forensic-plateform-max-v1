@@ -48,7 +48,7 @@ fi
 
 log "2/6 — Import règles Sigma (tsctl, fichier par fichier)..."
 IMP_OK=0
-for sf in example_sigma.yml fp-e2e-4625-stable.yml forensic-detection-rules.yml; do
+for sf in win_security_example_sigma.yml win_security_fp_e2e_4625_stable.yml forensic_detection_rules.yml; do
   if docker exec "$WEB" test -f "/opt/timesketch/sigma_rules/$sf" 2>/dev/null; then
     if docker exec "$WEB" bash -c ". /opt/venv/bin/activate && tsctl import-sigma-rules /opt/timesketch/sigma_rules/$sf" >>"$LOG" 2>&1; then
       ok "import $sf"

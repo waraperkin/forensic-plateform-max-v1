@@ -1,0 +1,14 @@
+title: FP-SIGMA-suspicious-port
+id: fp-sigma-suspicious-port
+status: stable
+description: Suspicious outbound port
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    destination.port: [4444, 1337, 6666, 31337]
+  condition: selection
+tags:
+  - attack.t1071
+level: high

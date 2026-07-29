@@ -1,0 +1,14 @@
+title: FP-SIGMA-auth-success-offhours
+id: fp-sigma-auth-success-offhours
+status: stable
+description: Logon outside business hours
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    message: '*logon*'
+  condition: selection
+tags:
+  - attack.t1078
+level: medium

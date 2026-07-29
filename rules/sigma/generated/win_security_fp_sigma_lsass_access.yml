@@ -1,0 +1,14 @@
+title: FP-SIGMA-lsass-access
+id: fp-sigma-lsass-access
+status: stable
+description: LSASS access
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    message: '*lsass*'
+  condition: selection
+tags:
+  - attack.t1003.001
+level: critical

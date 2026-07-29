@@ -43,7 +43,7 @@ import_sigma_rules() {
     warn "conteneur $web absent — import Sigma ignoré"
     return 0
   fi
-  for f in example_sigma.yml fp-e2e-4625-stable.yml forensic-detection-rules.yml; do
+  for f in win_security_example_sigma.yml win_security_fp_e2e_4625_stable.yml forensic_detection_rules.yml; do
     if docker exec "$web" test -f "/opt/timesketch/sigma_rules/$f" 2>/dev/null; then
       if docker exec "$web" bash -c ". /opt/venv/bin/activate && tsctl import-sigma-rules /opt/timesketch/sigma_rules/$f" >>"$E2E_LOG" 2>&1; then
         ok_count=$((ok_count + 1))

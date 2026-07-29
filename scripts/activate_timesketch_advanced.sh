@@ -110,7 +110,7 @@ main() {
   sleep 5
 
   log "5/8 — Volumes Sigma/TI + config + patches code..."
-  if docker exec "$WEB_CONTAINER" test -f /opt/timesketch/sigma_rules/example_sigma.yml 2>/dev/null; then
+  if docker exec "$WEB_CONTAINER" test -f /opt/timesketch/sigma_rules/win_security_example_sigma.yml 2>/dev/null; then
     ok "volume sigma_rules (web)"
   else
     bad "volume sigma_rules manquant (web)"
@@ -146,7 +146,7 @@ main() {
 
   log "5b/8 — Import règles Sigma (tsctl, fichiers FP)..."
   _sigma_imp=0
-  for _sf in example_sigma.yml fp-e2e-4625-stable.yml forensic-detection-rules.yml; do
+  for _sf in win_security_example_sigma.yml win_security_fp_e2e_4625_stable.yml forensic_detection_rules.yml; do
     if docker exec "$WEB_CONTAINER" test -f "/opt/timesketch/sigma_rules/$_sf" 2>/dev/null; then
       if docker exec "$WEB_CONTAINER" bash -c ". /opt/venv/bin/activate && tsctl import-sigma-rules /opt/timesketch/sigma_rules/$_sf" >>/dev/null 2>&1; then
         _sigma_imp=$((_sigma_imp + 1))

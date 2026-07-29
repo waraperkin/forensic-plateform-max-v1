@@ -1,0 +1,14 @@
+title: FP-SIGMA-cmd-exec
+id: fp-sigma-cmd-exec
+status: stable
+description: Command shell execution
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    message: '*cmd.exe*'
+  condition: selection
+tags:
+  - attack.t1059.003
+level: medium

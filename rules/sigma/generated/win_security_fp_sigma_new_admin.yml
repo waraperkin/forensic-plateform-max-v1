@@ -1,0 +1,14 @@
+title: FP-SIGMA-new-admin
+id: fp-sigma-new-admin
+status: stable
+description: New admin group member
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: '4732'
+  condition: selection
+tags:
+  - attack.t1078
+level: high

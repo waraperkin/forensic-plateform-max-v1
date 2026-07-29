@@ -1,0 +1,14 @@
+title: FP-SIGMA-scheduled-task
+id: fp-sigma-scheduled-task
+status: stable
+description: Scheduled task created
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: '4698'
+  condition: selection
+tags:
+  - attack.t1053
+level: medium

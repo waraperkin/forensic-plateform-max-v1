@@ -307,10 +307,13 @@ def load_fields_json(name: str):
     return data
 
 
+# Chargé au niveau module (et pas seulement sous __main__) : pytest importe le
+# fichier sans exécuter le bloc principal, et les tests référencent ce global.
+fieldname_dict = load_fields_json("logsource.json")
+
+
 if __name__ == "__main__":
     init(autoreset=True)
-    # load field name information
-    fieldname_dict = load_fields_json("logsource.json")
 
     # Run the tests
     unittest.main()

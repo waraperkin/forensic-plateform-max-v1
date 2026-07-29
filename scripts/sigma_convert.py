@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Sigma → OpenSearch Alerting — génère 50+ règles et monitors FP-SIGMA-*."""
+"""Sigma → OpenSearch Alerting — catalogue de 10 règles uniques (convention
+SigmaHQ) + 400 monitors FP-SIGMA-* pour le volume opérationnel."""
 from __future__ import annotations
 
 import json
@@ -76,26 +77,47 @@ def monitor_body(name: str, query: dict, tags: list[str]) -> dict:
 
 
 def write_sigma_yaml_files() -> int:
+    """Écrit le catalogue YAML : UN fichier par template (10 règles uniques).
+
+    Convention SigmaHQ respectée (test helk/sigma) : nommage
+    win_security_<slug>.yml (minuscules + underscores, préfixe aligné sur
+    logsource product=windows/service=security), détection réelle par
+    template (pas de duplicata). Les 400 monitors OpenSearch, eux, restent
+    générés par create_monitors() — le volume opérationnel ne change pas.
+    """
+    # Détection Sigma par template (alignée sur la requête OpenSearch).
+    SIGMA_DETECTIONS: dict[str, str] = {
+        "auth-failed": "  selection:\n    event.code: '4625'\n  condition: selection",
+        "auth-success-offhours": "  selection:\n    message: '*logon*'\n  condition: selection",
+        "powershell-encoded": "  selection:\n    message: '*powershell*encoded*'\n  condition: selection",
+        "cmd-exec": "  selection:\n    message: '*cmd.exe*'\n  condition: selection",
+        "suspicious-port": "  selection:\n    destination.port: [4444, 1337, 6666, 31337]\n  condition: selection",
+        "ti-match": "  selection:\n    ti_match: true\n  condition: selection",
+        "new-admin": "  selection:\n    event.code: '4732'\n  condition: selection",
+        "service-install": "  selection:\n    event.code: '7045'\n  condition: selection",
+        "scheduled-task": "  selection:\n    event.code: '4698'\n  condition: selection",
+        "lsass-access": "  selection:\n    message: '*lsass*'\n  condition: selection",
+    }
     SIGMA_OUT.mkdir(parents=True, exist_ok=True)
+    # Nettoie les anciens fichiers générés (noms hors convention + duplicatas).
+    for old in SIGMA_OUT.glob("fp-sigma-*.yml"):
+        old.unlink()
     written = 0
-    for i in range(TARGET):
-        tpl = SIGMA_TEMPLATES[i % len(SIGMA_TEMPLATES)]
-        sid, title, *_ = tpl
-        fname = SIGMA_OUT / f"fp-sigma-{i:03d}-{sid}.yml"
-        content = f"""title: FP-SIGMA-{i:03d}-{sid}
-id: fp-sigma-{i:03d}
+    for sid, title, _query, sev, tags in SIGMA_TEMPLATES:
+        slug = sid.replace("-", "_")
+        fname = SIGMA_OUT / f"win_security_fp_sigma_{slug}.yml"
+        content = f"""title: FP-SIGMA-{sid}
+id: fp-sigma-{slug.replace('_', '-')}
 status: stable
 description: {title}
 logsource:
   product: windows
   service: security
 detection:
-  selection:
-    event.code: 4625
-  condition: selection
+{SIGMA_DETECTIONS[sid]}
 tags:
-  - attack.t1110
-level: high
+{chr(10).join(f'  - {t}' for t in tags)}
+level: {sev}
 """
         fname.write_text(content, encoding="utf-8")
         written += 1

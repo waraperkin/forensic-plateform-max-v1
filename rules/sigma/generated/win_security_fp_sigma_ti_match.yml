@@ -1,0 +1,14 @@
+title: FP-SIGMA-ti-match
+id: fp-sigma-ti-match
+status: stable
+description: TI IOC match
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    ti_match: true
+  condition: selection
+tags:
+  - attack.t1071
+level: critical

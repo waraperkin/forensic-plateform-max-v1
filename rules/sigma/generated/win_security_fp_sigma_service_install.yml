@@ -1,0 +1,14 @@
+title: FP-SIGMA-service-install
+id: fp-sigma-service-install
+status: stable
+description: New service installed
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    event.code: '7045'
+  condition: selection
+tags:
+  - attack.t1543.003
+level: medium

@@ -1,7 +1,7 @@
 <div class="portal-doc-article">
-  <p class="portal-doc-lead">Le <strong>Sekoia Control Center</strong> (v2.1) est le centre de pilotage complet de votre SIEM Sekoia.io : inventaires éditables, monitoring d'ingestion temps réel, recherche d'événements, fédération CTI et automatisation CERT — bien au-delà des fonctionnalités de la console Sekoia standard.</p>
+  <p class="portal-doc-lead">Le <strong>Sekoia Control Center</strong> (v2.2) est le centre de pilotage complet de votre SIEM Sekoia.io : inventaires éditables, monitoring d'ingestion temps réel, recherche d'événements, fédération CTI, analytics avancée et automatisation CERT — bien au-delà des fonctionnalités de la console Sekoia standard.</p>
 
-  <h3>Les 13 onglets</h3>
+  <h3>Les 20 onglets</h3>
   <table class="portal-doc-table">
     <thead><tr><th>Onglet</th><th>Fonction</th></tr></thead>
     <tbody>
@@ -18,6 +18,13 @@
       <tr><td>Couverture</td><td>Matrice formats × règles : détecte les intakes actifs sans règle de détection (GAP)</td></tr>
       <tr><td>Volumétrie</td><td>Événements par intake / source / hostname, top hostnames, dernier événement reçu (télémétrie locale OpenSearch)</td></tr>
       <tr><td>Testeur logs</td><td>Détection automatique du format d'un échantillon (CEF, LEEF, syslog RFC3164/5424, JSON, CSV, kv, XML…) et suggestion des formats Sekoia correspondants</td></tr>
+      <tr><td>Santé intakes <span class="fp-tag">v2.2</span></td><td>Score de santé 0-100 par intake (fraîcheur, stabilité, baseline, diversité), grade A-D, SLO de fraîcheur, prévisions de volumétrie J+1/J+7</td></tr>
+      <tr><td>Anomalies <span class="fp-tag">v2.2</span></td><td>Détection par z-score sur baseline 7 j (drops, spikes), intakes silencieux, hosts nouveaux et disparus — tri par sévérité</td></tr>
+      <tr><td>Hosts <span class="fp-tag">v2.2</span></td><td>Intelligence des sources : nouveaux hosts, hosts disparus, hosts multi-intakes (pivot/misconfiguration), top talkers</td></tr>
+      <tr><td>Efficacité règles <span class="fp-tag">v2.2</span></td><td>Alert fatigue : règles bruyantes, règles muettes, concentration top 5 + couverture MITRE ATT&CK (14 tactiques)</td></tr>
+      <tr><td>Watchlists <span class="fp-tag">v2.2</span></td><td>Surveillance de hosts, IOC et utilisateurs dans la télémétrie locale, hits sur 24 h</td></tr>
+      <tr><td>Snapshots <span class="fp-tag">v2.2</span></td><td>Capture de la configuration (intakes + règles), diff vs état courant, restauration avec dry-run — detection-as-code light</td></tr>
+      <tr><td>Digest SOC <span class="fp-tag">v2.2</span></td><td>Synthèse quotidienne : score global, volumes, alertes Sekoia, anomalies, intakes fragiles, top talkers</td></tr>
       <tr><td>Audit</td><td>Journal des modifications effectuées depuis le portail</td></tr>
     </tbody>
   </table>
@@ -69,6 +76,12 @@
       <tr><td><code>POST /api/sekoia/cti/ioc/thehive-case</code>, <code>/api/sekoia/cti/ioc/cortex</code></td><td>Pivots TheHive / Cortex</td></tr>
       <tr><td><code>POST /api/sekoia/logformat/detect</code></td><td>Détection de format de log</td></tr>
       <tr><td><code>GET /api/sekoia/coverage</code></td><td>Matrice de couverture formats × règles</td></tr>
+      <tr><td><code>GET /api/sekoia/intakes/health</code>, <code>/anomalies</code>, <code>/slo</code>, <code>/forecast</code></td><td>Analytics v2.2 : santé, anomalies z-score, SLO, prévisions</td></tr>
+      <tr><td><code>GET /api/sekoia/hosts/intelligence</code></td><td>Nouveaux / disparus / multi-intakes / top talkers</td></tr>
+      <tr><td><code>GET /api/sekoia/effectiveness</code>, <code>/mitre-coverage</code></td><td>Alert fatigue + couverture MITRE ATT&CK</td></tr>
+      <tr><td><code>GET/POST/DELETE /api/sekoia/watchlists</code>, <code>/watchlists/matches</code></td><td>Watchlists locales + matching télémétrie</td></tr>
+      <tr><td><code>POST/GET /api/sekoia/snapshots</code>, <code>/{id}/diff</code>, <code>/{id}/restore</code></td><td>Snapshots config, diff, restauration (dry-run)</td></tr>
+      <tr><td><code>GET /api/sekoia/digest</code></td><td>Digest SOC agrégé</td></tr>
     </tbody>
   </table>
 

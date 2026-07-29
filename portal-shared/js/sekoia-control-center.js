@@ -161,7 +161,9 @@
     connectors: [], modules: [], formats: [], playbooks: [], audit: [],
     loaded: {}, current: [], filt: {},
     sel: { rules: new Set(), inventaire: new Set() },
-    events: [], evQuery: {}, iocResult: null, coverage: null, volum: null };
+    events: [], evQuery: {}, iocResult: null, coverage: null, volum: null,
+    sante: null, anomalies: null, hosts: null, efficacite: null,
+    watchlists: null, snapshots: null, digest: null, snapDiff: null };
   let ccRenderGen = 0;
   function ccRenderStale(gen) { return gen !== ccRenderGen || !document.getElementById('cc-body'); }
   const CC_SUBS = [
@@ -170,6 +172,9 @@
     ['rules', i18n.t('msg.regles')], ['alerts-ingest', T("tab_alerts_ingest")],
     ['events', T("tab_events")], ['ioc', T("tab_ioc")], ['coverage', T("tab_coverage")],
     ['volumetry', T("tab_volumetry")], ['logtester', T("tab_logtester")],
+    ['sante', T("tab_sante")], ['anomalies', T("tab_anomalies")], ['hosts', T("tab_hosts")],
+    ['efficacite', T("tab_efficacite")], ['watchlists', T("tab_watchlists")],
+    ['snapshots', T("tab_snapshots")], ['digest', T("tab_digest")],
     ['stats', i18n.t('msg.stats_avancees')], ['audit', T("tab_audit")],
     ['querybuilder', 'Query Builder'], ['dashboard', i18n.t('msg.dashboard_builder')], ['assetprofile', 'Asset Profile'],
   ];
@@ -237,6 +242,18 @@
         'cc-sel-all': () => ccSelAll(),
         'cc-bulk-enable': () => ccBulkApply('enable'),
         'cc-bulk-disable': () => ccBulkApply('disable'),
+        // ── v2.2 : analytics (santé, anomalies, hosts, efficacité, watchlists, snapshots, digest) ──
+        'cc-run-sante': () => ccRunSante(true),
+        'cc-run-anomalies': () => ccRunAnomalies(true),
+        'cc-run-hosts': () => ccRunHosts(true),
+        'cc-run-eff': () => ccRunEfficacite(true),
+        'cc-wl-add': () => ccWlAdd(),
+        'cc-wl-del': (el) => ccWlDelete(el.dataset.id),
+        'cc-wl-matches': () => ccRunWatchlists(true),
+        'cc-snap-create': () => ccSnapCreate(),
+        'cc-snap-diff': (el) => ccSnapDiff(el.dataset.id),
+        'cc-snap-restore': (el) => ccSnapRestore(el.dataset.id),
+        'cc-run-digest': () => ccRunDigest(true),
       });
       const debouncedCcList = (window.PortalPerf && window.PortalPerf.debounce)
         ? window.PortalPerf.debounce(() => ccRenderList(), 120) : () => ccRenderList();
@@ -360,6 +377,14 @@
       ccRenderVolumetry(); if (!cc.loaded.volumetry) ccRunVolumetry(); return;
     }
     if (sub === 'logtester') return ccRenderLogTester();
+    // ── v2.2 : analytics au-delà de la console Sekoia ──
+    if (sub === 'sante') { ccRenderSante(); if (!cc.loaded.sante) ccRunSante(); return; }
+    if (sub === 'anomalies') { ccRenderAnomalies(); if (!cc.loaded.anomalies) ccRunAnomalies(); return; }
+    if (sub === 'hosts') { ccRenderHosts(); if (!cc.loaded.hosts) ccRunHosts(); return; }
+    if (sub === 'efficacite') { ccRenderEfficacite(); if (!cc.loaded.efficacite) ccRunEfficacite(); return; }
+    if (sub === 'watchlists') { ccRenderWatchlists(); if (!cc.loaded.watchlists) ccRunWatchlists(); return; }
+    if (sub === 'snapshots') { ccRenderSnapshots(); if (!cc.loaded.snapshots) ccRunSnapshots(); return; }
+    if (sub === 'digest') { ccRenderDigest(); if (!cc.loaded.digest) ccRunDigest(); return; }
     if (sub === 'audit') {
       const a = await TC.api('/audit');
       if (ccRenderStale(gen)) return;
@@ -635,6 +660,340 @@
     const flat = rows.map((it) => { const o = {}; cols.forEach(([l, fn]) => { o[l] = fn(it); }); return o; });
     TC.exportCSV(`sekoia-${key}.csv`, flat, cols.map(([l]) => ({ key: l, label: l })));
   }
+  // ── v2.2 ANALYTICS — au-delà de la console Sekoia ─────────────────────────
+  function gradeBadge(g) {
+    const map = { A: 'sev-low', B: 'sev-info', C: 'sev-medium', D: 'sev-critical' };
+    return `<span class="sev-badge ${map[g] || 'sev-info'}">${esc(g || '—')}</span>`;
+  }
+  function healthBar(score) {
+    const cls = score >= 85 ? 'ok' : score >= 70 ? 'low' : score >= 50 ? 'warn' : 'crit';
+    return `<div class="cc-healthbar"><span class="cc-healthbar-${cls}" style="width:${Math.max(0, Math.min(100, score || 0))}%"></span></div>`;
+  }
+
+  // ── Onglet Santé : score par intake + SLO + prévisions ────────────────────
+  function ccRenderSante() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    const d = cc.sante;
+    if (!d) { body.innerHTML = TC.tableLoading(4, i18n.t('ui.loading')); return; }
+    const h = d.health || {}; const slo = d.slo || {}; const fc = d.forecast || {};
+    body.innerHTML = `<div class="cc-tp-dashgrid">
+        ${TC.statCard(T("msg_score_global"), h.global_score ?? '—', 'accent')}
+        ${TC.statCard(T("msg_intakes_suivis"), h.count ?? 0)}
+        ${TC.statCard(T("msg_slo_titre"), slo.total != null ? `${slo.met}/${slo.total}` : '—', slo.met === slo.total ? 'accent' : 'warn')}
+        ${TC.statCard(T("msg_previsions"), fc.total_next_7d != null ? String(fc.total_next_7d) : '—')}</div>
+      <div class="fp-actions-row fp-section-spaced"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-run-sante">${esc(T("act_refresh"))}</button></div>`
+      + TC.table([
+        { label: T("col_intake"), render: (r) => esc(r.intake_name || r.intake_uuid) },
+        { label: T("col_score"), render: (r) => healthBar(r.score) },
+        { label: T("col_grade"), render: (r) => gradeBadge(r.grade) },
+        { label: T("col_fraicheur"), render: (r) => `${(r.components || {}).freshness ?? 0}/40` },
+        { label: T("col_stabilite"), render: (r) => `${(r.components || {}).stability ?? 0}/30` },
+        { label: T("col_baseline"), render: (r) => `${(r.components || {}).baseline ?? 0}/15` },
+        { label: T("col_diversite"), render: (r) => `${(r.components || {}).diversity ?? 0}/15` },
+        { label: T("col_statut"), render: (r) => (r.silent ? `<span class="fp-tag fp-tag-danger">${esc(T("msg_silencieux"))}</span>` : (r.volume_available ? `<span class="fp-tag fp-tag-ok">OK</span>` : `<span class="fp-tag">${esc(T("msg_donnes_indispo"))}</span>`)) },
+      ], h.items || [], { empty: h.error ? esc(h.error) : T("msg_donnes_indispo") })
+      + `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_slo_titre"))} — ${esc(T("msg_cible"))} ${slo.target ?? 99}%</h4>`
+      + TC.table([
+        { label: T("col_intake"), render: (r) => esc(r.intake_name || r.intake_uuid) },
+        { label: T("col_conformite"), render: (r) => `${r.compliance}%` },
+        { label: T("col_slo"), render: (r) => (r.met ? `<span class="fp-tag fp-tag-ok">SLO ✔</span>` : `<span class="fp-tag fp-tag-danger">SLO ✘</span>`) },
+      ], slo.items || [], { empty: T("msg_aucun_hit_slo") })
+      + `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_previsions"))}</h4>`
+      + TC.table([
+        { label: T("col_intake"), render: (r) => esc(r.intake_name || r.intake_uuid) },
+        { label: T("col_moy_jour"), render: (r) => String(r.daily_avg ?? '—') },
+        { label: T("col_tendance"), render: (r) => { const m = { hausse: 'sev-high', baisse: 'sev-low', stable: 'sev-info', insuffisant: 'sev-info' }; return `<span class="sev-badge ${m[r.trend] || 'sev-info'}">${esc(T(`trend_${r.trend}`))}</span>`; } },
+        { label: T("col_prev_j1"), render: (r) => String(r.next_day_estimate ?? '—') },
+        { label: T("col_prev_j7"), render: (r) => String(r.next_7d_estimate ?? '—') },
+      ], fc.items || [], { empty: T("msg_pas_de_prevision") });
+  }
+  async function ccRunSante(force) {
+    if (cc.loaded.sante && !force) return;
+    const [health, slo, forecast] = await Promise.all([
+      TC.api('/sekoia/intakes/health'), TC.api('/sekoia/slo?hours=24'), TC.api('/sekoia/forecast')]);
+    cc.sante = { health, slo, forecast };
+    cc.loaded.sante = true;
+    if (cc.sub === 'sante') ccRenderSante();
+  }
+
+  // ── Onglet Anomalies : z-score baseline + nouveaux/disparus ───────────────
+  function ccRenderAnomalies() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    const d = cc.anomalies;
+    if (!d) { body.innerHTML = TC.tableLoading(4, i18n.t('ui.loading')); return; }
+    const items = d.items || [];
+    const nb = (sev) => items.filter((a) => a.severity === sev).length;
+    body.innerHTML = `<div class="cc-tp-dashgrid">
+        ${TC.statCard('Critical', nb('critical'), 'warn')}
+        ${TC.statCard('High', nb('high'))}
+        ${TC.statCard('Medium', nb('medium'), 'accent')}</div>
+      <div class="fp-actions-row fp-section-spaced"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-run-anomalies">${esc(T("act_refresh"))}</button></div>`
+      + TC.table([
+        { label: T("col_severite"), render: (r) => sevBadge(r.severity) },
+        { label: T("col_anomalie"), render: (r) => `<span class="fp-tag">${esc(r.type)}</span>` },
+        { label: T("col_intake"), render: (r) => esc(r.intake_name || '—') },
+        { label: 'Host', render: (r) => esc(r.log_hostname || '—') },
+        { label: 'Z-score', render: (r) => (r.z != null ? String(r.z) : '—') },
+        { label: T("col_detail"), render: (r) => esc(r.detail || '') },
+      ], items, { empty: d.error ? esc(d.error) : T("msg_aucune_anomalie") });
+  }
+  async function ccRunAnomalies(force) {
+    if (cc.loaded.anomalies && !force) return;
+    cc.anomalies = await TC.api('/sekoia/anomalies');
+    cc.loaded.anomalies = true;
+    if (cc.sub === 'anomalies') ccRenderAnomalies();
+  }
+
+  // ── Onglet Hosts : intelligence des sources ───────────────────────────────
+  function ccRenderHosts() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    const d = cc.hosts;
+    if (!d) { body.innerHTML = TC.tableLoading(4, i18n.t('ui.loading')); return; }
+    const cols = [
+      { label: 'Host', render: (r) => esc(r.log_hostname) },
+      { label: T("col_premiere_vue"), render: (r) => esc(r.first_seen || '—') },
+      { label: T("col_derniere_vue"), render: (r) => esc(r.last_seen || '—') },
+      { label: T("col_volume"), render: (r) => String(r.count ?? 0) },
+      { label: T("col_intakes"), render: (r) => String(r.intakes_count ?? 0) },
+    ];
+    const colsGone = [...cols.slice(0, 3), { label: T("col_absent"), render: (r) => String(r.absent_hours ?? '—') }, ...cols.slice(3)];
+    body.innerHTML = `<div class="cc-tp-dashgrid">
+        ${TC.statCard(T("msg_hosts_total"), d.total_hosts ?? 0, 'accent')}
+        ${TC.statCard(T("msg_nouveaux_hosts"), (d.new_hosts || []).length)}
+        ${TC.statCard(T("msg_hosts_disparus"), (d.disappeared_hosts || []).length, 'warn')}
+        ${TC.statCard(T("msg_hosts_multi"), (d.multi_intake_hosts || []).length)}</div>
+      <div class="fp-actions-row fp-section-spaced"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-run-hosts">${esc(T("act_refresh"))}</button></div>
+      <h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_nouveaux_hosts"))}</h4>` + TC.table(cols, d.new_hosts || [], { empty: T("msg_aucun_element") })
+      + `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_hosts_disparus"))}</h4>` + TC.table(colsGone, d.disappeared_hosts || [], { empty: T("msg_aucun_element") })
+      + `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_hosts_multi"))}</h4>` + TC.table(cols, d.multi_intake_hosts || [], { empty: T("msg_aucun_element") })
+      + `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_top_talkers"))}</h4>` + TC.table(cols, d.top_talkers || [], { empty: T("msg_aucun_element") });
+  }
+  async function ccRunHosts(force) {
+    if (cc.loaded.hosts && !force) return;
+    cc.hosts = await TC.api('/sekoia/hosts/intelligence?new_hours=24&gone_hours=6');
+    cc.loaded.hosts = true;
+    if (cc.sub === 'hosts') ccRenderHosts();
+  }
+
+  // ── Onglet Efficacité : alert fatigue + couverture MITRE ──────────────────
+  function ccRenderEfficacite() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    const d = cc.efficacite;
+    if (!d) { body.innerHTML = TC.tableLoading(4, i18n.t('ui.loading')); return; }
+    const e = d.eff || {}; const m = d.mitre || {};
+    const colsRules = [
+      { label: T("col_regle"), render: (r) => esc(r.rule_name || r.rule_uuid) },
+      { label: T("col_severite"), render: (r) => sevBadge(r.severity) },
+      { label: T("col_alertes"), render: (r) => String(r.alerts ?? 0) },
+      { label: T("col_derniere_alerte"), render: (r) => esc(r.last_alert || '—') },
+    ];
+    body.innerHTML = `<div class="cc-tp-dashgrid">
+        ${TC.statCard(T("msg_alertes_fenetre"), e.total_alerts ?? '—', 'accent')}
+        ${TC.statCard(T("msg_regles_actives"), e.rules_with_alerts ?? '—')}
+        ${TC.statCard(T("msg_regles_muettes"), e.rules_silent ?? '—', 'warn')}
+        ${TC.statCard(T("msg_fatigue"), e.fatigue_top5_pct != null ? `${e.fatigue_top5_pct}%` : '—')}</div>
+      <div class="fp-actions-row fp-section-spaced"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-run-eff">${esc(T("act_refresh"))}</button></div>
+      <h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_regles_bruyantes"))}</h4>` + TC.table(colsRules, e.noisy || [], { empty: T("msg_aucun_element") })
+      + `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_regles_muettes"))}</h4>` + TC.table(colsRules, e.silent || [], { empty: T("msg_aucun_element") })
+      + `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_mitre_titre"))} — ${m.tactics_covered ?? 0}/${m.tactics_total ?? 14} ${esc(T("msg_tactiques_couvertes"))} · ${m.techniques_distinctes ?? 0} ${esc(T("msg_techniques_distinctes"))} · ${m.rules_with_mitre ?? 0}/${m.rules_total ?? 0} ${esc(T("msg_regles_avec_mitre"))}</h4>`
+      + TC.table([
+        { label: T("col_tactic"), render: (r) => esc(r.tactic) },
+        { label: T("col_regles_count"), render: (r) => healthBar(m.rules_total ? Math.round(r.rules / Math.max(1, m.rules_total) * 100) : 0) + ` ${r.rules}` },
+        { label: T("col_techniques"), render: (r) => esc((r.techniques || []).join(', ') || '—') },
+      ], m.matrix || [], { empty: T("msg_donnes_indispo") });
+  }
+  async function ccRunEfficacite(force) {
+    if (cc.loaded.efficacite && !force) return;
+    const [eff, mitre] = await Promise.all([
+      TC.api('/sekoia/effectiveness?days=7'), TC.api('/sekoia/mitre-coverage')]);
+    cc.efficacite = { eff, mitre };
+    cc.loaded.efficacite = true;
+    if (cc.sub === 'efficacite') ccRenderEfficacite();
+  }
+
+  // ── Onglet Watchlists : surveillance hosts / IOC / utilisateurs ───────────
+  function ccRenderWatchlists() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    const d = cc.watchlists;
+    body.innerHTML = `<p class="fp-muted">${esc(T("msg_watchlists_intro"))}</p>
+      <div class="cc-tp-fetchform"><div class="fp-form-row fp-grid-4">
+        <label class="fp-label">${esc(T("col_type_wl"))}
+          <select class="fp-select" id="cc-wl-type">
+            <option value="host">${esc(T("msg_wl_type_host"))}</option>
+            <option value="ioc">${esc(T("msg_wl_type_ioc"))}</option>
+            <option value="user">${esc(T("msg_wl_type_user"))}</option>
+          </select></label>
+        <label class="fp-label" style="flex:2">${esc(T("col_valeur"))}
+          <input class="fp-input" id="cc-wl-value" placeholder="${esc(T("ph_valeur"))}"></label>
+        <label class="fp-label" style="flex:2">${esc(T("col_commentaire"))}
+          <input class="fp-input" id="cc-wl-comment" placeholder="${esc(T("ph_commentaire"))}"></label>
+        <label class="fp-label">&nbsp;<button type="button" class="fp-btn fp-btn-primary" data-act="cc-wl-add">${esc(T("act_add"))}</button></label>
+      </div></div>
+      <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-wl-matches">${esc(T("act_matches"))}</button>
+        ${d && d.matches ? `<span class="fp-tag fp-tag-warn">${esc(T("msg_flagged", { n: d.matches.flagged ?? 0 }))}</span>` : ''}</div>
+      <div id="cc-wl-table" class="fp-section-spaced"></div>`;
+    ccRenderWatchlistTable();
+    if (!d) ccRunWatchlists();
+  }
+  function ccRenderWatchlistTable() {
+    const host = document.getElementById('cc-wl-table'); if (!host) return;
+    const d = cc.watchlists || {};
+    const items = d.matches ? d.matches.items : (d.list || {}).items || [];
+    host.innerHTML = TC.table([
+      { label: T("col_type_wl"), render: (r) => `<span class="fp-tag">${esc(r.type)}</span>` },
+      { label: T("col_valeur"), render: (r) => esc(r.value) },
+      { label: T("col_commentaire"), render: (r) => esc(r.comment || '—') },
+      { label: T("col_hits"), render: (r) => (r.hits != null ? `<strong>${r.hits}</strong>` : '—') },
+      { label: T("col_dernier_hit"), render: (r) => esc(r.last_hit || '—') },
+      { label: '', render: (r, idx) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-wl-del" data-id="${esc(r.id)}">${esc(T("act_delete"))}</button>` },
+    ], items, { empty: T("msg_aucune_entree") });
+  }
+  async function ccRunWatchlists(withMatches) {
+    const list = await TC.api('/sekoia/watchlists');
+    cc.watchlists = { list };
+    if (withMatches) cc.watchlists.matches = await TC.api('/sekoia/watchlists/matches?hours=24');
+    cc.loaded.watchlists = true;
+    ccRenderWatchlistTable();
+  }
+  async function ccWlAdd() {
+    const type = val('cc-wl-type'); const value = val('cc-wl-value'); const comment = val('cc-wl-comment');
+    if (!value) { TC.toast(T("msg_champ_requis", { label: T("col_valeur") }), 'warn'); return; }
+    const r = await TC.api('/sekoia/watchlists', { method: 'POST', body: { type, value, comment } });
+    if (r && r.ok) { TC.toast(T("msg_ajoute"), 'ok'); ccRunWatchlists(); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+  async function ccWlDelete(id) {
+    const r = await TC.api(`/sekoia/watchlists/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (r && r.ok) { TC.toast(T("msg_supprime"), 'ok'); ccRunWatchlists(); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  // ── Onglet Snapshots : detection-as-code light ────────────────────────────
+  function ccRenderSnapshots() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    const d = cc.snapshots;
+    body.innerHTML = `<div class="cc-tp-fetchform"><div class="fp-form-row fp-grid-3">
+        <label class="fp-label" style="flex:2">${esc(T("col_label"))}
+          <input class="fp-input" id="cc-snap-label" placeholder="${esc(T("ph_label"))}"></label>
+        <label class="fp-label">&nbsp;<button type="button" class="fp-btn fp-btn-primary" data-act="cc-snap-create">${esc(T("act_snapshot"))}</button></label>
+      </div></div>
+      <div id="cc-snap-table"></div><div id="cc-snap-result" class="fp-section-spaced"></div>`;
+    ccRenderSnapshotTable();
+    if (cc.snapDiff) ccRenderSnapDiff();
+    if (!d) ccRunSnapshots();
+  }
+  function ccRenderSnapshotTable() {
+    const host = document.getElementById('cc-snap-table'); if (!host) return;
+    const items = ((cc.snapshots || {}).items) || [];
+    host.innerHTML = TC.table([
+      { label: T("col_date_snap"), render: (r) => esc((r.ts || '').replace('T', ' ').slice(0, 19)) },
+      { label: T("col_label"), render: (r) => esc(r.label || '—') },
+      { label: T("col_intakes_count"), render: (r) => String(r.intakes ?? 0) },
+      { label: T("col_regles_count"), render: (r) => String(r.rules ?? 0) },
+      { label: '', render: (r) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-snap-diff" data-id="${esc(r.id)}">${esc(T("act_diff"))}</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-snap-restore" data-id="${esc(r.id)}">${esc(T("act_restore"))}</button>` },
+    ], items, { empty: T("msg_aucun_snapshot") });
+  }
+  function ccRenderSnapDiff() {
+    const host = document.getElementById('cc-snap-result'); if (!host) return;
+    const d = cc.snapDiff;
+    if (!d) { host.innerHTML = ''; return; }
+    if (d.error) { host.innerHTML = `<p><span class="fp-tag fp-tag-danger">${esc(d.error)}</span></p>`; return; }
+    const sec = (title, part, kind) => `<h4 class="fp-section-sub fp-section-spaced">${esc(title)} — ${kind === 'added' ? (part.added || []).length : kind === 'removed' ? (part.removed || []).length : (part.changed || []).length}</h4>`
+      + TC.table([
+        { label: 'UUID', render: (r) => esc((r.uuid || '').slice(0, 12)) },
+        { label: T("col_nom"), render: (r) => esc(r.name || '—') },
+        ...(kind === 'changed' ? [{ label: T("col_champ"), render: (r) => esc(Object.keys(r.fields || {}).join(', ')) },
+          { label: T("col_avant"), render: (r) => esc(Object.values(r.fields || {}).map((f) => String(f.from)).join(' | ')) },
+          { label: T("col_apres"), render: (r) => esc(Object.values(r.fields || {}).map((f) => String(f.to)).join(' | ')) }] : []),
+      ], part[kind] || [], { empty: '—' });
+    const r0 = d.rules || {}; const i0 = d.intakes || {};
+    host.innerHTML = `<h4 class="fp-section-sub">${esc(T("msg_diff_vs_courant"))} — ${esc((d.from || {}).label || (d.from || {}).id || '')}</h4>`
+      + sec(T("msg_ajoutes"), r0, 'added') + sec(T("msg_retires"), r0, 'removed') + sec(T("msg_modifies"), r0, 'changed')
+      + `<h4 class="fp-section-sub fp-section-spaced">Intakes</h4>`
+      + sec(T("msg_ajoutes"), i0, 'added') + sec(T("msg_retires"), i0, 'removed') + sec(T("msg_modifies"), i0, 'changed');
+  }
+  async function ccRunSnapshots() {
+    cc.snapshots = await TC.api('/sekoia/snapshots');
+    cc.loaded.snapshots = true;
+    ccRenderSnapshotTable();
+  }
+  async function ccSnapCreate() {
+    const label = val('cc-snap-label');
+    const r = await TC.api('/sekoia/snapshots', { method: 'POST', body: { label } });
+    if (r && r.ok) { TC.toast(T("msg_snapshot_cree"), 'ok'); ccRunSnapshots(); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+  async function ccSnapDiff(id) {
+    cc.snapDiff = await TC.api(`/sekoia/snapshots/${encodeURIComponent(id)}/diff`);
+    ccRenderSnapDiff();
+  }
+  async function ccSnapRestore(id) {
+    const dry = await TC.api(`/sekoia/snapshots/${encodeURIComponent(id)}/restore`, { method: 'POST', body: { dry_run: true } });
+    if (!dry || !dry.ok) { TC.toast((dry && dry.error) || i18n.t('msg.echec'), 'warn'); return; }
+    const ok = await confirmBox(T("act_restore"),
+      T("msg_confirme_restore", { label: id }) + `\n${dry.planned} action(s) — ${(dry.manual_required || []).length} manuelle(s)`);
+    if (!ok) return;
+    const r = await TC.api(`/sekoia/snapshots/${encodeURIComponent(id)}/restore`, { method: 'POST', body: { dry_run: false } });
+    if (r && r.ok) TC.toast(T("msg_restore_result", { applied: r.applied ?? 0, failed: r.failed ?? 0, manual: (r.manual_required || []).length }), r.failed ? 'warn' : 'ok');
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  // ── Onglet Digest SOC ─────────────────────────────────────────────────────
+  function ccRenderDigest() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    const d = cc.digest;
+    body.innerHTML = `<div class="cc-tp-fetchform"><div class="fp-form-row fp-grid-3">
+        <label class="fp-label">${esc(T("lbl_fenetre"))}
+          <select class="fp-select" id="cc-digest-h">${[24, 48, 72, 168].map((h) => `<option value="${h}"${(cc.digestHours || 24) === h ? ' selected' : ''}>${h} h</option>`).join('')}</select></label>
+        <label class="fp-label">&nbsp;<button type="button" class="fp-btn fp-btn-primary" data-act="cc-run-digest">${esc(T("msg_generer"))}</button></label>
+      </div></div>
+      <div id="cc-digest-body">${d ? '' : TC.tableLoading(4, i18n.t('ui.loading'))}</div>`;
+    if (d) ccRenderDigestBody();
+  }
+  function ccRenderDigestBody() {
+    const host = document.getElementById('cc-digest-body'); if (!host) return;
+    const d = cc.digest;
+    if (!d || d.error) { host.innerHTML = `<p><span class="fp-tag fp-tag-danger">${esc((d && d.error) || T("msg_donnes_indispo"))}</span></p>`; return; }
+    host.innerHTML = `<div class="cc-tp-dashgrid">
+        ${TC.statCard(T("msg_score_global"), d.global_score ?? '—', 'accent')}
+        ${TC.statCard(T("msg_events_total"), d.events_total != null ? String(d.events_total) : '—')}
+        ${TC.statCard(T("msg_alertes_sekoia"), d.sekoia_alerts_total != null ? String(d.sekoia_alerts_total) : '—')}
+        ${TC.statCard(T("msg_anomalies_count"), d.anomalies_count ?? 0, d.anomalies_count ? 'warn' : 'accent')}</div>
+      <h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_pires_intakes"))}</h4>`
+      + TC.table([
+        { label: T("col_intake"), render: (r) => esc(r.intake_name || r.intake_uuid) },
+        { label: T("col_score"), render: (r) => healthBar(r.score) },
+        { label: T("col_grade"), render: (r) => gradeBadge(r.grade) },
+      ], d.worst_intakes || [], { empty: T("msg_donnes_indispo") })
+      + `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_nouveaux_hosts"))}</h4>`
+      + TC.table([
+        { label: 'Host', render: (r) => esc(r.log_hostname) },
+        { label: T("col_premiere_vue"), render: (r) => esc(r.first_seen || '—') },
+        { label: T("col_volume"), render: (r) => String(r.count ?? 0) },
+      ], d.new_hosts || [], { empty: T("msg_aucun_element") })
+      + `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_hosts_disparus"))}</h4>`
+      + TC.table([
+        { label: 'Host', render: (r) => esc(r.log_hostname) },
+        { label: T("col_derniere_vue"), render: (r) => esc(r.last_seen || '—') },
+        { label: T("col_absent"), render: (r) => String(r.absent_hours ?? '—') },
+      ], d.disappeared_hosts || [], { empty: T("msg_aucun_element") })
+      + `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_top_talkers"))}</h4>`
+      + TC.table([
+        { label: 'Host', render: (r) => esc(r.log_hostname) },
+        { label: T("col_volume"), render: (r) => String(r.count ?? 0) },
+        { label: T("col_intakes"), render: (r) => String(r.intakes_count ?? 0) },
+      ], d.top_talkers || [], { empty: T("msg_aucun_element") });
+  }
+  async function ccRunDigest(force) {
+    const hours = parseInt(val('cc-digest-h') || '24', 10) || 24;
+    cc.digestHours = hours;
+    if (cc.loaded.digest && !force) return;
+    cc.digest = await TC.api(`/sekoia/digest?hours=${hours}`);
+    cc.loaded.digest = true;
+    if (cc.sub === 'digest') ccRenderDigest();
+  }
+
   function ccRenderStats() {
     const body = document.getElementById('cc-body'); if (!body) return;
     const s = cc.stats || {};

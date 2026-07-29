@@ -123,6 +123,21 @@ Base : `http://sekoia-controlplane:8901` — en-tête `X-Internal-Token`.
 | POST | `/control/sekoia/intakes/bulk` · `/rules/bulk` | activation/désactivation en masse (≤ 200 ids) |
 | GET | `/control/sekoia/local/timeseries?intake_uuid=&hours=` | séries volumétrie locale par intake |
 | GET | `/control/sekoia/local/top-hostnames?hours=&size=` | top `log.hostname` par volume |
+| **v2.2 — analytics (au-delà de la console Sekoia)** | | |
+| GET | `/control/sekoia/intakes/health` | score de santé 0-100 par intake (fraîcheur/stabilité/baseline/diversité) + grade A-D |
+| GET | `/control/sekoia/anomalies` | anomalies z-score sur baseline 7 j (drop/spike), intakes silencieux, hosts nouveaux/disparus |
+| GET | `/control/sekoia/hosts/intelligence?new_hours=&gone_hours=` | nouveaux hosts, hosts disparus, hosts multi-intakes, top talkers |
+| GET | `/control/sekoia/slo?hours=&target=` | SLO de fraîcheur d'ingestion par intake (conformité %) |
+| GET | `/control/sekoia/forecast` | prévision de volumétrie (régression sur baseline journalière, J+1 et J+7) |
+| GET | `/control/sekoia/effectiveness?days=` | efficacité des règles : alertes par règle, règles muettes, bruyantes, concentration top 5 |
+| GET | `/control/sekoia/mitre-coverage` | couverture MITRE ATT&CK du catalogue (14 tactiques, techniques distinctes) |
+| GET/POST/DELETE | `/control/sekoia/watchlists[/{id}]` · `GET /watchlists/matches` | watchlists locales (host/ioc/user) + matching télémétrie |
+| POST/GET | `/control/sekoia/snapshots[/{id}]` · `GET /{id}/diff` · `POST /{id}/restore` | snapshots de configuration, diff, restauration (dry-run par défaut) |
+| GET | `/control/sekoia/digest?hours=` | digest SOC agrégé (score, volumes, alertes, anomalies, hosts) |
+
+Stores locaux persistants (volume `/data`) : `sekoia-watchlists.json`, `sekoia-snapshots.json`
+(50 snapshots conservés). Aucune donnée fabriquée : `available: false` si la
+télémétrie locale est absente.
 
 ## Onglets Control Center (v2.1)
 
@@ -134,6 +149,18 @@ Base : `http://sekoia-controlplane:8901` — en-tête `X-Internal-Token`.
 | Volumétrie | courbes temps réel par intake, top hostnames, tableau |
 | Testeur logs | détection de format d'échantillons + formats Sekoia suggérés |
 | Inventaire / Règles | sélection multiple + activation/désactivation **en masse** |
+
+## Onglets Control Center (v2.2 — analytics)
+
+| Onglet | Contenu |
+|---|---|
+| Santé intakes | score 0-100 par intake (composantes détaillées), grade A-D, SLO de fraîcheur, prévisions de volumétrie |
+| Anomalies | z-score sur baseline 7 j, spikes/drops, intakes silencieux, hosts nouveaux/disparus — triées par sévérité |
+| Hosts | nouveaux hosts, hosts disparus, hosts multi-intakes (pivot/misconfig), top talkers |
+| Efficacité règles | alert fatigue : règles bruyantes/muettes, concentration top 5 + couverture MITRE ATT&CK |
+| Watchlists | surveillance hosts / IOC / utilisateurs dans la télémétrie, hits sur 24 h |
+| Snapshots | capture de la configuration (intakes + règles), diff vs état courant, restauration avec dry-run |
+| Digest SOC | synthèse quotidienne : score global, volumes, alertes, anomalies, pires intakes, top talkers |
 
 ## Dashboard Grafana
 
@@ -159,7 +186,7 @@ Voir aussi `docs/INTERCONNEXIONS.md` pour les routes CTI (`/api/cti/*`).
 ## Tests
 
 ```bash
-cd connectors/sekoia-controlplane && python -m pytest -q   # 26 tests
+cd connectors/sekoia-controlplane && python -m pytest -q   # 51 tests (26 v2 + 25 analytics v2.2)
 cd connectors/sekoia-monitor && python -m pytest -q        # 9 tests
 node --check portal-shared/js/sekoia-control-center.js
 node --check portal-cert/routes/master-ingest-meta.js

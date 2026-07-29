@@ -1,8 +1,8 @@
-# Sekoia Control Center (v2.1)
+# Sekoia Control Center (v2.2)
 
-Le **Sekoia Control Center** est le centre de pilotage complet de votre SIEM Sekoia.io : inventaires éditables, monitoring d'ingestion temps réel, recherche d'événements, fédération CTI et automatisation CERT — bien au-delà des fonctionnalités de la console Sekoia standard.
+Le **Sekoia Control Center** est le centre de pilotage complet de votre SIEM Sekoia.io : inventaires éditables, monitoring d'ingestion temps réel, recherche d'événements, fédération CTI, analytics avancée et automatisation CERT — bien au-delà des fonctionnalités de la console Sekoia standard.
 
-## Les 13 onglets
+## Les 20 onglets
 
 | Onglet | Fonction |
 |---|---|
@@ -19,6 +19,13 @@ Le **Sekoia Control Center** est le centre de pilotage complet de votre SIEM Sek
 | Couverture | Matrice formats × règles : intakes actifs sans règle de détection (GAP) |
 | Volumétrie | Événements par intake / source / hostname, top hostnames, dernier événement |
 | Testeur logs | Détection automatique du format d'un échantillon et suggestion des formats Sekoia |
+| Santé intakes (v2.2) | Score 0-100 par intake, grade A-D, SLO de fraîcheur, prévisions de volumétrie |
+| Anomalies (v2.2) | Z-score sur baseline 7 j, drops/spikes, intakes silencieux, hosts nouveaux/disparus |
+| Hosts (v2.2) | Nouveaux hosts, hosts disparus, hosts multi-intakes, top talkers |
+| Efficacité règles (v2.2) | Règles bruyantes/muettes, concentration top 5, couverture MITRE ATT&CK |
+| Watchlists (v2.2) | Surveillance hosts / IOC / utilisateurs dans la télémétrie, hits 24 h |
+| Snapshots (v2.2) | Capture config, diff vs état courant, restauration avec dry-run |
+| Digest SOC (v2.2) | Synthèse quotidienne : score global, volumes, alertes, anomalies, top talkers |
 | Audit | Journal des modifications effectuées depuis le portail |
 
 ## Monitoring d'ingestion

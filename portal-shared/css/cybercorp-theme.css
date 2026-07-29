@@ -1060,3 +1060,25 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* --- Barre de score de santé (analytics v2.2) --- */
+[data-edition="cybercorp"] .cc-healthbar {
+  display: inline-block;
+  width: 72px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  vertical-align: middle;
+}
+[data-edition="cybercorp"] .cc-healthbar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+[data-edition="cybercorp"] .cc-healthbar-ok   { background: var(--success); }
+[data-edition="cybercorp"] .cc-healthbar-low  { background: var(--accent); }
+[data-edition="cybercorp"] .cc-healthbar-warn { background: var(--warning); }
+[data-edition="cybercorp"] .cc-healthbar-crit { background: var(--danger); }

@@ -98,12 +98,22 @@ Les bridges `helk-bridge` et `velociraptor-bridge` synchronisent les sidecars av
 
 ---
 
-## Couche Sekoia.io (v2.1) — Sekoia Control Center
+## Couche Sekoia.io (v2.2) — Sekoia Control Center
 
-La couche Sekoia dépasse largement la console Sekoia standard : le **Sekoia Control Center** (portail CERT) offre 13 onglets pilotés par l'API Sekoia et par la télémétrie locale.
+La couche Sekoia dépasse largement la console Sekoia standard : le **Sekoia Control Center** (portail CERT) offre 20 onglets pilotés par l'API Sekoia et par la télémétrie locale.
 
 - **Inventaires CRUD complets** : intakes, règles (pattern / SIGMA, sévérité 0-100), playbooks, connecteurs, modules, formats — création, édition, suppression, recherche avancée, filtrage dynamique, **actions en masse** (activation / désactivation).
 - **Monitoring d'ingestion temps réel** : volumétrie par intake / source / `log.hostname`, top hostnames, dernier événement, **alertes automatiques** (chute de volumétrie, intake muet, hostname absent, anomalie de parsing) avec **acquittement** tracé, dashboard Grafana *Sekoia Ingestion*.
+- **Analytics v2.2 — ce que la console Sekoia ne fait pas** :
+  - **Score de santé par intake** (0-100, grade A-D) : fraîcheur, stabilité, maturité baseline, diversité de sources ;
+  - **Détection d'anomalies par z-score** sur baselines glissantes 7 j (drops, spikes, hosts nouveaux/disparus) — plus de seuils statiques ;
+  - **SLO de fraîcheur d'ingestion** par intake (conformité %) et **prévisions de volumétrie** (régression, J+1 / J+7) ;
+  - **Efficacité des règles / alert fatigue** : règles bruyantes, règles muettes, concentration top 5 ;
+  - **Couverture MITRE ATT&CK** du catalogue de détection (14 tactiques) ;
+  - **Intelligence des hosts** : nouveaux hosts, hosts disparus, hosts multi-intakes, top talkers ;
+  - **Watchlists** (hosts / IOC / utilisateurs) avec matching dans la télémétrie ;
+  - **Snapshots de configuration** + diff + restauration avec dry-run (detection-as-code light) ;
+  - **Digest SOC quotidien** agrégé.
 - **Recherche d'événements** : requêtes Lucene asynchrones sur les événements Sekoia (plage et limite paramétrables).
 - **Couverture de détection** : matrice formats × règles, détection des intakes actifs sans règle (GAP).
 - **Testeur de logs** : détection automatique du format d'un échantillon (CEF, LEEF, syslog RFC3164/5424, JSON, CSV, key=value, XML…) et suggestion des formats Sekoia correspondants.
@@ -116,7 +126,7 @@ Validation de bout en bout de la couche :
 
 ```bash
 ./scripts/validate-sekoia.sh            # services, routes API, télémétrie, CTI
-python -m pytest connectors/sekoia-controlplane/test_app.py connectors/sekoia-monitor/test_monitor.py   # 35 tests
+python -m pytest connectors/sekoia-controlplane connectors/sekoia-monitor -q   # 60 tests
 ```
 
 ---

@@ -1,8 +1,8 @@
-# Sekoia Control Center (v2.1)
+# Sekoia Control Center (v2.2)
 
-The **Sekoia Control Center** is the full management plane for your Sekoia.io SIEM: editable inventories, real-time ingestion monitoring, event search, CTI federation and CERT automation — far beyond the standard Sekoia console capabilities.
+The **Sekoia Control Center** is the full management plane for your Sekoia.io SIEM: editable inventories, real-time ingestion monitoring, event search, CTI federation, advanced analytics and CERT automation — far beyond the standard Sekoia console capabilities.
 
-## The 13 tabs
+## The 20 tabs
 
 | Tab | Purpose |
 |---|---|
@@ -19,6 +19,13 @@ The **Sekoia Control Center** is the full management plane for your Sekoia.io SI
 | Coverage | Formats × rules matrix: active intakes with no detection rule (GAP) |
 | Volumetry | Events per intake / source / hostname, top hostnames, last event seen |
 | Log tester | Automatic log format detection with Sekoia format suggestions |
+| Intake health (v2.2) | 0-100 score per intake, A-D grade, freshness SLO, volume forecast |
+| Anomalies (v2.2) | Z-score on 7-day baselines, drops/spikes, silent intakes, new/disappeared hosts |
+| Hosts (v2.2) | New hosts, disappeared hosts, multi-intake hosts, top talkers |
+| Rule effectiveness (v2.2) | Noisy/silent rules, top-5 concentration, MITRE ATT&CK coverage |
+| Watchlists (v2.2) | Watch hosts / IOCs / users in telemetry, 24 h hits |
+| Snapshots (v2.2) | Config capture, diff vs current state, dry-run restore |
+| SOC digest (v2.2) | Daily summary: global score, volumes, alerts, anomalies, top talkers |
 | Audit | Journal of every change made from the portal |
 
 ## Ingestion monitoring

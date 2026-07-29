@@ -1,7 +1,7 @@
 <div class="portal-doc-article">
-  <p class="portal-doc-lead">The <strong>Sekoia Control Center</strong> (v2.1) is the full management plane for your Sekoia.io SIEM: editable inventories, real-time ingestion monitoring, event search, CTI federation and CERT automation — far beyond the standard Sekoia console capabilities.</p>
+  <p class="portal-doc-lead">The <strong>Sekoia Control Center</strong> (v2.2) is the full management plane for your Sekoia.io SIEM: editable inventories, real-time ingestion monitoring, event search, CTI federation, advanced analytics and CERT automation — far beyond the standard Sekoia console capabilities.</p>
 
-  <h3>The 13 tabs</h3>
+  <h3>The 20 tabs</h3>
   <table class="portal-doc-table">
     <thead><tr><th>Tab</th><th>Purpose</th></tr></thead>
     <tbody>
@@ -18,6 +18,13 @@
       <tr><td>Coverage</td><td>Formats × rules matrix: flags active intakes with no detection rule (GAP)</td></tr>
       <tr><td>Volumetry</td><td>Events per intake / source / hostname, top hostnames, last event seen (local OpenSearch telemetry)</td></tr>
       <tr><td>Log tester</td><td>Automatic format detection for log samples (CEF, LEEF, syslog RFC3164/5424, JSON, CSV, key=value, XML…) with matching Sekoia format suggestions</td></tr>
+      <tr><td>Intake health <span class="fp-tag">v2.2</span></td><td>0-100 health score per intake (freshness, stability, baseline, diversity), A-D grade, freshness SLO, D+1/D+7 volume forecast</td></tr>
+      <tr><td>Anomalies <span class="fp-tag">v2.2</span></td><td>Z-score detection on 7-day baselines (drops, spikes), silent intakes, new and disappeared hosts — severity-sorted</td></tr>
+      <tr><td>Hosts <span class="fp-tag">v2.2</span></td><td>Source intelligence: new hosts, disappeared hosts, multi-intake hosts (pivot/misconfiguration), top talkers</td></tr>
+      <tr><td>Rule effectiveness <span class="fp-tag">v2.2</span></td><td>Alert fatigue: noisy rules, silent rules, top-5 concentration + MITRE ATT&CK coverage (14 tactics)</td></tr>
+      <tr><td>Watchlists <span class="fp-tag">v2.2</span></td><td>Watch hosts, IOCs and users in local telemetry, 24 h hits</td></tr>
+      <tr><td>Snapshots <span class="fp-tag">v2.2</span></td><td>Configuration capture (intakes + rules), diff vs current state, dry-run restore — detection-as-code light</td></tr>
+      <tr><td>SOC digest <span class="fp-tag">v2.2</span></td><td>Daily summary: global score, volumes, Sekoia alerts, anomalies, weakest intakes, top talkers</td></tr>
       <tr><td>Audit</td><td>Journal of every change made from the portal</td></tr>
     </tbody>
   </table>
@@ -69,6 +76,12 @@
       <tr><td><code>POST /api/sekoia/cti/ioc/thehive-case</code>, <code>/api/sekoia/cti/ioc/cortex</code></td><td>TheHive / Cortex pivots</td></tr>
       <tr><td><code>POST /api/sekoia/logformat/detect</code></td><td>Log format detection</td></tr>
       <tr><td><code>GET /api/sekoia/coverage</code></td><td>Formats × rules coverage matrix</td></tr>
+      <tr><td><code>GET /api/sekoia/intakes/health</code>, <code>/anomalies</code>, <code>/slo</code>, <code>/forecast</code></td><td>v2.2 analytics: health, z-score anomalies, SLO, forecast</td></tr>
+      <tr><td><code>GET /api/sekoia/hosts/intelligence</code></td><td>New / disappeared / multi-intake / top talkers</td></tr>
+      <tr><td><code>GET /api/sekoia/effectiveness</code>, <code>/mitre-coverage</code></td><td>Alert fatigue + MITRE ATT&CK coverage</td></tr>
+      <tr><td><code>GET/POST/DELETE /api/sekoia/watchlists</code>, <code>/watchlists/matches</code></td><td>Local watchlists + telemetry matching</td></tr>
+      <tr><td><code>POST/GET /api/sekoia/snapshots</code>, <code>/{id}/diff</code>, <code>/{id}/restore</code></td><td>Config snapshots, diff, restore (dry-run)</td></tr>
+      <tr><td><code>GET /api/sekoia/digest</code></td><td>Aggregated SOC digest</td></tr>
     </tbody>
   </table>
 

@@ -1285,6 +1285,12 @@ async def local_top_hostnames(hours: int = 24, size: int = 50, intake_uuid: str 
     return {"available": bool(items), "hours": hours, "count": len(items), "items": items}
 
 
+# ── Couche analytics v2.2 (santé, anomalies, SLO, prévisions, efficacité
+#    règles, MITRE, watchlists, snapshots, digest) — au-delà de la console Sekoia.
+import analytics  # noqa: E402
+analytics.register(app)
+
+
 if __name__ == "__main__":
     import uvicorn
     log.info("Sekoia control-plane v2 on :%s (configured=%s, base=%s, auth=%s)",

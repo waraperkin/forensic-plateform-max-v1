@@ -40,6 +40,31 @@ const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'];
 const STATUSES = ['new', 'in_progress', 'contained', 'closed', 'purged'];
 const EVENT_KINDS = ['timeline', 'note', 'evidence', 'ioc', 'status'];
 const SCAN_IOC_CAP = 150;
+// ── SOAR : phases de playbook (NIST IR) et SLA par sévérité ──
+const TASK_PHASES = ['detection', 'analysis', 'containment', 'eradication', 'recovery', 'lessons'];
+const TASKS_CAP = 60;
+const SLA_HOURS = { critical: 4, high: 24, medium: 72, low: 168, info: 720 };
+
+function slaDueFor(severity, fromIso) {
+  const h = SLA_HOURS[severity] || SLA_HOURS.medium;
+  return new Date(new Date(fromIso || Date.now()).getTime() + h * 3600 * 1000).toISOString();
+}
+
+function sanitizeTask(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const title = String(raw.title || '').trim().slice(0, 200);
+  if (!title) return null;
+  return {
+    id: raw.id ? String(raw.id).slice(0, 64) : crypto.randomUUID(),
+    title,
+    phase: TASK_PHASES.includes(raw.phase) ? raw.phase : 'detection',
+    assignee: String(raw.assignee || '').slice(0, 80),
+    done: raw.done === true,
+    done_at: raw.done === true ? (raw.done_at || new Date().toISOString()) : null,
+    done_by: raw.done === true ? (raw.done_by || null) : null,
+    created_at: raw.created_at || new Date().toISOString(),
+  };
+}
 const IOC_MATCH_FIELDS = [
   'message', 'source.ip', 'destination.ip', 'host.name', 'user.name',
   'dns.question.name', 'url.full', 'url.domain', 'file.name',
@@ -149,6 +174,7 @@ function createIncidentRoutes(deps) {
       if (!title) return res.status(400).json({ error: 'title requis' });
       const severity = SEVERITIES.includes(req.body?.severity) ? req.body.severity : 'medium';
       const incidentId = newIncidentId();
+      const nowIso = new Date().toISOString();
       const doc = {
         incident_id: incidentId,
         title,
@@ -158,10 +184,12 @@ function createIncidentRoutes(deps) {
         description: String(req.body?.description || '').slice(0, 5000),
         case_id: incidentId,
         linked_cases: [],
+        tasks: [],
+        sla_due: slaDueFor(severity, nowIso),
         tags: Array.isArray(req.body?.tags) ? req.body.tags.map((t) => String(t).slice(0, 40)).slice(0, 10) : [],
         created_by: req.user?.username || 'analyst',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: nowIso,
+        updated_at: nowIso,
       };
       await os.index({ index: INCIDENTS_INDEX, id: incidentId, body: doc, refresh: true });
       auditAction?.('incident_create', req, { incident_id: incidentId, title, severity });
@@ -194,6 +222,7 @@ function createIncidentRoutes(deps) {
     if (req.body?.assignee !== undefined) patch.assignee = String(req.body.assignee).slice(0, 80);
     if (req.body?.description !== undefined) patch.description = String(req.body.description).slice(0, 5000);
     if (Array.isArray(req.body?.tags)) patch.tags = req.body.tags.map((t) => String(t).slice(0, 40)).slice(0, 10);
+    if (patch.severity) patch.sla_due = slaDueFor(patch.severity, incident.created_at);
     if (!Object.keys(patch).length) return res.status(400).json({ error: 'Aucun champ valide' });
     const updated = await touchIncident(incident, patch);
     if (patch.status) {
@@ -230,6 +259,75 @@ function createIncidentRoutes(deps) {
     linked.add(caseId);
     linked.delete(incident.case_id);
     const updated = await touchIncident(incident, { linked_cases: [...linked] });
+    res.json({ ok: true, incident: updated });
+  });
+
+  // ── Tâches / playbook (SOAR) ──────────────────────────────────────────────
+  router.post('/incidents/:id/tasks', async (req, res) => {
+    const incident = await getIncident(req.params.id);
+    if (!incident) return res.status(404).json({ error: 'Incident introuvable' });
+    const incoming = Array.isArray(req.body?.tasks) ? req.body.tasks : [req.body];
+    const tasks = [...(incident.tasks || [])];
+    const added = [];
+    for (const raw of incoming) {
+      if (tasks.length >= TASKS_CAP) break;
+      const t = sanitizeTask(raw);
+      if (t) { tasks.push(t); added.push(t); }
+    }
+    if (!added.length) return res.status(400).json({ error: 'Aucune tâche valide (title requis)' });
+    const updated = await touchIncident(incident, { tasks });
+    if (added.length > 1) {
+      await addEvent(incident.incident_id, {
+        kind: 'timeline', title: `Playbook appliqué — ${added.length} tâches`,
+        description: added.map((t) => `[${t.phase}] ${t.title}`).join('\n').slice(0, 4000),
+      }, req).catch(() => {});
+    }
+    auditAction?.('incident_tasks_add', req, { incident_id: incident.incident_id, count: added.length });
+    res.json({ ok: true, added: added.length, incident: updated });
+  });
+
+  router.patch('/incidents/:id/tasks/:taskId', async (req, res) => {
+    const incident = await getIncident(req.params.id);
+    if (!incident) return res.status(404).json({ error: 'Incident introuvable' });
+    const tasks = (incident.tasks || []).map((t) => ({ ...t }));
+    const idx = tasks.findIndex((t) => t.id === req.params.taskId);
+    if (idx === -1) return res.status(404).json({ error: 'Tâche introuvable' });
+    const t = tasks[idx];
+    if (req.body?.title !== undefined) {
+      const title = String(req.body.title).trim().slice(0, 200);
+      if (!title) return res.status(400).json({ error: 'title invalide' });
+      t.title = title;
+    }
+    if (req.body?.phase !== undefined && TASK_PHASES.includes(req.body.phase)) t.phase = req.body.phase;
+    if (req.body?.assignee !== undefined) t.assignee = String(req.body.assignee).slice(0, 80);
+    let doneChanged = false;
+    if (req.body?.done !== undefined) {
+      const done = req.body.done === true;
+      if (done !== t.done) {
+        doneChanged = true;
+        t.done = done;
+        t.done_at = done ? new Date().toISOString() : null;
+        t.done_by = done ? (req.user?.username || 'analyst') : null;
+      }
+    }
+    const updated = await touchIncident(incident, { tasks });
+    if (doneChanged) {
+      await addEvent(incident.incident_id, {
+        kind: 'timeline',
+        title: t.done ? `Tâche terminée : ${t.title}` : `Tâche rouverte : ${t.title}`,
+        description: `Phase ${t.phase} — par ${req.user?.username || 'analyst'}`,
+      }, req).catch(() => {});
+    }
+    res.json({ ok: true, incident: updated });
+  });
+
+  router.delete('/incidents/:id/tasks/:taskId', async (req, res) => {
+    const incident = await getIncident(req.params.id);
+    if (!incident) return res.status(404).json({ error: 'Incident introuvable' });
+    const before = (incident.tasks || []).length;
+    const tasks = (incident.tasks || []).filter((t) => t.id !== req.params.taskId);
+    if (tasks.length === before) return res.status(404).json({ error: 'Tâche introuvable' });
+    const updated = await touchIncident(incident, { tasks });
     res.json({ ok: true, incident: updated });
   });
 
@@ -408,6 +506,10 @@ function createIncidentRoutes(deps) {
     L.push(`**Titre** : ${incident.title}`);
     L.push(`**Sévérité** : ${incident.severity} | **Statut** : ${incident.status} | **Assigné à** : ${incident.assignee || '—'}`);
     L.push(`**Créé le** : ${incident.created_at} par ${incident.created_by || '—'} | **MAJ** : ${incident.updated_at}`);
+    if (incident.sla_due) {
+      const overdue = new Date(incident.sla_due) < new Date() && !['closed', 'purged'].includes(incident.status);
+      L.push(`**SLA (échéance)** : ${incident.sla_due}${overdue ? ' — ⚠ DÉPASSÉ' : ''}`);
+    }
     if (incident.tags?.length) L.push(`**Tags** : ${incident.tags.join(', ')}`);
     if (incident.linked_cases?.length) L.push(`**Cases liés** : ${incident.linked_cases.join(', ')}`);
     L.push('');
@@ -419,6 +521,26 @@ function createIncidentRoutes(deps) {
       L.push(`- \`${u['@timestamp'] || ''}\` **${u.file?.name || '?'}** (${u.file?.size ?? '?'} o) — ${u.os_type || '?'} / ${u.analyst || '?'} / bucket \`${u.storage?.bucket || '?'}\``);
     });
     L.push('');
+
+    const tasks = Array.isArray(incident.tasks) ? incident.tasks : [];
+    if (tasks.length) {
+      const PHASE_LABELS = {
+        detection: 'Détection', analysis: 'Analyse', containment: 'Confinement',
+        eradication: 'Éradication', recovery: 'Récupération', lessons: 'Leçons apprises',
+      };
+      L.push('## Tâches / Playbook', '');
+      for (const ph of TASK_PHASES) {
+        const items = tasks.filter((t) => t.phase === ph);
+        if (!items.length) continue;
+        L.push(`### ${PHASE_LABELS[ph] || ph}`, '');
+        items.forEach((t) => {
+          L.push(`- [${t.done ? 'x' : ' '}] ${t.title}${t.assignee ? ` _(assigné : ${t.assignee})_` : ''}${t.done && t.done_at ? ` — terminée le ${t.done_at} par ${t.done_by || '—'}` : ''}`);
+        });
+        L.push('');
+      }
+      const doneCount = tasks.filter((t) => t.done).length;
+      L.push(`_Progression : ${doneCount}/${tasks.length} tâches terminées._`, '');
+    }
 
     const kinds = { timeline: '## Timeline', note: '## Notes', evidence: '## Evidences', ioc: '## IOCs', status: '## Changements de statut' };
     for (const [kind, heading] of Object.entries(kinds)) {

@@ -431,11 +431,13 @@ async function loadCasesHub() {
     const sum = hubCard('cases_summary');
     const op = hubCard('cases_open');
     const tk = hubCard('cases_tickets');
+    const soar = hubCard('cases_soar');
     root.innerHTML = `<div class="cc-hub-grid cc-hub-grid-premium">
       ${hubDetailCard(full.title, full.meta, 'incidents-detail', 'list', 'incident', 'cases', 'cert-ops')}
       ${hubDetailCard(sum.title, sum.meta, 'incidents-detail', 'summary', 'situation', 'cases', 'cert-ops')}
       ${hubDetailCard(op.title, op.meta, 'incidents-detail', 'open', 'incident', 'cases', 'cert-ops')}
       ${hubDetailCard(tk.title, tk.meta, 'incidents-detail', 'tickets', 'inbox', 'cases', 'cert-ops')}
+      ${hubTabCard(soar.title, soar.meta, 'sekoia-cc', 'incident', 'cert-ops')}
     </div>`;
     bindHubCards(root);
     return;

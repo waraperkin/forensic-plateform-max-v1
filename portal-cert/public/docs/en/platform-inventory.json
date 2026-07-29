@@ -1,316 +1,1051 @@
 {
-  "version": "2026.06.11-minimal",
+  "version": "2026.07.29",
   "interconnections": [
-    {"from": "Portail CERT/IT", "to": "MinIO + Redis", "via": "POST /api/upload", "desc": "Dépôt preuves → queue ingest"},
-    {"from": "ingest-worker", "to": "OpenSearch", "via": "bulk API", "desc": "Index forensic-* / fp-*"},
-    {"from": "ingest-worker", "to": "Timesketch", "via": "timesketch_io.py", "desc": "Import CSV 9 colonnes"},
-    {"from": "cert-portal", "to": "helk-bridge", "via": "/api/helk/*", "desc": "Ingest lab, sync, export TS/CTI"},
-    {"from": "helk-bridge", "to": "OpenSearch FP", "via": "POST /sync", "desc": "helk-findings, helk-detections"},
-    {"from": "cert-portal", "to": "velociraptor-bridge", "via": "/api/velociraptor/*", "desc": "Collecte & export DFIR"},
-    {"from": "velociraptor-bridge", "to": "OpenSearch FP", "via": "export_to_opensearch", "desc": "Index velociraptor-*"},
-    {"from": "helk-bridge", "to": "Timesketch", "via": "/export/timesketch", "desc": "Timeline hunting"},
-    {"from": "OpenCTI", "to": "OpenSearch", "via": "ti_enrichment", "desc": "Indices fp-ti-opencti-*"},
-    {"from": "MISP", "to": "OpenSearch", "via": "opensearch_ioc_misp_sync.py", "desc": "Indices fp-ti-misp-*"},
-    {"from": "TheHive", "to": "Cortex", "via": "observables", "desc": "Analyseurs IR"},
-    {"from": "Grafana", "to": "Prometheus/Loki/OS", "via": "datasources", "desc": "Métriques & dashboards SOC"}
+    {
+      "from": "Portail CERT/IT",
+      "to": "MinIO + Redis",
+      "via": "POST /api/upload",
+      "desc": "Dépôt preuves → queue ingest"
+    },
+    {
+      "from": "ingest-worker",
+      "to": "OpenSearch",
+      "via": "bulk API",
+      "desc": "Index forensic-* / fp-*"
+    },
+    {
+      "from": "ingest-worker",
+      "to": "Timesketch",
+      "via": "timesketch_io.py",
+      "desc": "Import CSV 9 colonnes"
+    },
+    {
+      "from": "cert-portal",
+      "to": "helk-bridge",
+      "via": "/api/helk/*",
+      "desc": "Ingest lab, sync, export TS/CTI"
+    },
+    {
+      "from": "helk-bridge",
+      "to": "OpenSearch FP",
+      "via": "POST /sync",
+      "desc": "helk-findings, helk-detections"
+    },
+    {
+      "from": "cert-portal",
+      "to": "velociraptor-bridge",
+      "via": "/api/velociraptor/*",
+      "desc": "Collecte & export DFIR"
+    },
+    {
+      "from": "velociraptor-bridge",
+      "to": "OpenSearch FP",
+      "via": "export_to_opensearch",
+      "desc": "Index velociraptor-*"
+    },
+    {
+      "from": "helk-bridge",
+      "to": "Timesketch",
+      "via": "/export/timesketch",
+      "desc": "Timeline hunting"
+    },
+    {
+      "from": "OpenCTI",
+      "to": "OpenSearch",
+      "via": "ti_enrichment",
+      "desc": "Indices fp-ti-opencti-*"
+    },
+    {
+      "from": "MISP",
+      "to": "OpenSearch",
+      "via": "opensearch_ioc_misp_sync.py",
+      "desc": "Indices fp-ti-misp-*"
+    },
+    {
+      "from": "TheHive",
+      "to": "Cortex",
+      "via": "observables",
+      "desc": "Analyseurs IR"
+    },
+    {
+      "from": "Grafana",
+      "to": "Prometheus/Loki/OS",
+      "via": "datasources",
+      "desc": "Métriques & dashboards SOC"
+    },
+    {
+      "from": "CERT Portal",
+      "to": "sekoia-controlplane",
+      "via": "/api/threat/sekoia/*",
+      "desc": "Inventories, rules, volumetry, watchlists"
+    },
+    {
+      "from": "sekoia-controlplane",
+      "to": "Sekoia.IO API",
+      "via": "HTTPS api.sekoia.io",
+      "desc": "Intakes, rules, playbooks, events, assets"
+    },
+    {
+      "from": "Incident workspace",
+      "to": "OpenSearch / MinIO / Timesketch",
+      "via": "/api/incidents/:id/scan|purge",
+      "desc": "IOC scan + end-of-investigation purge"
+    }
   ],
   "filters": [
-    {"id": "all", "label": "Tout"},
-    {"id": "playbooks", "label": "Playbooks OSD"},
-    {"id": "dashboards", "label": "Dashboards"},
-    {"id": "parsers", "label": "Parsers & pipelines"},
-    {"id": "workers", "label": "Workers"},
-    {"id": "cti", "label": "CTI & IOC"},
-    {"id": "portal", "label": "Portail UI"},
-    {"id": "detection", "label": "Détection"},
-    {"id": "infra", "label": "Infra & config"}
+    {
+      "id": "all",
+      "label": "Tout"
+    },
+    {
+      "id": "playbooks",
+      "label": "Playbooks OSD"
+    },
+    {
+      "id": "dashboards",
+      "label": "Dashboards"
+    },
+    {
+      "id": "parsers",
+      "label": "Parsers & pipelines"
+    },
+    {
+      "id": "workers",
+      "label": "Workers"
+    },
+    {
+      "id": "cti",
+      "label": "CTI & IOC"
+    },
+    {
+      "id": "portal",
+      "label": "Portail UI"
+    },
+    {
+      "id": "detection",
+      "label": "Détection"
+    },
+    {
+      "id": "infra",
+      "label": "Infra & config"
+    }
   ],
   "tools": [
     {
       "id": "forensic-sh",
-      "filter": ["all", "infra"],
+      "filter": [
+        "all",
+        "infra"
+      ],
       "name": "Orchestrateur forensic.sh",
       "summary": "Point d'entrée unique : start, full-start, activation layers, URLs, fix-data.",
       "usage": "./forensic.sh start (FAST) ou full-start (activation complète playbooks/dashboards/CTI). Phase 7/8 = start_activation_layers().",
-      "connects": ["docker-compose", "scripts/*"],
+      "connects": [
+        "docker-compose",
+        "scripts/*"
+      ],
       "files": [
-        {"path": "forensic.sh", "role": "Dispatch & activation 80+ layers"},
-        {"path": "docker-compose.yml", "role": "Stack 30+ services"},
-        {"path": "docker-compose.opencti.yml", "role": "Connecteurs OpenCTI"},
-        {"path": "config/nomenclature_official.yaml", "role": "Titres dashboards FP-Master"}
+        {
+          "path": "forensic.sh",
+          "role": "Dispatch & activation 80+ layers"
+        },
+        {
+          "path": "docker-compose.yml",
+          "role": "Stack 30+ services"
+        },
+        {
+          "path": "docker-compose.opencti.yml",
+          "role": "Connecteurs OpenCTI"
+        },
+        {
+          "path": "config/nomenclature_official.yaml",
+          "role": "Titres dashboards FP-Master"
+        }
       ]
     },
     {
       "id": "ingest-worker",
-      "filter": ["all", "workers", "parsers"],
+      "filter": [
+        "all",
+        "workers",
+        "parsers"
+      ],
       "name": "Ingest Worker (Python)",
       "summary": "Consomme Redis queue, parse fichiers, indexe OS, importe Timesketch.",
       "usage": "Automatique après upload portail. Logs : docker logs forensic-ingest-worker. Types : EVTX, CSV, Plaso, texte, STIX.",
-      "connects": ["MinIO", "Redis", "OpenSearch", "Timesketch"],
+      "connects": [
+        "MinIO",
+        "Redis",
+        "OpenSearch",
+        "Timesketch"
+      ],
       "files": [
-        {"path": "ingest-worker/worker.py", "role": "Boucle principale queue"},
-        {"path": "ingest-worker/parsers/evtx_parser.py", "role": "Parse Windows EVTX"},
-        {"path": "ingest-worker/parsers/text_parser.py", "role": "Logs texte/syslog"},
-        {"path": "ingest-worker/parsers/timesketch_csv.py", "role": "Format CSV 9 colonnes TS"},
-        {"path": "ingest-worker/timesketch_pipeline.py", "role": "Orchestration import TS"},
-        {"path": "ingest-worker/timesketch_io.py", "role": "API Timesketch upload/sketch"},
-        {"path": "ingest-worker/ti_enrichment.py", "role": "Enrichissement TI sur ingest"},
-        {"path": "ingest-worker/ioc_common.py", "role": "Helpers IOC"},
-        {"path": "lib/ingest-queue.js", "role": "Enqueue côté portail Node"}
+        {
+          "path": "ingest-worker/worker.py",
+          "role": "Boucle principale queue"
+        },
+        {
+          "path": "ingest-worker/parsers/evtx_parser.py",
+          "role": "Parse Windows EVTX"
+        },
+        {
+          "path": "ingest-worker/parsers/text_parser.py",
+          "role": "Logs texte/syslog"
+        },
+        {
+          "path": "ingest-worker/parsers/timesketch_csv.py",
+          "role": "Format CSV 9 colonnes TS"
+        },
+        {
+          "path": "ingest-worker/timesketch_pipeline.py",
+          "role": "Orchestration import TS"
+        },
+        {
+          "path": "ingest-worker/timesketch_io.py",
+          "role": "API Timesketch upload/sketch"
+        },
+        {
+          "path": "ingest-worker/ti_enrichment.py",
+          "role": "Enrichissement TI sur ingest"
+        },
+        {
+          "path": "ingest-worker/ioc_common.py",
+          "role": "Helpers IOC"
+        },
+        {
+          "path": "lib/ingest-queue.js",
+          "role": "Enqueue côté portail Node"
+        }
       ]
     },
     {
       "id": "logstash-filebeat",
-      "filter": ["all", "parsers", "infra"],
+      "filter": [
+        "all",
+        "parsers",
+        "infra"
+      ],
       "name": "Logstash & Filebeat",
       "summary": "Ingestion réseau : Beats :5044, JSON :5045, syslog :5140, HEC :5555.",
       "usage": "Configurer agents/beats vers logstash. Pipelines windows/linux/web/multi-source.",
-      "connects": ["OpenSearch"],
+      "connects": [
+        "OpenSearch"
+      ],
       "files": [
-        {"path": "config/logstash/pipeline/00-inputs.conf", "role": "Entrées"},
-        {"path": "config/logstash/pipeline/10-windows.conf", "role": "Parse Windows"},
-        {"path": "config/logstash/pipeline/20-linux-macos.conf", "role": "Parse Linux"},
-        {"path": "config/logstash/pipeline/40-multi-source.conf", "role": "Multi-source"},
-        {"path": "config/filebeat/filebeat.yml", "role": "Logs Docker → OS"}
+        {
+          "path": "config/logstash/pipeline/00-inputs.conf",
+          "role": "Entrées"
+        },
+        {
+          "path": "config/logstash/pipeline/10-windows.conf",
+          "role": "Parse Windows"
+        },
+        {
+          "path": "config/logstash/pipeline/20-linux-macos.conf",
+          "role": "Parse Linux"
+        },
+        {
+          "path": "config/logstash/pipeline/40-multi-source.conf",
+          "role": "Multi-source"
+        },
+        {
+          "path": "config/filebeat/filebeat.yml",
+          "role": "Logs Docker → OS"
+        }
       ]
     },
     {
       "id": "os-pipelines",
-      "filter": ["all", "parsers"],
+      "filter": [
+        "all",
+        "parsers"
+      ],
       "name": "Pipelines ingest OpenSearch",
       "summary": "Pipelines ECS fp-* pour normalisation Windows/Linux/Web/TI.",
       "usage": "Appliqués via parsing_master_full_setup. Vérifier : GET /_ingest/pipeline.",
-      "connects": ["OpenSearch indices forensic-*"],
+      "connects": [
+        "OpenSearch indices forensic-*"
+      ],
       "files": [
-        {"path": "parsers/ingest-pipelines/windows-ecs.json", "role": "Pipeline Windows ECS"},
-        {"path": "parsers/ingest-pipelines/linux-ecs.json", "role": "Pipeline Linux ECS"},
-        {"path": "parsers/ingest-pipelines/web-ecs.json", "role": "Pipeline Web ECS"},
-        {"path": "parsers/ingest-pipelines/fp-parsing-master.json", "role": "Master parsing"},
-        {"path": "parsers/ingest-pipelines/fp-parsing-master-full.json", "role": "Full spectrum"},
-        {"path": "parsers/ingest-pipelines/fp-ti-normalize.json", "role": "Normalisation TI"},
-        {"path": "parsers/ingest-pipelines/fp-ti-match.json", "role": "Matching IOC"},
-        {"path": "scripts/parsing_master_full_setup.py", "role": "Activation pipelines"},
-        {"path": "scripts/parsing_ecs_adapters.py", "role": "Adaptateurs ECS playbooks"}
+        {
+          "path": "parsers/ingest-pipelines/windows-ecs.json",
+          "role": "Pipeline Windows ECS"
+        },
+        {
+          "path": "parsers/ingest-pipelines/linux-ecs.json",
+          "role": "Pipeline Linux ECS"
+        },
+        {
+          "path": "parsers/ingest-pipelines/web-ecs.json",
+          "role": "Pipeline Web ECS"
+        },
+        {
+          "path": "parsers/ingest-pipelines/fp-parsing-master.json",
+          "role": "Master parsing"
+        },
+        {
+          "path": "parsers/ingest-pipelines/fp-parsing-master-full.json",
+          "role": "Full spectrum"
+        },
+        {
+          "path": "parsers/ingest-pipelines/fp-ti-normalize.json",
+          "role": "Normalisation TI"
+        },
+        {
+          "path": "parsers/ingest-pipelines/fp-ti-match.json",
+          "role": "Matching IOC"
+        },
+        {
+          "path": "scripts/parsing_master_full_setup.py",
+          "role": "Activation pipelines"
+        },
+        {
+          "path": "scripts/parsing_ecs_adapters.py",
+          "role": "Adaptateurs ECS playbooks"
+        }
       ]
     },
     {
       "id": "playbooks-osd",
-      "filter": ["all", "playbooks", "dashboards"],
+      "filter": [
+        "all",
+        "playbooks",
+        "dashboards"
+      ],
       "name": "18 Playbooks OpenSearch Dashboards",
       "summary": "Dashboards rôle SOC (Analyst, IC, Purple, CTI, etc.) — 77+ saved searches dans Analyst PB.",
       "usage": "Accès /dashboards/ → Security Operations / Threat Intel / Incident Response. Activés par forensic.sh full-start.",
-      "connects": ["OpenSearch", "fp-events", "fp-ti-*"],
+      "connects": [
+        "OpenSearch",
+        "fp-events",
+        "fp-ti-*"
+      ],
       "playbooks": [
-        {"id": "fp-analyst-playbook", "title": "Analyst Playbook", "ndjson": "dashboards/opensearch/opensearch_playbook.ndjson", "setup": "scripts/analyst_playbook_setup.py", "verify": "scripts/analyst_playbook_verify.py"},
-        {"id": "fp-soc-manager-playbook", "title": "SOC Manager", "ndjson": "dashboards/opensearch/fp-soc-manager-playbook.ndjson", "setup": "scripts/soc_manager_playbook_setup.py", "verify": "scripts/soc_manager_playbook_verify.py", "build": "scripts/build_soc_manager_playbook.py"},
-        {"id": "fp-incident-commander-playbook", "title": "Incident Commander", "ndjson": "dashboards/opensearch/fp-incident-commander-playbook.ndjson", "setup": "scripts/incident_commander_playbook_setup.py", "verify": "scripts/incident_commander_playbook_verify.py", "build": "scripts/build_incident_commander_playbook.py"},
-        {"id": "fp-soc-director-playbook", "title": "SOC Director", "ndjson": "dashboards/opensearch/fp-soc-director-playbook.ndjson", "setup": "scripts/soc_director_playbook_setup.py", "verify": "scripts/soc_director_playbook_verify.py", "build": "scripts/build_soc_director_playbook.py"},
-        {"id": "fp-ti-lead-playbook", "title": "TI Lead", "ndjson": "dashboards/opensearch/fp-ti-lead-playbook.ndjson", "setup": "scripts/ti_lead_playbook_setup.py", "verify": "scripts/ti_lead_playbook_verify.py", "build": "scripts/build_ti_lead_playbook.py"},
-        {"id": "fp-dfir-senior-playbook", "title": "DFIR Senior", "ndjson": "dashboards/opensearch/fp-dfir-senior-playbook.ndjson", "setup": "scripts/dfir_senior_playbook_setup.py", "verify": "scripts/dfir_senior_playbook_verify.py", "build": "scripts/build_dfir_senior_playbook.py"},
-        {"id": "fp-purple-team-playbook", "title": "Purple Team", "ndjson": "dashboards/opensearch/fp-purple-team-playbook.ndjson", "setup": "scripts/purple_team_playbook_setup.py", "verify": "scripts/purple_team_playbook_verify.py", "build": "scripts/build_purple_team_playbook.py"},
-        {"id": "fp-threat-hunting-lead-playbook", "title": "Threat Hunting Lead", "ndjson": "dashboards/opensearch/fp-threat-hunting-lead-playbook.ndjson", "setup": "scripts/th_lead_playbook_setup.py", "verify": "scripts/th_lead_playbook_verify.py", "build": "scripts/build_threat_hunting_lead_playbook.py"},
-        {"id": "fp-soc-automation-playbook", "title": "SOC Automation", "ndjson": "dashboards/opensearch/fp-soc-automation-playbook.ndjson", "setup": "scripts/soc_automation_playbook_setup.py", "verify": "scripts/soc_automation_playbook_verify.py", "build": "scripts/build_soc_automation_playbook.py"},
-        {"id": "fp-cti-fusion-center-playbook", "title": "CTI Fusion Center", "ndjson": "dashboards/opensearch/fp-cti-fusion-center-playbook.ndjson", "setup": "scripts/cti_fusion_playbook_setup.py", "verify": "scripts/cti_fusion_playbook_verify.py", "build": "scripts/build_cti_fusion_playbook.py"},
-        {"id": "fp-global-soc-command-center", "title": "Global SOC Command Center", "ndjson": "dashboards/opensearch/fp-global-soc-command-center.ndjson", "setup": "scripts/global_soc_command_center_setup.py", "verify": "scripts/global_soc_command_center_verify.py", "build": "scripts/build_global_soc_command_center.py"},
-        {"id": "fp-cyber-crisis-management", "title": "Cyber Crisis Management", "ndjson": "dashboards/opensearch/fp-cyber-crisis-management.ndjson", "setup": "scripts/cyber_crisis_management_setup.py", "verify": "scripts/cyber_crisis_management_verify.py", "build": "scripts/build_cyber_crisis_management.py"},
-        {"id": "fp-nation-state-cti-playbook", "title": "Nation-State CTI", "ndjson": "dashboards/opensearch/fp-nation-state-cti-playbook.ndjson", "setup": "scripts/nation_state_cti_playbook_setup.py", "verify": "scripts/nation_state_cti_playbook_verify.py", "build": "scripts/build_nation_state_cti_playbook.py"},
-        {"id": "fp-autonomous-soc-playbook", "title": "Autonomous SOC", "ndjson": "dashboards/opensearch/fp-autonomous-soc-playbook.ndjson", "setup": "scripts/autonomous_soc_playbook_setup.py", "verify": "scripts/autonomous_soc_playbook_verify.py", "build": "scripts/build_autonomous_soc_playbook.py"},
-        {"id": "fp-soc-director-executive-playbook", "title": "SOC Director Executive", "ndjson": "dashboards/opensearch/fp-soc-director-executive-playbook.ndjson", "setup": "scripts/soc_director_executive_playbook_setup.py", "verify": "scripts/soc_director_executive_playbook_verify.py", "build": "scripts/build_soc_director_executive_playbook.py"},
-        {"id": "fp-red-team-lead-playbook", "title": "Red Team Lead", "ndjson": "dashboards/opensearch/fp-red-team-lead-playbook.ndjson", "setup": "scripts/red_team_lead_playbook_setup.py", "verify": "scripts/red_team_lead_playbook_verify.py", "build": "scripts/build_red_team_lead_playbook.py"},
-        {"id": "fp-blue-team-lead-playbook", "title": "Blue Team Lead", "ndjson": "dashboards/opensearch/fp-blue-team-lead-playbook.ndjson", "setup": "scripts/blue_team_lead_playbook_setup.py", "verify": "scripts/blue_team_lead_playbook_verify.py", "build": "scripts/build_blue_team_lead_playbook.py"},
-        {"id": "fp-cti-fusion-global-playbook", "title": "CTI Fusion Global", "ndjson": "dashboards/opensearch/fp-cti-fusion-global-playbook.ndjson", "setup": "scripts/cti_fusion_global_playbook_setup.py", "verify": "scripts/cti_fusion_global_playbook_verify.py", "build": "scripts/build_cti_fusion_global_playbook.py"}
+        {
+          "id": "fp-analyst-playbook",
+          "title": "Analyst Playbook",
+          "ndjson": "dashboards/opensearch/opensearch_playbook.ndjson",
+          "setup": "scripts/analyst_playbook_setup.py",
+          "verify": "scripts/analyst_playbook_verify.py"
+        },
+        {
+          "id": "fp-soc-manager-playbook",
+          "title": "SOC Manager",
+          "ndjson": "dashboards/opensearch/fp-soc-manager-playbook.ndjson",
+          "setup": "scripts/soc_manager_playbook_setup.py",
+          "verify": "scripts/soc_manager_playbook_verify.py",
+          "build": "scripts/build_soc_manager_playbook.py"
+        },
+        {
+          "id": "fp-incident-commander-playbook",
+          "title": "Incident Commander",
+          "ndjson": "dashboards/opensearch/fp-incident-commander-playbook.ndjson",
+          "setup": "scripts/incident_commander_playbook_setup.py",
+          "verify": "scripts/incident_commander_playbook_verify.py",
+          "build": "scripts/build_incident_commander_playbook.py"
+        },
+        {
+          "id": "fp-soc-director-playbook",
+          "title": "SOC Director",
+          "ndjson": "dashboards/opensearch/fp-soc-director-playbook.ndjson",
+          "setup": "scripts/soc_director_playbook_setup.py",
+          "verify": "scripts/soc_director_playbook_verify.py",
+          "build": "scripts/build_soc_director_playbook.py"
+        },
+        {
+          "id": "fp-ti-lead-playbook",
+          "title": "TI Lead",
+          "ndjson": "dashboards/opensearch/fp-ti-lead-playbook.ndjson",
+          "setup": "scripts/ti_lead_playbook_setup.py",
+          "verify": "scripts/ti_lead_playbook_verify.py",
+          "build": "scripts/build_ti_lead_playbook.py"
+        },
+        {
+          "id": "fp-dfir-senior-playbook",
+          "title": "DFIR Senior",
+          "ndjson": "dashboards/opensearch/fp-dfir-senior-playbook.ndjson",
+          "setup": "scripts/dfir_senior_playbook_setup.py",
+          "verify": "scripts/dfir_senior_playbook_verify.py",
+          "build": "scripts/build_dfir_senior_playbook.py"
+        },
+        {
+          "id": "fp-purple-team-playbook",
+          "title": "Purple Team",
+          "ndjson": "dashboards/opensearch/fp-purple-team-playbook.ndjson",
+          "setup": "scripts/purple_team_playbook_setup.py",
+          "verify": "scripts/purple_team_playbook_verify.py",
+          "build": "scripts/build_purple_team_playbook.py"
+        },
+        {
+          "id": "fp-threat-hunting-lead-playbook",
+          "title": "Threat Hunting Lead",
+          "ndjson": "dashboards/opensearch/fp-threat-hunting-lead-playbook.ndjson",
+          "setup": "scripts/th_lead_playbook_setup.py",
+          "verify": "scripts/th_lead_playbook_verify.py",
+          "build": "scripts/build_threat_hunting_lead_playbook.py"
+        },
+        {
+          "id": "fp-soc-automation-playbook",
+          "title": "SOC Automation",
+          "ndjson": "dashboards/opensearch/fp-soc-automation-playbook.ndjson",
+          "setup": "scripts/soc_automation_playbook_setup.py",
+          "verify": "scripts/soc_automation_playbook_verify.py",
+          "build": "scripts/build_soc_automation_playbook.py"
+        },
+        {
+          "id": "fp-cti-fusion-center-playbook",
+          "title": "CTI Fusion Center",
+          "ndjson": "dashboards/opensearch/fp-cti-fusion-center-playbook.ndjson",
+          "setup": "scripts/cti_fusion_playbook_setup.py",
+          "verify": "scripts/cti_fusion_playbook_verify.py",
+          "build": "scripts/build_cti_fusion_playbook.py"
+        },
+        {
+          "id": "fp-global-soc-command-center",
+          "title": "Global SOC Command Center",
+          "ndjson": "dashboards/opensearch/fp-global-soc-command-center.ndjson",
+          "setup": "scripts/global_soc_command_center_setup.py",
+          "verify": "scripts/global_soc_command_center_verify.py",
+          "build": "scripts/build_global_soc_command_center.py"
+        },
+        {
+          "id": "fp-cyber-crisis-management",
+          "title": "Cyber Crisis Management",
+          "ndjson": "dashboards/opensearch/fp-cyber-crisis-management.ndjson",
+          "setup": "scripts/cyber_crisis_management_setup.py",
+          "verify": "scripts/cyber_crisis_management_verify.py",
+          "build": "scripts/build_cyber_crisis_management.py"
+        },
+        {
+          "id": "fp-nation-state-cti-playbook",
+          "title": "Nation-State CTI",
+          "ndjson": "dashboards/opensearch/fp-nation-state-cti-playbook.ndjson",
+          "setup": "scripts/nation_state_cti_playbook_setup.py",
+          "verify": "scripts/nation_state_cti_playbook_verify.py",
+          "build": "scripts/build_nation_state_cti_playbook.py"
+        },
+        {
+          "id": "fp-autonomous-soc-playbook",
+          "title": "Autonomous SOC",
+          "ndjson": "dashboards/opensearch/fp-autonomous-soc-playbook.ndjson",
+          "setup": "scripts/autonomous_soc_playbook_setup.py",
+          "verify": "scripts/autonomous_soc_playbook_verify.py",
+          "build": "scripts/build_autonomous_soc_playbook.py"
+        },
+        {
+          "id": "fp-soc-director-executive-playbook",
+          "title": "SOC Director Executive",
+          "ndjson": "dashboards/opensearch/fp-soc-director-executive-playbook.ndjson",
+          "setup": "scripts/soc_director_executive_playbook_setup.py",
+          "verify": "scripts/soc_director_executive_playbook_verify.py",
+          "build": "scripts/build_soc_director_executive_playbook.py"
+        },
+        {
+          "id": "fp-red-team-lead-playbook",
+          "title": "Red Team Lead",
+          "ndjson": "dashboards/opensearch/fp-red-team-lead-playbook.ndjson",
+          "setup": "scripts/red_team_lead_playbook_setup.py",
+          "verify": "scripts/red_team_lead_playbook_verify.py",
+          "build": "scripts/build_red_team_lead_playbook.py"
+        },
+        {
+          "id": "fp-blue-team-lead-playbook",
+          "title": "Blue Team Lead",
+          "ndjson": "dashboards/opensearch/fp-blue-team-lead-playbook.ndjson",
+          "setup": "scripts/blue_team_lead_playbook_setup.py",
+          "verify": "scripts/blue_team_lead_playbook_verify.py",
+          "build": "scripts/build_blue_team_lead_playbook.py"
+        },
+        {
+          "id": "fp-cti-fusion-global-playbook",
+          "title": "CTI Fusion Global",
+          "ndjson": "dashboards/opensearch/fp-cti-fusion-global-playbook.ndjson",
+          "setup": "scripts/cti_fusion_global_playbook_setup.py",
+          "verify": "scripts/cti_fusion_global_playbook_verify.py",
+          "build": "scripts/build_cti_fusion_global_playbook.py"
+        }
       ],
       "files": [
-        {"path": "scripts/fp_playbooks_bars_patch.py", "role": "Patch barres 18 playbooks"},
-        {"path": "scripts/opensearch_dashboards_import_playbook.sh", "role": "Import NDJSON OSD"},
-        {"path": "dashboards/opensearch/playbook_manifest.json", "role": "Manifest Analyst PB"}
+        {
+          "path": "scripts/fp_playbooks_bars_patch.py",
+          "role": "Patch barres 18 playbooks"
+        },
+        {
+          "path": "scripts/opensearch_dashboards_import_playbook.sh",
+          "role": "Import NDJSON OSD"
+        },
+        {
+          "path": "dashboards/opensearch/playbook_manifest.json",
+          "role": "Manifest Analyst PB"
+        }
       ]
     },
     {
       "id": "dashboards-siem-ti",
-      "filter": ["all", "dashboards"],
+      "filter": [
+        "all",
+        "dashboards"
+      ],
       "name": "Dashboards SIEM / TI / Observabilité",
       "summary": "Objets OSD SIEM, TI matches, observability + Grafana FP-Master.",
       "usage": "OSD : /dashboards/. Grafana : /grafana/ dashboards fp-*-metrics.",
-      "connects": ["OpenSearch", "Grafana", "Prometheus"],
+      "connects": [
+        "OpenSearch",
+        "Grafana",
+        "Prometheus"
+      ],
       "files": [
-        {"path": "dashboards/opensearch/fp_siem_saved_objects.ndjson", "role": "SIEM core"},
-        {"path": "dashboards/opensearch/fp_siem_ti_saved_objects.ndjson", "role": "SIEM + TI"},
-        {"path": "dashboards/opensearch/fp_observability_saved_objects.ndjson", "role": "Observabilité OSD"},
-        {"path": "dashboards/opensearch/fp-platform-health.ndjson", "role": "Santé plateforme"},
-        {"path": "dashboards/opensearch/opensearch_siem_ti_overview.ndjson", "role": "TI Overview"},
-        {"path": "dashboards/opensearch/opensearch_enterprise.ndjson", "role": "Enterprise modules"},
-        {"path": "dashboards/grafana/fp-master/fp-opensearch-metrics.json", "role": "Grafana OS metrics"},
-        {"path": "dashboards/grafana/fp-master/fp-cti-metrics.json", "role": "Grafana CTI"},
-        {"path": "dashboards/grafana/fp-master/fp-platform-health-gf.json", "role": "Grafana santé"},
-        {"path": "scripts/grafana_master_setup.py", "role": "Provision Grafana"},
-        {"path": "scripts/build_opensearch_siem_ti_dashboards.py", "role": "Build dashboards TI"},
-        {"path": "scripts/build_platform_health_dashboard.py", "role": "Dashboard santé"}
+        {
+          "path": "dashboards/opensearch/fp_siem_saved_objects.ndjson",
+          "role": "SIEM core"
+        },
+        {
+          "path": "dashboards/opensearch/fp_siem_ti_saved_objects.ndjson",
+          "role": "SIEM + TI"
+        },
+        {
+          "path": "dashboards/opensearch/fp_observability_saved_objects.ndjson",
+          "role": "Observabilité OSD"
+        },
+        {
+          "path": "dashboards/opensearch/fp-platform-health.ndjson",
+          "role": "Santé plateforme"
+        },
+        {
+          "path": "dashboards/opensearch/opensearch_siem_ti_overview.ndjson",
+          "role": "TI Overview"
+        },
+        {
+          "path": "dashboards/opensearch/opensearch_enterprise.ndjson",
+          "role": "Enterprise modules"
+        },
+        {
+          "path": "dashboards/grafana/fp-master/fp-opensearch-metrics.json",
+          "role": "Grafana OS metrics"
+        },
+        {
+          "path": "dashboards/grafana/fp-master/fp-cti-metrics.json",
+          "role": "Grafana CTI"
+        },
+        {
+          "path": "dashboards/grafana/fp-master/fp-platform-health-gf.json",
+          "role": "Grafana santé"
+        },
+        {
+          "path": "scripts/grafana_master_setup.py",
+          "role": "Provision Grafana"
+        },
+        {
+          "path": "scripts/build_opensearch_siem_ti_dashboards.py",
+          "role": "Build dashboards TI"
+        },
+        {
+          "path": "scripts/build_platform_health_dashboard.py",
+          "role": "Dashboard santé"
+        }
       ]
     },
     {
       "id": "sigma-rules",
-      "filter": ["all", "detection"],
+      "filter": [
+        "all",
+        "detection"
+      ],
       "name": "Règles Sigma & détection OS",
       "summary": "Règles Sigma HELK + détections sync OpenSearch FP.",
       "usage": "Panneau HELK → MITRE/Sigma Grafana. Pipeline 0080-sigma-detections.conf. scripts/helk_full_config_verify.py",
-      "connects": ["HELK", "OpenSearch"],
+      "connects": [
+        "HELK",
+        "OpenSearch"
+      ],
       "files": [
-        {"path": "helk/scripts/sigma_runner.py", "role": "Runner Sigma HELK"},
-        {"path": "helk/config/logstash/pipeline/0080-sigma-detections.conf", "role": "Pipeline détections"},
-        {"path": "scripts/sigma_master_setup.py", "role": "Activation règles OS"},
-        {"path": "portal-shared/js/helk-integration.js", "role": "UI hunting portail"},
-        {"path": "config/timesketch/sigma_config.yaml", "role": "Config Sigma Timesketch"}
+        {
+          "path": "helk/scripts/sigma_runner.py",
+          "role": "Runner Sigma HELK"
+        },
+        {
+          "path": "helk/config/logstash/pipeline/0080-sigma-detections.conf",
+          "role": "Pipeline détections"
+        },
+        {
+          "path": "scripts/sigma_master_setup.py",
+          "role": "Activation règles OS"
+        },
+        {
+          "path": "portal-shared/js/helk-integration.js",
+          "role": "UI hunting portail"
+        },
+        {
+          "path": "config/timesketch/sigma_config.yaml",
+          "role": "Config Sigma Timesketch"
+        }
       ]
     },
     {
       "id": "cti-stack",
-      "filter": ["all", "cti"],
+      "filter": [
+        "all",
+        "cti"
+      ],
       "name": "Stack CTI (OpenCTI, MISP, TheHive, Cortex)",
       "summary": "Hub TI, partage IOC, cas, analyseurs automatisés.",
       "usage": "OpenCTI /cti/ — entités STIX. MISP events. TheHive cas. Cortex analyseurs sur observables.",
-      "connects": ["OpenSearch fp-ti-*", "MinIO", "Postgres"],
+      "connects": [
+        "OpenSearch fp-ti-*",
+        "MinIO",
+        "Postgres"
+      ],
       "files": [
-        {"path": "scripts/opencti_master_setup.py", "role": "Setup OpenCTI + populate"},
-        {"path": "scripts/misp_master_setup.py", "role": "Setup MISP"},
-        {"path": "scripts/thehive_master_setup.py", "role": "Setup TheHive"},
-        {"path": "scripts/analyzers_master_setup.py", "role": "Setup Cortex analyseurs"},
-        {"path": "scripts/opensearch_ioc_misp_sync.py", "role": "Sync MISP → OS"},
-        {"path": "scripts/opensearch_ti_enrich_logs.py", "role": "Enrichissement logs TI"},
-        {"path": "scripts/ti_master_setup.py", "role": "Master TI indices"},
-        {"path": "portal-shared/js/panel-cti-detail.js", "role": "UI CTI portail"},
-        {"path": "config/opencti/fp_master_sample.stix.json", "role": "Sample STIX"}
+        {
+          "path": "scripts/opencti_master_setup.py",
+          "role": "Setup OpenCTI + populate"
+        },
+        {
+          "path": "scripts/misp_master_setup.py",
+          "role": "Setup MISP"
+        },
+        {
+          "path": "scripts/thehive_master_setup.py",
+          "role": "Setup TheHive"
+        },
+        {
+          "path": "scripts/analyzers_master_setup.py",
+          "role": "Setup Cortex analyseurs"
+        },
+        {
+          "path": "scripts/opensearch_ioc_misp_sync.py",
+          "role": "Sync MISP → OS"
+        },
+        {
+          "path": "scripts/opensearch_ti_enrich_logs.py",
+          "role": "Enrichissement logs TI"
+        },
+        {
+          "path": "scripts/ti_master_setup.py",
+          "role": "Master TI indices"
+        },
+        {
+          "path": "portal-shared/js/panel-cti-detail.js",
+          "role": "UI CTI portail"
+        },
+        {
+          "path": "config/opencti/fp_master_sample.stix.json",
+          "role": "Sample STIX"
+        }
       ]
     },
     {
       "id": "timesketch",
-      "filter": ["all", "workers"],
+      "filter": [
+        "all",
+        "workers"
+      ],
       "name": "Timesketch (web + worker)",
       "summary": "Investigation timeline, zones FP, CTI fusion, playbooks TS.",
       "usage": "/timesketch/ — sketches, timelines, search templates. Worker Celery pour imports.",
-      "connects": ["ingest-worker", "OpenSearch crosspivot"],
+      "connects": [
+        "ingest-worker",
+        "OpenSearch crosspivot"
+      ],
       "files": [
-        {"path": "config/timesketch/timesketch.conf", "role": "Config principale"},
-        {"path": "config/timesketch/playbooks.json", "role": "Playbooks TS"},
-        {"path": "config/timesketch/zones/search_templates_fp.yaml", "role": "Templates recherche"},
-        {"path": "scripts/timesketch_master_setup.py", "role": "Bootstrap master"},
-        {"path": "scripts/timesketch_zones_setup.py", "role": "Zones FP"},
-        {"path": "scripts/ts_cti_fusion_setup.py", "role": "Fusion CTI → TS"},
-        {"path": "scripts/crosspivot_os_to_ts.py", "role": "Pivot OS → TS"},
-        {"path": "dashboards/timesketch/timesketch_analyst_workflow.json", "role": "Dashboard TS"}
+        {
+          "path": "config/timesketch/timesketch.conf",
+          "role": "Config principale"
+        },
+        {
+          "path": "config/timesketch/playbooks.json",
+          "role": "Playbooks TS"
+        },
+        {
+          "path": "config/timesketch/zones/search_templates_fp.yaml",
+          "role": "Templates recherche"
+        },
+        {
+          "path": "scripts/timesketch_master_setup.py",
+          "role": "Bootstrap master"
+        },
+        {
+          "path": "scripts/timesketch_zones_setup.py",
+          "role": "Zones FP"
+        },
+        {
+          "path": "scripts/ts_cti_fusion_setup.py",
+          "role": "Fusion CTI → TS"
+        },
+        {
+          "path": "scripts/crosspivot_os_to_ts.py",
+          "role": "Pivot OS → TS"
+        },
+        {
+          "path": "dashboards/timesketch/timesketch_analyst_workflow.json",
+          "role": "Dashboard TS"
+        }
       ]
     },
     {
       "id": "soc-autonomous",
-      "filter": ["all", "detection", "workers"],
+      "filter": [
+        "all",
+        "detection",
+        "workers"
+      ],
       "name": "SOC Autonomous",
       "summary": "Analyse continue incidents/anomalies/corrélations — portail + playbook OSD.",
       "usage": "Menu Analyse SOC. Activé par soc_autonomous_run dans full-start. KPI portail + Grafana fp-soc-autonomous-metrics.",
-      "connects": ["OpenSearch", "cert-portal API"],
+      "connects": [
+        "OpenSearch",
+        "cert-portal API"
+      ],
       "files": [
-        {"path": "scripts/soc_autonomous_master.py", "role": "Moteur analyse"},
-        {"path": "scripts/soc_autonomous_ui_verify.py", "role": "Vérif UI"},
-        {"path": "portal-shared/js/portal-ai-autonomous.js", "role": "UI portail Analyse SOC"},
-        {"path": "dashboards/grafana/fp-master/fp-soc-autonomous-metrics.json", "role": "Métriques Grafana"}
+        {
+          "path": "scripts/soc_autonomous_master.py",
+          "role": "Moteur analyse"
+        },
+        {
+          "path": "scripts/soc_autonomous_ui_verify.py",
+          "role": "Vérif UI"
+        },
+        {
+          "path": "portal-shared/js/portal-ai-autonomous.js",
+          "role": "UI portail Analyse SOC"
+        },
+        {
+          "path": "dashboards/grafana/fp-master/fp-soc-autonomous-metrics.json",
+          "role": "Métriques Grafana"
+        }
       ]
     },
     {
       "id": "helk-sidecar",
-      "filter": ["all", "detection", "portal"],
+      "filter": [
+        "all",
+        "detection",
+        "portal"
+      ],
       "name": "HELK Hunting (sidecar)",
       "summary": "Bridge helk, pipelines Logstash, Kibana, dashboards Grafana, ingest lab offline.",
       "usage": "Onglet HELK Hunting. POST /api/helk/lab/ingest, sync, export Timesketch/CTI.",
-      "connects": ["cert-portal", "OpenSearch", "Timesketch", "Grafana"],
+      "connects": [
+        "cert-portal",
+        "OpenSearch",
+        "Timesketch",
+        "Grafana"
+      ],
       "files": [
-        {"path": "helk/scripts/helk_bridge.py", "role": "Bridge HTTP"},
-        {"path": "helk/scripts/lab_ingest.py", "role": "Ingest lab offline"},
-        {"path": "portal-cert/routes/helk-routes.js", "role": "Routes portail"},
-        {"path": "portal-shared/js/helk-integration.js", "role": "UI panneau HELK"},
-        {"path": "dashboards/grafana/helk/", "role": "Dashboards Grafana"},
-        {"path": "scripts/helk_full_config_verify.py", "role": "Vérification config"}
+        {
+          "path": "helk/scripts/helk_bridge.py",
+          "role": "Bridge HTTP"
+        },
+        {
+          "path": "helk/scripts/lab_ingest.py",
+          "role": "Ingest lab offline"
+        },
+        {
+          "path": "portal-cert/routes/helk-routes.js",
+          "role": "Routes portail"
+        },
+        {
+          "path": "portal-shared/js/helk-integration.js",
+          "role": "UI panneau HELK"
+        },
+        {
+          "path": "dashboards/grafana/helk/",
+          "role": "Dashboards Grafana"
+        },
+        {
+          "path": "scripts/helk_full_config_verify.py",
+          "role": "Vérification config"
+        }
       ]
     },
     {
       "id": "velociraptor-sidecar",
-      "filter": ["all", "detection", "portal"],
+      "filter": [
+        "all",
+        "detection",
+        "portal"
+      ],
       "name": "Velociraptor DFIR (sidecar)",
       "summary": "Bridge collecte/export, artefacts ForensicFull, playbooks offline.",
       "usage": "Onglet Velociraptor DFIR. Collecte offline ou live. GUI /velociraptor/",
-      "connects": ["cert-portal", "OpenSearch", "MinIO", "Timesketch"],
+      "connects": [
+        "cert-portal",
+        "OpenSearch",
+        "MinIO",
+        "Timesketch"
+      ],
       "files": [
-        {"path": "velociraptor/export/vraptor_bridge.py", "role": "Bridge HTTP"},
-        {"path": "velociraptor/export/lab_simulator.py", "role": "Simulateur lab"},
-        {"path": "portal-cert/routes/velociraptor-routes.js", "role": "Routes portail"},
-        {"path": "portal-shared/js/velociraptor-integration.js", "role": "UI panneau VR"},
-        {"path": "velociraptor/artifacts/custom/", "role": "Artefacts YAML"},
-        {"path": "scripts/velociraptor_full_config_verify.py", "role": "Vérification config"}
+        {
+          "path": "velociraptor/export/vraptor_bridge.py",
+          "role": "Bridge HTTP"
+        },
+        {
+          "path": "velociraptor/export/lab_simulator.py",
+          "role": "Simulateur lab"
+        },
+        {
+          "path": "portal-cert/routes/velociraptor-routes.js",
+          "role": "Routes portail"
+        },
+        {
+          "path": "portal-shared/js/velociraptor-integration.js",
+          "role": "UI panneau VR"
+        },
+        {
+          "path": "velociraptor/artifacts/custom/",
+          "role": "Artefacts YAML"
+        },
+        {
+          "path": "scripts/velociraptor_full_config_verify.py",
+          "role": "Vérification config"
+        }
       ]
     },
     {
       "id": "observability-stack",
-      "filter": ["all", "infra", "dashboards"],
+      "filter": [
+        "all",
+        "infra",
+        "dashboards"
+      ],
       "name": "Observabilité (Prometheus, Loki, Grafana, Alertmanager)",
       "summary": "Métriques conteneurs, logs centralisés, dashboards FP-Master Grafana, alertes SOC.",
       "usage": "Grafana /grafana/ (admin). Prometheus /prometheus/. Logs via Loki. Dashboards fp-*-metrics activés par grafana_master_setup.py.",
-      "connects": ["Docker", "OpenSearch", "cert-portal /api/overview"],
+      "connects": [
+        "Docker",
+        "OpenSearch",
+        "cert-portal /api/overview"
+      ],
       "files": [
-        {"path": "config/prometheus/prometheus.yml", "role": "Scrape targets stack"},
-        {"path": "config/loki/loki-config.yml", "role": "Agrégation logs"},
-        {"path": "config/grafana/provisioning/", "role": "Datasources + dashboards"},
-        {"path": "dashboards/grafana/fp-master/", "role": "Dashboards FP-Master JSON"},
-        {"path": "scripts/grafana_master_setup.py", "role": "Provision Grafana"},
-        {"path": "scripts/observability_master_setup.py", "role": "Stack observabilité"},
-        {"path": "portal-shared/js/panel-overview-health.js", "role": "UI santé portail"}
+        {
+          "path": "config/prometheus/prometheus.yml",
+          "role": "Scrape targets stack"
+        },
+        {
+          "path": "config/loki/loki-config.yml",
+          "role": "Agrégation logs"
+        },
+        {
+          "path": "config/grafana/provisioning/",
+          "role": "Datasources + dashboards"
+        },
+        {
+          "path": "dashboards/grafana/fp-master/",
+          "role": "Dashboards FP-Master JSON"
+        },
+        {
+          "path": "scripts/grafana_master_setup.py",
+          "role": "Provision Grafana"
+        },
+        {
+          "path": "scripts/observability_master_setup.py",
+          "role": "Stack observabilité"
+        },
+        {
+          "path": "portal-shared/js/panel-overview-health.js",
+          "role": "UI santé portail"
+        }
       ]
     },
     {
       "id": "nginx-proxy",
-      "filter": ["all", "infra", "portal"],
+      "filter": [
+        "all",
+        "infra",
+        "portal"
+      ],
       "name": "Nginx reverse proxy (TLS)",
       "summary": "Point d'entrée HTTPS unique : portail, OSD, Grafana, Timesketch, CTI, MinIO console.",
       "usage": "Accès https://<PUBLIC_HOST>/ — routes /dashboards/, /grafana/, /timesketch/, /cti/, /api/. Certificats dans config/nginx/certs/. Rempli automatiquement au bootstrap (-full-start).",
-      "connects": ["cert-portal", "OpenSearch Dashboards", "tous services UI"],
+      "connects": [
+        "cert-portal",
+        "OpenSearch Dashboards",
+        "tous services UI"
+      ],
       "files": [
-        {"path": "config/nginx/nginx.conf", "role": "Routes reverse proxy"},
-        {"path": "config/nginx/conf.d/", "role": "Vhosts par service"},
-        {"path": "config/nginx/certs/", "role": "TLS lab"},
-        {"path": "portal-cert/public/index.html", "role": "SPA portail CERT"}
+        {
+          "path": "config/nginx/nginx.conf",
+          "role": "Routes reverse proxy"
+        },
+        {
+          "path": "config/nginx/conf.d/",
+          "role": "Vhosts par service"
+        },
+        {
+          "path": "config/nginx/certs/",
+          "role": "TLS lab"
+        },
+        {
+          "path": "portal-cert/public/index.html",
+          "role": "SPA portail CERT"
+        }
       ]
     },
     {
       "id": "forensic-reports",
-      "filter": ["all", "portal"],
+      "filter": [
+        "all",
+        "portal"
+      ],
       "name": "Forensic reports + local AI",
       "summary": "Full incident report generation: OS/MinIO/TI evidence, customizable blocks, Ollama enrichment, HTML/MD export.",
       "usage": "Forensic reports menu or button from Incidents. API /api/reports/*. Verify: scripts/forensic_report_verify.py",
-      "connects": ["OpenSearch forensic-*", "MinIO uploads", "MISP/OpenCTI IOC", "Ollama (optional)"],
+      "connects": [
+        "OpenSearch forensic-*",
+        "MinIO uploads",
+        "MISP/OpenCTI IOC",
+        "Ollama (optional)"
+      ],
       "files": [
-        {"path": "portal-cert/lib/forensic-report-engine.js", "role": "Evidence collection & rendering"},
-        {"path": "portal-cert/lib/forensic-report-llm.js", "role": "Ollama / heuristic enrichment"},
-        {"path": "portal-cert/routes/forensic-report-routes.js", "role": "Reports REST API"},
-        {"path": "portal-shared/js/forensic-report.js", "role": "Portal generator UI"},
-        {"path": "docs/PORTAL/FORENSIC-REPORTS.md", "role": "Full documentation"}
+        {
+          "path": "portal-cert/lib/forensic-report-engine.js",
+          "role": "Evidence collection & rendering"
+        },
+        {
+          "path": "portal-cert/lib/forensic-report-llm.js",
+          "role": "Ollama / heuristic enrichment"
+        },
+        {
+          "path": "portal-cert/routes/forensic-report-routes.js",
+          "role": "Reports REST API"
+        },
+        {
+          "path": "portal-shared/js/forensic-report.js",
+          "role": "Portal generator UI"
+        },
+        {
+          "path": "docs/PORTAL/FORENSIC-REPORTS.md",
+          "role": "Full documentation"
+        }
       ]
     },
     {
       "id": "cert-portal-ui",
-      "filter": ["all", "portal"],
+      "filter": [
+        "all",
+        "portal"
+      ],
       "name": "Portail CERT — modules UI",
       "summary": "54 modules JS lazy-loaded : hubs, investigation, gouvernance, doc, IA.",
       "usage": "Navigation sidebar. Chargement différé via portal-lazy.js / portal-v2-lazy.js.",
-      "connects": ["/api/*", "portal-shared"],
+      "connects": [
+        "/api/*",
+        "portal-shared"
+      ],
       "files": [
-        {"path": "portal-cert/public/index.html", "role": "Shell HTML CERT"},
-        {"path": "portal-cert/server.js", "role": "API Node Express"},
-        {"path": "portal-shared/js/cert-app.js", "role": "Boot application"},
-        {"path": "portal-shared/js/cybercorp-hub.js", "role": "Loaders hubs"},
-        {"path": "portal-shared/js/helk-integration.js", "role": "Module HELK"},
-        {"path": "portal-shared/js/velociraptor-integration.js", "role": "Module Velociraptor"},
-        {"path": "portal-shared/js/cert-tools.js", "role": "Outils CERT investigation"},
-        {"path": "portal-shared/js/portal-doc.js", "role": "Documentation"},
-        {"path": "portal-shared/js/portal-doc-inventory.js", "role": "Inventaire premium++"},
-        {"path": "portal-shared/i18n/fr.json", "role": "Traductions FR"},
-        {"path": "portal-shared/i18n/en.json", "role": "Traductions EN"}
+        {
+          "path": "portal-cert/public/index.html",
+          "role": "Shell HTML CERT"
+        },
+        {
+          "path": "portal-cert/server.js",
+          "role": "API Node Express"
+        },
+        {
+          "path": "portal-shared/js/cert-app.js",
+          "role": "Boot application"
+        },
+        {
+          "path": "portal-shared/js/cybercorp-hub.js",
+          "role": "Loaders hubs"
+        },
+        {
+          "path": "portal-shared/js/helk-integration.js",
+          "role": "Module HELK"
+        },
+        {
+          "path": "portal-shared/js/velociraptor-integration.js",
+          "role": "Module Velociraptor"
+        },
+        {
+          "path": "portal-shared/js/cert-tools.js",
+          "role": "Outils CERT investigation"
+        },
+        {
+          "path": "portal-shared/js/portal-doc.js",
+          "role": "Documentation"
+        },
+        {
+          "path": "portal-shared/js/portal-doc-inventory.js",
+          "role": "Inventaire premium++"
+        },
+        {
+          "path": "portal-shared/i18n/fr.json",
+          "role": "Traductions FR"
+        },
+        {
+          "path": "portal-shared/i18n/en.json",
+          "role": "Traductions EN"
+        }
+      ]
+    },
+    {
+      "id": "sekoia-layer",
+      "filter": [
+        "all",
+        "portal"
+      ],
+      "name": "Sekoia.IO layer — Control Center & SOAR",
+      "summary": "Editable inventories (intakes, rules, playbooks, assets, connectors, modules, formats), real-time volumetry monitoring, anomalies, hosts, efficacy, IOC watchlists, snapshots, SOL queries, and the SOAR incident workspace (status stepper, NIST tasks & playbooks, SLA, timeline, evidence, IOC scan, report, purge).",
+      "usage": "SEKOIA.IO sidebar → Sekoia Control Center (27 sub-tabs) or dedicated panels Assets & Sources / Rules / Telemetry / API Keys / XDR View / Audit Center. Configure the Sekoia API key in 'Configuration' (admin).",
+      "connects": [
+        "/api/threat/sekoia/*",
+        "/control/sekoia/*",
+        "OpenCTI",
+        "MISP",
+        "TheHive",
+        "Cortex",
+        "OpenSearch"
+      ],
+      "files": [
+        {
+          "path": "portal-shared/js/sekoia-control-center.js",
+          "role": "Control Center + SOAR incident workspace"
+        },
+        {
+          "path": "portal-shared/js/sekoia-enterprise.js",
+          "role": "Query Builder / Dashboard Builder / Asset Profile"
+        },
+        {
+          "path": "portal-shared/js/threat-platforms.js",
+          "role": "Sekoia & SentinelOne panels"
+        },
+        {
+          "path": "connectors/sekoia-controlplane/app.py",
+          "role": "Controlplane API (inventories, volumetry, watchlists)"
+        },
+        {
+          "path": "connectors/sekoia-controlplane/sol.py",
+          "role": "SOL query engine"
+        },
+        {
+          "path": "connectors/sekoia-monitor/monitor.py",
+          "role": "Intake/hostname volumetry monitoring"
+        },
+        {
+          "path": "portal-cert/routes/incident-routes.js",
+          "role": "SOAR incidents backend (tasks, SLA, scan, purge)"
+        }
+      ]
+    },
+    {
+      "id": "s1-layer",
+      "filter": [
+        "all",
+        "portal"
+      ],
+      "name": "SentinelOne layer — Endpoints & telemetry",
+      "summary": "Endpoint/group inventory, policies & rules, API tokens, on-demand telemetry, cross Sekoia + S1 XDR view.",
+      "usage": "SentinelOne sidebar → 4 dedicated panels. Configure the S1 token in 'Configuration' (admin).",
+      "connects": [
+        "/api/threat/s1/*",
+        "SentinelOne API"
+      ],
+      "files": [
+        {
+          "path": "portal-shared/js/threat-platforms.js",
+          "role": "S1 panels (endpoints, policies, tokens, telemetry)"
+        }
       ]
     }
   ]

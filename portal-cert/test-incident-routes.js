@@ -164,6 +164,10 @@ function check(name, cond, extra) {
     incId = res.payload?.incident?.incident_id;
     check('incident_id généré INC-*', /^INC-\d{8}-[A-F0-9]{6}$/.test(incId || ''), incId);
     check('case_id = incident_id', res.payload?.incident?.case_id === incId);
+    check('tasks initialisées (vide)', Array.isArray(res.payload?.incident?.tasks) && res.payload.incident.tasks.length === 0);
+    check('sla_due calculé (critical → +4h)', typeof res.payload?.incident?.sla_due === 'string'
+      && (new Date(res.payload.incident.sla_due) - new Date(res.payload.incident.created_at)) === 4 * 3600 * 1000,
+    res.payload?.incident?.sla_due);
   }
 
   // 3) Validation title requis
@@ -202,6 +206,87 @@ function check(name, cond, extra) {
     check('IOC sans value → 400', res.statusCode === 400);
   }
 
+  // 5b) Tâches / playbook SOAR
+  let taskId;
+  {
+    // Application d'un playbook en masse
+    let res = mkRes();
+    await findHandler('post', '/incidents/:id/tasks')(mkReq({
+      params: { id: incId },
+      body: { tasks: [
+        { title: 'Qualifier l\'alerte', phase: 'detection' },
+        { title: 'Isoler l\'hôte', phase: 'containment', assignee: 'soc-l2' },
+        { title: 'Phase invalide → fallback detection', phase: 'bogus' },
+        { title: '' },
+      ] },
+    }), res);
+    check('playbook bulk: 3 tâches valides ajoutées', res.payload?.ok === true && res.payload?.added === 3, res.payload);
+    const tasks = res.payload?.incident?.tasks || [];
+    check('phase invalide → detection', tasks[2]?.phase === 'detection', tasks[2]);
+    taskId = tasks[0]?.id;
+    check('event timeline "Playbook appliqué"', [...store.events.values()].some((e) => /Playbook appliqué/.test(e.title)));
+
+    // Tâche unitaire sans title → 400
+    res = mkRes();
+    await findHandler('post', '/incidents/:id/tasks')(mkReq({ params: { id: incId }, body: { phase: 'analysis' } }), res);
+    check('tâche sans title → 400', res.statusCode === 400);
+
+    // Toggle done → done_at/done_by + event timeline
+    res = mkRes();
+    await findHandler('patch', '/incidents/:id/tasks/:taskId')(mkReq({
+      params: { id: incId, taskId }, body: { done: true },
+    }), res);
+    const t0 = (res.payload?.incident?.tasks || []).find((t) => t.id === taskId);
+    check('tâche terminée (done_at/done_by)', t0?.done === true && typeof t0?.done_at === 'string' && t0?.done_by === 'analyst1', t0);
+    check('event "Tâche terminée" tracé', [...store.events.values()].some((e) => /Tâche terminée/.test(e.title)));
+
+    // Réouverture
+    res = mkRes();
+    await findHandler('patch', '/incidents/:id/tasks/:taskId')(mkReq({
+      params: { id: incId, taskId }, body: { done: false },
+    }), res);
+    const t1 = (res.payload?.incident?.tasks || []).find((t) => t.id === taskId);
+    check('tâche rouverte (done_at null)', t1?.done === false && t1?.done_at === null);
+
+    // Édition titre + phase + assignee
+    res = mkRes();
+    await findHandler('patch', '/incidents/:id/tasks/:taskId')(mkReq({
+      params: { id: incId, taskId }, body: { title: 'Qualifier l\'alerte SIEM', phase: 'analysis', assignee: 'soc-l3' },
+    }), res);
+    const t2 = (res.payload?.incident?.tasks || []).find((t) => t.id === taskId);
+    check('tâche éditée (titre/phase/assignee)', t2?.title === 'Qualifier l\'alerte SIEM' && t2?.phase === 'analysis' && t2?.assignee === 'soc-l3', t2);
+
+    // taskId inconnu → 404
+    res = mkRes();
+    await findHandler('patch', '/incidents/:id/tasks/:taskId')(mkReq({
+      params: { id: incId, taskId: 'nope' }, body: { done: true },
+    }), res);
+    check('PATCH tâche inconnue → 404', res.statusCode === 404);
+
+    // Suppression
+    res = mkRes();
+    await findHandler('delete', '/incidents/:id/tasks/:taskId')(mkReq({
+      params: { id: incId, taskId: tasks[2].id },
+    }), res);
+    check('DELETE tâche', res.payload?.ok === true && (res.payload?.incident?.tasks || []).length === 2);
+    res = mkRes();
+    await findHandler('delete', '/incidents/:id/tasks/:taskId')(mkReq({
+      params: { id: incId, taskId: tasks[2].id },
+    }), res);
+    check('DELETE tâche inconnue → 404', res.statusCode === 404);
+  }
+
+  // 5c) Changement de sévérité → SLA recalculé
+  {
+    const res = mkRes();
+    await findHandler('patch', '/incidents/:id')(mkReq({ params: { id: incId }, body: { severity: 'low' } }), res);
+    const inc = res.payload?.incident;
+    check('severity low → sla_due +168h', inc?.severity === 'low'
+      && (new Date(inc.sla_due) - new Date(inc.created_at)) === 168 * 3600 * 1000, inc?.sla_due);
+    // Restaurer critical pour la lisibilité du rapport
+    await findHandler('patch', '/incidents/:id')(mkReq({ params: { id: incId }, body: { severity: 'critical' } }), mkRes());
+  }
+
   // 6) Seed logs + uploads du case, puis scan
   osDocs['forensic-windows'].push(
     { case_id: incId, message: 'connection to 203.0.113.66 failed', 'source.ip': '10.0.0.5', '@timestamp': '2026-07-29T08:00:00Z' },
@@ -235,6 +320,8 @@ function check(name, cond, extra) {
     check('rapport markdown généré', res2.payload?.ok === true && md.includes('# Rapport') && md.includes('Timeline') && md.includes('IOCs'));
     check('rapport mentionne l\'IP C2', md.includes('203.0.113.66'));
     check('rapport checklist purge', md.includes('purge complète'));
+    check('rapport section Tâches/Playbook', md.includes('## Tâches / Playbook') && md.includes('### Analyse') && /Progression : 0\/2/.test(md), md.slice(0, 400));
+    check('rapport ligne SLA', md.includes('**SLA (échéance)**'));
   }
 
   // 8) Purge : dry-run d'abord, apply sans confirm refusé, puis apply confirmé

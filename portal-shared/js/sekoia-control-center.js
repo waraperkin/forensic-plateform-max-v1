@@ -165,7 +165,8 @@
     sante: null, anomalies: null, hosts: null, efficacite: null,
     watchlists: null, snapshots: null, digest: null, snapDiff: null,
     sol: null, solLib: null, solExamples: null,
-    incList: null, incDetail: null, incScan: null, incReport: null, incPurge: null };
+    incList: null, incDetail: null, incScan: null, incReport: null, incPurge: null,
+    incTab: 'resume' };
   let ccRenderGen = 0;
   function ccRenderStale(gen) { return gen !== ccRenderGen || !document.getElementById('cc-body'); }
   const CC_SUBS = [
@@ -277,6 +278,16 @@
         'cc-inc-purge-dry': () => ccIncPurge(true),
         'cc-inc-purge-apply': () => ccIncPurge(false),
         'cc-inc-delete': () => ccIncDelete(),
+        // ── v2.4 : workspace SOAR (stepper, tâches, playbooks, onglets) ──
+        'cc-inc-tab': (el) => { cc.incTab = el.dataset.incTab; ccRenderIncDetail(); },
+        'cc-inc-step': (el) => ccIncSetStatus(el.dataset.status),
+        'cc-inc-desc-save': () => ccIncSaveMeta(),
+        'cc-inc-task-add': () => ccIncTaskAdd(),
+        'cc-inc-task-toggle': (el) => ccIncTaskToggle(el.dataset.id, el.dataset.done === '1'),
+        'cc-inc-task-edit': (el) => ccIncTaskEdit(el.dataset.id),
+        'cc-inc-task-del': (el) => ccIncTaskDel(el.dataset.id),
+        'cc-inc-playbook': (el) => ccIncPlaybook(el.dataset.pb),
+        'cc-inc-report-dl': () => ccIncReportDownload(),
       });
       const debouncedCcList = (window.PortalPerf && window.PortalPerf.debounce)
         ? window.PortalPerf.debounce(() => ccRenderList(), 120) : () => ccRenderList();
@@ -1222,10 +1233,15 @@
     } else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
   }
 
-  async function ccIncOpen(id) {
+  async function ccIncOpen(id, soft) {
     const d = await incApi(`/${encodeURIComponent(id)}`);
     if (!d || !d.incident) { TC.toast((d && d.error) || T("msg_inc_not_found"), 'warn'); return; }
-    cc.incDetail = d; cc.incScan = null; cc.incReport = null; cc.incPurge = null;
+    const sameIncident = cc.incDetail?.incident?.incident_id === d.incident.incident_id;
+    // Refresh « doux » : conserve l'onglet interne et les zones scan/rapport/purge.
+    if (!soft || !sameIncident) {
+      cc.incTab = 'resume'; cc.incScan = null; cc.incReport = null; cc.incPurge = null;
+    }
+    cc.incDetail = d;
     ccRenderIncDetail();
   }
   function ccIncBack() {
@@ -1233,56 +1249,309 @@
     ccRenderIncidents(); ccRunIncidents();
   }
 
+  /* ── Workspace incident niveau SOAR (XSOAR/Resilient) ───────────────────── */
+  const INC_TABS = [
+    ['resume', 'inc_tab_resume'], ['tasks', 'inc_tab_tasks'], ['timeline', 'inc_tab_timeline'],
+    ['evidences', 'inc_tab_evidences'], ['scan', 'inc_tab_scan'], ['report', 'inc_tab_report'],
+    ['purge', 'inc_tab_purge'],
+  ];
+  const INC_PHASES = ['detection', 'analysis', 'containment', 'eradication', 'recovery', 'lessons'];
+  const INC_FLOW = ['new', 'in_progress', 'contained', 'closed'];
+  const INC_PLAYBOOKS = {
+    nist: {
+      label: { fr: 'NIST standard', en: 'NIST standard' },
+      tasks: [
+        ['detection', { fr: 'Qualifier et documenter l\'alerte initiale', en: 'Triage and document the initial alert' }],
+        ['detection', { fr: 'Vérifier la source de détection (SIEM, EDR, utilisateur)', en: 'Verify the detection source (SIEM, EDR, user)' }],
+        ['detection', { fr: 'Déclarer l\'incident et horodater la détection', en: 'Declare the incident and timestamp detection' }],
+        ['analysis', { fr: 'Uploader et ingérer les logs pertinents (tous formats)', en: 'Upload and ingest relevant logs (all formats)' }],
+        ['analysis', { fr: 'Lancer le scan IOC (watchlists Sekoia + IOCs incident)', en: 'Run IOC scan (Sekoia watchlists + incident IOCs)' }],
+        ['analysis', { fr: 'Construire la timeline des événements', en: 'Build the events timeline' }],
+        ['analysis', { fr: 'Identifier le périmètre (hôtes, comptes, IPs)', en: 'Identify the scope (hosts, accounts, IPs)' }],
+        ['containment', { fr: 'Isoler les hôtes compromis', en: 'Isolate compromised hosts' }],
+        ['containment', { fr: 'Bloquer les IOCs (firewall, EDR, DNS)', en: 'Block IOCs (firewall, EDR, DNS)' }],
+        ['containment', { fr: 'Préserver les evidences (exports, snapshots)', en: 'Preserve evidence (exports, snapshots)' }],
+        ['eradication', { fr: 'Supprimer persistence et malware', en: 'Remove persistence and malware' }],
+        ['eradication', { fr: 'Réinitialiser les credentials compromis', en: 'Reset compromised credentials' }],
+        ['recovery', { fr: 'Restaurer les systèmes en production', en: 'Restore systems to production' }],
+        ['recovery', { fr: 'Surveiller la réapparition (volumétrie, alertes)', en: 'Monitor for recurrence (volumetry, alerts)' }],
+        ['lessons', { fr: 'Rédiger le rapport d\'investigation', en: 'Write the investigation report' }],
+        ['lessons', { fr: 'Exécuter la purge de fin d\'investigation', en: 'Run the end-of-investigation purge' }],
+        ['lessons', { fr: 'Partager les leçons apprises (KB, règles de détection)', en: 'Share lessons learned (KB, detection rules)' }],
+      ],
+    },
+    ransomware: {
+      label: { fr: 'Ransomware', en: 'Ransomware' },
+      tasks: [
+        ['detection', { fr: 'Confirmer le chiffrement (extensions, note de rançon)', en: 'Confirm encryption (extensions, ransom note)' }],
+        ['detection', { fr: 'Identifier la souche (ID Ransomware, hash du binaire)', en: 'Identify the strain (ID Ransomware, binary hash)' }],
+        ['analysis', { fr: 'Ingérer les logs EDR/Windows des hôtes touchés', en: 'Ingest EDR/Windows logs from affected hosts' }],
+        ['analysis', { fr: 'Tracer le vecteur initial (mail, RDP, VPN)', en: 'Trace the initial vector (mail, RDP, VPN)' }],
+        ['analysis', { fr: 'Scanner les IOCs sur l\'ensemble des logs ingérés', en: 'Scan IOCs across all ingested logs' }],
+        ['containment', { fr: 'Couper le réseau des segments touchés', en: 'Disconnect affected network segments' }],
+        ['containment', { fr: 'Désactiver les comptes compromis', en: 'Disable compromised accounts' }],
+        ['containment', { fr: 'Suspendre les partages SMB exposés', en: 'Suspend exposed SMB shares' }],
+        ['eradication', { fr: 'Supprimer binaires, tâches planifiées et clés de persistence', en: 'Remove binaries, scheduled tasks and persistence keys' }],
+        ['eradication', { fr: 'Corriger la vulnérabilité d\'entrée', en: 'Patch the entry vulnerability' }],
+        ['recovery', { fr: 'Restaurer depuis des sauvegardes saines et vérifiées', en: 'Restore from clean, verified backups' }],
+        ['recovery', { fr: 'Surveiller la réapparition avant remise en production', en: 'Monitor for recurrence before production' }],
+        ['lessons', { fr: 'Rapport d\'investigation + purge des données', en: 'Investigation report + data purge' }],
+      ],
+    },
+    phishing: {
+      label: { fr: 'Phishing / BEC', en: 'Phishing / BEC' },
+      tasks: [
+        ['detection', { fr: 'Récupérer le mail source (headers complets, .eml)', en: 'Retrieve the source email (full headers, .eml)' }],
+        ['detection', { fr: 'Identifier tous les destinataires de la campagne', en: 'Identify all campaign recipients' }],
+        ['analysis', { fr: 'Ingérer les logs mail, proxy et DNS', en: 'Ingest mail, proxy and DNS logs' }],
+        ['analysis', { fr: 'Extraire et scanner les IOCs (URLs, domaines, pièces jointes)', en: 'Extract and scan IOCs (URLs, domains, attachments)' }],
+        ['analysis', { fr: 'Vérifier les clics et saisies de credentials', en: 'Check clicks and credential submissions' }],
+        ['containment', { fr: 'Supprimer le mail de toutes les BAL', en: 'Purge the email from all mailboxes' }],
+        ['containment', { fr: 'Bloquer expéditeur, domaines et URLs au proxy/mailgw', en: 'Block sender, domains and URLs at proxy/mail gateway' }],
+        ['containment', { fr: 'Réinitialiser les comptes ayant saisi leurs credentials', en: 'Reset accounts that entered credentials' }],
+        ['eradication', { fr: 'Vérifier les règles de redirection BAL malveillantes', en: 'Check for malicious mailbox forwarding rules' }],
+        ['recovery', { fr: 'Surveiller les connexions anormales post-incident', en: 'Monitor abnormal logins post-incident' }],
+        ['lessons', { fr: 'Sensibilisation ciblée + rapport + purge', en: 'Targeted awareness + report + purge' }],
+      ],
+    },
+    account: {
+      label: { fr: 'Compte compromis', en: 'Account compromise' },
+      tasks: [
+        ['detection', { fr: 'Confirmer la compromission (impossible travel, MFA fatigue)', en: 'Confirm compromise (impossible travel, MFA fatigue)' }],
+        ['analysis', { fr: 'Ingérer les logs d\'authentification (SSO, AD, VPN, O365)', en: 'Ingest authentication logs (SSO, AD, VPN, O365)' }],
+        ['analysis', { fr: 'Lister les sessions et accès du compte sur la période', en: 'List account sessions and access over the period' }],
+        ['analysis', { fr: 'Scanner les IOCs et identifier le point d\'entrée', en: 'Scan IOCs and identify the entry point' }],
+        ['containment', { fr: 'Révoquer toutes les sessions et tokens', en: 'Revoke all sessions and tokens' }],
+        ['containment', { fr: 'Réinitialiser le mot de passe et forcer le MFA', en: 'Reset password and enforce MFA' }],
+        ['eradication', { fr: 'Supprimer les accès persistants (clés API, apps OAuth)', en: 'Remove persistent access (API keys, OAuth apps)' }],
+        ['recovery', { fr: 'Réactiver le compte avec surveillance renforcée', en: 'Re-enable account with enhanced monitoring' }],
+        ['lessons', { fr: 'Rapport + purge des données d\'investigation', en: 'Report + investigation data purge' }],
+      ],
+    },
+  };
+
+  function incSlaBadge(inc) {
+    if (!inc.sla_due) return '';
+    if (['closed', 'purged'].includes(inc.status)) return '<span class="fp-tag">SLA ✓</span>';
+    const ms = new Date(inc.sla_due).getTime() - Date.now();
+    const fmt = (v) => {
+      const a = Math.abs(v);
+      const h = Math.floor(a / 3600000);
+      const m = Math.floor((a % 3600000) / 60000);
+      return h >= 48 ? `${Math.floor(h / 24)} j` : (h ? `${h} h ${String(m).padStart(2, '0')}` : `${m} min`);
+    };
+    if (ms < 0) return `<span class="fp-tag fp-tag-danger" title="${esc(inc.sla_due)}">⚠ ${esc(T('inc_sla_overdue'))} +${esc(fmt(ms))}</span>`;
+    const cls = ms < 4 * 3600000 ? 'fp-tag-warn' : 'fp-tag-ok';
+    return `<span class="fp-tag ${cls}" title="${esc(inc.sla_due)}">${esc(T('inc_sla_left', { t: fmt(ms) }))}</span>`;
+  }
+
+  function incStepperHtml(inc) {
+    const cur = INC_FLOW.indexOf(inc.status);
+    const purged = inc.status === 'purged';
+    const steps = INC_FLOW.map((s, i) => {
+      const state = purged ? '' : (i < cur ? ' done' : i === cur ? ' current' : '');
+      return `<button type="button" class="cc-inc-step${state}" data-act="cc-inc-step" data-status="${s}"${purged ? ' disabled' : ''}>
+        <span class="cc-inc-step-dot">${i < cur && !purged ? '✓' : i + 1}</span><span class="cc-inc-step-lbl">${esc(T(`status_${s}`))}</span></button>`;
+    }).join('<span class="cc-inc-step-bar"></span>');
+    return `<div class="cc-inc-stepper" title="${esc(T('inc_step_hint'))}">${steps}${purged ? `<span class="fp-tag fp-tag-warn cc-inc-purged-tag">${esc(T('status_purged'))}</span>` : ''}</div>`;
+  }
+
   function ccRenderIncDetail() {
     const body = document.getElementById('cc-body'); if (!body) return;
     const d = cc.incDetail; if (!d) return;
     const inc = d.incident || {};
+    const tasks = Array.isArray(inc.tasks) ? inc.tasks : [];
+    const done = tasks.filter((t) => t.done).length;
+    const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+    const tab = INC_TABS.some(([k]) => k === cc.incTab) ? cc.incTab : 'resume';
+    cc.incTab = tab;
+
+    body.innerHTML = `<div class="cc-inc-ws">
+      <div class="fp-actions-row cc-inc-head">
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-back">${esc(T("act_back"))}</button>
+        <h3 class="cc-inc-title">${esc(inc.title)} <span class="fp-muted">${esc(inc.incident_id)}</span></h3>
+        ${sevBadge(inc.severity)}${incSlaBadge(inc)}
+      </div>
+      ${incStepperHtml(inc)}
+      <div class="cc-inc-progressrow">
+        <div class="cc-progress"><div class="cc-progress-fill" style="width:${pct}%"></div></div>
+        <span class="fp-muted">${esc(T('inc_tasks_progress', { done, total: tasks.length }))} — ${pct}%</span>
+      </div>
+      <div class="cc-inc-tabs">${INC_TABS.map(([k, lbl]) => `<button type="button" class="fp-btn fp-btn-sm cc-subtab${k === tab ? ' active' : ''}" data-act="cc-inc-tab" data-inc-tab="${k}">${esc(T(lbl))}</button>`).join('')}</div>
+      <div id="cc-inc-ws-body" class="cc-inc-ws-body">${incTabHtml(tab, inc, d)}</div>
+    </div>`;
+    if (tab === 'scan' && cc.incScan) ccRenderIncScan();
+    if (tab === 'report' && cc.incReport) ccRenderIncReport();
+    if (tab === 'purge' && cc.incPurge) ccRenderIncPurge();
+  }
+
+  function incTabHtml(tab, inc, d) {
     const events = d.events || [];
     const uploads = d.uploads || [];
-    body.innerHTML = `<div class="fp-actions-row">
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-back">${esc(T("act_back"))}</button>
-        <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-inc-scan">${esc(T("act_inc_scan"))}</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-report">${esc(T("act_inc_report"))}</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-delete">${esc(T("act_inc_delete"))}</button>
+    if (tab === 'tasks') return incTasksHtml(inc);
+    if (tab === 'timeline') return `<div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-ev-add">${esc(T("act_ev_add"))}</button></div>
+      <div id="cc-inc-events" class="fp-section-spaced">${ccIncEventsHtml(events)}</div>`;
+    if (tab === 'evidences') return `<p class="fp-muted">${esc(T("msg_inc_upload_hint", { id: inc.case_id }))}</p>
+      <div id="cc-inc-uploads">${ccIncUploadsHtml(uploads)}</div>`;
+    if (tab === 'scan') return `<div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-inc-scan">${esc(T("act_inc_scan"))}</button></div>
+      <div id="cc-inc-scan-zone" class="fp-section-spaced"></div>`;
+    if (tab === 'report') return `<div class="fp-actions-row">
+        <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-inc-report">${esc(T("act_inc_report"))}</button>
+        ${cc.incReport ? `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-report-dl">${esc(T("act_download"))}</button>` : ''}
+      </div><div id="cc-inc-report-zone" class="fp-section-spaced"></div>`;
+    if (tab === 'purge') return `<div class="cc-tp-fetchform cc-inc-danger"><p class="fp-muted">${esc(T("msg_inc_purge_warn"))}</p>
+        <div class="fp-actions-row">
+          <button type="button" class="fp-btn fp-btn-ghost" data-act="cc-inc-purge-dry">${esc(T("act_purge_dry"))}</button>
+          <button type="button" class="fp-btn fp-btn-danger" data-act="cc-inc-purge-apply">${esc(T("act_purge_apply"))}</button>
+          <button type="button" class="fp-btn fp-btn-ghost" data-act="cc-inc-delete">${esc(T("act_inc_delete"))}</button>
+        </div>
+        <div id="cc-inc-purge-zone" class="fp-section-spaced"></div>
+      </div>`;
+    // resume
+    return `<div class="cc-tp-grid2">
+      <div class="cc-tp-fetchform">
+        <h4 class="fp-section-sub">${esc(T("inc_desc_tags"))}</h4>
+        <label class="fp-label">${esc(T("form_description"))}
+          <textarea class="fp-textarea" id="cc-inc-desc" rows="5">${esc(inc.description || '')}</textarea></label>
+        <label class="fp-label">${esc(T("col_tags"))}
+          <input class="fp-input" id="cc-inc-tags" value="${esc((inc.tags || []).join(', '))}" placeholder="${esc(T("inc_tags_ph"))}"></label>
+        <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-inc-desc-save">${esc(T("act_save"))}</button></div>
       </div>
-      <div class="cc-tp-dashgrid fp-section-spaced">
-        ${TC.statCard(T("col_statut"), '', 'accent').replace('</div>', `<div style="margin-top:.3rem">${incStatusTag(inc.status)}</div></div>`)}
-        ${TC.statCard(T("col_severite"), '', '') .replace('</div>', `<div style="margin-top:.3rem">${sevBadge(inc.severity)}</div></div>`)}
-        ${TC.statCard(T("col_assignee"), inc.assignee || '—')}
-        ${TC.statCard(T("msg_fichiers_ingeres"), uploads.length)}
-      </div>
-      <div class="cc-tp-fetchform"><h4 class="fp-section-sub">${esc(inc.title)} <span class="fp-muted">— ${esc(inc.incident_id)}</span></h4>
-        ${inc.description ? `<p class="fp-muted">${esc(inc.description)}</p>` : ''}
-        <div class="fp-form-row fp-grid-3">
+      <div class="cc-tp-fetchform">
+        <h4 class="fp-section-sub">${esc(T("inc_meta"))}</h4>
+        <div class="fp-form-row fp-grid-2">
           <label class="fp-label">${esc(T("col_statut"))}
             <select class="fp-select" id="cc-inc-status">${INC_STATUSES.map((s) => `<option value="${s}"${s === inc.status ? ' selected' : ''}>${esc(T(`status_${s}`))}</option>`).join('')}</select></label>
           <label class="fp-label">${esc(T("col_assignee"))}
             <input class="fp-input" id="cc-inc-assignee" value="${esc(inc.assignee || '')}"></label>
-          <label class="fp-label">&nbsp;<button type="button" class="fp-btn fp-btn-primary" data-act="cc-inc-status">${esc(T("act_apply"))}</button></label>
         </div>
-        <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-link">${esc(T("act_inc_link"))}</button>
+        <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-inc-status">${esc(T("act_apply"))}</button></div>
+        <div class="cc-inc-metagrid">
+          <div><span class="fp-muted">${esc(T("col_created_by"))}</span><br>${esc(inc.created_by || '—')}</div>
+          <div><span class="fp-muted">${esc(T("col_cree_le"))}</span><br>${esc((inc.created_at || '').replace('T', ' ').slice(0, 16))}</div>
+          <div><span class="fp-muted">${esc(T("col_updated"))}</span><br>${esc((inc.updated_at || '').replace('T', ' ').slice(0, 16))}</div>
+          <div><span class="fp-muted">Case ID</span><br><code>${esc(inc.case_id || '—')}</code></div>
+        </div>
+        <div class="fp-actions-row fp-section-spaced"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-link">${esc(T("act_inc_link"))}</button>
           ${(inc.linked_cases || []).length ? `<span class="fp-muted">${esc(T("msg_linked_cases", { cases: inc.linked_cases.join(', ') }))}</span>` : ''}</div>
       </div>
-      <h4 class="fp-section-sub fp-section-spaced">${esc(T("lbl_inc_events"))} (${events.length})</h4>
-      <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-ev-add">${esc(T("act_ev_add"))}</button></div>
-      <div id="cc-inc-events" class="fp-section-spaced">${ccIncEventsHtml(events)}</div>
-      <h4 class="fp-section-sub fp-section-spaced">${esc(T("lbl_inc_uploads"))} (${uploads.length})</h4>
-      <p class="fp-muted">${esc(T("msg_inc_upload_hint", { id: inc.case_id }))}</p>
-      <div id="cc-inc-uploads">${ccIncUploadsHtml(uploads)}</div>
-      <div id="cc-inc-scan-zone" class="fp-section-spaced"></div>
-      <div id="cc-inc-report-zone" class="fp-section-spaced"></div>
-      <h4 class="fp-section-sub fp-section-spaced">${esc(T("lbl_inc_purge"))}</h4>
-      <div class="cc-tp-fetchform"><p class="fp-muted">${esc(T("msg_inc_purge_warn"))}</p>
-        <div class="fp-actions-row">
-          <button type="button" class="fp-btn fp-btn-ghost" data-act="cc-inc-purge-dry">${esc(T("act_purge_dry"))}</button>
-          <button type="button" class="fp-btn fp-btn-danger" data-act="cc-inc-purge-apply">${esc(T("act_purge_apply"))}</button>
-        </div>
-        <div id="cc-inc-purge-zone" class="fp-section-spaced"></div>
-      </div>`;
-    if (cc.incScan) ccRenderIncScan();
-    if (cc.incReport) ccRenderIncReport();
-    if (cc.incPurge) ccRenderIncPurge();
+    </div>`;
   }
+
+  function incTasksHtml(inc) {
+    const tasks = Array.isArray(inc.tasks) ? inc.tasks : [];
+    const lang = (window.i18n && i18n.getLanguage && i18n.getLanguage() === 'en') ? 'en' : 'fr';
+    const pbBtns = Object.keys(INC_PLAYBOOKS).map((k) =>
+      `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-playbook" data-pb="${k}">${esc(INC_PLAYBOOKS[k].label[lang])}</button>`).join('');
+    let html = `<div class="fp-actions-row">
+        <span class="fp-muted">${esc(T("inc_playbook_apply"))}</span>${pbBtns}
+        <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-inc-task-add">${esc(T("inc_task_add"))}</button>
+      </div>`;
+    if (!tasks.length) return html + `<p class="fp-muted fp-section-spaced">${esc(T("inc_tasks_empty"))}</p>`;
+    for (const ph of INC_PHASES) {
+      const items = tasks.filter((t) => t.phase === ph);
+      if (!items.length) continue;
+      const phDone = items.filter((t) => t.done).length;
+      html += `<div class="cc-inc-phase"><h4 class="fp-section-sub">${esc(T(`inc_phase_${ph}`))} <span class="fp-muted">${phDone}/${items.length}</span></h4>`;
+      html += items.map((t) => `<div class="cc-task-item${t.done ? ' done' : ''}">
+          <button type="button" class="cc-task-check" data-act="cc-inc-task-toggle" data-id="${esc(t.id)}" data-done="${t.done ? '0' : '1'}" aria-label="toggle">${t.done ? '☑' : '☐'}</button>
+          <span class="cc-task-title">${esc(t.title)}</span>
+          ${t.assignee ? `<span class="fp-tag">${esc(t.assignee)}</span>` : ''}
+          ${t.done && t.done_at ? `<span class="fp-muted">${esc(t.done_at.replace('T', ' ').slice(0, 16))}${t.done_by ? ` · ${esc(t.done_by)}` : ''}</span>` : ''}
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-xs" data-act="cc-inc-task-edit" data-id="${esc(t.id)}">✎</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-xs" data-act="cc-inc-task-del" data-id="${esc(t.id)}">✕</button>
+        </div>`).join('');
+      html += '</div>';
+    }
+    return html;
+  }
+
+  async function ccIncSetStatus(status) {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id || !INC_STATUSES.includes(status)) return;
+    const r = await incApi(`/${encodeURIComponent(id)}`, { method: 'PATCH', body: { status } });
+    if (r && r.ok) { TC.toast(T("msg_updated"), 'ok'); await ccIncOpen(id, true); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  async function ccIncSaveMeta() {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    const tags = val('cc-inc-tags').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 10);
+    const r = await incApi(`/${encodeURIComponent(id)}`, { method: 'PATCH', body: { description: val('cc-inc-desc'), tags } });
+    if (r && r.ok) { TC.toast(T("msg_saved"), 'ok'); await ccIncOpen(id, true); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  function ccIncTaskForm(initial) {
+    return crudForm(initial ? T("inc_task_edit") : T("inc_task_add"), [
+      { key: 'title', label: T("col_titre"), type: 'text', required: true },
+      { key: 'phase', label: T("inc_phase_label"), type: 'select', options: INC_PHASES.map((p) => ({ value: p, label: T(`inc_phase_${p}`) })) },
+      { key: 'assignee', label: T("col_assignee"), type: 'text' },
+    ], initial || { phase: 'detection' });
+  }
+
+  async function ccIncTaskAdd() {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    const out = await ccIncTaskForm(null);
+    if (!out) return;
+    const r = await incApi(`/${encodeURIComponent(id)}/tasks`, { method: 'POST', body: out });
+    if (r && r.ok) { TC.toast(T("msg_task_added"), 'ok'); await ccIncOpen(id, true); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  async function ccIncTaskToggle(taskId, done) {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    const r = await incApi(`/${encodeURIComponent(id)}/tasks/${encodeURIComponent(taskId)}`, { method: 'PATCH', body: { done } });
+    if (r && r.ok) await ccIncOpen(id, true);
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  async function ccIncTaskEdit(taskId) {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    const t = ((cc.incDetail && cc.incDetail.incident.tasks) || []).find((x) => x.id === taskId);
+    if (!id || !t) return;
+    const out = await ccIncTaskForm(t);
+    if (!out) return;
+    const r = await incApi(`/${encodeURIComponent(id)}/tasks/${encodeURIComponent(taskId)}`, { method: 'PATCH', body: out });
+    if (r && r.ok) { TC.toast(T("msg_task_updated"), 'ok'); await ccIncOpen(id, true); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  async function ccIncTaskDel(taskId) {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    const r = await incApi(`/${encodeURIComponent(id)}/tasks/${encodeURIComponent(taskId)}`, { method: 'DELETE' });
+    if (r && r.ok) { TC.toast(T("msg_task_deleted"), 'ok'); await ccIncOpen(id, true); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  async function ccIncPlaybook(key) {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    const pb = INC_PLAYBOOKS[key];
+    if (!id || !pb) return;
+    const lang = (window.i18n && i18n.getLanguage && i18n.getLanguage() === 'en') ? 'en' : 'fr';
+    const tasks = pb.tasks.map(([phase, t]) => ({ phase, title: t[lang] }));
+    const r = await incApi(`/${encodeURIComponent(id)}/tasks`, { method: 'POST', body: { tasks } });
+    if (r && r.ok) { TC.toast(T("msg_pb_applied", { n: r.added }), 'ok'); await ccIncOpen(id, true); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  function ccIncReportDownload() {
+    if (!cc.incReport) return;
+    const id = (cc.incDetail && cc.incDetail.incident.incident_id) || 'incident';
+    const blob = new Blob([cc.incReport], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `rapport-${id}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
 
   function ccIncEventsHtml(events) {
     const KIND_LBL = { timeline: T("kind_timeline"), note: T("kind_note"), evidence: T("kind_evidence"), ioc: T("kind_ioc"), status: T("kind_status") };
@@ -1311,7 +1580,7 @@
     const id = cc.incDetail && cc.incDetail.incident.incident_id;
     if (!id) return;
     const r = await incApi(`/${encodeURIComponent(id)}`, { method: 'PATCH', body: { status: val('cc-inc-status'), assignee: val('cc-inc-assignee') } });
-    if (r && r.ok) { TC.toast(T("msg_updated"), 'ok'); await ccIncOpen(id); }
+    if (r && r.ok) { TC.toast(T("msg_updated"), 'ok'); await ccIncOpen(id, true); }
     else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
   }
 
@@ -1328,7 +1597,7 @@
     ], { kind: 'timeline' });
     if (!out) return;
     const r = await incApi(`/${encodeURIComponent(id)}/events`, { method: 'POST', body: out });
-    if (r && r.ok) { TC.toast(T("msg_ajoute"), 'ok'); await ccIncOpen(id); }
+    if (r && r.ok) { TC.toast(T("msg_ajoute"), 'ok'); await ccIncOpen(id, true); }
     else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
   }
 
@@ -1336,7 +1605,7 @@
     const id = cc.incDetail && cc.incDetail.incident.incident_id;
     if (!id) return;
     const r = await incApi(`/${encodeURIComponent(id)}/events/${encodeURIComponent(eventId)}`, { method: 'DELETE' });
-    if (r && r.ok) { TC.toast(T("msg_supprime"), 'ok'); await ccIncOpen(id); }
+    if (r && r.ok) { TC.toast(T("msg_supprime"), 'ok'); await ccIncOpen(id, true); }
     else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
   }
 
@@ -1346,7 +1615,7 @@
     const caseId = await askText(T("act_inc_link"), 'case_id', '');
     if (!caseId) return;
     const r = await incApi(`/${encodeURIComponent(id)}/link-case`, { method: 'POST', body: { case_id: caseId } });
-    if (r && r.ok) { TC.toast(T("msg_inc_linked"), 'ok'); await ccIncOpen(id); }
+    if (r && r.ok) { TC.toast(T("msg_inc_linked"), 'ok'); await ccIncOpen(id, true); }
     else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
   }
 
@@ -1357,7 +1626,7 @@
     if (zone) zone.innerHTML = TC.tableLoading(4, T("msg_inc_scan_running"));
     cc.incScan = await incApi(`/${encodeURIComponent(id)}/scan`, { method: 'POST', body: { save: true } });
     ccRenderIncScan();
-    if (cc.incScan && cc.incScan.ok) await ccIncOpen(id); // evidences persistées → refresh doux conservé via zone
+    if (cc.incScan && cc.incScan.ok) await ccIncOpen(id, true); // evidences persistées → refresh doux conservé via zone
   }
 
   function ccRenderIncScan() {
@@ -1422,7 +1691,7 @@
       method: 'POST', body: dry ? { dry_run: true } : { dry_run: false, confirm: true },
     });
     ccRenderIncPurge();
-    if (!dry && cc.incPurge && cc.incPurge.ok) { TC.toast(T("msg_purged"), 'ok'); await ccIncOpen(id); ccRenderIncPurge(); }
+    if (!dry && cc.incPurge && cc.incPurge.ok) { TC.toast(T("msg_purged"), 'ok'); await ccIncOpen(id, true); ccRenderIncPurge(); }
   }
   function ccRenderIncPurge() {
     const zone = document.getElementById('cc-inc-purge-zone'); if (!zone) return;

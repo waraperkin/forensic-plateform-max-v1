@@ -2,6 +2,8 @@
   "nav": {
     "dashboard": "Tableau de bord",
     "operations": "Opérations",
+    "sekoia": "SEKOIA.IO",
+    "s1": "SentinelOne",
     "references": "Références",
     "threat_platforms": "Plateformes menace",
     "control_center": "Centre de contrôle",
@@ -736,7 +738,42 @@
     "msg_supprimes": "Supprimés",
     "msg_updated": "Incident mis à jour",
     "msg_fichiers_ingeres": "Fichiers ingérés",
-    "msg_ev_empty": "Aucun événement — ajoutez timeline, notes, evidences ou IOCs"
+    "msg_ev_empty": "Aucun événement — ajoutez timeline, notes, evidences ou IOCs",
+    "inc_tab_resume": "Résumé",
+    "inc_tab_tasks": "Tâches & Playbook",
+    "inc_tab_timeline": "Timeline",
+    "inc_tab_evidences": "Évidences",
+    "inc_tab_scan": "Scan IOC",
+    "inc_tab_report": "Rapport",
+    "inc_tab_purge": "Purge",
+    "inc_sla_overdue": "SLA dépassé",
+    "inc_sla_left": "SLA : {t} restant",
+    "inc_step_hint": "Cliquez sur une étape pour faire avancer le statut",
+    "inc_tasks_progress": "{done}/{total} tâches",
+    "inc_tasks_empty": "Aucune tâche — appliquez un playbook ou ajoutez des tâches manuellement.",
+    "inc_playbook_apply": "Appliquer un playbook :",
+    "inc_task_add": "Ajouter une tâche",
+    "inc_task_edit": "Modifier la tâche",
+    "inc_phase_label": "Phase",
+    "inc_phase_detection": "Détection",
+    "inc_phase_analysis": "Analyse",
+    "inc_phase_containment": "Confinement",
+    "inc_phase_eradication": "Éradication",
+    "inc_phase_recovery": "Récupération",
+    "inc_phase_lessons": "Leçons apprises",
+    "inc_desc_tags": "Description & tags",
+    "inc_meta": "Métadonnées",
+    "inc_tags_ph": "ransomware, dc1, urgence…",
+    "col_tags": "Tags",
+    "col_created_by": "Créé par",
+    "col_updated": "Mis à jour",
+    "act_download": "Télécharger .md",
+    "act_save": "Enregistrer",
+    "msg_task_added": "Tâche ajoutée",
+    "msg_task_updated": "Tâche mise à jour",
+    "msg_task_deleted": "Tâche supprimée",
+    "msg_pb_applied": "Playbook appliqué — {n} tâches ajoutées",
+    "msg_saved": "Enregistré"
   },
   "hubs": {
     "cert_overview": {
@@ -902,6 +939,10 @@
     "cert_ops_fallback": {
       "title": "Vue d'ensemble CERT",
       "meta": "Indicateurs & heatmap"
+    },
+    "cases_soar": {
+      "title": "Workspace incident SOAR",
+      "meta": "Gestion complète type XSOAR : stepper de statut, tâches & playbooks NIST, SLA, timeline, évidences, scan IOC, rapport, purge."
     }
   },
   "cert_index": {

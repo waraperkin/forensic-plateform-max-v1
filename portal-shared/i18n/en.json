@@ -2,6 +2,8 @@
   "nav": {
     "dashboard": "Dashboard",
     "operations": "Operations",
+    "sekoia": "SEKOIA.IO",
+    "s1": "SentinelOne",
     "references": "References",
     "threat_platforms": "Threat Platforms",
     "control_center": "Control Center",
@@ -736,7 +738,42 @@
     "msg_supprimes": "Deleted",
     "msg_updated": "Incident updated",
     "msg_fichiers_ingeres": "Ingested files",
-    "msg_ev_empty": "No events — add timeline entries, notes, evidence or IOCs"
+    "msg_ev_empty": "No events — add timeline entries, notes, evidence or IOCs",
+    "inc_tab_resume": "Summary",
+    "inc_tab_tasks": "Tasks & Playbook",
+    "inc_tab_timeline": "Timeline",
+    "inc_tab_evidences": "Evidence",
+    "inc_tab_scan": "IOC Scan",
+    "inc_tab_report": "Report",
+    "inc_tab_purge": "Purge",
+    "inc_sla_overdue": "SLA overdue",
+    "inc_sla_left": "SLA: {t} left",
+    "inc_step_hint": "Click a step to move the status forward",
+    "inc_tasks_progress": "{done}/{total} tasks",
+    "inc_tasks_empty": "No tasks — apply a playbook or add tasks manually.",
+    "inc_playbook_apply": "Apply a playbook:",
+    "inc_task_add": "Add a task",
+    "inc_task_edit": "Edit task",
+    "inc_phase_label": "Phase",
+    "inc_phase_detection": "Detection",
+    "inc_phase_analysis": "Analysis",
+    "inc_phase_containment": "Containment",
+    "inc_phase_eradication": "Eradication",
+    "inc_phase_recovery": "Recovery",
+    "inc_phase_lessons": "Lessons learned",
+    "inc_desc_tags": "Description & tags",
+    "inc_meta": "Metadata",
+    "inc_tags_ph": "ransomware, dc1, emergency…",
+    "col_tags": "Tags",
+    "col_created_by": "Created by",
+    "col_updated": "Updated",
+    "act_download": "Download .md",
+    "act_save": "Save",
+    "msg_task_added": "Task added",
+    "msg_task_updated": "Task updated",
+    "msg_task_deleted": "Task deleted",
+    "msg_pb_applied": "Playbook applied — {n} tasks added",
+    "msg_saved": "Saved"
   },
   "hubs": {
     "cert_overview": {
@@ -902,6 +939,10 @@
     "cert_ops_fallback": {
       "title": "CERT overview",
       "meta": "Indicators & heatmap"
+    },
+    "cases_soar": {
+      "title": "SOAR incident workspace",
+      "meta": "Full XSOAR-grade handling: status stepper, NIST tasks & playbooks, SLA, timeline, evidence, IOC scan, report, purge."
     }
   },
   "cert_index": {

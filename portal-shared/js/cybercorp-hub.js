@@ -437,7 +437,7 @@ async function loadCasesHub() {
       ${hubDetailCard(sum.title, sum.meta, 'incidents-detail', 'summary', 'situation', 'cases', 'cert-ops')}
       ${hubDetailCard(op.title, op.meta, 'incidents-detail', 'open', 'incident', 'cases', 'cert-ops')}
       ${hubDetailCard(tk.title, tk.meta, 'incidents-detail', 'tickets', 'inbox', 'cases', 'cert-ops')}
-      ${hubTabCard(soar.title, soar.meta, 'sekoia-cc', 'incident', 'cert-ops')}
+      ${hubTabCard(soar.title, soar.meta, 'psoar', 'incident', 'cert-ops')}
     </div>`;
     bindHubCards(root);
     return;

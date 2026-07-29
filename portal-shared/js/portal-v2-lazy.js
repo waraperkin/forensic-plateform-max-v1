@@ -24,17 +24,12 @@
     'sekoia-rules': ['threatMain'],
     'sekoia-apikeys': ['threatMain'],
     'sekoia-fetch': ['threatMain'],
-    's1-endpoints': ['threatMain'],
-    's1-policies': ['threatMain'],
-    's1-apikeys': ['threatMain'],
-    's1-fetch': ['threatMain'],
     'tp-config': ['threatMain'],
     'gov-assets': ['governance'],
     'gov-rules': ['governance'],
     'gov-apikeys': ['governance'],
     'gov-views': ['governance'],
     'sekoia-cc': ['sekoiaCC', 'sekoiaEnt'],
-    'xdr-view': ['sekoiaCC', 'sekoiaEnt'],
     'audit-center': ['sekoiaCC'],
     'cert-asset-investigation': ['certTools'],
     'cert-timeline-builder': ['certTools'],
@@ -108,7 +103,7 @@
         }
       });
     });
-    if (/sekoia|s1|gov/.test(tab) && !loadedMicro['shared/js/portal-ai.js']) {
+    if (/sekoia|psoar|gov/.test(tab) && !loadedMicro['shared/js/portal-ai.js']) {
       prefetchLink('shared/js/portal-ai.js');
     }
   }

@@ -177,7 +177,6 @@ rules = items(get("/api/threat/sekoia/rules?v2_nocache=1"))
 intakes = items(get("/api/threat/sekoia/intakes?v2_nocache=1"))
 connectors = items(get("/api/threat/sekoia/connectors?v2_nocache=1"))
 modules = items(get("/api/threat/sekoia/modules?v2_nocache=1"))
-s1_eps = items(get("/api/threat/s1/endpoints?v2_nocache=1"))
 
 anomalies = detect_anomalies(rules, intakes, connectors)
 incidents = build_incidents(anomalies, rules)
@@ -197,7 +196,6 @@ bundle = {
     "stats": {
         "rules": len(rules),
         "intakes": len(intakes),
-        "s1_endpoints": len(s1_eps),
         "anomalies": len(anomalies),
         "incidents": len(incidents),
     },

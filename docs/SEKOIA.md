@@ -10,7 +10,6 @@
 |---|---|---|
 | `sekoia-controlplane` | build local, `:8901` | API interne Sekoia : inventaires (intakes, règles, playbooks, assets), CRUD, clés API, alertes Sekoia, collecte d'événements ciblée |
 | `sekoia-monitor` | build local, `:8903` | Poller de volumétrie réelle + moteur d'alertes d'ingestion |
-| `s1-controlplane` | build local, `:8902` | Control-plane SentinelOne (inchangé, durci) |
 | `cert-portal` | `:3000` | Proxy authentifié `/api/threat/sekoia/*` + routes `/api/master/*` |
 
 ```
@@ -93,9 +92,9 @@ Onglet **Sekoia CC** (`portal-shared/js/sekoia-control-center.js`) :
 ./scripts/validate-sekoia.sh
 ```
 
-Smoke test VM fraîche : santé des 3 services, refus 401 sans token, endpoints
+Smoke test VM fraîche : santé des 2 services, refus 401 sans token, endpoints
 authentifiés (intakes/rules/coverage), présence des indices `sekoia-*`.
-Cibles surchargeables via `BASE_CP` / `BASE_S1` / `BASE_MON` / `BASE_OS`.
+Cibles surchargeables via `BASE_CP` / `BASE_MON` / `BASE_OS`.
 
 ## API interne (extrait)
 

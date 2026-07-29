@@ -71,23 +71,21 @@
         <p class="cc-nav-section-title" data-i18n="nav.sekoia"></p>
         <ul class="fp-sidebar-nav">
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-cc" data-cc-icon="dash"><span data-i18n="sidebar.sekoia_cc"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-ingest" data-cc-icon="ingest"><span data-i18n="sidebar.sekoia_ingest"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-assets" data-cc-icon="inventory"><span data-i18n="sidebar.sekoia_assets"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-rules" data-cc-icon="connector"><span data-i18n="sidebar.sekoia_rules"></span></button></li>
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-ingest" data-cc-icon="ingest"><span data-i18n="sidebar.sekoia_ingest"></span></button></li>
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-apikeys" data-cc-icon="key"><span data-i18n="sidebar.sekoia_apikeys"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-fetch" data-cc-icon="tools"><span data-i18n="sidebar.sekoia_fetch"></span></button></li>
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="xdr-view" data-cc-icon="map"><span data-i18n="sidebar.xdr_view"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-apikeys" data-cc-icon="key"><span data-i18n="sidebar.sekoia_apikeys"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="audit-center" data-cc-icon="log"><span data-i18n="sidebar.audit_center"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="tp-config" data-cc-icon="settings" data-admin-only><span data-i18n="sidebar.tp_config"></span></button></li>
         </ul>
       </div>
       <div class="cc-nav-section">
-        <p class="cc-nav-section-title" data-i18n="nav.s1"></p>
+        <p class="cc-nav-section-title" data-i18n="nav.psoar"></p>
         <ul class="fp-sidebar-nav">
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="s1-endpoints" data-cc-icon="inventory"><span data-i18n="sidebar.s1_endpoints"></span></button></li>
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="s1-policies" data-cc-icon="connector"><span data-i18n="sidebar.s1_policies"></span></button></li>
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="s1-apikeys" data-cc-icon="key"><span data-i18n="sidebar.s1_apikeys"></span></button></li>
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="s1-fetch" data-cc-icon="tools"><span data-i18n="sidebar.s1_fetch"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="psoar" data-cc-icon="incident"><span data-i18n="sidebar.psoar"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="psoar-playbooks" data-cc-icon="kb"><span data-i18n="sidebar.psoar_playbooks"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="purge" data-cc-icon="purge" data-admin-only><span data-i18n="sidebar.purge"></span></button></li>
         </ul>
       </div>
       <div class="cc-nav-section">
@@ -112,7 +110,6 @@
       <div class="cc-nav-section">
         <p class="cc-nav-section-title" data-i18n="nav.references"></p>
         <ul class="fp-sidebar-nav">
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="cases" data-cc-icon="incident"><span data-i18n="sidebar.cases"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="forensic-reports" data-cc-icon="kb"><span data-i18n="sidebar.forensic_reports"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="kb" data-cc-icon="kb"><span data-i18n="sidebar.kb"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="hist" data-cc-icon="log"><span data-i18n="sidebar.activity_log"></span></button></li>
@@ -145,7 +142,6 @@
         <li><button type="button" data-tab-btn="notifications"></button></li>
         <li><button type="button" data-tab-btn="integrations"></button></li>
         <li><button type="button" data-tab-btn="workflows"></button></li>
-        <li><button type="button" data-tab-btn="purge" data-admin-only></button></li>
         <li><button type="button" data-tab-btn="ti-overview"></button></li>
         <li><button type="button" data-tab-btn="ti-ioc"></button></li>
         <li><button type="button" data-tab-btn="ti-heatmap"></button></li>
@@ -548,7 +544,7 @@
     <section id="tab-workflows" class="fp-panel" data-zone="workflows"><div class="fp-card"><h2 class="fp-section-title" data-i18n="cert_index.workflows_title"></h2><div id="zone-workflows" class="fp-zone-body fp-table-wrap"></div></div></section>
     <section id="tab-purge" class="fp-panel" data-zone="purge"><div class="fp-card"><h2 class="fp-section-title" data-i18n="cert_index.purge_title">Purge / nettoyage</h2><div id="zone-purge" class="fp-zone-body"></div></div></section>
 
-    <!-- ═══ THREAT PLATFORMS — Sekoia.IO + SentinelOne (panneaux ajoutés) ═══ -->
+    <!-- ═══ THREAT PLATFORMS — Sekoia.IO (panneaux dédiés) ═══ -->
     <section id="tab-sekoia-assets" class="fp-panel">
       <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.sekoia_assets"></h2>
         <p class="fp-muted" data-i18n="tp.sekoia_assets_lead"></p>
@@ -568,26 +564,6 @@
       <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.sekoia_fetch"></h2>
         <p class="fp-muted" data-i18n="tools.telemetry_lead"></p>
         <div id="sekoia-fetch-root" class="cc-tp-root"></div></div>
-    </section>
-    <section id="tab-s1-endpoints" class="fp-panel">
-      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.s1_endpoints"></h2>
-        <p class="fp-muted" data-i18n="tp.s1_endpoints_lead"></p>
-        <div id="s1-endpoints-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
-    </section>
-    <section id="tab-s1-policies" class="fp-panel">
-      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.s1_policies"></h2>
-        <p class="fp-muted" data-i18n="tp.s1_policies_lead"></p>
-        <div id="s1-policies-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
-    </section>
-    <section id="tab-s1-apikeys" class="fp-panel">
-      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title">SentinelOne - API Tokens</h2>
-        <p class="fp-muted" data-i18n="threat.s1_tokens_desc">Comptes / tokens API SentinelOne.</p>
-        <div id="s1-apikeys-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
-    </section>
-    <section id="tab-s1-fetch" class="fp-panel">
-      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.s1_fetch"></h2>
-        <p class="fp-muted" data-i18n="tp.s1_fetch_lead"></p>
-        <div id="s1-fetch-root" class="cc-tp-root"></div></div>
     </section>
     <section id="tab-tp-config" class="fp-panel">
       <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="cert_index.platform_config_title"></h2>
@@ -624,10 +600,16 @@
         <div id="sekoia-hub-root" class="cc-sekoia-hub-wrap"></div>
         <div id="sekoia-cc-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
     </section>
-    <section id="tab-xdr-view" class="fp-panel">
-      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.xdr_view"></h2>
-        <p class="fp-muted" data-i18n="tp.xdr_lead"></p>
-        <div id="xdr-view-root" class="cc-tp-root"></div></div>
+    <!-- ═══ PSOAR — plateforme SOAR ═══ -->
+    <section id="tab-psoar" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="psoar.panel_title"></h2>
+        <p class="fp-muted" data-i18n="psoar.panel_lead"></p>
+        <div id="psoar-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
+    <section id="tab-psoar-playbooks" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="psoar.playbooks_panel_title"></h2>
+        <p class="fp-muted" data-i18n="psoar.playbooks_lead"></p>
+        <div id="psoar-playbooks-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
     </section>
     <section id="tab-audit-center" class="fp-panel">
       <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.audit_center"></h2>
@@ -732,6 +714,7 @@
 <script src="shared/js/portal-v2-perf.js"></script>
 <script src="shared/js/portal-lazy.js"></script>
 <script src="shared/js/portal-v2-lazy.js"></script>
+<script src="shared/js/psoar.js"></script>
 <script src="shared/js/portal-doc-inventory.js"></script>
 <script src="shared/js/portal-doc.js"></script>
 <script src="shared/js/cert-app.js"></script>

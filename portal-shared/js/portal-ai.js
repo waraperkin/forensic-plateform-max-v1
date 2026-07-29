@@ -88,11 +88,6 @@
       clauses.push('(event.action:failure OR winlog.event_id:4625 OR message:*failed*)');
     }
     const sekoiaTerm = clauses.length ? clauses.join(' AND ') : '*';
-    const s1Parts = [];
-    if (p.hostname) s1Parts.push(`endpoint.name contains "${p.hostname}"`);
-    if (p.ip) s1Parts.push(`(src.ip = "${p.ip}" OR dst.ip = "${p.ip}")`);
-    if (p.intents.includes('powershell')) s1Parts.push('event.type = "Process Creation" AND tgt.process.name contains "powershell"');
-    const s1Query = s1Parts.length ? s1Parts.join(' AND ') : 'event.type = "Process Creation"';
     const osMust = [];
     if (p.hostname) osMust.push({ match: { 'host.hostname': p.hostname } });
     if (p.ip) osMust.push({ bool: { should: [{ term: { 'source.ip': p.ip } }, { term: { 'destination.ip': p.ip } }] } });
@@ -114,9 +109,6 @@
         hours: p.hours,
         maxEvents: 500,
       }, p.timeFrom ? { earliest: p.timeFrom, latest: p.timeTo } : {}) },
-      sentinelone: { deepVisibility: s1Query, fetchBody: {
-        hostname: p.hostname, ip: p.ip, timeRange: `${p.hours}h`,
-      } },
       opensearch: osDsl,
       timesketch: { format: 'csv', header: tsCsv.split('\n')[0], hint: tsCsv },
     };
@@ -175,16 +167,13 @@ level: high
 falsepositives:
   - Ajuster le scope hostname / exclusions AD
 `;
-    const s1Rule = p.intents.includes('powershell')
-      ? { query: 'tgt.process.name contains "powershell" and event.type = "Process Creation"', severity: 'HIGH' }
-      : { query: `event.type = "Login" AND event.login.loginIsSuccessful = false`, severity: 'MEDIUM' };
     const osRule = {
       name: title,
       type: 'query',
       query: generateQueries(text).opensearch,
       severity: 'high',
     };
-    return { sigma: yaml, sentinelone: s1Rule, opensearch: osRule, parsed: p };
+    return { sigma: yaml, opensearch: osRule, parsed: p };
   }
 
   function generateDashboard(text) {
@@ -230,15 +219,12 @@ falsepositives:
   async function analyzeAsset(hostname, ip) {
     const q = { hostname: hostname || undefined, ip: ip || undefined, hours: 48, maxEvents: 200 };
     if (!q.hostname && !q.ip) return { error: i18n.t('msg.hostname_ou_ip_requis') };
-    const [sek, s1, intakes, rules] = await Promise.all([
+    const [sek, intakes, rules] = await Promise.all([
       TC.api('/sekoia/fetch', { method: 'POST', body: q }),
-      TC.api('/s1/fetch', { method: 'POST', body: q }),
       TC.api('/sekoia/intakes'),
       TC.api('/sekoia/rules'),
     ]);
     const events = (sek.items || []).slice(0, 100);
-    const threats = s1.threats || [];
-    const activities = s1.activities || [];
     const matchedRules = [];
     (rules.items || []).forEach((r) => {
       const n = String(r.name || r.title || '').toLowerCase();
@@ -248,10 +234,9 @@ falsepositives:
     const relatedIntakes = (intakes.items || []).filter((i) => intakeIds.has(i.uuid || i.id));
     const anomalies = [];
     if (events.length > 80) anomalies.push(i18n.t('ai.high_volume_events'));
-    if (threats.length) anomalies.push(i18n.t('ai.s1_threats_count', { n: threats.length }));
     const byHour = TC.countBy(events, (e) => String(TC.deep(e, '@timestamp') || '').slice(0, 13));
     return {
-      summary: `Asset ${hostname || ip} — ${events.length} events Sekoia, ${threats.length} threats, ${activities.length} activities S1.`,
+      summary: `Asset ${hostname || ip} — ${events.length} events Sekoia.`,
       intakes: relatedIntakes.map((i) => i.name || i.uuid).slice(0, 12),
       matchedRules: matchedRules.slice(0, 15),
       anomalies,
@@ -260,7 +245,7 @@ falsepositives:
         generateQueries(`powershell sur ${hostname || ip}`).sekoia.term,
       ],
       timeline: Object.keys(byHour).sort().map((h) => ({ bucket: h, count: byHour[h] })),
-      raw: { sek, s1 },
+      raw: { sek },
     };
   }
 
@@ -367,9 +352,9 @@ falsepositives:
     }
     return {
       optimized: base,
-      wide: { label: i18n.t('msg.large_fenetre_etendue'), sekoia: wide.sekoia, s1: wide.sentinelone },
-      precise: { label: i18n.t('msg.precise_champs_resserres'), sekoia: precise.sekoia, s1: precise.sentinelone },
-      correlation: { label: i18n.t('msg.correlation_regles_intakes'), sekoia: corr.sekoia, s1: corr.sentinelone },
+      wide: { label: i18n.t('msg.large_fenetre_etendue'), sekoia: wide.sekoia },
+      precise: { label: i18n.t('msg.precise_champs_resserres'), sekoia: precise.sekoia },
+      correlation: { label: i18n.t('msg.correlation_regles_intakes'), sekoia: corr.sekoia },
     };
   }
 
@@ -398,12 +383,12 @@ falsepositives:
         i18n.t('msg.top_regles_declenchees'),
       ],
       advanced: [
-        'Parent/child process tree (S1)',
+        'Parent/child process tree',
         'Compte utilisateur + 4624/4625',
         i18n.t('msg.hashes_fichiers_rares'),
       ],
       multiPlatform: [
-        `Sekoia fetch + S1 fetch — ${host}`,
+        `Sekoia fetch — ${host}`,
         i18n.t('msg.export_opensearch_forensic_sekoia_telemetry_on_d'),
         i18n.t('msg.timeline_timesketch_fusionnee'),
       ],
@@ -537,7 +522,7 @@ falsepositives:
       'Pivot intake → events on-demand',
       'Pivot rule → Telemetry filter rule.name',
       i18n.t('msg.pivot_format_parsing_anomalies'),
-      i18n.t('msg.cross_check_sentinelone_agent_hostname'),
+      'Pivot hostname → volumétrie & hosts (Control Center)',
     ];
     return { nodes, edges, pivots };
   }
@@ -579,17 +564,13 @@ falsepositives:
       ts: TC.deep(e, '@timestamp') || '',
       src: 'Sekoia',
       msg: String(TC.deep(e, 'message') || '').slice(0, 100),
-    })).concat((asset.raw?.s1?.items || []).map((e) => ({
-      ts: TC.deep(e, 'createdAt') || '',
-      src: 'SentinelOne',
-      msg: String(TC.deep(e, 'threatInfo.threatName') || '').slice(0, 100),
-    }))).filter((x) => x.ts).sort((a, b) => new Date(a.ts) - new Date(b.ts));
+    })).filter((x) => x.ts).sort((a, b) => new Date(a.ts) - new Date(b.ts));
     return {
       summary: asset.summary,
       timeline: merged,
       investigationSteps: [
         i18n.t('msg.1_valider_intakes_formats_correles'),
-        '2. Lancer Telemetry + S1 fetch sur 48h',
+        '2. Lancer Telemetry fetch sur 48h',
         i18n.t('msg.3_exporter_vers_timesketch_opensearch'),
         i18n.t('msg.4_creer_regle_sigma_si_pattern_recurrent'),
       ],
@@ -784,7 +765,6 @@ falsepositives:
           + renderQueryOptimization(input)
           + `<div class="portal-ai-card"><h4>Sekoia</h4><pre>${esc(q.sekoia.term)}</pre>
           <button type="button" class="fp-btn fp-btn-xs fp-btn-ghost portal-ai-apply-sek">Appliquer → Telemetry</button></div>`
-          + `<div class="portal-ai-card"><h4>SentinelOne DV</h4><pre>${esc(q.sentinelone.deepVisibility)}</pre></div>`
           + `<div class="portal-ai-card"><h4>OpenSearch DSL</h4>${formatOut(q.opensearch)}</div>`
           + `<div class="portal-ai-card"><h4>Timesketch CSV</h4><pre>${esc(q.timesketch.header)}</pre></div>`;
         out.innerHTML = html;
@@ -806,7 +786,6 @@ falsepositives:
           + renderPolishBlocks(ex, renderRiskBlock(ex))
           + renderRuleImprovements(input)
           + `<div class="portal-ai-card"><h4>Sigma</h4><pre>${esc(r.sigma)}</pre></div>`
-          + `<div class="portal-ai-card"><h4>SentinelOne</h4>${formatOut(r.sentinelone)}</div>`
           + `<div class="portal-ai-card"><h4>OpenSearch Detection</h4>${formatOut(r.opensearch)}</div>`;
         out.innerHTML = html;
         return;
@@ -828,7 +807,7 @@ falsepositives:
         const evCount = (a.raw?.sek?.items || []).length;
         const ex = buildExplanatory('asset', a, {
           type: 'asset', hasHostname: !!p.hostname, hasIp: !!p.ip,
-          eventCount: evCount, threatCount: (a.raw?.s1?.threats || []).length,
+          eventCount: evCount,
           anomalies: (a.anomalies || []).length, configured: a.raw?.sek?.configured !== false,
           riskLevel: (a.anomalies || []).length ? 'high' : 'medium',
           aggravating: a.anomalies || [],

@@ -422,69 +422,10 @@
       <div id="ap-result"></div></div>`;
   }
 
-  // ── XDR auto-correlation graph (appelé depuis sekoia-control-center) ────────
-  function xdrBuildCorrelationGraph(xdr, invItems, ruleItems) {
-    const nodes = []; const links = []; const idOf = new Map();
-    const addNode = (id, name, cat) => {
-      if (idOf.has(id)) return id;
-      idOf.set(id, nodes.length);
-      nodes.push({ id, name: String(name).slice(0, 40), category: cat, symbolSize: cat === 'rule' ? 28 : 22 });
-      return id;
-    };
-    (xdr.rules || []).forEach((rn) => addNode(`rule:${rn}`, rn, 'rule'));
-    (xdr.intakes || []).forEach((iu) => {
-      const intake = (invItems || []).find((r) => r.intake_uuid === iu);
-      const nid = addNode(`intake:${iu}`, intake?.intake_name || iu, 'intake');
-      (xdr.rules || []).forEach((rn) => {
-        const rule = (ruleItems || []).find((r) => r.rule_name === rn);
-        if (!rule) return;
-        const dial = (rule.rule_dialect_names || '').toLowerCase();
-        const fmt = (intake?.intake_format_name_via_script || '').toLowerCase();
-        if (fmt && dial.indexOf(fmt) !== -1) links.push({ source: `rule:${rn}`, target: `intake:${iu}` });
-      });
-      if (intake) {
-        const fmt = intake.intake_format_name_via_script || intake.intake_format_name;
-        if (fmt) {
-          const fid = addNode(`fmt:${fmt}`, fmt, 'format');
-          links.push({ source: `intake:${iu}`, target: fid });
-          if (intake.module_name) {
-            const mid = addNode(`mod:${intake.module_name}`, intake.module_name, 'module');
-            links.push({ source: fid, target: mid });
-          }
-        }
-      }
-    });
-    return { nodes, links };
-  }
-
-  function xdrRenderGraph(xdr, inv, rules) {
-    const host = document.getElementById('xdr-view'); if (!host) return;
-    const g = xdrBuildCorrelationGraph(xdr, inv, rules);
-    if (!g.nodes.length) { host.innerHTML = '<p class="fp-muted">Lancez une corrélation pour générer le graphe (règles → intakes → formats → modules).</p>'; return; }
-    host.innerHTML = '<div id="xdr-graph" class="cc-tp-chart" style="height:420px"></div>';
-    if (!window.echarts) { host.innerHTML = `<p class="fp-muted">${i18n.t('msg.echarts_indisponible')}</p>`; return; }
-    const chart = echarts.init(document.getElementById('xdr-graph'));
-    const cats = ['rule', 'intake', 'format', 'module'];
-    chart.setOption({
-      tooltip: {},
-      legend: { data: cats, textStyle: { color: '#9CA3AF' } },
-      series: [{
-        type: 'graph', layout: 'force', roam: true,
-        categories: cats.map((name) => ({ name })),
-        data: g.nodes.map((n) => ({ id: n.id, name: n.name, category: cats.indexOf(n.category), symbolSize: n.symbolSize })),
-        links: g.links.map((l) => ({ source: l.source, target: l.target })),
-        force: { repulsion: 120, edgeLength: 80 },
-        lineStyle: { color: '#4B5563' },
-        label: { show: true, fontSize: 10, color: '#E5E7EB' },
-      }],
-    });
-  }
-
   window.SekoiaEnterprise = {
     renderQueryBuilder,
     renderDashboardBuilder,
     renderAssetProfile,
-    xdrRenderGraph,
     dashSave,
     dashLoad,
     dashExportPng,

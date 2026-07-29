@@ -393,7 +393,7 @@
       <div class="portal-doc-section-tile"><strong>${esc(i18n.t('docs.ingest.title'))}</strong>${esc(i18n.t('docs.tiles.ingest'))}</div>
       <div class="portal-doc-section-tile"><strong>${esc(i18n.t('docs.cti.title'))}</strong>${esc(i18n.t('docs.tiles.cti'))}</div>
       <div class="portal-doc-section-tile"><strong>Sekoia.IO</strong>${esc(i18n.t('docs.tiles.sekoia'))}</div>
-      <div class="portal-doc-section-tile"><strong>SentinelOne</strong>${esc(i18n.t('docs.tiles.s1'))}</div>
+      <div class="portal-doc-section-tile"><strong>PSOAR</strong>${esc(i18n.t('docs.tiles.psoar'))}</div>
       <div class="portal-doc-section-tile"><strong>${esc(i18n.t('docs.certtools.title'))}</strong>${esc(i18n.t('docs.tiles.cert'))}</div>
       <div class="portal-doc-section-tile"><strong>${esc(i18n.t('docs.intelligence.title'))}</strong>${esc(i18n.t('docs.tiles.ai'))}</div>`;
     const content = document.getElementById('portal-doc-content');
@@ -402,7 +402,7 @@
     }
     const tileSections = [
       'platform_inventory', 'platform_architecture', 'platform', 'ingest', 'cti',
-      'sekoia', 'sentinelone', 'certtools', 'intelligence',
+      'sekoia', 'sekoia-control-center', 'certtools', 'intelligence',
     ];
     grid.querySelectorAll('.portal-doc-section-tile').forEach((tile, i) => {
       const sid = tileSections[i];

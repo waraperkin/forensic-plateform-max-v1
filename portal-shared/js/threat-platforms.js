@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Threat Platforms — panneaux Sekoia.IO & SentinelOne.
+ * Threat Platforms — panneaux Sekoia.IO.
  * N'altère aucun module existant : ajoute des loaders branchés aux boutons
  * sidebar (data-tab-btn) via ThreatCommon.bind.
  */
@@ -1057,134 +1057,6 @@
     ], items, { empty: i18n.t('msg.aucun_event') });
   }
 
-  // Formulaire S1 enrichi (hostname / IP / agentId / groupe / plage temps)
-  async function renderS1Fetch() {
-    const root = document.getElementById('s1-fetch-root'); if (!root) return;
-    root.innerHTML = `<p class="fp-muted">${i18n.t('ui.loading')}</p>`;
-    const g = await TC.api('/s1/groups');
-    const groups = g.items || [];
-    const groupOpts = ['<option value="">— tous les groupes —</option>']
-      .concat(groups.map((x) => `<option value="${TC.esc(x.id)}">${TC.esc(x.name || x.id)}</option>`)).join('');
-    root.innerHTML = `<div class="cc-tp-fetchform">
-      <div class="fp-form-row fp-grid-2">
-        <label class="fp-label">Hostname<input class="fp-input" id="s1f-hostname" placeholder="WIN-DC01" autocomplete="off"></label>
-        <label class="fp-label">Adresse IP<input class="fp-input" id="s1f-ip" placeholder="10.0.0.5" autocomplete="off"></label>
-      </div>
-      <div class="fp-form-row fp-grid-2">
-        <label class="fp-label">Agent ID<input class="fp-input" id="s1f-agentId" placeholder="agent uuid" autocomplete="off"></label>
-        <label class="fp-label">Groupe<select class="fp-select" id="s1f-group">${groupOpts}</select></label>
-      </div>
-      <div class="fp-form-row fp-grid-2">
-        <label class="fp-label">Plage temps
-          <select class="fp-select" id="s1f-tr"><option value="1h">1 heure</option><option value="24h" selected>24 heures</option><option value="7d">7 jours</option><option value="30d">${i18n.t('time_range.30d')}</option></select>
-        </label>
-      </div>
-      <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-primary" id="s1f-run">Lancer la collecte ciblée</button></div>
-    </div><div id="s1-fetch-result" class="cc-tp-result"></div>`;
-    document.getElementById('s1f-run').addEventListener('click', runS1Fetch);
-    if (!g.configured) { const out = document.getElementById('s1-fetch-result'); if (out) out.innerHTML = TC.configBanner(g); }
-  }
-
-  async function runS1Fetch() {
-    const out = document.getElementById('s1-fetch-result');
-    const val = (s) => (document.getElementById(s) || {}).value || '';
-    const q = {
-      hostname: val('s1f-hostname').trim(), ip: val('s1f-ip').trim(),
-      agentId: val('s1f-agentId').trim(), groupId: val('s1f-group'),
-      timeRange: val('s1f-tr') || '24h',
-    };
-    if (!(q.hostname || q.ip || q.agentId || q.groupId)) { TC.toast(i18n.t('msg.renseignez_hostname_ip_agentid_ou_groupe'), 'warn'); return; }
-    if (out) out.innerHTML = `<p class="fp-muted">${i18n.t('msg.collecte_en_cours')}</p>`;
-    const env = await TC.api('/s1/fetch', { method: 'POST', body: q });
-    const items = env.items || [];
-    const byKind = TC.countBy(items, (e) => e._kind || 'event');
-    if (out) out.innerHTML = TC.configBanner(env) + TC.errBanner(env)
-      + `<div class="cc-tp-stats">${TC.statCard('Threats', (env.threats || []).length, 'danger')}
-         ${TC.statCard('Activities', (env.activities || []).length, 'accent')}</div>`
-      + (items.length ? TC.sendBar() : '')
-      + `<div id="s1-fetch-chart" class="cc-tp-chart"></div>`
-      + TC.table([
-        { key: 'kind', label: 'Type', render: (e) => `<span class="fp-tag">${TC.esc(e._kind || '—')}</span>` },
-        { key: 'ts', label: 'Horodatage', render: (e) => TC.esc(TC.deep(e, 'createdAt') || TC.deep(e, 'threatInfo.createdAt') || '—') },
-        { key: 'name', label: i18n.t('table_cols.detail'), render: (e) => TC.esc(String(TC.deep(e, 'threatInfo.threatName') || TC.deep(e, 'primaryDescription') || pick(e, ['description']) || '').slice(0, 140)) },
-      ], items, { empty: env.configured ? i18n.t('msg.aucune_donnee') : i18n.t('msg.connecteur_sentinelone_non_configure') });
-    if (items.length) TC.chart('s1-fetch-chart', TC.pieOption(byKind), 220);
-    // Mêmes endpoints d'export que Sekoia (/export/timesketch, /export/opensearch).
-    if (items.length && out) TC.bindSend(out, () => items, 's1-on-demand');
-  }
-
-  // ── SentinelOne : Endpoints & Groups ───────────────────────────────────────
-  async function loadS1Endpoints() {
-    const root = document.getElementById('s1-endpoints-root'); if (!root) return; loading(root);
-    const [env, groupsEnv] = await Promise.all([TC.api('/s1/endpoints'), TC.api('/s1/groups')]);
-    const items = env.items || [];
-    const groups = groupsEnv.items || [];
-    const byOs = TC.countBy(items, (a) => pick(a, ['osType', 'osName']) || 'n/a');
-    const noAgent = items.filter((a) => a.networkStatus === 'disconnected' || a.isActive === false).length;
-    root.innerHTML = TC.configBanner(env) + TC.errBanner(env)
-      + toolbar('ThreatPlatforms.loadS1Endpoints()')
-      + `<div class="cc-tp-grid"><div id="s1-ep-chart" class="cc-tp-chart"></div>
-         <div class="cc-tp-stats">${TC.statCard('Endpoints', env.count || 0)}
-         ${TC.statCard('Groupes', groups.length, 'accent')}
-         ${TC.statCard(i18n.t('msg.deconnectes'), noAgent, 'warn')}</div></div>`
-      + TC.table([
-        { key: 'name', label: 'Endpoint', render: (a) => TC.esc(pick(a, ['computerName', 'machineName', 'name', 'id'])) },
-        { key: 'os', label: 'OS', render: (a) => TC.esc(pick(a, ['osName', 'osType']) || '—') },
-        { key: 'grp', label: 'Groupe', render: (a) => TC.esc(pick(a, ['groupName', 'siteName']) || '—') },
-        { key: 'st', label: i18n.t('table.status'), render: (a) => badge(pick(a, ['networkStatus']) === 'connected' ? true : pick(a, ['networkStatus'])) },
-        { label: 'Actions', render: (a) => {
-          const id = TC.esc(pick(a, ['id', 'uuid']));
-          return `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="tag-ep" data-id="${id}">Tag</button>
-            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="move-ep" data-id="${id}">Déplacer</button>`;
-        } },
-      ], items, { empty: env.configured ? i18n.t('msg.aucun_endpoint') : i18n.t('msg.connecteur_sentinelone_non_configure') });
-    TC.chart('s1-ep-chart', TC.barOption(byOs, '#00E5FF'), 240);
-    delegate(root, {
-      'tag-ep': (el) => { const tag = prompt(i18n.t('msg.tag_a_appliquer'), 'IR-2024'); if (tag) action(`/s1/endpoints/${encodeURIComponent(el.dataset.id)}/tag`, { method: 'POST', body: { tag } }); },
-      'move-ep': (el) => { const groupId = prompt('ID du groupe cible :', ''); if (groupId) action(`/s1/endpoints/${encodeURIComponent(el.dataset.id)}/move`, { method: 'POST', body: { groupId } }, loadS1Endpoints); },
-    });
-  }
-
-  // ── SentinelOne : Policies & Rules ──────────────────────────────────────────
-  async function loadS1Policies() {
-    const root = document.getElementById('s1-policies-root'); if (!root) return; loading(root);
-    const [pol, rules] = await Promise.all([TC.api('/s1/policies'), TC.api('/s1/rules')]);
-    const polItems = pol.items || [];
-    const ruleItems = rules.items || [];
-    root.innerHTML = TC.configBanner(pol) + TC.errBanner(pol)
-      + toolbar('ThreatPlatforms.loadS1Policies()')
-      + `<h3 class="fp-section-sub">Policies par groupe</h3>`
-      + TC.table([
-        { key: 'g', label: 'Groupe', render: (p) => TC.esc(pick(p, ['groupName']) || p.groupId || '—') },
-        { key: 'agents', label: 'Agents', render: (p) => TC.esc(pick(p, ['totalAgents']) || 0) },
-        { label: 'Mode', render: (p) => TC.esc(TC.deep(p, 'policy.agentUiOnCloseDetection') || TC.deep(p, 'policy.mode') || '—') },
-        { label: 'Action', render: (p) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="edit-policy" data-id="${TC.esc(p.groupId)}">${i18n.t('ui.edit')}</button>` },
-      ], polItems, { empty: pol.configured ? i18n.t('msg.aucune_policy') : i18n.t('msg.connecteur_sentinelone_non_configure') })
-      + `<h3 class="fp-section-sub fp-section-spaced">Custom Rules (STAR)</h3>`
-      + TC.table([
-        { key: 'n', label: i18n.t('msg.regle'), render: (r) => TC.esc(pick(r, ['name', 'id'])) },
-        { key: 's', label: 'Statut', render: (r) => badge(pick(r, ['status', 'enabled'])) },
-        { label: 'Action', render: (r) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="toggle-s1rule" data-id="${TC.esc(pick(r, ['id']))}" data-s="${TC.esc(pick(r, ['status']))}">${i18n.t('ui.toggle_enable')}</button>` },
-      ], ruleItems, { empty: rules.configured ? i18n.t('msg.aucune_regle') : '—' });
-    delegate(root, {
-      'edit-policy': (el) => { const mode = prompt('Mode de protection (protect|detect) :', 'protect'); if (mode) action(`/s1/policies/${encodeURIComponent(el.dataset.id)}`, { method: 'PATCH', body: { mode } }, loadS1Policies); },
-      'toggle-s1rule': (el) => { const status = el.dataset.s === 'Active' ? 'Disabled' : 'Active'; action(`/s1/rules/${encodeURIComponent(el.dataset.id)}`, { method: 'PATCH', body: { status } }, loadS1Policies); },
-    });
-  }
-
-  // ── SentinelOne : API Tokens ────────────────────────────────────────────────
-  async function loadS1ApiKeys() {
-    const root = document.getElementById('s1-apikeys-root'); if (!root) return; loading(root);
-    const env = await TC.api('/s1/apikeys');
-    root.innerHTML = TC.configBanner(env) + TC.errBanner(env)
-      + toolbar('ThreatPlatforms.loadS1ApiKeys()')
-      + TC.table([
-        { key: 'name', label: 'Compte', render: (u) => TC.esc(pick(u, ['fullName', 'email', 'name', 'id'])) },
-        { key: 'scope', label: 'Scope', render: (u) => TC.esc(pick(u, ['scope', 'role']) || '—') },
-        { key: 'tok', label: i18n.t('msg.token_api'), render: (u) => badge(!!pick(u, ['apiToken']), 'présent') },
-      ], env.items || [], { empty: env.configured ? i18n.t('msg.aucun_compte_api') : i18n.t('msg.connecteur_sentinelone_non_configure') });
-  }
-
   // ── Threat Platforms → Configuration (secrets, stockés chiffrés backend) ─────
   function cfgMsg(html) { const el = document.getElementById('cfg-msg'); if (el) el.innerHTML = html; }
   function isValidUrl(u) { return /^https?:\/\/[^\s/]+\.[^\s/]+/i.test(u); }
@@ -1297,16 +1169,11 @@
     'sekoia-rules': loadSekoiaRules,
     'sekoia-apikeys': loadSekoiaApiKeys,
     'sekoia-fetch': renderSekoiaFetch,
-    's1-endpoints': loadS1Endpoints,
-    's1-policies': loadS1Policies,
-    's1-apikeys': loadS1ApiKeys,
-    's1-fetch': renderS1Fetch,
     'tp-config': loadTpConfig,
   };
 
   window.ThreatPlatforms = {
-    loadSekoiaAssets, loadSekoiaRules, loadSekoiaApiKeys, renderSekoiaFetch, runSekoiaFetch,
-    loadS1Endpoints, loadS1Policies, loadS1ApiKeys, renderS1Fetch, runS1Fetch, loadTpConfig,
+    loadSekoiaAssets, loadSekoiaRules, loadSekoiaApiKeys, renderSekoiaFetch, runSekoiaFetch, loadTpConfig,
     apiKeysUnavailable,
   };
   TC.bind(map);

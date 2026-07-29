@@ -24,7 +24,6 @@ TARGETS = [
     ("portal-it", "."),
     ("connectors/sekoia-controlplane", "."),
     ("connectors/sekoia-monitor", "."),
-    ("connectors/sentinelone-controlplane", "."),
     ("ingest-worker", "."),
 ]
 

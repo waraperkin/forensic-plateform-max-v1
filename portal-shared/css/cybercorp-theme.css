@@ -1161,3 +1161,57 @@
 [data-edition="cybercorp"] .cc-task-title { flex: 1; font-size: .88rem; }
 [data-edition="cybercorp"] .fp-btn-xs { padding: .1rem .45rem; font-size: .75rem; }
 [data-edition="cybercorp"] .cc-inc-danger { border-color: var(--danger); }
+
+/* ═══ PSOAR — Plateforme SOAR (file d'incidents, workspace split, playbooks) ═══ */
+[data-edition="cybercorp"] .pso-queue { display: flex; flex-direction: column; gap: .9rem; }
+[data-edition="cybercorp"] .pso-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .6rem; }
+[data-edition="cybercorp"] .pso-kpis .fp-stat { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: .7rem .9rem; transition: border-color .15s ease, transform .15s ease; }
+[data-edition="cybercorp"] .pso-kpis .fp-stat:hover { border-color: var(--border-focus); transform: translateY(-1px); }
+[data-edition="cybercorp"] .pso-filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: .55rem .7rem; }
+[data-edition="cybercorp"] .pso-filterbar .fp-input,
+[data-edition="cybercorp"] .pso-filterbar .fp-select { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: .35rem .6rem; }
+[data-edition="cybercorp"] .pso-filterbar .fp-input:focus,
+[data-edition="cybercorp"] .pso-filterbar .fp-select:focus { border-color: var(--border-focus); outline: none; }
+[data-edition="cybercorp"] .pso-queue-count { font-size: .8rem; }
+[data-edition="cybercorp"] .pso-queue-table { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+[data-edition="cybercorp"] .pso-queue-table table { width: 100%; }
+
+/* Vue split façon XSOAR : rail de file à gauche, workspace à droite */
+[data-edition="cybercorp"] .pso-split { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: .9rem; align-items: start; }
+[data-edition="cybercorp"] .pso-rail { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: .6rem; display: flex; flex-direction: column; gap: .55rem; max-height: 78vh; overflow: auto; }
+[data-edition="cybercorp"] .pso-rail-head { display: flex; justify-content: space-between; align-items: center; gap: .4rem; position: sticky; top: 0; background: var(--bg-elevated); padding-bottom: .35rem; border-bottom: 1px solid var(--border); z-index: 1; }
+[data-edition="cybercorp"] .pso-rail-list { display: flex; flex-direction: column; gap: .35rem; }
+[data-edition="cybercorp"] .pso-rail-item { display: grid; grid-template-columns: auto 1fr; gap: .5rem; align-items: start; width: 100%; text-align: left; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: .5rem .6rem; cursor: pointer; color: var(--text); transition: border-color .15s ease, background .15s ease; }
+[data-edition="cybercorp"] .pso-rail-item:hover { border-color: var(--border-focus); background: var(--bg-hover); }
+[data-edition="cybercorp"] .pso-rail-item.active { border-color: var(--accent); background: var(--accent-muted); }
+[data-edition="cybercorp"] .pso-rail-main { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+[data-edition="cybercorp"] .pso-rail-main strong { font-size: .85rem; font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-edition="cybercorp"] .pso-rail-main .fp-muted { font-size: .72rem; display: block; }
+[data-edition="cybercorp"] .pso-rail-sev { width: 9px; height: 9px; border-radius: 50%; margin-top: .3rem; flex-shrink: 0; }
+[data-edition="cybercorp"] .pso-sev-critical { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+[data-edition="cybercorp"] .pso-sev-high { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
+[data-edition="cybercorp"] .pso-sev-medium { background: var(--accent); }
+[data-edition="cybercorp"] .pso-sev-low { background: var(--success); }
+[data-edition="cybercorp"] .pso-sev-info { background: var(--text-muted); }
+[data-edition="cybercorp"] .pso-main { min-width: 0; }
+[data-edition="cybercorp"] .pso-ws { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: .9rem 1rem; }
+[data-edition="cybercorp"] .pso-inc-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .75rem; color: var(--text-muted); }
+@media (max-width: 1100px) {
+  [data-edition="cybercorp"] .pso-split { grid-template-columns: 1fr; }
+  [data-edition="cybercorp"] .pso-rail { max-height: 320px; }
+}
+
+/* Bibliothèque de playbooks */
+[data-edition="cybercorp"] .pso-pb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: .8rem; }
+[data-edition="cybercorp"] .pso-pb-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: .8rem .95rem; display: flex; flex-direction: column; gap: .5rem; transition: border-color .15s ease, transform .15s ease; }
+[data-edition="cybercorp"] .pso-pb-card:hover { border-color: var(--border-focus); transform: translateY(-1px); }
+[data-edition="cybercorp"] .pso-pb-card h4 { margin: 0; font-size: .95rem; }
+[data-edition="cybercorp"] .pso-pb-phase { margin: 0; font-size: .8rem; color: var(--accent); text-transform: capitalize; border-left: 2px solid var(--accent); padding-left: .6rem; }
+[data-edition="cybercorp"] .pso-pb-tasks { font-size: .78rem; color: var(--text-muted); }
+[data-edition="cybercorp"] .pso-pb-hint { font-size: .78rem; color: var(--text-muted); border-top: 1px dashed var(--border); padding-top: .5rem; }
+
+/* Subnav Sekoia organisé en groupes métiers */
+[data-edition="cybercorp"] .cc-subnav-group { display: flex; flex-direction: column; gap: .2rem; }
+[data-edition="cybercorp"] .cc-subnav-group-label { font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); padding: 0 .1rem; }
+[data-edition="cybercorp"] .cc-subnav-group-btns { display: flex; flex-wrap: wrap; gap: .3rem; }
+[data-edition="cybercorp"] .cc-cc-subnav { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .6rem .9rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: .7rem .8rem; }

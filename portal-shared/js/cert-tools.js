@@ -3,7 +3,7 @@
 
 /**
  * CERT Tools — Asset Investigation, Timeline Builder, IOC Correlation.
- * Croisent les collectes ciblées Sekoia + SentinelOne (on-demand).
+ * Collectes ciblées Sekoia.IO (on-demand).
  */
 (function () {
   const TC = window.ThreatCommon;
@@ -11,13 +11,10 @@
 
   function pick(obj, keys) { for (const k of keys) { if (obj[k] != null && obj[k] !== '') return obj[k]; } return ''; }
   function getTs(e) {
-    const v = TC.deep(e, 'createdAt') || TC.deep(e, 'threatInfo.createdAt')
-      || pick(e, ['@timestamp', 'timestamp', 'created_at', 'time']);
-    return v || '';
+    return pick(e, ['@timestamp', 'timestamp', 'created_at', 'createdAt', 'time']) || '';
   }
   function getMsg(e) {
-    return String(TC.deep(e, 'threatInfo.threatName') || TC.deep(e, 'primaryDescription')
-      || pick(e, ['message', 'event.action', 'description', 'action']) || '').slice(0, 160);
+    return String(pick(e, ['message', 'event.action', 'description', 'action', 'rule.name']) || '').slice(0, 160);
   }
 
   // ── Asset Investigation ─────────────────────────────────────────────────────
@@ -30,34 +27,21 @@
     const out = document.getElementById('cai-result');
     const q = TC.readFetchForm('cai');
     if (!(q.hostname || q.ip || q.agentId)) { TC.toast(i18n.t('msg.renseignez_hostname_ip_ou_agentid'), 'warn'); return; }
-    out.innerHTML = '<p class="fp-muted">Investigation croisée en cours…</p>';
-    const [sek, s1] = await Promise.all([
-      TC.api('/sekoia/fetch', { method: 'POST', body: q }),
-      TC.api('/s1/fetch', { method: 'POST', body: q }),
-    ]);
+    out.innerHTML = '<p class="fp-muted">Investigation en cours…</p>';
+    const sek = await TC.api('/sekoia/fetch', { method: 'POST', body: q });
     const sekEv = sek.items || [];
-    const s1Ev = s1.items || [];
-    const allEv = sekEv.concat(s1Ev);
-    out.innerHTML = TC.configBanner(sek.configured ? null : sek) + (sek.token_expired ? TC.staleBanner(sek) : '') + TC.configBanner(s1.configured ? null : s1)
+    out.innerHTML = TC.configBanner(sek.configured ? null : sek) + (sek.token_expired ? TC.staleBanner(sek) : '')
       + `<div class="cc-tp-dashgrid">
           ${TC.statCard('Events Sekoia', sekEv.length, 'accent')}
-          ${TC.statCard('Threats S1', (s1.threats || []).length, 'danger')}
-          ${TC.statCard('Activities S1', (s1.activities || []).length, 'accent')}
           ${TC.statCard('Cible', q.hostname || q.ip || q.agentId)}
         </div>`
-      + (allEv.length ? TC.sendBar() : '')
+      + (sekEv.length ? TC.sendBar() : '')
       + '<h3 class="fp-section-sub">Sekoia.IO — Events</h3>'
       + TC.table([
         { label: 'Horodatage', render: (e) => TC.esc(getTs(e) || '—') },
         { label: 'Message', render: (e) => TC.esc(getMsg(e)) },
-      ], sekEv, { empty: sek.configured ? i18n.t('msg.aucun_event') : 'Sekoia non configuré' })
-      + '<h3 class="fp-section-sub fp-section-spaced">SentinelOne — Threats &amp; Activities</h3>'
-      + TC.table([
-        { label: 'Type', render: (e) => `<span class="fp-tag">${TC.esc(e._kind || '—')}</span>` },
-        { label: 'Horodatage', render: (e) => TC.esc(getTs(e) || '—') },
-        { label: i18n.t('table_cols.detail'), render: (e) => TC.esc(getMsg(e)) },
-      ], s1Ev, { empty: s1.configured ? i18n.t('msg.aucune_donnee') : i18n.t('msg.sentinelone_non_configure') });
-    if (allEv.length) TC.bindSend(out, () => allEv, `investigation-${(q.hostname || q.ip || q.agentId || 'target')}`);
+      ], sekEv, { empty: sek.configured ? i18n.t('msg.aucun_event') : 'Sekoia non configuré' });
+    if (sekEv.length) TC.bindSend(out, () => sekEv, `investigation-${(q.hostname || q.ip || q.agentId || 'target')}`);
   }
 
   // ── Timeline Builder ────────────────────────────────────────────────────────
@@ -71,16 +55,12 @@
     const q = TC.readFetchForm('ctb');
     if (!(q.hostname || q.ip || q.agentId)) { TC.toast(i18n.t('msg.renseignez_hostname_ip_ou_agentid'), 'warn'); return; }
     out.innerHTML = `<p class="fp-muted">${i18n.t('msg.construction_de_la_timeline')}</p>`;
-    const [sek, s1] = await Promise.all([
-      TC.api('/sekoia/fetch', { method: 'POST', body: q }),
-      TC.api('/s1/fetch', { method: 'POST', body: q }),
-    ]);
+    const sek = await TC.api('/sekoia/fetch', { method: 'POST', body: q });
     const events = (sek.items || []).map((e) => ({ ts: getTs(e), src: 'Sekoia', msg: getMsg(e) }))
-      .concat((s1.items || []).map((e) => ({ ts: getTs(e), src: 'SentinelOne', msg: getMsg(e) })))
       .filter((e) => e.ts)
       .sort((a, b) => new Date(a.ts) - new Date(b.ts));
     const byHour = TC.countBy(events, (e) => String(e.ts).slice(0, 13));
-    out.innerHTML = TC.configBanner(sek.configured ? null : sek) + TC.configBanner(s1.configured ? null : s1)
+    out.innerHTML = TC.configBanner(sek.configured ? null : sek)
       + `<div class="fp-actions-row"><span class="fp-muted">${events.length} évènement(s) — ordre chronologique${q.toTimesketch ? ' · transmis à Timesketch' : ''}</span></div>`
       + '<div id="ctb-chart" class="cc-tp-chart"></div>'
       + TC.table([
@@ -124,20 +104,15 @@
       const type = iocType(ioc);
       const body = { timeRange: tr };
       if (type === 'ip') body.ip = ioc; else body.hostname = ioc;
-      const [sek, s1] = await Promise.all([
-        TC.api('/sekoia/fetch', { method: 'POST', body }),
-        TC.api('/s1/fetch', { method: 'POST', body }),
-      ]);
-      rows.push({ ioc, type, sekoia: (sek.items || []).length, s1: (s1.items || []).length, total: (sek.items || []).length + (s1.items || []).length });
+      const sek = await TC.api('/sekoia/fetch', { method: 'POST', body });
+      rows.push({ ioc, type, sekoia: (sek.items || []).length });
     }
-    const byIoc = {}; rows.forEach((r) => { byIoc[r.ioc.slice(0, 16)] = r.total; });
+    const byIoc = {}; rows.forEach((r) => { byIoc[r.ioc.slice(0, 16)] = r.sekoia; });
     out.innerHTML = '<div id="ioc-chart" class="cc-tp-chart"></div>'
       + TC.table([
         { label: 'IOC', render: (r) => `<code>${TC.esc(r.ioc)}</code>` },
         { label: 'Type', render: (r) => `<span class="fp-tag">${TC.esc(r.type)}</span>` },
-        { label: 'Hits Sekoia', render: (r) => TC.esc(r.sekoia) },
-        { label: 'Hits SentinelOne', render: (r) => TC.esc(r.s1) },
-        { label: 'Total', render: (r) => `<strong>${TC.esc(r.total)}</strong>` },
+        { label: 'Hits Sekoia', render: (r) => `<strong>${TC.esc(r.sekoia)}</strong>` },
       ], rows, { empty: i18n.t('msg.aucune_correlation') });
     TC.chart('ioc-chart', TC.barOption(byIoc, '#EF4444'), 240);
   }

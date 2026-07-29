@@ -2,7 +2,7 @@
 # validate-sekoia.sh — smoke test de la couche Sekoia sur une VM fraîche.
 #
 # Vérifie, dans l'ordre :
-#   1. santé des 3 services (control-plane 8901, s1-controlplane 8902, monitor 8903)
+#   1. santé des 2 services (control-plane 8901, monitor 8903)
 #   2. refus 401 sans token sur un endpoint protégé
 #   3. liste des intakes avec token interne
 #   4. présence des indices sekoia-* dans OpenSearch
@@ -15,7 +15,6 @@
 set -u
 
 BASE_CP="${BASE_CP:-http://sekoia-controlplane:8901}"
-BASE_S1="${BASE_S1:-http://s1-controlplane:8902}"
 BASE_MON="${BASE_MON:-http://sekoia-monitor:8903}"
 BASE_OS="${BASE_OS:-http://opensearch-node1:9200}"
 TOKEN="${INTERNAL_API_TOKEN:-}"
@@ -32,7 +31,6 @@ check() { # check <label> <cmd...>
 
 echo "══ 1. Santé des services ══"
 check "control-plane /health ($BASE_CP)" curl -fsS --max-time 5 "$BASE_CP/health"
-check "s1-controlplane /health ($BASE_S1)" curl -fsS --max-time 5 "$BASE_S1/health"
 check "monitor /health ($BASE_MON)" curl -fsS --max-time 5 "$BASE_MON/health"
 
 echo "══ 2. Sécurité : endpoints protégés ══"

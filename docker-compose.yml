@@ -1180,22 +1180,6 @@ services:
       opensearch-node1:
         condition: service_healthy
 
-  s1-controlplane:
-    build:
-      context: ./connectors/sentinelone-controlplane
-      dockerfile: Dockerfile
-    container_name: forensic-s1-controlplane
-    restart: unless-stopped
-    logging: *default-logging
-    environment:
-      - S1_API_TOKEN=${S1_API_TOKEN:-}
-      - S1_BASE_URL=${S1_BASE_URL:-}
-      - S1_LAB_DEMO=${S1_LAB_DEMO:-true}
-      - CONTROLPLANE_PORT=8902
-    networks:
-      forensic-net:
-        ipv4_address: 172.26.0.99
-
 # ═══════════════════════════════════════════════════════════════
 #  PORTAIL CERT — Portail principal CERT/SOC
 # ═══════════════════════════════════════════════════════════════
@@ -1242,7 +1226,6 @@ services:
       # P-14 : secret HMAC dédié aux sessions (repli sur CERT_PORTAL_SECRET)
       - PORTAL_SESSION_SECRET=${PORTAL_SESSION_SECRET:-${CERT_PORTAL_SECRET}}
       - SEKOIA_CONTROLPLANE_URL=${SEKOIA_CONTROLPLANE_URL:-http://sekoia-controlplane:8901}
-      - S1_CONTROLPLANE_URL=${S1_CONTROLPLANE_URL:-http://s1-controlplane:8902}
       - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-}
       - PORTAL_ADMIN_USER=${PORTAL_ADMIN_USER:-admin}
       - PORTAL_ADMIN_PASSWORD=${PORTAL_ADMIN_PASSWORD:-${CERT_PORTAL_SECRET}}

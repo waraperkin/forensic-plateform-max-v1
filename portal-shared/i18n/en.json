@@ -10,7 +10,8 @@
     "governance": "Governance",
     "cert_tools": "CERT Tools",
     "admin": "Admin",
-    "soc": "SOC"
+    "soc": "SOC",
+    "psoar": "PSOAR"
   },
   "units": {
     "bytes_b": "B",
@@ -108,7 +109,10 @@
     "users": "Portal Accounts",
     "settings_admin": "Administration",
     "helk_hunting": "HELK Hunting",
-    "velociraptor_dfir": "Velociraptor DFIR"
+    "velociraptor_dfir": "Velociraptor DFIR",
+    "psoar": "PSOAR — Incidents",
+    "psoar_playbooks": "PSOAR — Playbooks",
+    "purge": "Purge & cleanup"
   },
   "header": {
     "brand_sub": "CERT / forensic operations center",
@@ -773,7 +777,12 @@
     "msg_task_updated": "Task updated",
     "msg_task_deleted": "Task deleted",
     "msg_pb_applied": "Playbook applied — {n} tasks added",
-    "msg_saved": "Saved"
+    "msg_saved": "Saved",
+    "grp_supervision": "Supervision",
+    "grp_inventaires": "Inventories",
+    "grp_detection": "Detection",
+    "grp_analytique": "Analytics",
+    "grp_builders": "Builders"
   },
   "hubs": {
     "cert_overview": {
@@ -1472,7 +1481,7 @@
     "regle_sigma": "Rule Sigma",
     "valider_sur_echantillon_7j": "Valider on échantillon 7j",
     "tester_sur_events_collectes_telemetry_on_demand": "Tester on events collectés (Telemetry on-demand)",
-    "correlation_inventaire_sekoia_s1_volume_devents_": "Correlation inventaire Sekoia/S1, volume d’events and menaces detected on the fenêtre.",
+    "correlation_inventaire_sekoia_s1_volume_devents_": "Sekoia inventory correlation, event volume and matched rules over the window.",
     "classification_heuristique_ecs_code_evenement_ch": "Classification heuristique ECS + code event + champs process/network.",
     "analyse_structure_sigma_condition_level_et_patte": "Analysis structure Sigma (condition, level) and patterns FP connus.",
     "extraction_dentites_host_ip_temps_et_mapping_ver": "Extraction d’entités (host, IP, temps) and mapping vers grammaires Sekoia/S1/OS.",
@@ -1994,7 +2003,8 @@
       "cert": "Investigation, timeline, IOC.",
       "ai": "Query help — analyst validation.",
       "s1": "SentinelOne — endpoints, policies, on-demand telemetry.",
-      "sekoia": "Sekoia.IO — assets, rules, ingestion and volume."
+      "sekoia": "Sekoia.IO — assets, rules, ingestion and volume.",
+      "psoar": " — incident queue, SOAR workspace, NIST playbooks and purge."
     },
     "guide_executive_summary": {
       "title": "Executive summary"
@@ -2093,5 +2103,29 @@
   },
   "users": {
     "admin_only": "Admins only"
+  },
+  "psoar": {
+    "panel_title": "PSOAR — SOAR Platform",
+    "panel_lead": "Security orchestration, automation and response hub: real-time incident queue, investigation workspace, NIST playbooks, IOC scan, forensic report and controlled purge.",
+    "playbooks_panel_title": "PSOAR — Playbook library",
+    "playbooks_lead": "Ready-to-use incident response playbooks aligned with NIST SP 800-61. Applied from an incident's 'Tasks & Playbook' tab.",
+    "kpi_open": "Open incidents",
+    "kpi_critical": "Critical / high",
+    "kpi_overdue": "SLA overdue",
+    "kpi_tasks": "Tasks done",
+    "flt_status_all": "— all statuses —",
+    "flt_sev_all": "— all severities —",
+    "flt_search_ph": "Search title, ID, assignee, tag…",
+    "col_sla": "SLA",
+    "col_age": "Age",
+    "col_tasks": "Tasks",
+    "queue_empty": "No incident matches the filters.",
+    "queue_count": "incident(s) shown",
+    "ws_queue": "Queue",
+    "unit_d": "d",
+    "unit_h": "h",
+    "unit_min": "min",
+    "pb_tasks": "tasks",
+    "pb_apply_hint": "Applied from an incident's 'Tasks & Playbook' tab."
   }
 }

@@ -985,9 +985,9 @@
         "all",
         "portal"
       ],
-      "name": "Sekoia.IO layer — Control Center & SOAR",
-      "summary": "Editable inventories (intakes, rules, playbooks, assets, connectors, modules, formats), real-time volumetry monitoring, anomalies, hosts, efficacy, IOC watchlists, snapshots, SOL queries, and the SOAR incident workspace (status stepper, NIST tasks & playbooks, SLA, timeline, evidence, IOC scan, report, purge).",
-      "usage": "SEKOIA.IO sidebar → Sekoia Control Center (27 sub-tabs) or dedicated panels Assets & Sources / Rules / Telemetry / API Keys / XDR View / Audit Center. Configure the Sekoia API key in 'Configuration' (admin).",
+      "name": "Sekoia.IO layer — Control Center",
+      "summary": "Editable inventories (intakes, rules, playbooks, assets, connectors, modules, formats), real-time volumetry monitoring, anomalies, hosts, efficiency, IOC watchlists, snapshots, and SOL query workspace (Sekoia Operating Language). SOAR is provided by the PSOAR module.",
+      "usage": "SEKOIA.IO sidebar → Sekoia Control Center (grouped sub-tabs: Supervision, Inventories, Detection, Analytics, Builders) or dedicated panels Assets & Sources / Rules / Telemetry / API Keys / Audit Center. Sekoia API key configured in 'Configuration' (admin).",
       "connects": [
         "/api/threat/sekoia/*",
         "/control/sekoia/*",
@@ -1000,7 +1000,7 @@
       "files": [
         {
           "path": "portal-shared/js/sekoia-control-center.js",
-          "role": "Control Center + SOAR incident workspace"
+          "role": "Control Center (grouped subnav, SOL, monitoring)"
         },
         {
           "path": "portal-shared/js/sekoia-enterprise.js",
@@ -1008,11 +1008,11 @@
         },
         {
           "path": "portal-shared/js/threat-platforms.js",
-          "role": "Sekoia & SentinelOne panels"
+          "role": "Sekoia panels (assets, rules, telemetry, API keys)"
         },
         {
           "path": "connectors/sekoia-controlplane/app.py",
-          "role": "Controlplane API (inventories, volumetry, watchlists)"
+          "role": "Control plane API (inventories, volumetry, watchlists)"
         },
         {
           "path": "connectors/sekoia-controlplane/sol.py",
@@ -1021,31 +1021,36 @@
         {
           "path": "connectors/sekoia-monitor/monitor.py",
           "role": "Intake/hostname volumetry monitoring"
-        },
-        {
-          "path": "portal-cert/routes/incident-routes.js",
-          "role": "SOAR incidents backend (tasks, SLA, scan, purge)"
         }
       ]
     },
     {
-      "id": "s1-layer",
+      "id": "psoar",
       "filter": [
         "all",
         "portal"
       ],
-      "name": "SentinelOne layer — Endpoints & telemetry",
-      "summary": "Endpoint/group inventory, policies & rules, API tokens, on-demand telemetry, cross Sekoia + S1 XDR view.",
-      "usage": "SentinelOne sidebar → 4 dedicated panels. Configure the S1 token in 'Configuration' (admin).",
+      "name": "PSOAR — SOAR Platform",
+      "summary": "Orchestration, automation and response: real-time incident queue with KPIs (open, critical, SLA, tasks), status/severity/search filters, split-view investigation workspace (rail + workspace, XSOAR-style) with lifecycle stepper, tasks, NIST SP 800-61 playbooks (4 bilingual templates), timeline, evidences, IOC scan, downloadable Markdown forensic report and controlled purge (dry-run + apply).",
+      "usage": "PSOAR sidebar → Incidents (queue + workspace), Playbooks (library), Purge & cleanup (admin). Backend: /api/incidents.",
       "connects": [
-        "/api/threat/s1/*",
-        "SentinelOne API"
+        "/api/incidents",
+        "TheHive",
+        "Cortex",
+        "OpenSearch",
+        "Timesketch",
+        "MISP",
+        "OpenCTI"
       ],
       "files": [
-        {
-          "path": "portal-shared/js/threat-platforms.js",
-          "role": "S1 panels (endpoints, policies, tokens, telemetry)"
-        }
+        [
+          "portal-shared/js/psoar.js",
+          "PSOAR module (incident queue, workspace, playbooks, purge)"
+        ],
+        [
+          "portal-cert/routes/incident-routes.js",
+          "SOAR incidents backend (tasks, SLA, scan, purge)"
+        ]
       ]
     }
   ]

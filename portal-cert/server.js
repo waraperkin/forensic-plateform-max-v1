@@ -781,7 +781,7 @@ app.get('/api/cases', async (req,res) => {
 
 app.post('/api/webhook/thehive',(req,res)=>{broadcast({type:'thehive_event',payload:req.body});res.json({ok:true});});
 
-// ── Threat Platforms (Sekoia.IO + SentinelOne) — proxy control-plane (ajout) ──
+// ── Threat Platforms (Sekoia.IO) — proxy control-plane (ajout) ──
 const threatRouter = require('./lib/threat-platforms-routes').createThreatRoutes({ axios, logger, os, importToTimesketch });
 app.use('/api/threat', require('./lib/threat-v2-proxy').wrapThreatRouter(threatRouter));
 

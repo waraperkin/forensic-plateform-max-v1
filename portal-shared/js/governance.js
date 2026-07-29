@@ -2,9 +2,8 @@
 'use strict';
 
 /**
- * Governance — inventaires consolidés (Sekoia + SentinelOne), dashboards
- * avancés, filtres/recherche, export CSV/JSON, vues personnalisées (Custom
- * Views) persistées côté backend.
+ * Governance — inventaires Sekoia.IO, dashboards avancés, filtres/recherche,
+ * export CSV/JSON, vues personnalisées (Custom Views) persistées côté backend.
  */
 (function () {
   const TC = window.ThreatCommon;
@@ -82,8 +81,6 @@
   let govAssets = [];
   let govRules = [];
   let govKeys = [];
-  let s1NamesLower = new Set();
-  let s1RawItems = [];
   let pendingAssetPreset = null;
   let pendingRulePreset = null;
 
@@ -115,9 +112,7 @@
   function assetFilterSummary() {
     const p = [];
     if (assetFilters.preset === 'critical') p.push('<strong>assets critiques</strong>');
-    if (assetFilters.preset === 'vuln') p.push('<strong>endpoints vulnérables</strong>');
-    if (assetFilters.preset === 'no-s1') p.push('<strong>sans agent S1</strong>');
-    if (assetFilters.preset === 'disconnected') p.push('<strong>déconnectés</strong>');
+    if (assetFilters.preset === 'vuln') p.push('<strong>assets à risque</strong>');
     if (assetFilters.kind) p.push(`type <strong>${TC.esc(assetFilters.kind)}</strong>`);
     if (assetFilters.crit) p.push(`criticité <strong>${TC.esc(assetFilters.crit)}</strong>`);
     if (assetFilters.source) p.push(`source <strong>${TC.esc(assetFilters.source)}</strong>`);
@@ -151,42 +146,28 @@
   async function loadAssets() {
     const root = document.getElementById('gov-assets-root'); if (!root) return; loading(root);
     const preset = pendingAssetPreset; pendingAssetPreset = null;
-    const [sek, s1] = await Promise.all([TC.api('/sekoia/assets'), TC.api('/s1/endpoints')]);
+    const sek = await TC.api('/sekoia/assets');
     const sekItems = (sek.items || []).map((a) => ({
       name: pick(a, ['name', 'hostname', 'intake_name', 'uuid', 'id']), source: 'Sekoia',
       type: pick(a, ['type', 'asset_type', 'category', 'intake_format_name_via_script']) || '—',
       crit: pick(a, ['criticality', 'risk', 'severity']) || '—', raw: a,
     }));
-    const s1Items = (s1.items || []).map((a) => ({
-      name: pick(a, ['computerName', 'machineName', 'name', 'id']), source: 'SentinelOne',
-      type: pick(a, ['osType', 'osName']) || 'endpoint',
-      crit: pick(a, ['threatRebootRequired']) ? i18n.t('msg.a_risque') : '—', raw: a,
-    }));
-    s1RawItems = s1.items || [];
-    s1NamesLower = new Set(s1Items.map((x) => String(x.name).toLowerCase()));
-    govAssets = sekItems.concat(s1Items).map((x) => Object.assign(x, { kind: kindOf(x) }));
+    govAssets = sekItems.map((x) => Object.assign(x, { kind: kindOf(x) }));
     if (preset) Object.assign(assetFilters, { kind: '', crit: '', source: '', q: '', preset: '' }, preset);
 
     const dcs = govAssets.filter((x) => x.kind === 'DC').length;
     const critical = govAssets.filter((x) => isCritical(x.raw)).length;
-    const noS1 = sekItems.filter((x) => !s1NamesLower.has(String(x.name).toLowerCase())).length;
-    const vuln = s1Items.filter((x) => x.raw && (x.raw.activeThreats > 0 || x.raw.threatRebootRequired)).length
-      + sekItems.filter((x) => isCritical(x.raw)).length;
-    const disconnected = s1RawItems.filter((a) => a.networkStatus === 'disconnected').length;
     const C = (label, val, tone, ds) => clickCard(label, val, tone, ds, assetCardActive(ds));
 
-    root.innerHTML = TC.configBanner(sek.configured ? null : sek) + (sek.token_expired ? TC.staleBanner(sek) : '') + TC.configBanner(s1.configured ? null : s1)
+    root.innerHTML = TC.configBanner(sek.configured ? null : sek) + (sek.token_expired ? TC.staleBanner(sek) : '')
       + toolbar('Governance.loadAssets()', `<button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="save-view">${i18n.t('msg.creer_une_vue')}</button>`)
       + `<div class="cc-tp-dashgrid">
           ${C('Domain Controllers', dcs, '', { fkey: 'kind', fval: 'DC' })}
           ${C('Assets critiques', critical, 'danger', { preset: 'critical' })}
-          ${C(i18n.t('msg.endpoints_vulnerables'), vuln, 'warn', { preset: 'vuln' })}
-          ${C(i18n.t('msg.sans_agent_s1'), noS1, 'warn', { preset: 'no-s1' })}
-          ${C(i18n.t('msg.endpoints_deconnectes'), disconnected, 'accent', { preset: 'disconnected' })}
           ${C('Total assets', govAssets.length, '', { preset: '' })}
         </div>`
       + `<div class="cc-tp-grid"><div id="gov-assets-chart" class="cc-tp-chart"></div>
-         <div class="cc-tp-stats">${C('Sekoia', sekItems.length, 'accent', { fkey: 'source', fval: 'Sekoia' })}${C('SentinelOne', s1Items.length, 'accent', { fkey: 'source', fval: 'SentinelOne' })}</div></div>`
+         <div class="cc-tp-stats">${C('Sekoia', sekItems.length, 'accent', { fkey: 'source', fval: 'Sekoia' })}</div></div>`
       + '<div id="ga-flt-hint"></div>'
       + `<div id="ga-filterbar-host">${assetFilterBar()}</div>`
       + '<div id="gov-assets-list"></div>';
@@ -236,17 +217,6 @@
   function filteredAssets() {
     return govAssets.filter((x) => {
       if (assetFilters.preset === 'critical' && !isCritical(x.raw)) return false;
-      if (assetFilters.preset === 'vuln') {
-        const s1v = x.source === 'SentinelOne' && x.raw && (x.raw.activeThreats > 0 || x.raw.threatRebootRequired);
-        const sekv = x.source === 'Sekoia' && isCritical(x.raw);
-        if (!s1v && !sekv) return false;
-      }
-      if (assetFilters.preset === 'no-s1') {
-        if (x.source !== 'Sekoia' || s1NamesLower.has(String(x.name).toLowerCase())) return false;
-      }
-      if (assetFilters.preset === 'disconnected') {
-        if (x.source !== 'SentinelOne' || !x.raw || x.raw.networkStatus !== 'disconnected') return false;
-      }
       if (assetFilters.kind && x.kind !== assetFilters.kind) return false;
       if (assetFilters.crit && x.crit !== assetFilters.crit) return false;
       if (assetFilters.source && x.source !== assetFilters.source) return false;
@@ -277,9 +247,8 @@
   async function loadRules() {
     const root = document.getElementById('gov-rules-root'); if (!root) return; loading(root);
     const preset = pendingRulePreset; pendingRulePreset = null;
-    const [sek, s1] = await Promise.all([TC.api('/sekoia/rules?limit=500&trim=1'), TC.api('/s1/rules')]);
-    govRules = (sek.items || []).map((r) => ({ name: pick(r, ['rule_name', 'name', 'title', 'uuid', 'id']), source: 'Sekoia', state: pick(r, ['rule_enabled', 'enabled', 'is_active', 'active']), sev: String(pick(r, ['rule_severity', 'severity', 'level']) || '—'), type: pick(r, ['rule_type', 'type']) || '—', raw: r }))
-      .concat((s1.items || []).map((r) => ({ name: pick(r, ['name', 'id']), source: 'SentinelOne', state: pick(r, ['status', 'enabled']), sev: String(pick(r, ['severity']) || '—'), type: pick(r, ['type']) || '—', raw: r })));
+    const sek = await TC.api('/sekoia/rules?limit=500&trim=1');
+    govRules = (sek.items || []).map((r) => ({ name: pick(r, ['rule_name', 'name', 'title', 'uuid', 'id']), source: 'Sekoia', state: pick(r, ['rule_enabled', 'enabled', 'is_active', 'active']), sev: String(pick(r, ['rule_severity', 'severity', 'level']) || '—'), type: pick(r, ['rule_type', 'type']) || '—', raw: r }));
     if (preset) Object.assign(ruleFilters, { source: '', sev: '', type: '', q: '', preset: '' }, preset);
 
     const C = (label, val, tone, ds) => clickCard(label, val, tone, ds, ruleCardActive(ds));
@@ -287,7 +256,7 @@
     root.innerHTML = TC.configBanner(sek.configured ? null : sek) + (sek.token_expired ? TC.staleBanner(sek) : '')
       + toolbar('Governance.loadRules()', `<button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="save-view">${i18n.t('msg.creer_une_vue')}</button>`)
       + `<div class="cc-tp-grid"><div id="gov-rules-chart" class="cc-tp-chart"></div>
-         <div class="cc-tp-stats">${C(i18n.t('msg.total_regles'), govRules.length, '', { preset: '' })}${C('Sekoia', (sek.items || []).length, 'accent', { fkey: 'source', fval: 'Sekoia' })}${C('S1', (s1.items || []).length, 'accent', { fkey: 'source', fval: 'SentinelOne' })}</div></div>`
+         <div class="cc-tp-stats">${C(i18n.t('msg.total_regles'), govRules.length, '', { preset: '' })}${C('Sekoia', (sek.items || []).length, 'accent', { fkey: 'source', fval: 'Sekoia' })}</div></div>`
       + '<div id="gr-flt-hint"></div>'
       + `<div id="gr-filterbar-host">${ruleFilterBarG()}</div>`
       + '<div id="gov-rules-list"></div>';
@@ -368,7 +337,7 @@
     ], rows, { empty: i18n.t('msg.aucune_regle_connecteurs_non_configures') });
   }
 
-  // ── API Keys Inventory (consolidé Sekoia + S1) ──────────────────────────────
+  // ── API Keys Inventory (Sekoia) ─────────────────────────────────────────────
   const keyFiltersG = { source: '', q: '', preset: '' };
 
   function resetKeyFilters() {
@@ -418,28 +387,26 @@
 
   async function loadApiKeys() {
     const root = document.getElementById('gov-apikeys-root'); if (!root) return; loading(root);
-    const [sek, s1] = await Promise.all([TC.api('/sekoia/apikeys'), TC.api('/s1/apikeys')]);
-    govKeys = (sek.items || []).map((k) => ({ name: pick(k, ['name', 'label', 'uuid', 'id']), source: 'Sekoia', state: k.state || (k.enabled ? 'enabled' : 'disabled'), created: pick(k, ['created_at', 'createdAt']) || '—' }))
-      .concat((s1.items || []).map((k) => ({ name: pick(k, ['fullName', 'email', 'name', 'id']), source: 'SentinelOne', state: pick(k, ['apiToken', 'state']) ? 'enabled' : '—', created: pick(k, ['createdAt']) || '—' })));
+    const [sek] = await Promise.all([TC.api('/sekoia/apikeys')]);
+    govKeys = (sek.items || []).map((k) => ({ name: pick(k, ['name', 'label', 'uuid', 'id']), source: 'Sekoia', state: k.state || (k.enabled ? 'enabled' : 'disabled'), created: pick(k, ['created_at', 'createdAt']) || '—' }));
     const byState = TC.countBy(govKeys, (x) => x.state || '—');
     const sekNa = (window.ThreatPlatforms && ThreatPlatforms.apiKeysUnavailable)
       ? ThreatPlatforms.apiKeysUnavailable(sek) : false;
     const sekCount = (sek.items || []).length;
-    const s1Count = (s1.items || []).length;
     const enabledCount = govKeys.filter((x) => x.state === 'enabled').length;
     let msg = '';
     if (sek.token_expired) msg += TC.staleBanner(sek);
     else if (sekNa && !sekCount) {
       msg += TC.infoBanner(i18n.t('gov.sekoia_no_api'));
     } else if (!govKeys.length) {
-      msg += `<div class="fp-alert fp-alert-warn cc-tp-banner">Inventaire consolidé vide. ${TC.esc(sek.error || '')} ${TC.esc(s1.error || '')}`.trim() + '</div>';
+      msg += `<div class="fp-alert fp-alert-warn cc-tp-banner">Inventaire vide. ${TC.esc(sek.error || '')}</div>`;
     }
     const C = (label, val, tone, ds) => clickCard(label, val, tone, ds, keyCardActive(ds));
 
     root.innerHTML = msg
       + toolbar('Governance.loadApiKeys()')
       + `<div class="cc-tp-dashgrid">${C('Total clés/tokens', govKeys.length, '', { preset: '' })}
-         ${C('Sekoia', sekCount, 'accent', { fkey: 'source', fval: 'Sekoia' })}${C('SentinelOne', s1Count, 'accent', { fkey: 'source', fval: 'SentinelOne' })}
+         ${C('Sekoia', sekCount, 'accent', { fkey: 'source', fval: 'Sekoia' })}
          ${C('Actives', enabledCount, 'accent', { preset: 'enabled' })}</div>`
       + `<div class="cc-tp-grid"><div id="gov-keys-src" class="cc-tp-chart"></div><div id="gov-keys-state" class="cc-tp-chart"></div></div>`
       + '<div id="gk-flt-hint"></div>'

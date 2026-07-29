@@ -3,10 +3,9 @@
 /**
  * Threat Platforms — proxy control-plane (ajout, ne modifie aucune route existante).
  *
- * Monté sur /api/threat. Relaie de façon transparente vers les deux services
- * isolés Sekoia.IO et SentinelOne :
+ * Monté sur /api/threat. Relaie de façon transparente vers le service isolé
+ * Sekoia.IO :
  *   /api/threat/sekoia/*  →  {SEKOIA_CONTROLPLANE_URL}/control/sekoia/*
- *   /api/threat/s1/*      →  {S1_CONTROLPLANE_URL}/control/s1/*
  *
  * Tolérant aux pannes : si un control-plane est injoignable, renvoie 200 avec
  * une enveloppe { configured:false, items:[], error } pour que l'UI reste
@@ -18,8 +17,6 @@ const path = require('path');
 
 const SEKOIA_URL = (process.env.SEKOIA_CONTROLPLANE_URL
   || 'http://cybercorp-sekoia-controlplane:8081').replace(/\/$/, '');
-const S1_URL = (process.env.S1_CONTROLPLANE_URL
-  || 'http://cybercorp-sentinelone-controlplane:8082').replace(/\/$/, '');
 const VIEWS_PATH = process.env.THREAT_VIEWS_PATH || '/shared-uploads/threat-views.json';
 const OS_TELEMETRY_INDEX = 'forensic-sekoia-telemetry-on-demand';
 
@@ -27,7 +24,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   const router = express.Router();
   const log = logger || console;
 
-  // ── Audit Center — journal des modifications (Sekoia / SentinelOne) ──────────
+  // ── Audit Center — journal des modifications (Sekoia) ────────────────────────
   // Persistant, additif : enregistre automatiquement les écritures (PATCH/POST/
   // DELETE) relayées par le proxy. Ne modifie aucune route ni réponse existante.
   const AUDIT_PATH = process.env.THREAT_AUDIT_PATH || '/shared-uploads/threat-audit.json';
@@ -55,7 +52,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   // Classe une écriture proxifiée en entrée d'audit lisible (sans secrets).
   function classifyAudit(method, reqPath, body, status, user) {
     const seg = String(reqPath).split('/').filter(Boolean); // ex: sekoia,intakes,<id>
-    const platform = seg[0] === 's1' ? 'sentinelone' : 'sekoia';
+    const platform = 'sekoia';
     const res = seg[1] || '';
     // On n'audite pas les requêtes de lecture / collecte (fetch, events, search).
     if (['fetch', 'events', 'search', 'health', 'inventory', 'intakes', 'assets',
@@ -229,7 +226,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     const events = Array.isArray(req.body && req.body.events) ? req.body.events.slice(0, 50000) : [];
     const index = OS_TELEMETRY_INDEX;
     const collection = String((req.body && req.body.name) || 'on-demand').replace(/[^\w.-]+/g, '_').slice(0, 60);
-    const platform = /s1|sentinel/i.test(collection) ? 'sentinelone' : 'sekoia';
+    const platform = 'sekoia';
     if (!events.length) return res.status(400).json({ ok: false, error: 'Aucun event à indexer' });
     if (!os || typeof os.bulk !== 'function') {
       return res.json({ ok: false, error: 'OpenSearch indisponible côté serveur' });
@@ -277,12 +274,9 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   });
 
   function upstreamFor(reqPath) {
-    // reqPath ex: /sekoia/assets ou /s1/endpoints
+    // reqPath ex: /sekoia/assets
     if (reqPath.startsWith('/sekoia')) {
       return { base: SEKOIA_URL, target: `/control${reqPath}` };
-    }
-    if (reqPath.startsWith('/s1')) {
-      return { base: S1_URL, target: `/control${reqPath}` };
     }
     return null;
   }
@@ -293,24 +287,17 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   const internalHeaders = INTERNAL_API_TOKEN ? { 'X-Internal-Token': INTERNAL_API_TOKEN } : {};
 
   router.get('/health', async (_req, res) => {
-    const probe = async (base, name) => {
-      try {
-        const r = await axios.get(`${base}/health`, { timeout: 5000, validateStatus: () => true });
-        return { name, ...r.data };
-      } catch (e) {
-        return { name, status: 'down', configured: false, error: e.code || e.message };
-      }
-    };
-    const [sekoia, s1] = await Promise.all([
-      probe(SEKOIA_URL, 'sekoia'),
-      probe(S1_URL, 'sentinelone'),
-    ]);
-    res.json({ sekoia, sentinelone: s1 });
+    try {
+      const r = await axios.get(`${SEKOIA_URL}/health`, { timeout: 5000, validateStatus: () => true });
+      return res.json({ sekoia: { name: 'sekoia', ...r.data } });
+    } catch (e) {
+      return res.json({ sekoia: { name: 'sekoia', status: 'down', configured: false, error: e.code || e.message } });
+    }
   });
 
   // Catch-all proxy : conserve méthode, query, body — restreint à une allowlist
   // de ressources (correctif audit P-06) et sans fuite de topologie interne.
-  const ALLOWED_PROXY_RE = /^\/(sekoia|s1)\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol)(\/|$)/;
+  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
     if (!mapped || !ALLOWED_PROXY_RE.test(req.path)) {

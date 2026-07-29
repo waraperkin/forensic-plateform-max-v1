@@ -985,9 +985,9 @@
         "all",
         "portal"
       ],
-      "name": "Couche Sekoia.IO — Control Center & SOAR",
-      "summary": "Inventaires éditables (intakes, règles, playbooks, assets, connecteurs, modules, formats), monitoring volumétrie temps réel, anomalies, hosts, efficacité, watchlists IOC, snapshots, requêtes SOL, et workspace incident SOAR (stepper, tâches & playbooks NIST, SLA, timeline, évidences, scan IOC, rapport, purge).",
-      "usage": "Sidebar SEKOIA.IO → Sekoia Control Center (27 sous-onglets) ou panneaux dédiés Assets & Sources / Rules / Telemetry / API Keys / XDR View / Audit Center. Clé API Sekoia à configurer dans « Configuration » (admin).",
+      "name": "Couche Sekoia.IO — Control Center",
+      "summary": "Inventaires éditables (intakes, règles, playbooks, assets, connecteurs, modules, formats), monitoring volumétrie temps réel, anomalies, hosts, efficacité, watchlists IOC, snapshots, et workspace de requêtes SOL (Sekoia Operating Language). Le SOAR est assuré par le module PSOAR.",
+      "usage": "Sidebar SEKOIA.IO → Sekoia Control Center (sous-onglets groupés : Supervision, Inventaires, Détection, Analytique, Builders) ou panneaux dédiés Assets & Sources / Rules / Telemetry / API Keys / Audit Center. Clé API Sekoia à configurer dans « Configuration » (admin).",
       "connects": [
         "/api/threat/sekoia/*",
         "/control/sekoia/*",
@@ -1000,7 +1000,7 @@
       "files": [
         {
           "path": "portal-shared/js/sekoia-control-center.js",
-          "role": "Control Center + workspace incident SOAR"
+          "role": "Control Center (subnav groupé, SOL, monitoring)"
         },
         {
           "path": "portal-shared/js/sekoia-enterprise.js",
@@ -1008,7 +1008,7 @@
         },
         {
           "path": "portal-shared/js/threat-platforms.js",
-          "role": "Panneaux Sekoia & SentinelOne"
+          "role": "Panneaux Sekoia (assets, règles, télémétrie, API keys)"
         },
         {
           "path": "connectors/sekoia-controlplane/app.py",
@@ -1021,31 +1021,36 @@
         {
           "path": "connectors/sekoia-monitor/monitor.py",
           "role": "Monitoring volumétrie intakes/hostnames"
-        },
-        {
-          "path": "portal-cert/routes/incident-routes.js",
-          "role": "Backend SOAR incidents (tâches, SLA, scan, purge)"
         }
       ]
     },
     {
-      "id": "s1-layer",
+      "id": "psoar",
       "filter": [
         "all",
         "portal"
       ],
-      "name": "Couche SentinelOne — Endpoints & télémétrie",
-      "summary": "Inventaire endpoints/groupes, politiques & règles, tokens API, télémétrie à la demande, vue XDR croisée Sekoia + S1.",
-      "usage": "Sidebar SentinelOne → 4 panneaux dédiés. Token S1 à configurer dans « Configuration » (admin).",
+      "name": "PSOAR — Plateforme SOAR",
+      "summary": "Orchestration, automatisation et réponse : file d'incidents temps réel avec KPIs (actifs, critiques, SLA, tâches), filtres statut/sévérité/recherche, workspace d'investigation en vue split (rail + workspace, style XSOAR) avec stepper de cycle de vie, tâches, playbooks NIST SP 800-61 (4 modèles bilingues), timeline, évidences, scan IOC, rapport forensic Markdown téléchargeable et purge maîtrisée (dry-run + apply).",
+      "usage": "Sidebar PSOAR → Incidents (file + workspace), Playbooks (bibliothèque), Purge & nettoyage (admin). Backend : /api/incidents.",
       "connects": [
-        "/api/threat/s1/*",
-        "SentinelOne API"
+        "/api/incidents",
+        "TheHive",
+        "Cortex",
+        "OpenSearch",
+        "Timesketch",
+        "MISP",
+        "OpenCTI"
       ],
       "files": [
-        {
-          "path": "portal-shared/js/threat-platforms.js",
-          "role": "Panneaux S1 (endpoints, policies, tokens, télémétrie)"
-        }
+        [
+          "portal-shared/js/psoar.js",
+          "Module PSOAR (file d'incidents, workspace, playbooks, purge)"
+        ],
+        [
+          "portal-cert/routes/incident-routes.js",
+          "Backend SOAR incidents (tâches, SLA, scan, purge)"
+        ]
       ]
     }
   ]

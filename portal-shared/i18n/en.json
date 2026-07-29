@@ -1142,7 +1142,7 @@
     "delete_user": "Delete this user?",
     "delete_view": "Delete this view?",
     "disable_api_key": "Disable this API key?",
-    "delete_sekoia_secrets": "Delete stored Sekoia secrets?"
+    "delete_sekoia_secrets": "Delete the Sekoia API key?\n\n⚠️ ALL data obtained from Sekoia will be permanently purged: inventories, rules, local volumetry and alerts (OpenSearch indices), snapshots. This action is irreversible."
   },
   "hub_intro": {
     "cert_ops": "CERT Operations",
@@ -1878,7 +1878,12 @@
   "threat": {
     "additive_note": "does not alter existing modules: adds loaders wired to buttons",
     "auth_bearer_note": "authenticate via <strong>Authorization: Bearer &lt;SEKOIA_UI_TOKEN&gt;</strong>. Secrets are stored <strong>encrypted</strong> in the connector (<code>/data</code>), never in <code>.env</code>.</p>",
-    "sekoia_auth_intro": "Sekoia inventories (intakes, rules, formats, connectors, playbooks, telemetry) authenticate via <strong>Authorization: Bearer &lt;SEKOIA_UI_TOKEN&gt;</strong>. Secrets are stored <strong>encrypted</strong> in the connector (<code>/data</code>), never in <code>.env</code>.",
+    "sekoia_auth_intro": "Sekoia inventories (intakes, rules, formats, connectors, playbooks, telemetry) authenticate via <strong>Authorization: Bearer &lt;SEKOIA_UI_TOKEN&gt;</strong>. The key is entered <strong>only here</strong>: it is stored <strong>encrypted</strong> in the connector (<code>/data</code>), never in <code>.env</code>. Collected data is <strong>persisted encrypted</strong> and remains available until a refresh or until the key is deleted — which triggers a <strong>full purge</strong> of Sekoia data.",
+    "data_state_persisted": "Persisted data (encrypted) — last sync: {ts}",
+    "data_state_none": "No persisted data yet — it will be persisted after the first successful load.",
+    "refresh_data_now": "Refresh data now",
+    "refresh_data_done": "Data refreshed: {n} intake(s).",
+    "purge_summary": "Purge completed: {files} data file(s) + local OpenSearch indices ({indices}).",
     "s1_tokens_desc": "SentinelOne API accounts / tokens.",
     "sekoia_token_required": "Enter the SEKOIA_UI_TOKEN (JWT): it is required to load inventories.",
     "delete_secrets": "Delete secrets",

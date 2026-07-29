@@ -1068,6 +1068,10 @@
     if (cfg.token_expired) statusBadge = `<span class="cc-cfg-badge cc-cfg-badge-expired">${i18n.t('status.token_expired')}</span>`;
     else if (cfg.configured) statusBadge = `<span class="cc-cfg-badge cc-cfg-badge-ok">${i18n.t('status.configured')}</span>`;
     else statusBadge = `<span class="cc-cfg-badge cc-cfg-badge-off">${i18n.t('status.not_configured')}</span>`;
+    const d = (cfg && cfg.data) || {};
+    const dataBadge = d.persisted
+      ? `<span class="fp-tag fp-tag-active">🔒 ${TC.esc(i18n.t('threat.data_state_persisted', { ts: d.refreshed_at || '—' }))}</span>`
+      : `<span class="fp-tag">${TC.esc(i18n.t('threat.data_state_none'))}</span>`;
     root.innerHTML = `
       <div class="cc-tp-detail-card cc-cfg-card">
         <div class="cc-cfg-head">
@@ -1075,6 +1079,7 @@
           ${statusBadge}
         </div>
         <p class="cc-cfg-intro fp-muted">${i18n.t('threat.sekoia_auth_intro')}</p>
+        <p class="cc-cfg-datastate">${dataBadge}</p>
 
         <div class="cc-cfg-field cc-cfg-field-required">
           <label class="fp-label">SEKOIA_UI_TOKEN <span class="fp-tag fp-tag-warn">JWT requis</span>
@@ -1099,6 +1104,7 @@
         <div class="fp-actions-row">
           <button type="button" class="fp-btn fp-btn-primary" data-act="cfg-save">Enregistrer</button>
           <button type="button" class="fp-btn fp-btn-ghost" data-act="cfg-test">Tester la connexion</button>
+          <button type="button" class="fp-btn fp-btn-ghost" data-act="cfg-refresh">${TC.esc(i18n.t('threat.refresh_data_now'))}</button>
           <button type="button" class="fp-btn fp-btn-danger-ghost" data-act="cfg-del">${i18n.t('tp.delete_secrets')}</button>
         </div>
         <p class="fp-muted">Base active : <code>${TC.esc(cfg.base_url || '—')}</code> · Écriture réservée aux administrateurs.</p>
@@ -1146,11 +1152,32 @@
         const detail = p.message ? `<br><span class="fp-muted">${TC.esc(p.message)}</span>` : '';
         cfgMsg(`<div class="fp-alert ${cls}"><strong>${TC.esc(title)}</strong>${detail}</div>`);
       },
+      'cfg-refresh': async () => {
+        TC.toast(i18n.t('threat.refresh_data_now') + '…');
+        const r = await TC.api('/sekoia/inventory?refresh=1');
+        await loadTpConfig();
+        if (r && r.error) {
+          cfgMsg(`<div class="fp-alert fp-alert-err">${TC.esc(r.error)}</div>`);
+          TC.toast(r.error, 'warn');
+        } else {
+          const n = (r && r.count) || 0;
+          cfgMsg(`<div class="fp-alert fp-alert-ok">${TC.esc(i18n.t('threat.refresh_data_done', { n }))}</div>`);
+          TC.toast(i18n.t('threat.refresh_data_done', { n }), 'ok');
+        }
+      },
       'cfg-del': async () => {
         if (!confirm(i18n.t('confirm.delete_sekoia_secrets'))) return;
         const r = await TC.api('/sekoia/config', { method: 'DELETE' });
-        TC.toast(r && r.ok ? i18n.t('msg.secrets_supprimes') : ((r && r.error) || i18n.t('msg.echec')), r && r.ok ? 'ok' : 'warn');
-        loadTpConfig();
+        await loadTpConfig();
+        if (r && r.ok) {
+          const nf = (r.purged_files || []).length;
+          const idx = (r.opensearch_indices_purged || []).join(', ') || '—';
+          const summary = i18n.t('threat.purge_summary', { files: nf, indices: idx });
+          TC.toast(`${i18n.t('msg.secrets_supprimes')} — ${summary}`, 'ok');
+          cfgMsg(`<div class="fp-alert fp-alert-ok">${TC.esc(summary)}${r.opensearch_warning ? `<br><span class="fp-muted">${TC.esc(r.opensearch_warning)}</span>` : ''}</div>`);
+        } else {
+          TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+        }
       },
     });
   }

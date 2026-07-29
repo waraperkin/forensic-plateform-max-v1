@@ -112,7 +112,7 @@
 
   <h3>Prérequis</h3>
   <ul>
-    <li><code>SEKOIA_API_KEY</code> (droits lecture + écriture sur intakes / règles / playbooks) dans <code>.env</code> ;</li>
+    <li>Clé API Sekoia (droits lecture + écriture sur intakes / règles / playbooks) — saisie <strong>uniquement</strong> dans <em>Threat Platforms → Configuration</em>, stockée <strong>chiffrée</strong> côté connecteur (jamais dans <code>.env</code>) ; les données collectées sont persistées chiffrées et restent disponibles jusqu'à un rafraîchissement ou jusqu'à la suppression de la clé, qui déclenche la <strong>purge complète</strong> des données Sekoia ;</li>
     <li>Connecteurs CTI optionnels : <code>OPENCTI_TOKEN</code>, <code>MISP_KEY</code>, <code>THEHIVE_API_KEY</code>, <code>CORTEX_API_KEY</code> — les sources non configurées sont simplement marquées « non configuré » ;</li>
     <li>Validation de bout en bout : <code>./scripts/validate-sekoia.sh</code>.</li>
   </ul>

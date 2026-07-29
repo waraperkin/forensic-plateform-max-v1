@@ -7,6 +7,10 @@ Control-plane interne pour la couche Sekoia de la plateforme forensic.
 - Monitoring : stats, coverage, alerts Sekoia.
 - Collecte ciblée d'événements (jobs Sekoia, plafonds bornés).
 - Secrets : store chiffré Fernet (SEKOIA_SECRETS_KEY), jamais de valeur par défaut.
+  La clé se saisit uniquement depuis le portail et persiste sur le volume /data.
+- Données : dernier état (inventaire/règles/stats) persisté chiffré dans
+  /data/sekoia-data.enc — servi en fallback si un refresh échoue, purgé à la
+  suppression de la clé (avec les indices OpenSearch locaux sekoia-*).
 - Sécurité : tout /control/* exige l'en-tête X-Internal-Token (INTERNAL_API_TOKEN).
   /health reste ouvert pour les healthchecks Docker.
 
@@ -38,6 +42,10 @@ HTTP_TIMEOUT = float(os.environ.get("SEKOIA_HTTP_TIMEOUT", "30"))
 PAGE_LIMIT = int(os.environ.get("SEKOIA_PAGE_SIZE", "100"))
 MAX_PAGES = int(os.environ.get("SEKOIA_MAX_PAGES", "50"))
 SECRETS_PATH = os.environ.get("SECRETS_PATH", "/data/sekoia-secrets.enc")
+# Store de DONNÉES persistées (inventaire, règles, stats) — chiffré Fernet comme
+# les secrets. Les données obtenues de Sekoia y vivent jusqu'à un refresh
+# explicite ou jusqu'à la suppression de la clé API (purge complète).
+DATA_PATH = os.environ.get("SEKOIA_DATA_PATH", "/data/sekoia-data.enc")
 DEFAULT_BASE = "https://app.sekoia.io"
 INTERNAL_API_TOKEN = os.environ.get("INTERNAL_API_TOKEN", "").strip()
 EVENTS_PAGE = 100
@@ -122,6 +130,67 @@ def save_overrides(data: dict) -> tuple[bool, str]:
         return True, ""
     except Exception as exc:
         return False, str(exc)
+
+
+# ── Store de données persisté (chiffré Fernet, même clé que les secrets) ─────
+def save_data_store(payload: dict) -> bool:
+    """Persiste le dernier état complet (inventory/rules/stats) sur disque,
+    chiffré. Les données survivent aux redémarrages et restent disponibles
+    jusqu'au prochain refresh réussi ou jusqu'à la purge (suppression clé)."""
+    import json
+    f = _fernet()
+    if not f:
+        return False
+    try:
+        os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
+        with open(DATA_PATH, "wb") as fh:
+            fh.write(f.encrypt(json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")))
+        return True
+    except Exception as exc:
+        log.warning("save_data_store: %s", exc)
+        return False
+
+
+def load_data_store() -> dict:
+    import json
+    f = _fernet()
+    if not f:
+        return {}
+    try:
+        with open(DATA_PATH, "rb") as fh:
+            return json.loads(f.decrypt(fh.read()).decode("utf-8"))
+    except FileNotFoundError:
+        return {}
+    except Exception as exc:
+        log.warning("load_data_store: %s", exc)
+        return {}
+
+
+def purge_data_store() -> list:
+    """Supprime le store de données persistées. Retourne les fichiers purgés."""
+    removed = []
+    try:
+        if os.path.exists(DATA_PATH):
+            os.remove(DATA_PATH)
+            removed.append(DATA_PATH)
+    except OSError as exc:
+        log.warning("purge_data_store: %s", exc)
+    return removed
+
+
+def purge_analytics_stores() -> list:
+    """Purge les stores analytics DÉRIVÉS de Sekoia (snapshots d'inventaire).
+    Les watchlists sont des données utilisateur : elles sont conservées."""
+    removed = []
+    try:
+        import analytics as _an
+        path = getattr(_an, "SNAPSHOTS_PATH", None)
+        if path and os.path.exists(path):
+            os.remove(path)
+            removed.append(path)
+    except Exception as exc:
+        log.warning("purge_analytics_stores: %s", exc)
+    return removed
 
 
 def conf() -> dict:
@@ -474,23 +543,76 @@ def build_stats(inventory: dict, rules: list) -> dict:
     return stats
 
 
-# ── Cache par ressource ───────────────────────────────────────────────────────
+# ── Cache par ressource + persistance ─────────────────────────────────────────
+# Règle métier : les données obtenues de Sekoia NE DISPARAISSENT JAMAIS d'elles-
+# mêmes. Elles sont rechargées depuis le store chiffré au démarrage, servies en
+# fallback si un refresh échoue, et ne sont purgées que lors de la suppression
+# de la clé API (ou d'un changement d'identité Sekoia).
 _CACHE_TTLS = {"full": int(os.environ.get("SEKOIA_CACHE_TTL", "120"))}
-_CACHE: dict = {"ts": 0.0, "inventory": None, "rules": None, "stats": None, "rules_err": None}
+_CACHE: dict = {"ts": 0.0, "inventory": None, "rules": None, "stats": None,
+                "rules_err": None, "persisted": False, "refresh_error": None}
 _CACHE_LOCK = asyncio.Lock()
+
+
+def _iso_ts(ts: float) -> Optional[str]:
+    if not ts:
+        return None
+    try:
+        return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _load_persisted_into_cache() -> bool:
+    """Recharge le store chiffré dans le cache mémoire (démarrage / cache vide)."""
+    data = load_data_store()
+    inv = data.get("inventory")
+    if not inv:
+        return False
+    rules = data.get("rules") or []
+    _CACHE.update({
+        "ts": float(data.get("ts") or 0.0),
+        "inventory": inv,
+        "rules": rules,
+        "stats": data.get("stats") or build_stats(inv, rules),
+        "rules_err": data.get("rules_err"),
+        "persisted": True,
+        "refresh_error": None,
+    })
+    log.info("Données Sekoia persistées rechargées (ts=%s)", _iso_ts(_CACHE["ts"]))
+    return True
+
+
+def _reset_cache():
+    _CACHE.update({"ts": 0.0, "inventory": None, "rules": None, "stats": None,
+                   "rules_err": None, "persisted": False, "refresh_error": None})
 
 
 async def get_full(force: bool = False) -> dict:
     async with _CACHE_LOCK:
+        if not _CACHE["inventory"]:
+            _load_persisted_into_cache()
         if is_stale() and _CACHE["inventory"]:
             return _CACHE
-        if not force and _CACHE["inventory"] and (time.time() - _CACHE["ts"]) < _CACHE_TTLS["full"]:
+        has_data = bool(_CACHE["inventory"])
+        fresh = has_data and (time.time() - _CACHE["ts"]) < _CACHE_TTLS["full"]
+        if not force and fresh:
             return _CACHE
         inv = await build_inventory()
         rules, rerr = await build_detection_rules(inv["format_by_uuid"])
+        # Échec complet du refresh (aucune donnée + erreur) avec des données
+        # existantes → on CONSERVE l'état précédent et on signale l'erreur.
+        if has_data and not inv["main_inventory"] and inv["errors"]:
+            _CACHE["refresh_error"] = inv["errors"][0]
+            return _CACHE
         stats = build_stats(inv, rules)
         _CACHE.update({"ts": time.time(), "inventory": inv, "rules": rules,
-                       "stats": stats, "rules_err": rerr})
+                       "stats": stats, "rules_err": rerr,
+                       "persisted": False, "refresh_error": None})
+        # On ne persiste que du contenu réel (jamais un état vide non configuré).
+        if inv["main_inventory"] or rules:
+            save_data_store({"ts": _CACHE["ts"], "inventory": inv, "rules": rules,
+                             "stats": stats, "rules_err": rerr})
         return _CACHE
 
 
@@ -503,7 +625,10 @@ def envelope(items=None, error=None, extra=None, source="sekoia") -> dict:
     token_expired = (error == "token_expired") or is_stale()
     body = {"configured": configured(), "source": source, "base_url": c["base"],
             "count": len(items or []), "items": items or [],
-            "stale": is_stale(), "token_expired": bool(token_expired)}
+            "stale": is_stale(), "token_expired": bool(token_expired),
+            "persisted": bool(_CACHE.get("persisted")),
+            "refreshed_at": _iso_ts(_CACHE.get("ts") or 0.0),
+            "refresh_error": _CACHE.get("refresh_error")}
     if error:
         body["error"] = ("UI token expiré — mettez à jour le UI token dans Threat Platforms → Configuration"
                          if error == "token_expired" else str(error))
@@ -547,10 +672,17 @@ async def _probe() -> dict:
 @app.get("/control/sekoia/config", dependencies=[Depends(require_internal_token)])
 async def get_config():
     c = conf()
+    data_state = {
+        "persisted": bool(_CACHE.get("persisted") or os.path.exists(DATA_PATH)),
+        "refreshed_at": _iso_ts(_CACHE.get("ts") or 0.0),
+        "counts": ((_CACHE.get("stats") or {}).get("totals") if _CACHE.get("stats") else None),
+        "refresh_error": _CACHE.get("refresh_error"),
+    }
     return {"configured": configured(), "base_url": c["base"],
             "has_api_key": bool(c["api_key"]), "has_ui_token": bool(c["ui_token"]),
             "auth_header": "Authorization: Bearer <SEKOIA_API_KEY | SEKOIA_UI_TOKEN>",
-            "uses_env": False, "stale": is_stale(), "token_expired": is_stale()}
+            "uses_env": False, "stale": is_stale(), "token_expired": is_stale(),
+            "secrets_store": "encrypted-fernet", "data": data_state}
 
 
 class ConfigBody(BaseModel):
@@ -562,7 +694,11 @@ class ConfigBody(BaseModel):
 @app.put("/control/sekoia/config", dependencies=[Depends(require_internal_token)])
 @app.post("/control/sekoia/config", dependencies=[Depends(require_internal_token)])
 async def set_config(body: ConfigBody):
-    ov = load_overrides()
+    before = load_overrides()
+    old_identity = ((before.get("SEKOIA_API_KEY") or "").strip(),
+                    (before.get("SEKOIA_UI_TOKEN") or "").strip(),
+                    (before.get("SEKOIA_BASE_URL") or "").strip())
+    ov = dict(before)
     for key in ("SEKOIA_API_KEY", "SEKOIA_BASE_URL", "SEKOIA_UI_TOKEN"):
         val = getattr(body, key, None)
         if val is not None:
@@ -572,22 +708,45 @@ async def set_config(body: ConfigBody):
             else:
                 ov.pop(key, None)
     ok, err = save_overrides(ov)
+    new_identity = ((ov.get("SEKOIA_API_KEY") or "").strip(),
+                    (ov.get("SEKOIA_UI_TOKEN") or "").strip(),
+                    (ov.get("SEKOIA_BASE_URL") or "").strip())
+    purged: list = []
+    if ok and any(old_identity) and new_identity != old_identity:
+        # Identité Sekoia modifiée (autre clé / autre tenant) → les données
+        # collectées avec l'ancienne identité sont purgées.
+        purged = purge_data_store() + purge_analytics_stores()
+        _reset_cache()
+    else:
+        invalidate_cache()
     await _clear_stale()
-    invalidate_cache()
     _COMMUNITY["uuid"] = None
     return {"ok": ok, "error": err or None, "configured": configured(),
-            "base_url": conf()["base"], "stale": is_stale()}
+            "base_url": conf()["base"], "stale": is_stale(),
+            "data_purged": purged, "persisted": bool(_CACHE.get("persisted"))}
 
 
 @app.delete("/control/sekoia/config", dependencies=[Depends(require_internal_token)])
 async def delete_config():
+    """Suppression de la clé API = purge TOTALE des données obtenues de Sekoia :
+    secrets chiffrés, store de données persistées, snapshots analytics, cache
+    mémoire et indices OpenSearch locaux alimentés par sekoia-monitor."""
     try:
         if os.path.exists(SECRETS_PATH):
             os.remove(SECRETS_PATH)
     except OSError as exc:
         return {"ok": False, "error": str(exc)}
-    invalidate_cache()
-    return {"ok": True, "configured": configured()}
+    purged = purge_data_store() + purge_analytics_stores()
+    _reset_cache()
+    _COMMUNITY["uuid"] = None
+    await _clear_stale()
+    os_purged, os_err = await _purge_local_indices()
+    body = {"ok": True, "configured": configured(),
+            "purged_files": purged, "opensearch_indices_purged": os_purged,
+            "persisted": False}
+    if os_err:
+        body["opensearch_warning"] = os_err
+    return body
 
 
 # ── Inventaires (lecture) ─────────────────────────────────────────────────────
@@ -595,7 +754,8 @@ async def delete_config():
 async def inventory(refresh: int = 0):
     full = await get_full(force=refresh == 1)
     inv = full["inventory"]
-    return envelope(inv["main_inventory"], error=(inv["errors"][0] if inv["errors"] else None),
+    err = inv["errors"][0] if inv["errors"] else full.get("refresh_error")
+    return envelope(inv["main_inventory"], error=err,
                     source="sekoia-inventory",
                     extra={"stats": full["stats"], "counts": full["stats"]["totals"]})
 
@@ -604,7 +764,8 @@ async def inventory(refresh: int = 0):
 async def intakes():
     full = await get_full()
     inv = full["inventory"]
-    return envelope(inv["main_inventory"], error=(inv["errors"][0] if inv["errors"] else None),
+    err = inv["errors"][0] if inv["errors"] else full.get("refresh_error")
+    return envelope(inv["main_inventory"], error=err,
                     source="sekoia-intakes", extra={"stats": full["stats"]})
 
 
@@ -1108,6 +1269,25 @@ async def os_search(index: str, body: dict) -> tuple[Optional[dict], Optional[st
         return r.json(), None
     except httpx.HTTPError as exc:
         return None, str(exc)
+
+
+# Indices locaux alimentés par sekoia-monitor à partir des données Sekoia.
+# Purge best-effort déclenchée à la suppression de la clé API.
+LOCAL_INDICES_PURGE = "sekoia-volumetry-*,sekoia-intakes-*,sekoia-alerts-*,sekoia-baselines"
+
+
+async def _purge_local_indices() -> tuple[list, Optional[str]]:
+    """Supprime les indices OpenSearch locaux dérivés de Sekoia.
+    (indices traités, erreur éventuelle — la purge ne bloque jamais la réponse)."""
+    auth = (OS_USER, OS_PASSWORD) if OS_PASSWORD else None
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, auth=auth) as c:
+            r = await c.delete(f"{OS_URL}/{LOCAL_INDICES_PURGE}")
+        if r.status_code in (200, 404):
+            return LOCAL_INDICES_PURGE.split(","), None
+        return [], f"OpenSearch HTTP {r.status_code}"
+    except httpx.HTTPError as exc:
+        return [], str(exc)
 
 
 # ── Recherche d'événements libre (au-delà de la console Sekoia) ──────────────

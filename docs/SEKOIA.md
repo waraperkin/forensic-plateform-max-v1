@@ -31,7 +31,21 @@ OpenSearch ◄──────── sekoia-monitor ────┘
   saisis dans *Threat Platforms → Configuration* (réservé admin), stockés
   **chiffrés Fernet** dans `/data/sekoia-secrets.enc`. La clé Fernet
   (`SEKOIA_SECRETS_KEY`) vient du `.env` local généré par
-  `scripts/generate-secrets.sh` — jamais commitée.
+  `scripts/generate-secrets.sh` — jamais commitée. La clé se saisit
+  **uniquement depuis le portail** ; elle persiste sur le volume `sekoia-cp-data`
+  (tâches planifiées et refreshs l'utilisent sans re-saisie).
+- **Persistance des données Sekoia** : le dernier état complet (inventaire,
+  règles, stats) est écrit chiffré dans `/data/sekoia-data.enc` à chaque refresh
+  réussi. Les données **restent disponibles** après redémarrage ou en cas
+  d'échec de refresh (fallback `persisted:true` + `refresh_error` dans
+  l'enveloppe), jusqu'au prochain refresh réussi ou à la suppression de la clé.
+- **Purge à la suppression de la clé** (`DELETE /control/sekoia/config`) :
+  supprime les secrets, le store de données `/data/sekoia-data.enc`, les
+  snapshots analytics, le cache mémoire, et best-effort les indices OpenSearch
+  locaux `sekoia-volumetry-*`, `sekoia-intakes-*`, `sekoia-alerts-*`,
+  `sekoia-baselines`. Un **changement d'identité** (remplacement de la clé par
+  une autre) purge également les données de l'ancienne identité. La réponse
+  détaille `purged_files` et `opensearch_indices_purged`.
 - Écritures `/config` : réservées au rôle `admin` au niveau proxy portail.
 
 ## Données réelles uniquement
@@ -103,7 +117,8 @@ Base : `http://sekoia-controlplane:8901` — en-tête `X-Internal-Token`.
 | Méthode | Chemin | Description |
 |---|---|---|
 | GET | `/health` | santé (ouvert), `?probe=1` = test live Sekoia |
-| GET/PUT/POST/DELETE | `/control/sekoia/config` | configuration des secrets (store Fernet) |
+| GET/PUT/POST | `/control/sekoia/config` | configuration des secrets (store Fernet) — la réponse expose l'état des données persistées (`data.persisted`, `data.refreshed_at`) ; un changement de clé purge les données de l'ancienne identité |
+| DELETE | `/control/sekoia/config` | suppression de la clé + **purge totale** des données Sekoia (store `/data/sekoia-data.enc`, snapshots, cache, indices OpenSearch `sekoia-volumetry/intakes/alerts/baselines`) |
 | GET | `/control/sekoia/intakes` | inventaire intakes enrichi |
 | POST/PATCH/DELETE | `/control/sekoia/intakes[/{id}]` | CRUD intakes |
 | GET | `/control/sekoia/rules?severity=&rule_type=&q=&trim=&limit=&offset=` | catalogue règles + filtres serveur |
@@ -160,7 +175,7 @@ Base : `/api/incidents` (session portail requise). Store OpenSearch :
 | GET | `/api/incidents/{id}/report` | rapport Markdown généré (résumé, timeline, evidences, IOCs, uploads, checklist de clôture) |
 | POST | `/api/incidents/{id}/purge` | **purge complète** — `dry_run:true` par défaut ; apply exige `confirm:true`. Supprime : docs `forensic-*` du case, objets MinIO, métadonnées uploads, sketch Timesketch `[FP] <case>`. HELK = purge manuelle (stack séparé). Auditée. |
 
-Stores locaux persistants (volume `/data`) : `sekoia-watchlists.json`, `sekoia-snapshots.json`
+Stores locaux persistants (volume `/data`) : `sekoia-secrets.enc` (clé API, chiffré Fernet), `sekoia-data.enc` (inventaire/règles/stats persistés, chiffré Fernet — purgé à la suppression de la clé), `sekoia-watchlists.json`, `sekoia-snapshots.json`
 (50 snapshots conservés), `sekoia-sol-library.json`. Aucune donnée fabriquée :
 `available: false` si la télémétrie locale est absente.
 

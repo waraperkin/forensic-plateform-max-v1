@@ -8,6 +8,8 @@ import pytest
 # Environnement contrôlé AVANT l'import du module
 os.environ["INTERNAL_API_TOKEN"] = "test-internal-token"
 os.environ["SECRETS_PATH"] = "/tmp/test-sekoia-secrets.enc"
+os.environ["SEKOIA_DATA_PATH"] = "/tmp/test-sekoia-data.enc"
+os.environ["SNAPSHOTS_PATH"] = "/tmp/test-sekoia-snapshots.json"
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -24,12 +26,16 @@ AUTH = {"X-Internal-Token": "test-internal-token"}
 
 @pytest.fixture(autouse=True)
 def clean_store():
-    if os.path.exists(os.environ["SECRETS_PATH"]):
-        os.remove(os.environ["SECRETS_PATH"])
-    cp.invalidate_cache()
+    for p in (os.environ["SECRETS_PATH"], os.environ["SEKOIA_DATA_PATH"],
+              os.environ["SNAPSHOTS_PATH"]):
+        if os.path.exists(p):
+            os.remove(p)
+    cp._reset_cache()
     yield
-    if os.path.exists(os.environ["SECRETS_PATH"]):
-        os.remove(os.environ["SECRETS_PATH"])
+    for p in (os.environ["SECRETS_PATH"], os.environ["SEKOIA_DATA_PATH"],
+              os.environ["SNAPSHOTS_PATH"]):
+        if os.path.exists(p):
+            os.remove(p)
 
 
 # ── Auth interne ──────────────────────────────────────────────────────────────
@@ -309,3 +315,131 @@ def test_local_top_hostnames(monkeypatch):
     assert j["available"] is True
     assert j["items"][0]["log_hostname"] == "SRV-01"
     assert j["items"][0]["count"] == 1000
+
+
+# ── Persistance des données + purge (règle métier clé API) ────────────────────
+def _fake_inventory():
+    return {
+        "main_inventory": [{"intake_uuid": "u1", "intake_name": "Win-DC01",
+                            "intake_format_uuid": "9281438c-f7c3-4001-9bcc-45fd108ba1be"}],
+        "intakes": [], "connectors_cfg": [], "modules_cfg": [], "playbooks": [],
+        "playbook_actions": [], "ingest_formats": [],
+        "format_by_uuid": {}, "errors": [],
+    }
+
+
+def _mock_ok(monkeypatch):
+    async def fake_inv():
+        return _fake_inventory()
+
+    async def fake_rules(format_by_uuid):
+        return [{"rule_uuid": "r1", "rule_name": "Brute force", "rule_severity": 80,
+                 "rule_dialect_uuids": "", "rule_tags": "", "rule_description": "",
+                 "rule_type": "sigma"}], None
+
+    monkeypatch.setattr(cp, "build_inventory", fake_inv)
+    monkeypatch.setattr(cp, "build_detection_rules", fake_rules)
+    monkeypatch.setattr(cp, "configured", lambda: True)
+
+
+def test_donnees_persistees_sur_disque_chiffre(monkeypatch):
+    """Un refresh réussi écrit le store chiffré ; les données sont rechargées
+    depuis le disque quand le cache mémoire est vide (redémarrage)."""
+    _mock_ok(monkeypatch)
+    r = client.get("/control/sekoia/inventory?refresh=1", headers=AUTH)
+    assert r.status_code == 200
+    assert r.json()["count"] == 1
+    assert r.json()["persisted"] is False
+    # Le fichier existe et ne contient rien en clair
+    assert os.path.exists(os.environ["SEKOIA_DATA_PATH"])
+    with open(os.environ["SEKOIA_DATA_PATH"], "rb") as fh:
+        blob = fh.read()
+    assert b"Win-DC01" not in blob and b"Brute force" not in blob
+    # Simulation redémarrage : cache mémoire vide → recharge depuis le disque
+    cp._CACHE.update({"ts": 0.0, "inventory": None, "rules": None, "stats": None,
+                      "rules_err": None, "persisted": False, "refresh_error": None})
+
+    async def boom_inv():
+        raise AssertionError("ne doit pas refetcher — données persistées fraîches")
+
+    # Le ts persisté est récent → pas de refetch nécessaire
+    r = client.get("/control/sekoia/inventory", headers=AUTH)
+    j = r.json()
+    assert j["count"] == 1
+    assert j["items"][0]["intake_name"] == "Win-DC01"
+    assert j["persisted"] is True
+    assert j["refreshed_at"]
+
+
+def test_refresh_en_echec_conserve_les_donnees(monkeypatch):
+    """Si un refresh échoue totalement, les données précédentes sont conservées."""
+    _mock_ok(monkeypatch)
+    assert client.get("/control/sekoia/inventory?refresh=1", headers=AUTH).json()["count"] == 1
+
+    async def fail_inv():
+        return {"main_inventory": [], "intakes": [], "connectors_cfg": [],
+                "modules_cfg": [], "playbooks": [], "playbook_actions": [],
+                "ingest_formats": [], "format_by_uuid": {},
+                "errors": ["connexion Sekoia impossible"]}
+
+    async def fail_rules(format_by_uuid):
+        return [], "connexion Sekoia impossible"
+
+    monkeypatch.setattr(cp, "build_inventory", fail_inv)
+    monkeypatch.setattr(cp, "build_detection_rules", fail_rules)
+    r = client.get("/control/sekoia/inventory?refresh=1", headers=AUTH)
+    j = r.json()
+    assert j["count"] == 1  # données conservées
+    assert j["items"][0]["intake_name"] == "Win-DC01"
+    assert j["refresh_error"] == "connexion Sekoia impossible"
+
+
+def test_suppression_cle_purge_toutes_les_donnees(monkeypatch):
+    """DELETE /config → secrets + store de données + snapshots + cache purgés."""
+    _mock_ok(monkeypatch)
+    # Clé + données + snapshot analytics
+    client.post("/control/sekoia/config", headers=AUTH, json={"SEKOIA_API_KEY": "sio_test"})
+    assert client.get("/control/sekoia/inventory?refresh=1", headers=AUTH).json()["count"] == 1
+    assert os.path.exists(os.environ["SEKOIA_DATA_PATH"])
+    import json as _json
+    with open(os.environ["SNAPSHOTS_PATH"], "w", encoding="utf-8") as fh:
+        _json.dump([{"id": "s1", "ts": "x"}], fh)
+
+    async def fake_purge():
+        return ["sekoia-volumetry-*"], None
+
+    monkeypatch.setattr(cp, "_purge_local_indices", fake_purge)
+    # Après suppression des secrets, configured() redevient faux
+    monkeypatch.setattr(cp, "configured", lambda: False)
+    r = client.delete("/control/sekoia/config", headers=AUTH)
+    j = r.json()
+    assert j["ok"] is True and j["configured"] is False
+    assert os.environ["SEKOIA_DATA_PATH"] in j["purged_files"]
+    assert os.environ["SNAPSHOTS_PATH"] in j["purged_files"]
+    assert j["opensearch_indices_purged"] == ["sekoia-volumetry-*"]
+    # Fichiers réellement supprimés + cache vidé
+    assert not os.path.exists(os.environ["SECRETS_PATH"])
+    assert not os.path.exists(os.environ["SEKOIA_DATA_PATH"])
+    assert not os.path.exists(os.environ["SNAPSHOTS_PATH"])
+    assert cp._CACHE["inventory"] is None
+
+
+def test_changement_identite_purge_les_donnees(monkeypatch):
+    """Remplacer la clé par une AUTRE purge les données de l'ancienne identité."""
+    _mock_ok(monkeypatch)
+    client.post("/control/sekoia/config", headers=AUTH, json={"SEKOIA_API_KEY": "sio_ancienne"})
+    assert client.get("/control/sekoia/inventory?refresh=1", headers=AUTH).json()["count"] == 1
+    assert os.path.exists(os.environ["SEKOIA_DATA_PATH"])
+    r = client.post("/control/sekoia/config", headers=AUTH, json={"SEKOIA_API_KEY": "sio_nouvelle"})
+    j = r.json()
+    assert j["ok"] is True
+    assert os.environ["SEKOIA_DATA_PATH"] in j["data_purged"]
+    assert not os.path.exists(os.environ["SEKOIA_DATA_PATH"])
+    assert cp._CACHE["inventory"] is None
+
+
+def test_config_expose_etat_donnees():
+    r = client.get("/control/sekoia/config", headers=AUTH)
+    j = r.json()
+    assert j["secrets_store"] == "encrypted-fernet"
+    assert "data" in j and j["data"]["persisted"] is False

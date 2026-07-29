@@ -6,6 +6,7 @@ import pytest
 
 os.environ["INTERNAL_API_TOKEN"] = "test-internal-token"
 os.environ["SECRETS_PATH"] = "/tmp/test-sekoia-secrets.enc"
+os.environ["SEKOIA_DATA_PATH"] = "/tmp/test-sekoia-data.enc"
 os.environ["WATCHLISTS_PATH"] = "/tmp/test-sekoia-watchlists.json"
 os.environ["SNAPSHOTS_PATH"] = "/tmp/test-sekoia-snapshots.json"
 

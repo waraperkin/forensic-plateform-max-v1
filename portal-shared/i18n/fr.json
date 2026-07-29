@@ -1142,7 +1142,7 @@
     "delete_user": "Supprimer cet utilisateur ?",
     "delete_view": "Supprimer cette vue ?",
     "disable_api_key": "Désactiver cette clé API ?",
-    "delete_sekoia_secrets": "Supprimer les secrets Sekoia stockés ?"
+    "delete_sekoia_secrets": "Supprimer la clé API Sekoia ?\n\n⚠️ TOUTES les données obtenues de Sekoia seront purgées définitivement : inventaires, règles, volumétrie et alertes locales (indices OpenSearch), snapshots. Cette action est irréversible."
   },
   "hub_intro": {
     "cert_ops": "Opérations CERT",
@@ -1878,7 +1878,12 @@
   "threat": {
     "additive_note": "altère aucun module existant : ajoute des loaders branchés aux boutons",
     "auth_bearer_note": "authentifient via <strong>Authorization: Bearer &lt;SEKOIA_UI_TOKEN&gt;</strong>. Les secrets sont stockés <strong>chiffrés</strong> dans le connecteur (<code>/data</code>), jamais dans <code>.env</code>.</p>",
-    "sekoia_auth_intro": "Les inventaires Sekoia (intakes, règles, formats, connecteurs, playbooks, télémétrie) s'authentifient via <strong>Authorization: Bearer &lt;SEKOIA_UI_TOKEN&gt;</strong>. Les secrets sont stockés <strong>chiffrés</strong> dans le connecteur (<code>/data</code>), jamais dans <code>.env</code>.",
+    "sekoia_auth_intro": "Les inventaires Sekoia (intakes, règles, formats, connecteurs, playbooks, télémétrie) s'authentifient via <strong>Authorization: Bearer &lt;SEKOIA_UI_TOKEN&gt;</strong>. La clé se saisit <strong>uniquement ici</strong> : elle est stockée <strong>chiffrée</strong> dans le connecteur (<code>/data</code>), jamais dans <code>.env</code>. Les données collectées sont <strong>persistées chiffrées</strong> et restent disponibles jusqu'à un rafraîchissement ou jusqu'à la suppression de la clé — qui déclenche une <strong>purge complète</strong> des données Sekoia.",
+    "data_state_persisted": "Données persistées (chiffrées) — dernière synchronisation : {ts}",
+    "data_state_none": "Aucune donnée persistée — elles le seront au premier chargement réussi.",
+    "refresh_data_now": "Rafraîchir les données maintenant",
+    "refresh_data_done": "Données rafraîchies : {n} intake(s).",
+    "purge_summary": "Purge effectuée : {files} fichier(s) de données + indices OpenSearch locaux ({indices}).",
     "s1_tokens_desc": "Comptes / tokens API SentinelOne.",
     "sekoia_token_required": "Renseignez le SEKOIA_UI_TOKEN (JWT) : il est requis pour charger les inventaires.",
     "delete_secrets": "Supprimer les secrets",

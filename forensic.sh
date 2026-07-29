@@ -74,8 +74,15 @@ setup_tls() {
       return 0
     fi
     if command -v jq >/dev/null 2>&1; then
-      jq --arg url "https://${IP}" '.soc_base_url = $url' "$cfg" > "${cfg}.tmp"
-      mv "${cfg}.tmp" "$cfg"
+      # Écriture atomique : ne remplacer le config.json que si jq réussit
+      # (un jq en échec produit un .tmp vide qui écraserait la config).
+      if jq --arg url "https://${IP}" '.soc_base_url = $url' "$cfg" > "${cfg}.tmp" \
+        && [ -s "${cfg}.tmp" ]; then
+        mv "${cfg}.tmp" "$cfg"
+      else
+        rm -f "${cfg}.tmp"
+        warn "[TLS] jq a échoué sur $cfg — config.json conservé tel quel"
+      fi
     else
       python3 - "$cfg" "$IP" <<'PY'
 import json, sys

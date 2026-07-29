@@ -11,9 +11,34 @@ fi
 # shellcheck source=/dev/null
 . "$ROOT/scripts/lib/host-ip.sh"
 
-TEST_IP="203.0.113.10"
+# IP fictive HORS plages documentation RFC 5737 : la plateforme traite
+# volontairement 192.0.2./198.51.100./203.0.113. comme placeholders à auto-réparer.
+TEST_IP="192.168.2.110"
 WORKDIR="$(mktemp -d)"
-trap 'rm -rf "$WORKDIR"' EXIT
+
+# Sauvegarde des fichiers RÉELS touchés par le test — restauration garantie
+# par trap même en cas d'échec (le preflight ne doit JAMAIS altérer le .env
+# ou les configs de l'utilisateur).
+REAL_ENV_BACKUP="$WORKDIR/.env.real"
+CERT_CFG_BACKUP="$WORKDIR/config-cert.json"
+IT_CFG_BACKUP="$WORKDIR/config-it.json"
+TS_CONF_BACKUP="$WORKDIR/timesketch.conf"
+[ -f "$ROOT/.env" ] && cp "$ROOT/.env" "$REAL_ENV_BACKUP"
+cp "$ROOT/portal-cert/public/config.json" "$CERT_CFG_BACKUP"
+cp "$ROOT/portal-it/public/config.json" "$IT_CFG_BACKUP"
+[ -f "$ROOT/config/timesketch/timesketch.conf" ] && cp "$ROOT/config/timesketch/timesketch.conf" "$TS_CONF_BACKUP"
+cleanup() {
+  if [ -f "$REAL_ENV_BACKUP" ]; then cp "$REAL_ENV_BACKUP" "$ROOT/.env"; else rm -f "$ROOT/.env"; fi
+  cp "$CERT_CFG_BACKUP" "$ROOT/portal-cert/public/config.json" 2>/dev/null || true
+  cp "$IT_CFG_BACKUP" "$ROOT/portal-it/public/config.json" 2>/dev/null || true
+  if [ -f "$TS_CONF_BACKUP" ]; then
+    cp "$TS_CONF_BACKUP" "$ROOT/config/timesketch/timesketch.conf" 2>/dev/null || true
+  else
+    rm -f "$ROOT/config/timesketch/timesketch.conf"
+  fi
+  rm -rf "$WORKDIR"
+}
+trap cleanup EXIT
 
 cp "$ROOT/.env.example" "$WORKDIR/.env"
 export DIR="$ROOT"
@@ -92,8 +117,7 @@ for key in PUBLIC_HOST GRAFANA_DOMAIN MISP_PUBLIC_BASE_URL; do
   esac
 done
 
-# Timesketch conf depuis .env simulé
-cp "$WORKDIR/.env" "$ROOT/.env.bak-test" 2>/dev/null || true
+# Timesketch conf depuis .env simulé (le vrai .env est restauré par le trap EXIT)
 cp "$WORKDIR/.env" "$ROOT/.env"
 FP_PUBLIC_HOST="$TEST_IP" bash "$ROOT/scripts/generate-timesketch-conf.sh" >/dev/null
 if grep -q "192.0.2.9" "$ROOT/config/timesketch/timesketch.conf"; then
@@ -106,12 +130,23 @@ if ! grep -q "https://${TEST_IP}/timesketch" "$ROOT/config/timesketch/timesketch
 fi
 echo "PASS: timesketch.conf → https://${TEST_IP}/timesketch"
 
-# Portails config.json
+# Portails config.json — patch JSON portable : jq si présent, sinon python3
+# (jq n'est pas encore installé sur une VM fraîche au moment du preflight).
 for cfg in portal-cert/public/config.json portal-it/public/config.json; do
   FP_PUBLIC_HOST="$TEST_IP" bash -c "
     source scripts/lib/host-ip.sh
     ip=\$(fp_resolve_public_host)
-    jq --arg url \"https://\${ip}\" '.soc_base_url = \$url' '$cfg' > '${cfg}.tmp' && mv '${cfg}.tmp' '$cfg'
+    if command -v jq >/dev/null 2>&1; then
+      jq --arg url \"https://\${ip}\" '.soc_base_url = \$url' '$cfg' > '${cfg}.tmp' && mv '${cfg}.tmp' '$cfg'
+    else
+      python3 - '$cfg' \"https://\${ip}\" <<'PY'
+import json, sys
+p, url = sys.argv[1], sys.argv[2]
+d = json.load(open(p, encoding='utf-8'))
+d['soc_base_url'] = url
+json.dump(d, open(p, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+PY
+    fi
   "
   if grep -q '192.0.2.9' "$cfg"; then
     echo "FAIL: $cfg contient 192.0.2.9" >&2
@@ -136,11 +171,4 @@ echo "PASS: docker-compose.yml sans fallback 192.0.2.9"
 
 echo ""
 echo "Bootstrap frais OK — IP test $TEST_IP"
-# Restaurer .env si backup
-if [ -f "$ROOT/.env.bak-test" ]; then
-  mv "$ROOT/.env.bak-test" "$ROOT/.env"
-else
-  rm -f "$ROOT/.env"
-fi
-# Restaurer portails et timesketch
-git checkout -- portal-cert/public/config.json portal-it/public/config.json config/timesketch/timesketch.conf 2>/dev/null || true
+# La restauration du vrai .env / configs est assurée par le trap EXIT (cleanup).

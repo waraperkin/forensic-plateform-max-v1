@@ -29,8 +29,13 @@ fp_url_identity() { echo "$TEST_IP"; }
 
 _fp_bootstrap_env_complete
 
-grep -qE '^POSTGRES_PASSWORD=F0r3ns1c_PG_2024!' "$WORKDIR/.env" || { echo "FAIL: POSTGRES_PASSWORD"; exit 1; }
-grep -qE '^CERT_PORTAL_SECRET=F0r3ns1c_Portal_2024!' "$WORKDIR/.env" || { echo "FAIL: CERT_PORTAL_SECRET"; exit 1; }
+# P-04 : les secrets sont générés ALÉATOIREMENT à chaque bootstrap — on vérifie
+# qu'ils sont remplis, différents de la valeur legacy migrée, jamais vides.
+pg=$(grep -E '^POSTGRES_PASSWORD=' "$WORKDIR/.env" | cut -d= -f2-)
+[ -n "$pg" ] || { echo "FAIL: POSTGRES_PASSWORD vide"; exit 1; }
+[ "$pg" != "legacy-should-vanish" ] || { echo "FAIL: POSTGRES_PASSWORD = valeur legacy migrée"; exit 1; }
+portal=$(grep -E '^CERT_PORTAL_SECRET=' "$WORKDIR/.env" | cut -d= -f2-)
+[ -n "$portal" ] || { echo "FAIL: CERT_PORTAL_SECRET vide"; exit 1; }
 grep -qE "^PUBLIC_HOST=${TEST_IP}" "$WORKDIR/.env" || { echo "FAIL: PUBLIC_HOST=$TEST_IP"; exit 1; }
 grep -qE '^CONNECTOR_CISA_KEV_ID=' "$WORKDIR/.env" || { echo "FAIL: CONNECTOR_CISA_KEV_ID absent"; exit 1; }
 
@@ -41,4 +46,4 @@ for bad in '^MOT_DE_PASSE_POSTGRES=' '^HÔTE_PUBLIC=' '^HOTE_PUBLIC=' '^CONNECTE
   fi
 done
 
-echo "PASS: bootstrap répare .env corrompu (clés FR → canoniques + secrets labo)"
+echo "PASS: bootstrap répare .env corrompu (clés FR → canoniques + secrets aléatoires P-04)"

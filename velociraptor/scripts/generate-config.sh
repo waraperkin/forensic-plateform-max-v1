@@ -103,7 +103,15 @@ _vr_run() {
 
 mkdir -p "$ROOT/config" "$ROOT/clients" "$ROOT/data"
 
-_vr_run config generate > "$ROOT/config/server.config.yaml"
+# Écriture atomique : ne JAMAIS tronquer une config valide existante si la
+# génération échoue (binaire + fallback Docker indisponibles, réseau coupé…).
+_vr_run config generate > "$ROOT/config/server.config.yaml.tmp"
+if [ ! -s "$ROOT/config/server.config.yaml.tmp" ]; then
+  echo "ERREUR: génération config Velociraptor vide (binaire + Docker indisponibles)" >&2
+  rm -f "$ROOT/config/server.config.yaml.tmp"
+  exit 1
+fi
+mv -f "$ROOT/config/server.config.yaml.tmp" "$ROOT/config/server.config.yaml"
 
 python3 - "$ROOT/config/server.config.yaml" "$VR_PUBLIC_ORIGIN" "$DATA_DIR" <<'PY'
 import sys
@@ -152,7 +160,13 @@ with open(path, "w", encoding="utf-8") as f:
 print(f"Config écrite: {path}")
 PY
 
-_vr_run --config "$ROOT/config/server.config.yaml" config client > "$ROOT/clients/client.config.yaml"
+_vr_run --config "$ROOT/config/server.config.yaml" config client > "$ROOT/clients/client.config.yaml.tmp"
+if [ -s "$ROOT/clients/client.config.yaml.tmp" ]; then
+  mv -f "$ROOT/clients/client.config.yaml.tmp" "$ROOT/clients/client.config.yaml"
+else
+  rm -f "$ROOT/clients/client.config.yaml.tmp"
+  echo "WARN: client.config.yaml non généré (config serveur indisponible)" >&2
+fi
 echo "api.config.yaml: générer via scripts/helk_velociraptor_master_setup.sh après démarrage du serveur"
 
 echo "Configuration Velociraptor prête dans $ROOT/config/"

@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -23,7 +24,12 @@ from fastapi.testclient import TestClient  # noqa: E402
 client = TestClient(cp.app)
 AUTH = {"X-Internal-Token": "test-internal-token"}
 
-NOW = "2026-07-29T10:00:00Z"
+# Horodatages DYNAMIQUES — la fraîcheur et les fenêtres glissantes (7 j) sont
+# calculées vs l'heure réelle : des constantes figées rendent les tests
+# défaillants dès que l'horloge dépasse leur date (bombe à retardement).
+NOW = datetime.now(timezone.utc).isoformat()
+OLD = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+RECENT = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
 
 
 @pytest.fixture(autouse=True)
@@ -49,7 +55,7 @@ def _states():
                 "volume_available": True, "hostnames_count": 8},
         "u-2": {"intake_uuid": "u-2", "intake_name": "Fortinet", "entity_name": "HQ",
                 "intake_status": "enabled", "current_count": 10, "baseline_avg": 500.0,
-                "drop_ratio": 0.02, "last_event_ts": "2026-07-29T04:00:00Z",
+                "drop_ratio": 0.02, "last_event_ts": OLD,
                 "silent": True, "volume_available": True, "hostnames_count": 1},
         "u-3": {"intake_uuid": "u-3", "intake_name": "AWS", "entity_name": "Cloud",
                 "intake_status": "enabled", "current_count": None,
@@ -162,7 +168,7 @@ def test_anomalies_detecte_drop_et_silence(monkeypatch):
 
 def test_anomalies_nouveaux_et_disparus(monkeypatch):
     hosts = [
-        {"key": "SRV-NEW", "first_seen": {"value_as_string": "2026-07-29T09:30:00Z"},
+        {"key": "SRV-NEW", "first_seen": {"value_as_string": RECENT},
          "last_seen": {"value_as_string": NOW}, "vol": {"value": 50},
          "intakes": {"value": 1}},
         {"key": "SRV-GONE", "first_seen": {"value_as_string": "2026-07-22T08:00:00Z"},
@@ -180,7 +186,7 @@ def test_anomalies_nouveaux_et_disparus(monkeypatch):
 # ── C. Hosts intelligence ─────────────────────────────────────────────────────
 def test_hosts_intelligence(monkeypatch):
     hosts = [
-        {"key": "SRV-NEW", "first_seen": {"value_as_string": "2026-07-29T09:30:00Z"},
+        {"key": "SRV-NEW", "first_seen": {"value_as_string": RECENT},
          "last_seen": {"value_as_string": NOW}, "vol": {"value": 50},
          "intakes": {"value": 1}},
         {"key": "SRV-MULTI", "first_seen": {"value_as_string": "2026-07-23T08:00:00Z"},

@@ -1784,7 +1784,7 @@ for k, dv in DEFAULTS.items():
         existing[k] = dv
 
 # Secrets : générés aléatoirement si clé migrée depuis alias FR ou valeur vide (P-04)
-SECRET_LIKE = tuple(s for s in CRITICAL + tuple(DEFAULTS.keys()) + tuple(existing.keys())
+SECRET_LIKE = tuple(s for s in tuple(CRITICAL) + tuple(DEFAULTS.keys()) + tuple(existing.keys())
                     if any(t in s for t in ("SECRET", "PASSWORD", "KEY", "TOKEN")))
 for k in SECRET_LIKE:
     if k in alias_migrated or not existing.get(k):
@@ -1877,16 +1877,20 @@ _fp_bootstrap_patch_env_host() {
 
 _fp_bootstrap_apt_extras() {
   local pkgs=() p
-  for p in python3-yaml; do
+  # python3-yaml : génération config Velociraptor ; python3-requests : scripts
+  # hôte (opensearch_collect_platform_logs.py, repair-timesketch*, tests e2e,
+  # misp_login_ok) — sinon ImportError sur VM fraîche et opensearch_advanced.sh
+  # échoue (exit 1) en fin de déploiement.
+  for p in python3-yaml python3-requests; do
     dpkg -s "$p" >/dev/null 2>&1 || pkgs+=("$p")
   done
-  [ "${#pkgs[@]}" -eq 0 ] && { ok "Packages extras présents (python3-yaml)"; return 0; }
+  [ "${#pkgs[@]}" -eq 0 ] && { ok "Packages extras présents (python3-yaml, python3-requests)"; return 0; }
   warn "Installation packages extras: ${pkgs[*]}"
   if command -v apt-get >/dev/null 2>&1; then
     _fp_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}" >> "$FP_LOG_INSTALL" 2>&1 \
-      && ok "Packages extras installés" || warn "Installation python3-yaml partielle"
+      && ok "Packages extras installés" || warn "Installation packages extras partielle (${pkgs[*]})"
   else
-    warn "apt-get absent — installer python3-yaml manuellement (Velociraptor config)"
+    warn "apt-get absent — installer manuellement: ${pkgs[*]:-python3-yaml python3-requests}"
   fi
   return 0
 }

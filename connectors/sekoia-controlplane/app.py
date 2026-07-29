@@ -1290,6 +1290,11 @@ async def local_top_hostnames(hours: int = 24, size: int = 50, intake_uuid: str 
 import analytics  # noqa: E402
 analytics.register(app)
 
+# ── Workspace SOL v2.3 (Sekoia Operating Language) : validation locale,
+#    exécution via API, bibliothèque de requêtes, exemples.
+import sol  # noqa: E402
+sol.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

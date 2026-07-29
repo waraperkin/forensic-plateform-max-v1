@@ -163,7 +163,9 @@
     sel: { rules: new Set(), inventaire: new Set() },
     events: [], evQuery: {}, iocResult: null, coverage: null, volum: null,
     sante: null, anomalies: null, hosts: null, efficacite: null,
-    watchlists: null, snapshots: null, digest: null, snapDiff: null };
+    watchlists: null, snapshots: null, digest: null, snapDiff: null,
+    sol: null, solLib: null, solExamples: null,
+    incList: null, incDetail: null, incScan: null, incReport: null, incPurge: null };
   let ccRenderGen = 0;
   function ccRenderStale(gen) { return gen !== ccRenderGen || !document.getElementById('cc-body'); }
   const CC_SUBS = [
@@ -175,6 +177,7 @@
     ['sante', T("tab_sante")], ['anomalies', T("tab_anomalies")], ['hosts', T("tab_hosts")],
     ['efficacite', T("tab_efficacite")], ['watchlists', T("tab_watchlists")],
     ['snapshots', T("tab_snapshots")], ['digest', T("tab_digest")],
+    ['sol', T("tab_sol")], ['incidents', T("tab_incidents")],
     ['stats', i18n.t('msg.stats_avancees')], ['audit', T("tab_audit")],
     ['querybuilder', 'Query Builder'], ['dashboard', i18n.t('msg.dashboard_builder')], ['assetprofile', 'Asset Profile'],
   ];
@@ -254,6 +257,26 @@
         'cc-snap-diff': (el) => ccSnapDiff(el.dataset.id),
         'cc-snap-restore': (el) => ccSnapRestore(el.dataset.id),
         'cc-run-digest': () => ccRunDigest(true),
+        // ── v2.3 : workspace SOL + onglet Incident SOAR ──
+        'cc-sol-validate': () => ccSolValidate(),
+        'cc-sol-run': () => ccSolRun(),
+        'cc-sol-save': () => ccSolSave(),
+        'cc-sol-load': (el) => ccSolLoad(el.dataset.id),
+        'cc-sol-del': (el) => ccSolDel(el.dataset.id),
+        'cc-sol-example': (el) => ccSolExample(parseInt(el.dataset.idx, 10)),
+        'cc-inc-new': () => ccIncNew(),
+        'cc-inc-open': (el) => ccIncOpen(el.dataset.id),
+        'cc-inc-back': () => ccIncBack(),
+        'cc-inc-status': () => ccIncStatus(),
+        'cc-inc-ev-add': () => ccIncEvAdd(),
+        'cc-inc-ev-del': (el) => ccIncEvDel(el.dataset.id),
+        'cc-inc-link': () => ccIncLink(),
+        'cc-inc-scan': () => ccIncScan(),
+        'cc-inc-report': () => ccIncReport(),
+        'cc-inc-report-copy': () => { if (cc.incReport) TC.copy(cc.incReport); },
+        'cc-inc-purge-dry': () => ccIncPurge(true),
+        'cc-inc-purge-apply': () => ccIncPurge(false),
+        'cc-inc-delete': () => ccIncDelete(),
       });
       const debouncedCcList = (window.PortalPerf && window.PortalPerf.debounce)
         ? window.PortalPerf.debounce(() => ccRenderList(), 120) : () => ccRenderList();
@@ -385,6 +408,8 @@
     if (sub === 'watchlists') { ccRenderWatchlists(); if (!cc.loaded.watchlists) ccRunWatchlists(); return; }
     if (sub === 'snapshots') { ccRenderSnapshots(); if (!cc.loaded.snapshots) ccRunSnapshots(); return; }
     if (sub === 'digest') { ccRenderDigest(); if (!cc.loaded.digest) ccRunDigest(); return; }
+    if (sub === 'sol') { ccRenderSol(); if (!cc.loaded.solLib) ccSolLoadLib(); return; }
+    if (sub === 'incidents') { ccRenderIncidents(); if (!cc.loaded.incidents) ccRunIncidents(); return; }
     if (sub === 'audit') {
       const a = await TC.api('/audit');
       if (ccRenderStale(gen)) return;
@@ -992,6 +1017,439 @@
     cc.digest = await TC.api(`/sekoia/digest?hours=${hours}`);
     cc.loaded.digest = true;
     if (cc.sub === 'digest') ccRenderDigest();
+  }
+
+  /* ═══════════════════ v2.3 — Workspace SOL (Sekoia Operating Language) ═══ */
+  function ccRenderSol() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    body.innerHTML = `<div class="cc-tp-fetchform">
+      <div class="fp-form-row"><label class="fp-label" style="flex:1">${esc(T("lbl_sol_editor"))}
+        <textarea class="fp-input cc-sol-editor" id="cc-sol-query" rows="7" spellcheck="false"
+          placeholder="${esc(T("ph_sol_query"))}">${esc(cc.solQuery || '')}</textarea></label></div>
+      <div class="fp-form-row fp-grid-3">
+        <label class="fp-label">${esc(T("lbl_sol_limit"))}
+          <input class="fp-input" id="cc-sol-limit" type="number" min="1" max="10000" value="${cc.solLimit || 100}"></label>
+        <label class="fp-label">&nbsp;<span class="fp-muted">${esc(T("msg_sol_limits"))}</span></label>
+      </div>
+      <div class="fp-actions-row">
+        <button type="button" class="fp-btn fp-btn-ghost" data-act="cc-sol-validate">${esc(T("act_validate"))}</button>
+        <button type="button" class="fp-btn fp-btn-primary" data-act="cc-sol-run">${esc(T("act_sol_run"))}</button>
+        <button type="button" class="fp-btn fp-btn-ghost" data-act="cc-sol-save">${esc(T("act_sol_save"))}</button>
+      </div></div>
+      <div id="cc-sol-feedback" class="fp-section-spaced"></div>
+      <div id="cc-sol-result" class="fp-section-spaced"></div>
+      <h4 class="fp-section-sub fp-section-spaced">${esc(T("lbl_sol_examples"))}</h4>
+      <div id="cc-sol-examples">${cc.solExamples ? '' : TC.tableLoading(3, i18n.t('ui.loading'))}</div>
+      <h4 class="fp-section-sub fp-section-spaced">${esc(T("lbl_sol_library"))}</h4>
+      <div id="cc-sol-library">${cc.solLib ? '' : TC.tableLoading(3, i18n.t('ui.loading'))}</div>`;
+    if (cc.sol) ccRenderSolFeedback();
+    if (cc.solResult) ccRenderSolResult();
+    if (cc.solExamples) ccRenderSolExamples();
+    if (cc.solLib) ccRenderSolLibrary();
+    if (!cc.solExamples) ccSolLoadExamples();
+  }
+
+  function ccRenderSolFeedback() {
+    const host = document.getElementById('cc-sol-feedback'); if (!host) return;
+    const v = cc.sol; if (!v) { host.innerHTML = ''; return; }
+    const errs = (v.errors || []).map((e) => `<li>${esc(e)}</li>`).join('');
+    const warns = (v.warnings || []).map((w) => `<li>${esc(w)}</li>`).join('');
+    host.innerHTML = (v.ok
+      ? `<span class="fp-tag fp-tag-ok">${esc(T("msg_sol_valid"))}</span>`
+      : `<span class="fp-tag fp-tag-danger">${esc(T("msg_sol_invalid"))}</span>`)
+      + (errs ? `<ul class="cc-sol-errlist">${errs}</ul>` : '')
+      + (warns ? `<ul class="cc-sol-warnlist">${warns}</ul>` : '')
+      + (v.hint ? `<p class="fp-muted">${esc(v.hint)}</p>` : '');
+  }
+
+  function ccRenderSolResult() {
+    const host = document.getElementById('cc-sol-result'); if (!host) return;
+    const r = cc.solResult; if (!r) { host.innerHTML = ''; return; }
+    if (r.error || r.ok === false) {
+      host.innerHTML = `<p><span class="fp-tag fp-tag-danger">${esc(r.error || (r.errors || []).join(' · ') || i18n.t('msg.echec'))}</span></p>`;
+      return;
+    }
+    const rows = r.rows;
+    if (!rows || !rows.length) {
+      host.innerHTML = `<p class="fp-muted">${esc(T("msg_sol_no_rows"))}${r.row_count != null ? ` (${r.row_count})` : ''}</p>`
+        + (r.raw ? `<details class="fp-section-spaced"><summary>JSON</summary><pre class="cc-pre">${esc(JSON.stringify(r.raw, null, 1)).slice(0, 8000)}</pre></details>` : '');
+      return;
+    }
+    // Table dynamique : union des clés des 50 premières lignes
+    const cols = [...new Set(rows.slice(0, 50).flatMap((row) => Object.keys(row || {})))].slice(0, 12);
+    host.innerHTML = `<p class="fp-muted">${r.row_count ?? rows.length} ${esc(T("col_results"))}</p>`
+      + TC.table(cols.map((c) => ({ label: c, render: (row) => esc(typeof row[c] === 'object' ? JSON.stringify(row[c]) : row[c] ?? '—') })),
+        rows.slice(0, 200), { empty: T("msg_sol_no_rows") });
+  }
+
+  function ccRenderSolExamples() {
+    const host = document.getElementById('cc-sol-examples'); if (!host) return;
+    const items = (cc.solExamples || {}).items || [];
+    host.innerHTML = TC.table([
+      { label: T("col_nom"), render: (r) => `<strong>${esc(r.name)}</strong>` },
+      { label: T("col_categorie"), render: (r) => `<span class="fp-tag">${esc(r.category)}</span>` },
+      { label: '', render: (r, idx) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sol-example" data-idx="${idx}">${esc(T("act_sol_insert"))}</button>` },
+    ], items, { empty: T("msg_aucun_element") });
+  }
+
+  function ccRenderSolLibrary() {
+    const host = document.getElementById('cc-sol-library'); if (!host) return;
+    const items = (cc.solLib || {}).items || [];
+    host.innerHTML = TC.table([
+      { label: T("col_nom"), render: (r) => `<strong>${esc(r.name)}</strong>` },
+      { label: T("col_tables"), render: (r) => esc((r.tables || []).join(', ') || '—') },
+      { label: 'Tags', render: (r) => esc((r.tags || []).join(', ') || '—') },
+      { label: T("col_date_snap"), render: (r) => esc((r.created_at || '').replace('T', ' ').slice(0, 16)) },
+      { label: '', render: (r) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sol-load" data-id="${esc(r.id)}">${esc(T("act_sol_insert"))}</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sol-del" data-id="${esc(r.id)}">${esc(T("act_delete"))}</button>` },
+    ], items, { empty: T("msg_sol_lib_empty") });
+  }
+
+  async function ccSolValidate() {
+    cc.solQuery = val('cc-sol-query');
+    cc.sol = await TC.api('/sekoia/sol/validate', { method: 'POST', body: { query: cc.solQuery } });
+    ccRenderSolFeedback();
+  }
+  async function ccSolRun() {
+    cc.solQuery = val('cc-sol-query');
+    cc.solLimit = parseInt(val('cc-sol-limit') || '100', 10) || 100;
+    cc.solResult = { rows: null, raw: null };
+    ccRenderSolResult();
+    const r = await TC.api('/sekoia/sol/run', { method: 'POST', body: { query: cc.solQuery, limit: cc.solLimit } });
+    cc.sol = r; // erreurs de validation + warnings remontés par run
+    cc.solResult = r;
+    ccRenderSolFeedback();
+    ccRenderSolResult();
+  }
+  async function ccSolSave() {
+    const query = val('cc-sol-query') || cc.solQuery || '';
+    if (!query.trim()) { TC.toast(T("msg_sol_empty_first"), 'warn'); return; }
+    const name = await askText(T("act_sol_save"), T("col_nom"), '');
+    if (!name) return;
+    const r = await TC.api('/sekoia/sol/library', { method: 'POST', body: { name, query, tags: [] } });
+    if (r && r.ok) { TC.toast(T("msg_sol_saved"), 'ok'); ccSolLoadLib(); }
+    else TC.toast((r && (r.error || (r.errors || []).join(' · '))) || i18n.t('msg.echec'), 'warn');
+  }
+  async function ccSolLoadLib() {
+    cc.solLib = await TC.api('/sekoia/sol/library');
+    cc.loaded.solLib = true;
+    ccRenderSolLibrary();
+  }
+  async function ccSolLoadExamples() {
+    cc.solExamples = await TC.api('/sekoia/sol/examples');
+    ccRenderSolExamples();
+  }
+  async function ccSolLoad(id) {
+    const items = (cc.solLib || {}).items || [];
+    const entry = items.find((e) => e.id === id);
+    if (!entry) return;
+    cc.solQuery = entry.query;
+    const ta = document.getElementById('cc-sol-query'); if (ta) { ta.value = entry.query; ta.focus(); }
+    TC.toast(T("msg_sol_loaded"), 'ok');
+  }
+  async function ccSolDel(id) {
+    const r = await TC.api(`/sekoia/sol/library/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (r && r.ok) { TC.toast(T("msg_supprime"), 'ok'); ccSolLoadLib(); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+  function ccSolExample(idx) {
+    const ex = ((cc.solExamples || {}).items || [])[idx];
+    if (!ex) return;
+    cc.solQuery = ex.query;
+    const ta = document.getElementById('cc-sol-query'); if (ta) { ta.value = ex.query; ta.focus(); }
+    TC.toast(T("msg_sol_loaded"), 'ok');
+  }
+
+  /* ═══════════════════ v2.3 — Onglet Incident SOAR ═══════════════════════ */
+  async function incApi(path, opts) {
+    const o = Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {});
+    if (o.body && typeof o.body !== 'string') {
+      o.headers = Object.assign({ 'Content-Type': 'application/json' }, o.headers || {});
+      o.body = JSON.stringify(o.body);
+    }
+    const r = await fetch(`/api/incidents${path}`, o);
+    try { return await r.json(); } catch { return {}; }
+  }
+
+  const INC_STATUSES = ['new', 'in_progress', 'contained', 'closed', 'purged'];
+  function incStatusTag(s) {
+    const map = { new: 'fp-tag-danger', in_progress: 'fp-tag-warn', contained: 'fp-tag-ok', closed: '', purged: '' };
+    return `<span class="fp-tag ${map[s] || ''}">${esc(T(`status_${s}`) || s)}</span>`;
+  }
+
+  function ccRenderIncidents() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    if (cc.incDetail) return ccRenderIncDetail();
+    body.innerHTML = `<div class="fp-actions-row fp-section-spaced">
+        <button type="button" class="fp-btn fp-btn-primary" data-act="cc-inc-new">${esc(T("act_inc_new"))}</button>
+      </div>
+      <div id="cc-inc-table">${cc.incList ? '' : TC.tableLoading(4, i18n.t('ui.loading'))}</div>`;
+    if (cc.incList) ccRenderIncTable();
+  }
+
+  function ccRenderIncTable() {
+    const host = document.getElementById('cc-inc-table'); if (!host) return;
+    host.innerHTML = TC.table([
+      { label: T("col_titre"), render: (r) => `<strong>${esc(r.title)}</strong><br><span class="fp-muted">${esc(r.incident_id)}</span>` },
+      { label: T("col_severite"), render: (r) => sevBadge(r.severity) },
+      { label: T("col_statut"), render: (r) => incStatusTag(r.status) },
+      { label: T("col_assignee"), render: (r) => esc(r.assignee || '—') },
+      { label: T("col_cree_le"), render: (r) => esc((r.created_at || '').replace('T', ' ').slice(0, 16)) },
+      { label: '', render: (r) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-open" data-id="${esc(r.incident_id)}">${esc(T("act_open"))}</button>` },
+    ], cc.incList || [], { empty: T("msg_inc_empty") });
+  }
+
+  async function ccRunIncidents() {
+    const list = await incApi('');
+    cc.incList = Array.isArray(list) ? list : [];
+    cc.loaded.incidents = true;
+    if (cc.sub === 'incidents' && !cc.incDetail) ccRenderIncidents();
+  }
+
+  async function ccIncNew() {
+    const out = await crudForm(T("act_inc_new"), [
+      { key: 'title', label: T("col_titre"), type: 'text', required: true, placeholder: T("ph_inc_title") },
+      { key: 'severity', label: T("col_severite"), type: 'select', options: ['critical', 'high', 'medium', 'low', 'info'].map((s) => ({ value: s, label: s })) },
+      { key: 'description', label: T("form_description"), type: 'textarea' },
+    ], { severity: 'medium' });
+    if (!out) return;
+    const r = await incApi('', { method: 'POST', body: out });
+    if (r && r.ok) {
+      TC.toast(T("msg_inc_created", { id: r.incident.incident_id }), 'ok');
+      cc.loaded.incidents = false;
+      await ccRunIncidents();
+      ccIncOpen(r.incident.incident_id);
+    } else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  async function ccIncOpen(id) {
+    const d = await incApi(`/${encodeURIComponent(id)}`);
+    if (!d || !d.incident) { TC.toast((d && d.error) || T("msg_inc_not_found"), 'warn'); return; }
+    cc.incDetail = d; cc.incScan = null; cc.incReport = null; cc.incPurge = null;
+    ccRenderIncDetail();
+  }
+  function ccIncBack() {
+    cc.incDetail = null; cc.loaded.incidents = false;
+    ccRenderIncidents(); ccRunIncidents();
+  }
+
+  function ccRenderIncDetail() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    const d = cc.incDetail; if (!d) return;
+    const inc = d.incident || {};
+    const events = d.events || [];
+    const uploads = d.uploads || [];
+    body.innerHTML = `<div class="fp-actions-row">
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-back">${esc(T("act_back"))}</button>
+        <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-inc-scan">${esc(T("act_inc_scan"))}</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-report">${esc(T("act_inc_report"))}</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-delete">${esc(T("act_inc_delete"))}</button>
+      </div>
+      <div class="cc-tp-dashgrid fp-section-spaced">
+        ${TC.statCard(T("col_statut"), '', 'accent').replace('</div>', `<div style="margin-top:.3rem">${incStatusTag(inc.status)}</div></div>`)}
+        ${TC.statCard(T("col_severite"), '', '') .replace('</div>', `<div style="margin-top:.3rem">${sevBadge(inc.severity)}</div></div>`)}
+        ${TC.statCard(T("col_assignee"), inc.assignee || '—')}
+        ${TC.statCard(T("msg_fichiers_ingeres"), uploads.length)}
+      </div>
+      <div class="cc-tp-fetchform"><h4 class="fp-section-sub">${esc(inc.title)} <span class="fp-muted">— ${esc(inc.incident_id)}</span></h4>
+        ${inc.description ? `<p class="fp-muted">${esc(inc.description)}</p>` : ''}
+        <div class="fp-form-row fp-grid-3">
+          <label class="fp-label">${esc(T("col_statut"))}
+            <select class="fp-select" id="cc-inc-status">${INC_STATUSES.map((s) => `<option value="${s}"${s === inc.status ? ' selected' : ''}>${esc(T(`status_${s}`))}</option>`).join('')}</select></label>
+          <label class="fp-label">${esc(T("col_assignee"))}
+            <input class="fp-input" id="cc-inc-assignee" value="${esc(inc.assignee || '')}"></label>
+          <label class="fp-label">&nbsp;<button type="button" class="fp-btn fp-btn-primary" data-act="cc-inc-status">${esc(T("act_apply"))}</button></label>
+        </div>
+        <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-link">${esc(T("act_inc_link"))}</button>
+          ${(inc.linked_cases || []).length ? `<span class="fp-muted">${esc(T("msg_linked_cases", { cases: inc.linked_cases.join(', ') }))}</span>` : ''}</div>
+      </div>
+      <h4 class="fp-section-sub fp-section-spaced">${esc(T("lbl_inc_events"))} (${events.length})</h4>
+      <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-ev-add">${esc(T("act_ev_add"))}</button></div>
+      <div id="cc-inc-events" class="fp-section-spaced">${ccIncEventsHtml(events)}</div>
+      <h4 class="fp-section-sub fp-section-spaced">${esc(T("lbl_inc_uploads"))} (${uploads.length})</h4>
+      <p class="fp-muted">${esc(T("msg_inc_upload_hint", { id: inc.case_id }))}</p>
+      <div id="cc-inc-uploads">${ccIncUploadsHtml(uploads)}</div>
+      <div id="cc-inc-scan-zone" class="fp-section-spaced"></div>
+      <div id="cc-inc-report-zone" class="fp-section-spaced"></div>
+      <h4 class="fp-section-sub fp-section-spaced">${esc(T("lbl_inc_purge"))}</h4>
+      <div class="cc-tp-fetchform"><p class="fp-muted">${esc(T("msg_inc_purge_warn"))}</p>
+        <div class="fp-actions-row">
+          <button type="button" class="fp-btn fp-btn-ghost" data-act="cc-inc-purge-dry">${esc(T("act_purge_dry"))}</button>
+          <button type="button" class="fp-btn fp-btn-danger" data-act="cc-inc-purge-apply">${esc(T("act_purge_apply"))}</button>
+        </div>
+        <div id="cc-inc-purge-zone" class="fp-section-spaced"></div>
+      </div>`;
+    if (cc.incScan) ccRenderIncScan();
+    if (cc.incReport) ccRenderIncReport();
+    if (cc.incPurge) ccRenderIncPurge();
+  }
+
+  function ccIncEventsHtml(events) {
+    const KIND_LBL = { timeline: T("kind_timeline"), note: T("kind_note"), evidence: T("kind_evidence"), ioc: T("kind_ioc"), status: T("kind_status") };
+    if (!events.length) return `<p class="fp-muted">${esc(T("msg_ev_empty"))}</p>`;
+    return TC.table([
+      { label: T("col_date"), render: (r) => esc((r.event_at || r.created_at || '').replace('T', ' ').slice(0, 16)) },
+      { label: T("col_kind"), render: (r) => `<span class="fp-tag">${esc(KIND_LBL[r.kind] || r.kind)}</span>` },
+      { label: T("col_titre"), render: (r) => (r.kind === 'ioc' ? `<strong>${esc(r.value || '')}</strong> <span class="fp-tag">${esc(r.ioc_type || '')}</span> — ${esc(r.title)}` : esc(r.title)) },
+      { label: T("col_description"), render: (r) => esc((r.description || '').slice(0, 160)) },
+      { label: '', render: (r) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-ev-del" data-id="${esc(r.event_id)}">${esc(T("act_delete"))}</button>` },
+    ], events.slice().reverse(), { empty: T("msg_ev_empty") });
+  }
+
+  function ccIncUploadsHtml(uploads) {
+    if (!uploads.length) return `<p class="fp-muted">${esc(T("msg_inc_no_uploads"))}</p>`;
+    return TC.table([
+      { label: T("col_fichier"), render: (r) => esc(TC.deep(r, 'file.name') || '—') },
+      { label: T("col_taille"), render: (r) => { const n = TC.deep(r, 'file.size'); return n != null ? `${(n / 1024).toFixed(1)} Ko` : '—'; } },
+      { label: T("col_bucket"), render: (r) => `<span class="fp-tag">${esc(TC.deep(r, 'storage.bucket') || '—')}</span>` },
+      { label: 'OS', render: (r) => esc(r.os_type || '—') },
+      { label: T("col_date"), render: (r) => esc((r['@timestamp'] || '').replace('T', ' ').slice(0, 16)) },
+    ], uploads, { empty: T("msg_inc_no_uploads") });
+  }
+
+  async function ccIncStatus() {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    const r = await incApi(`/${encodeURIComponent(id)}`, { method: 'PATCH', body: { status: val('cc-inc-status'), assignee: val('cc-inc-assignee') } });
+    if (r && r.ok) { TC.toast(T("msg_updated"), 'ok'); await ccIncOpen(id); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  async function ccIncEvAdd() {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    const out = await crudForm(T("act_ev_add"), [
+      { key: 'kind', label: T("col_kind"), type: 'select', options: [
+        { value: 'timeline', label: T("kind_timeline") }, { value: 'note', label: T("kind_note") },
+        { value: 'evidence', label: T("kind_evidence") }, { value: 'ioc', label: T("kind_ioc") }] },
+      { key: 'title', label: T("col_titre"), type: 'text', required: true },
+      { key: 'value', label: T("lbl_ev_value"), type: 'text', placeholder: T("ph_ev_value") },
+      { key: 'description', label: T("col_description"), type: 'textarea' },
+    ], { kind: 'timeline' });
+    if (!out) return;
+    const r = await incApi(`/${encodeURIComponent(id)}/events`, { method: 'POST', body: out });
+    if (r && r.ok) { TC.toast(T("msg_ajoute"), 'ok'); await ccIncOpen(id); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  async function ccIncEvDel(eventId) {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    const r = await incApi(`/${encodeURIComponent(id)}/events/${encodeURIComponent(eventId)}`, { method: 'DELETE' });
+    if (r && r.ok) { TC.toast(T("msg_supprime"), 'ok'); await ccIncOpen(id); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  async function ccIncLink() {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    const caseId = await askText(T("act_inc_link"), 'case_id', '');
+    if (!caseId) return;
+    const r = await incApi(`/${encodeURIComponent(id)}/link-case`, { method: 'POST', body: { case_id: caseId } });
+    if (r && r.ok) { TC.toast(T("msg_inc_linked"), 'ok'); await ccIncOpen(id); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+
+  async function ccIncScan() {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    const zone = document.getElementById('cc-inc-scan-zone');
+    if (zone) zone.innerHTML = TC.tableLoading(4, T("msg_inc_scan_running"));
+    cc.incScan = await incApi(`/${encodeURIComponent(id)}/scan`, { method: 'POST', body: { save: true } });
+    ccRenderIncScan();
+    if (cc.incScan && cc.incScan.ok) await ccIncOpen(id); // evidences persistées → refresh doux conservé via zone
+  }
+
+  function ccRenderIncScan() {
+    const zone = document.getElementById('cc-inc-scan-zone'); if (!zone) return;
+    const s = cc.incScan;
+    if (!s) { zone.innerHTML = ''; return; }
+    if (!s.ok) { zone.innerHTML = `<p><span class="fp-tag fp-tag-danger">${esc(s.error || i18n.t('msg.echec'))}</span></p>`; return; }
+    const st = s.stats || {};
+    zone.innerHTML = `<h4 class="fp-section-sub">${esc(T("msg_inc_scan_done", { n: s.matches?.length ?? 0, t: s.iocs_scanned ?? 0 }))}</h4>
+      ${s.watchlists_error ? `<p class="fp-muted">${esc(T("msg_watchlists_indispo", { err: s.watchlists_error }))}</p>` : ''}
+      <div class="cc-tp-dashgrid">
+        ${TC.statCard(T("col_docs"), st.total_docs ?? 0, 'accent')}
+        ${TC.statCard('IOCs', s.iocs_scanned ?? 0)}
+        ${TC.statCard(T("col_hits"), s.matches?.length ?? 0, s.matches?.length ? 'warn' : 'accent')}
+      </div>
+      <h4 class="fp-section-sub fp-section-spaced">${esc(T("lbl_inc_stats"))}</h4>`
+      + TC.table([
+        { label: T("col_index"), render: (r) => `<span class="fp-tag">${esc(r.index)}</span>` },
+        { label: T("col_docs"), render: (r) => String(r.count) },
+      ], st.indices || [], { empty: T("msg_aucun_element") })
+      + `<h4 class="fp-section-sub fp-section-spaced">${esc(T("msg_top_talkers"))} (source.ip)</h4>`
+      + TC.table([
+        { label: 'IP', render: (r) => esc(r.value) },
+        { label: T("col_volume"), render: (r) => String(r.count) },
+      ], st.top_source_ip || [], { empty: T("msg_aucun_element") })
+      + (s.matches?.length ? `<h4 class="fp-section-sub fp-section-spaced">${esc(T("col_ioc_matches"))}</h4>`
+        + TC.table([
+          { label: T("col_ioc_value"), render: (r) => `<strong>${esc(r.value)}</strong> <span class="fp-tag">${esc(r.ioc_type)}</span>` },
+          { label: T("col_origin"), render: (r) => esc(r.origin === 'watchlist' ? 'Watchlist Sekoia' : 'Incident') },
+          { label: T("col_hits"), render: (r) => `<strong>${r.hits}</strong>` },
+          { label: T("col_samples"), render: (r) => esc((r.samples || []).map((x) => `${x.index} @ ${(x.ts || '').slice(0, 19)}`).join(' · ')).slice(0, 200) },
+        ], s.matches, { empty: T("msg_aucun_element") }) : '');
+  }
+
+  async function ccIncReport() {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    const r = await incApi(`/${encodeURIComponent(id)}/report`);
+    if (r && r.ok) { cc.incReport = r.report; ccRenderIncReport(); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
+  }
+  function ccRenderIncReport() {
+    const zone = document.getElementById('cc-inc-report-zone'); if (!zone) return;
+    if (!cc.incReport) { zone.innerHTML = ''; return; }
+    zone.innerHTML = `<h4 class="fp-section-sub">${esc(T("act_inc_report"))}</h4>
+      <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-inc-report-copy">${esc(T("act_copy"))}</button></div>
+      <pre class="cc-pre cc-inc-report">${esc(cc.incReport)}</pre>`;
+  }
+
+  async function ccIncPurge(dry) {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    if (!dry) {
+      // Double confirmation : dry-run frais exigé avant application
+      const preview = await incApi(`/${encodeURIComponent(id)}/purge`, { method: 'POST', body: { dry_run: true } });
+      const nDocs = Object.values(preview.opensearch || {}).reduce((a, b) => a + b, 0);
+      const ok = await confirmBox(T("act_purge_apply"),
+        T("msg_purge_confirm", { id, n: nDocs, u: preview.uploads?.count ?? 0 }));
+      if (!ok) return;
+    }
+    cc.incPurge = await incApi(`/${encodeURIComponent(id)}/purge`, {
+      method: 'POST', body: dry ? { dry_run: true } : { dry_run: false, confirm: true },
+    });
+    ccRenderIncPurge();
+    if (!dry && cc.incPurge && cc.incPurge.ok) { TC.toast(T("msg_purged"), 'ok'); await ccIncOpen(id); ccRenderIncPurge(); }
+  }
+  function ccRenderIncPurge() {
+    const zone = document.getElementById('cc-inc-purge-zone'); if (!zone) return;
+    const p = cc.incPurge; if (!p) { zone.innerHTML = ''; return; }
+    if (!p.ok) { zone.innerHTML = `<p><span class="fp-tag fp-tag-danger">${esc(p.error || i18n.t('msg.echec'))}</span></p>`; return; }
+    const osRows = Object.entries(p.opensearch || {}).map(([idx, n]) => ({ index: idx, count: n }));
+    zone.innerHTML = `<p><span class="fp-tag ${p.dry_run ? 'fp-tag-warn' : 'fp-tag-ok'}">${esc(p.dry_run ? T("act_purge_dry") : T("msg_purged"))}</span></p>`
+      + TC.table([
+        { label: T("col_index"), render: (r) => `<span class="fp-tag">${esc(r.index)}</span>` },
+        { label: p.dry_run ? T("col_docs") : T("msg_supprimes"), render: (r) => String(r.count) },
+      ], osRows, { empty: T("msg_aucun_element") })
+      + `<p class="fp-muted">${esc(T("msg_purge_detail", {
+        u: p.uploads ? (p.uploads.count ?? p.uploads.deleted ?? 0) : 0,
+        m: p.minio?.objects ?? 0,
+        ts: Object.values(p.timesketch || {}).map((t) => (t.ok ? '✔' : t.skipped ? '—' : '✘')).join(' ') || '—',
+      }))}</p>
+      <p class="fp-muted">${esc(p.helk?.note || '')}</p>`;
+  }
+
+  async function ccIncDelete() {
+    const id = cc.incDetail && cc.incDetail.incident.incident_id;
+    if (!id) return;
+    const ok = await confirmBox(T("act_inc_delete"), T("msg_inc_delete_confirm", { id }));
+    if (!ok) return;
+    const r = await incApi(`/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (r && r.ok) { TC.toast(T("msg_inc_deleted"), 'ok'); ccIncBack(); }
+    else TC.toast((r && r.error) || i18n.t('msg.echec'), 'warn');
   }
 
   function ccRenderStats() {

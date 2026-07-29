@@ -98,9 +98,9 @@ Les bridges `helk-bridge` et `velociraptor-bridge` synchronisent les sidecars av
 
 ---
 
-## Couche Sekoia.io (v2.2) — Sekoia Control Center
+## Couche Sekoia.io (v2.3) — Sekoia Control Center
 
-La couche Sekoia dépasse largement la console Sekoia standard : le **Sekoia Control Center** (portail CERT) offre 20 onglets pilotés par l'API Sekoia et par la télémétrie locale.
+La couche Sekoia dépasse largement la console Sekoia standard : le **Sekoia Control Center** (portail CERT) offre 22 onglets pilotés par l'API Sekoia et par la télémétrie locale.
 
 - **Inventaires CRUD complets** : intakes, règles (pattern / SIGMA, sévérité 0-100), playbooks, connecteurs, modules, formats — création, édition, suppression, recherche avancée, filtrage dynamique, **actions en masse** (activation / désactivation).
 - **Monitoring d'ingestion temps réel** : volumétrie par intake / source / `log.hostname`, top hostnames, dernier événement, **alertes automatiques** (chute de volumétrie, intake muet, hostname absent, anomalie de parsing) avec **acquittement** tracé, dashboard Grafana *Sekoia Ingestion*.
@@ -114,6 +114,8 @@ La couche Sekoia dépasse largement la console Sekoia standard : le **Sekoia Con
   - **Watchlists** (hosts / IOC / utilisateurs) avec matching dans la télémétrie ;
   - **Snapshots de configuration** + diff + restauration avec dry-run (detection-as-code light) ;
   - **Digest SOC quotidien** agrégé.
+- **Workspace SOL (v2.3)** : le langage **SOL** (Sekoia Operating Language, pipe-style KQL) intégré au portail — **validation locale instantanée** (tables, opérateurs, pipes, quotes) sans consommer le quota API, **exécution** via l'API Sekoia (endpoint configurable `SEKOIA_SOL_API_PATH`), **bibliothèque de requêtes** réutilisable et **8 exemples officiels commentés**.
+- **Onglet Incidents — SOAR (v2.3)** : cycle complet d'un incident forensic — CRUD (sévérité, statuts, assignation), timeline / notes / evidences / IOCs typés automatiquement, ingestion de logs **tout format** via le pipeline existant (`case_id` = incident), **scan IOC** (IOCs de l'incident + watchlists Sekoia) avec échantillons et statistiques de parsing, **rapport Markdown** généré, et **purge complète de fin d'investigation** (logs OpenSearch, objets MinIO, uploads, sketch Timesketch — dry-run obligatoire + double confirmation + audit).
 - **Recherche d'événements** : requêtes Lucene asynchrones sur les événements Sekoia (plage et limite paramétrables).
 - **Couverture de détection** : matrice formats × règles, détection des intakes actifs sans règle (GAP).
 - **Testeur de logs** : détection automatique du format d'un échantillon (CEF, LEEF, syslog RFC3164/5424, JSON, CSV, key=value, XML…) et suggestion des formats Sekoia correspondants.
@@ -126,7 +128,8 @@ Validation de bout en bout de la couche :
 
 ```bash
 ./scripts/validate-sekoia.sh            # services, routes API, télémétrie, CTI
-python -m pytest connectors/sekoia-controlplane connectors/sekoia-monitor -q   # 60 tests
+python -m pytest connectors/sekoia-controlplane connectors/sekoia-monitor -q   # 74 tests
+node portal-cert/test-incident-routes.js                                       # 34 smoke tests SOAR
 ```
 
 ---

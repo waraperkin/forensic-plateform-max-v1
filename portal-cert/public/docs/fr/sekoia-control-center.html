@@ -1,7 +1,7 @@
 <div class="portal-doc-article">
-  <p class="portal-doc-lead">Le <strong>Sekoia Control Center</strong> (v2.2) est le centre de pilotage complet de votre SIEM Sekoia.io : inventaires éditables, monitoring d'ingestion temps réel, recherche d'événements, fédération CTI, analytics avancée et automatisation CERT — bien au-delà des fonctionnalités de la console Sekoia standard.</p>
+  <p class="portal-doc-lead">Le <strong>Sekoia Control Center</strong> (v2.3) est le centre de pilotage complet de votre SIEM Sekoia.io : inventaires éditables, monitoring d'ingestion temps réel, recherche d'événements, fédération CTI, analytics avancée, workspace SOL et gestion d'incidents SOAR — bien au-delà des fonctionnalités de la console Sekoia standard.</p>
 
-  <h3>Les 20 onglets</h3>
+  <h3>Les 22 onglets</h3>
   <table class="portal-doc-table">
     <thead><tr><th>Onglet</th><th>Fonction</th></tr></thead>
     <tbody>
@@ -25,9 +25,30 @@
       <tr><td>Watchlists <span class="fp-tag">v2.2</span></td><td>Surveillance de hosts, IOC et utilisateurs dans la télémétrie locale, hits sur 24 h</td></tr>
       <tr><td>Snapshots <span class="fp-tag">v2.2</span></td><td>Capture de la configuration (intakes + règles), diff vs état courant, restauration avec dry-run — detection-as-code light</td></tr>
       <tr><td>Digest SOC <span class="fp-tag">v2.2</span></td><td>Synthèse quotidienne : score global, volumes, alertes Sekoia, anomalies, intakes fragiles, top talkers</td></tr>
+      <tr><td>SOL <span class="fp-tag">v2.3</span></td><td>Éditeur SOL (Sekoia Operating Language) : validation locale instantanée (tables, opérateurs, pipes), exécution via l'API Sekoia, bibliothèque de requêtes, 8 exemples officiels commentés</td></tr>
+      <tr><td>Incidents <span class="fp-tag">v2.3</span></td><td>SOAR : CRUD incidents, timeline / notes / evidences / IOCs, scan IOC sur les logs ingérés, rapport Markdown, purge complète de fin d'investigation (dry-run + double confirmation)</td></tr>
       <tr><td>Audit</td><td>Journal des modifications effectuées depuis le portail</td></tr>
     </tbody>
   </table>
+
+  <h3>Workspace SOL <span class="fp-tag">v2.3</span></h3>
+  <p>Le langage <strong>SOL</strong> (Sekoia Operating Language, syntaxe pipe inspirée KQL) est intégré à la plateforme :</p>
+  <ul>
+    <li><strong>Validation locale</strong> avant tout envoi : tables (<code>events</code>, <code>alerts</code>, <code>cases</code>, <code>intakes</code>, <code>event_telemetry</code>, <code>asset_accounts</code>), opérateurs (<code>where</code>, <code>aggregate</code>, <code>limit</code>, <code>order</code>, <code>select</code>, <code>lookup</code>, <code>let</code>…), équilibre des pipes et des quotes — feedback immédiat sans consommer le quota API Sekoia (10 requêtes/min, 10 000 lignes max) ;</li>
+    <li><strong>Exécution</strong> via l'API Sekoia — endpoint configurable <code>SEKOIA_SOL_API_PATH</code> (à ajuster si le tenant renvoie un 404) ;</li>
+    <li><strong>Bibliothèque</strong> de requêtes réutilisable (sauvegarde, tags, insertion en un clic) et <strong>8 exemples officiels commentés</strong> (hunting, supervision, SOC).</li>
+  </ul>
+
+  <h3>Onglet Incidents — SOAR <span class="fp-tag">v2.3</span></h3>
+  <p>Gestion complète d'un incident forensic, de l'ingestion à la purge :</p>
+  <ol>
+    <li><strong>Création</strong> : incident <code>INC-AAAAMMJJ-XXXXXX</code> (sévérité, assignation, description) — le <code>case_id</code> est l'identifiant de l'incident ;</li>
+    <li><strong>Ingestion</strong> : upload des logs (tout format : applicatif, réseau, OS — EVTX, syslog, CSV, JSON, PCAP…) via l'onglet Upload avec ce <code>case_id</code> ; le pipeline MinIO → ingest-worker → OpenSearch + Timesketch parse et indexe tous les champs ;</li>
+    <li><strong>Investigation</strong> : timeline horodatée, notes, evidences, IOCs (typage automatique ip / hash / domaine / URL) ; cases existants liables à l'incident ;</li>
+    <li><strong>Scan IOC</strong> : matching des IOCs de l'incident <strong>et des watchlists Sekoia</strong> contre les logs du case — correspondances avec échantillons persistées comme evidences, statistiques de parsing (documents par index, top <code>source.ip</code>, niveaux de log) ;</li>
+    <li><strong>Rapport</strong> : Markdown généré (résumé, timeline, evidences, IOCs matchés, fichiers ingérés, checklist de clôture), copiable en un clic ;</li>
+    <li><strong>Purge complète</strong> : suppression de toutes les données de l'incident — logs OpenSearch, objets MinIO, métadonnées d'upload, sketch Timesketch. <strong>Dry-run obligatoire</strong> puis double confirmation ; chaque purge est auditée. HELK reste une purge manuelle (stack séparé).</li>
+  </ol>
 
   <h3>Monitoring d'ingestion</h3>
   <p>La plateforme ingère une télémétrie locale dans OpenSearch (<code>forensic-sekoia-telemetry-*</code>) qui alimente :</p>
@@ -82,6 +103,10 @@
       <tr><td><code>GET/POST/DELETE /api/sekoia/watchlists</code>, <code>/watchlists/matches</code></td><td>Watchlists locales + matching télémétrie</td></tr>
       <tr><td><code>POST/GET /api/sekoia/snapshots</code>, <code>/{id}/diff</code>, <code>/{id}/restore</code></td><td>Snapshots config, diff, restauration (dry-run)</td></tr>
       <tr><td><code>GET /api/sekoia/digest</code></td><td>Digest SOC agrégé</td></tr>
+      <tr><td><code>POST /api/sekoia/sol/validate</code>, <code>/sol/run</code></td><td>Validation locale + exécution SOL via API Sekoia</td></tr>
+      <tr><td><code>GET/POST/DELETE /api/sekoia/sol/library</code>, <code>GET /sol/examples</code></td><td>Bibliothèque SOL + exemples officiels</td></tr>
+      <tr><td><code>GET/POST /api/incidents</code>, <code>PATCH/DELETE /api/incidents/:id</code></td><td>CRUD incidents SOAR</td></tr>
+      <tr><td><code>POST /api/incidents/:id/events</code>, <code>/scan</code>, <code>/purge</code>, <code>GET /report</code></td><td>Timeline / IOC, scan, purge (dry-run), rapport</td></tr>
     </tbody>
   </table>
 

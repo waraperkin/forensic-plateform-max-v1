@@ -1,8 +1,8 @@
-# Sekoia Control Center (v2.2)
+# Sekoia Control Center (v2.3)
 
-Le **Sekoia Control Center** est le centre de pilotage complet de votre SIEM Sekoia.io : inventaires éditables, monitoring d'ingestion temps réel, recherche d'événements, fédération CTI, analytics avancée et automatisation CERT — bien au-delà des fonctionnalités de la console Sekoia standard.
+Le **Sekoia Control Center** est le centre de pilotage complet de votre SIEM Sekoia.io : inventaires éditables, monitoring d'ingestion temps réel, recherche d'événements, fédération CTI, analytics avancée, workspace SOL et gestion d'incidents SOAR — bien au-delà des fonctionnalités de la console Sekoia standard.
 
-## Les 20 onglets
+## Les 22 onglets
 
 | Onglet | Fonction |
 |---|---|
@@ -26,7 +26,28 @@ Le **Sekoia Control Center** est le centre de pilotage complet de votre SIEM Sek
 | Watchlists (v2.2) | Surveillance hosts / IOC / utilisateurs dans la télémétrie, hits 24 h |
 | Snapshots (v2.2) | Capture config, diff vs état courant, restauration avec dry-run |
 | Digest SOC (v2.2) | Synthèse quotidienne : score global, volumes, alertes, anomalies, top talkers |
+| SOL (v2.3) | Éditeur SOL (Sekoia Operating Language) : validation locale instantanée, exécution via API, bibliothèque de requêtes, exemples officiels commentés |
+| Incidents (v2.3) | SOAR : CRUD incidents, timeline/notes/evidences/IOCs, scan IOC sur les logs ingérés, rapport Markdown, purge complète de fin d'investigation |
 | Audit | Journal des modifications effectuées depuis le portail |
+
+## Workspace SOL (v2.3)
+
+Le langage **SOL** (Sekoia Operating Language, syntaxe pipe inspirée KQL) est intégré à la plateforme :
+
+- **Validation locale** avant tout envoi : tables (`events`, `alerts`, `cases`, `intakes`, `event_telemetry`, `asset_accounts`), opérateurs (`where`, `aggregate`, `limit`, `order`, `select`, `lookup`, `let`…), équilibre des pipes et des quotes — feedback immédiat sans consommer le quota API Sekoia (10 requêtes/min, 10 000 lignes max).
+- **Exécution** via l'API Sekoia (endpoint configurable `SEKOIA_SOL_API_PATH`).
+- **Bibliothèque** de requêtes réutilisable (sauvegarde, tags, insertion en un clic) et **8 exemples officiels commentés** (hunting, supervision, SOC).
+
+## Onglet Incidents — SOAR (v2.3)
+
+Gestion complète d'un incident forensic, de l'ingestion à la purge :
+
+1. **Création** : incident `INC-AAAAMMJJ-XXXXXX` avec sévérité, assignation, description ; le `case_id` est l'identifiant de l'incident.
+2. **Ingestion** : les analystes uploadent leurs logs (tout format : applicatif, réseau, OS — EVTX, syslog, CSV, JSON, PCAP…) via l'onglet Upload avec ce `case_id` ; le pipeline MinIO → ingest-worker → OpenSearch + Timesketch parse et indexe tous les champs.
+3. **Investigation** : timeline horodatée, notes, evidences, IOCs (typage automatique ip/hash/domaine/URL) ; cases existants liables à l'incident.
+4. **Scan IOC** : matching des IOCs de l'incident **et des watchlists Sekoia** contre les logs du case — correspondances avec échantillons, persistées comme evidences ; statistiques de parsing (documents par index, top `source.ip`, niveaux de log).
+5. **Rapport** : Markdown généré (résumé, timeline, evidences, IOCs matchés, fichiers ingérés, checklist de clôture), copiable en un clic.
+6. **Purge complète** : en fin d'investigation, suppression de toutes les données de l'incident — logs OpenSearch, objets MinIO, métadonnées d'upload, sketch Timesketch. **Dry-run obligatoire** puis double confirmation ; chaque purge est auditée. HELK reste une purge manuelle (stack séparé).
 
 ## Monitoring d'ingestion
 

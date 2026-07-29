@@ -209,6 +209,20 @@ async function importToTimesketch(buf, filename, caseId) {
   } catch(e) { logger.warn('TS import:',e.message); return null; }
 }
 
+/** Supprime un sketch Timesketch par nom (purge fin d'investigation). */
+async function deleteTsSketchByName(name) {
+  const s = await getTsSession(); if (!s) return { skipped: true, reason: 'Timesketch indisponible (auth)' };
+  try {
+    const sl = await axios.get(`${CFG.ts.url}/api/v1/sketches/`, { headers: { Cookie: s.cookie, 'X-CSRFToken': s.csrf }, timeout: 8000, validateStatus: () => true });
+    const sketch = (sl.data.objects || []).find((x) => x.name === name);
+    if (!sketch) return { skipped: true, reason: `sketch « ${name} » introuvable` };
+    const del = await axios.delete(`${CFG.ts.url}/api/v1/sketches/${sketch.id}/`,
+      { headers: { Cookie: s.cookie, 'X-CSRFToken': s.csrf }, timeout: 15000, validateStatus: () => true });
+    if (del.status >= 400) return { ok: false, error: `Timesketch HTTP ${del.status}`, sketch_id: sketch.id };
+    return { ok: true, sketch_id: sketch.id, deleted: name };
+  } catch (e) { logger.warn('TS delete:', e.message); return { ok: false, error: e.message }; }
+}
+
 // ══════════════════════════════════════════════════════════════
 //  INDEXATION CONTENU DES FICHIERS → OpenSearch bulk
 // ══════════════════════════════════════════════════════════════
@@ -755,6 +769,10 @@ app.use('/api', createCtiRoutes({ axios, os, logger }));
 app.use('/api', createHelkRoutes({ logger }));
 app.use('/api', createVelociraptorRoutes({ logger, os }));
 app.use('/api', createForensicReportRoutes({ os, logger }));
+// Onglet Incident SOAR (v2.3) : CRUD, timeline/evidences/IOC, scan, rapport, purge
+app.use('/api', require('./routes/incident-routes').createIncidentRoutes({
+  os, s3, axios, logger, auditAction, tsDeleteSketch: deleteTsSketchByName,
+}));
 
 app.get('/api/cases', async (req,res) => {
   try { const r=await os.search({index:'forensic-uploads*',body:{size:0,aggs:{cases:{terms:{field:'case_id',size:100},aggs:{files:{value_count:{field:'upload_id'}},last_upload:{max:{field:'@timestamp'}},portals:{terms:{field:'portal',size:5}}}}}}}); res.json((r.body.aggregations?.cases?.buckets||[]).map(b=>({case_id:b.key,files:b.files.value,last_upload:b.last_upload.value_as_string,portals:b.portals.buckets.map(p=>p.key)}))); }

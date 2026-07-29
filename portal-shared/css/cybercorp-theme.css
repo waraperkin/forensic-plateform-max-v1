@@ -1082,3 +1082,38 @@
 [data-edition="cybercorp"] .cc-healthbar-low  { background: var(--accent); }
 [data-edition="cybercorp"] .cc-healthbar-warn { background: var(--warning); }
 [data-edition="cybercorp"] .cc-healthbar-crit { background: var(--danger); }
+
+/* ── v2.3 : workspace SOL + onglet Incident SOAR ─────────────────────────── */
+[data-edition="cybercorp"] .cc-sol-editor {
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  tab-size: 2;
+  white-space: pre;
+  resize: vertical;
+}
+[data-edition="cybercorp"] .cc-sol-errlist,
+[data-edition="cybercorp"] .cc-sol-warnlist {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+}
+[data-edition="cybercorp"] .cc-sol-errlist { color: var(--danger); }
+[data-edition="cybercorp"] .cc-sol-warnlist { color: var(--warning); }
+[data-edition="cybercorp"] .cc-pre {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 480px;
+  overflow-y: auto;
+}
+[data-edition="cybercorp"] .cc-inc-report {
+  border-left: 3px solid var(--accent);
+}

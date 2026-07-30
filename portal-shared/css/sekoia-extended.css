@@ -1,0 +1,77 @@
+/* Sekoia Extended Platform — console analyste.
+   Namespacing strict en .sep-* : aucune règle ne fuit vers le reste du portail
+   ni vers le portail IT, qui partagent ce dossier. */
+.sep-console { display: flex; flex-direction: column; gap: 1rem; }
+
+.sep-tabs { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.sep-tabs-spacer { flex: 1 1 auto; }
+
+.sep-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.85rem;
+}
+.sep-stat {
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--fp-border, rgba(255, 255, 255, 0.09));
+  background: var(--fp-panel, rgba(255, 255, 255, 0.02));
+  border-top: 3px solid var(--fp-border, rgba(255, 255, 255, 0.12));
+}
+.sep-stat-ok { border-top-color: #19c37d; }
+.sep-stat-warn { border-top-color: #e0902b; }
+.sep-stat-danger { border-top-color: #e0553b; }
+.sep-stat-value { font-size: 1.7rem; font-weight: 650; line-height: 1.15; }
+.sep-stat-label {
+  font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase;
+  opacity: 0.72; margin-top: 0.2rem;
+}
+.sep-stat-hint { font-size: 0.7rem; opacity: 0.55; margin-top: 0.3rem; }
+
+.sep-row-between {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+}
+
+/* Les tableaux opérationnels peuvent être larges : ils défilent dans leur
+   propre conteneur, jamais la page. */
+.sep-scroll { overflow-x: auto; max-height: 60vh; overflow-y: auto; }
+.sep-scroll-sm { max-height: 30vh; }
+.sep-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.sep-table th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--fp-panel, #14181f);
+  text-align: left; font-size: 0.7rem; letter-spacing: 0.05em;
+  text-transform: uppercase; opacity: 0.8; padding: 0.5rem 0.6rem;
+}
+.sep-table td {
+  padding: 0.45rem 0.6rem;
+  border-top: 1px solid var(--fp-border, rgba(255, 255, 255, 0.06));
+  vertical-align: top;
+}
+.sep-table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+.sep-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.sep-form {
+  display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;
+  margin: 0.75rem 0;
+}
+.sep-form label {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.8;
+}
+.sep-form select, .sep-form input {
+  min-width: 190px; padding: 0.4rem 0.55rem;
+  border-radius: 7px; border: 1px solid var(--fp-border, rgba(255, 255, 255, 0.14));
+  background: var(--fp-panel, rgba(255, 255, 255, 0.03)); color: inherit;
+  font: inherit; text-transform: none; letter-spacing: normal;
+}
+
+.sep-preview { margin-top: 0.85rem; border-left: 3px solid #e0902b; }
+.sep-degraded { border-left: 3px solid #e0902b; }
+.sep-degraded-title { font-weight: 600; margin-bottom: 0.3rem; }
+
+@media (max-width: 720px) {
+  .sep-form select, .sep-form input { min-width: 100%; }
+  .sep-form label { width: 100%; }
+}

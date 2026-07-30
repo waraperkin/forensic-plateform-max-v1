@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="shared/css/cybercorp-theme.css">
 <link rel="stylesheet" href="shared/css/portal-layout-v2.css">
 <link rel="stylesheet" href="shared/css/portal-hub-premium.css">
+<link rel="stylesheet" href="shared/css/sekoia-extended.css">
 <link rel="stylesheet" href="shared/css/portal-v6.css">
 <link rel="stylesheet" href="shared/css/portal-design-system.css">
 <link rel="stylesheet" href="css/cert-shell.css">
@@ -70,6 +71,7 @@
       <div class="cc-nav-section">
         <p class="cc-nav-section-title" data-i18n="nav.sekoia"></p>
         <ul class="fp-sidebar-nav">
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-extended" data-cc-icon="dash"><span data-i18n="sidebar.sekoia_extended"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-cc" data-cc-icon="dash"><span data-i18n="sidebar.sekoia_cc"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-ingest" data-cc-icon="ingest"><span data-i18n="sidebar.sekoia_ingest"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-assets" data-cc-icon="inventory"><span data-i18n="sidebar.sekoia_assets"></span></button></li>
@@ -594,6 +596,11 @@
     </section>
 
     <!-- ═══ CONTROL CENTER (Phase 3) ═══ -->
+    <section id="tab-sekoia-extended" class="fp-panel">
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.sekoia_extended"></h2>
+        <p class="fp-muted" data-i18n="tp.sekoia_extended_lead"></p>
+        <div id="sekoia-extended-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
     <section id="tab-sekoia-cc" class="fp-panel">
       <div class="fp-card cc-pro-panel"><h2 class="fp-section-title">Sekoia Control Center</h2>
         <p class="fp-muted" data-i18n="tp.sekoia_cc_lead"></p>
@@ -678,6 +685,7 @@
 <script src="shared/js/panel-incidents-detail.js"></script>
 <script src="shared/js/panel-kb-detail.js"></script>
 <script src="shared/js/portal-hub-premium.js"></script>
+<script src="shared/js/sekoia-extended.js"></script>
 <script src="shared/js/sekoia-ingest.js"></script>
 <script src="shared/js/sekoia-volume.js"></script>
 <script src="shared/js/sekoia-heatmap.js"></script>

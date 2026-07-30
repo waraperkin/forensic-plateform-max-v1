@@ -70,11 +70,20 @@ MONITOR_PORT = int(os.environ.get("MONITOR_PORT", "8903"))
 CP_TIMEOUT_S = float(os.environ.get("SEKOIA_CP_TIMEOUT_S", "180"))
 # Nombre d'échecs consécutifs à partir duquel /health devient dégradé.
 POLL_FAIL_DEGRADED = int(os.environ.get("SEKOIA_POLL_FAIL_DEGRADED", "5"))
+# La collecte volumétrique lance 1 job Sekoia par intake (mesuré : 66 intakes en
+# ~20 s). Le timeout couvre largement le pire cas + le budget du control-plane.
+VOLUMETRY_TIMEOUT_S = float(os.environ.get("SEKOIA_VOLUMETRY_TIMEOUT_S", "300"))
+VOLUMETRY_WINDOW = os.environ.get("SEKOIA_VOLUMETRY_WINDOW", "1h")
+# Cadence de collecte DÉCOUPLÉE du poll : 66 jobs Sekoia par cycle, on ne les
+# relance pas toutes les 60 s. Entre deux collectes, le dernier résultat sert.
+VOLUMETRY_INTERVAL_S = int(os.environ.get("SEKOIA_VOLUMETRY_INTERVAL_S", "300"))
+_VOL_CACHE: dict = {"ts": 0.0, "data": {}}
 
 STATE = {
     "last_poll_ts": None, "last_poll_ok": None, "intakes_count": 0,
     "last_alert_eval_ts": None, "alerts_open": 0, "errors": [],
-    "poll_fail_streak": 0, "last_poll_error": None,
+    "poll_fail_streak": 0, "last_poll_error": None, "volumetry": None,
+    "templates": None,
 }
 
 
@@ -93,7 +102,8 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(_app):
-    tasks = [asyncio.create_task(poller_loop()), asyncio.create_task(alerter_loop())]
+    tasks = [asyncio.create_task(_bootstrap()),
+             asyncio.create_task(poller_loop()), asyncio.create_task(alerter_loop())]
     yield
     for t in tasks:
         t.cancel()
@@ -109,7 +119,15 @@ async def health():
     # que le poll échoue depuis des heures masquait la panne (audit B01).
     degraded = STATE["poll_fail_streak"] >= POLL_FAIL_DEGRADED
     return {"status": "degraded" if degraded else "ok",
-            "service": "sekoia-monitor", "degraded": degraded, **STATE}
+            "service": "sekoia-monitor", "degraded": degraded,
+            "volumetry_source": "sekoia-extended-platform/search-jobs", **STATE}
+
+
+async def _bootstrap() -> None:
+    """Pose les mappings explicites avant toute écriture (idempotent)."""
+    import templates as tpl
+    async with httpx.AsyncClient() as client:
+        STATE["templates"] = await tpl.ensure_templates(client, OS_URL, _os_auth())
 
 
 def _now_iso() -> str:
@@ -166,11 +184,63 @@ async def os_bulk(client: httpx.AsyncClient, docs: list[tuple[str, dict]]) -> bo
 
 
 async def fetch_volumetry(client: httpx.AsyncClient, window: str = "1h") -> dict[str, Any]:
-    """Comptages réels par intake et par hostname sur la fenêtre demandée.
+    """Volumétrie réelle par intake — Sekoia Extended Platform.
 
-    Retourne {intake_uuid: {"count": n, "hostnames": {h: n}}} — {} si pas de
-    télémétrie locale (volume indisponible, jamais fabriqué).
+    SOURCE : le moteur de volumétrie du control-plane, qui interroge le SIEM via
+    des search jobs (1 job par intake, `total` seul, aucun événement rapatrié).
+
+    L'implémentation précédente agrégeait `forensic-sekoia-telemetry*`, un index
+    qu'AUCUN processus n'alimentait : elle retournait {} à chaque cycle depuis
+    l'origine, laissant volumétrie, baselines, anomalies, SLO et prévisions
+    définitivement vides.
+
+    Retourne {intake_uuid: {"count": n, "hostnames": {}}} — {} si non mesurable.
     """
+    now = time.time()
+    if _VOL_CACHE["data"] and (now - _VOL_CACHE["ts"]) < VOLUMETRY_INTERVAL_S:
+        return _VOL_CACHE["data"]
+    try:
+        r = await client.get(f"{CP_URL}/control/sekoia/volumetry/collect",
+                             params={"window": window}, headers=_cp_headers(),
+                             timeout=VOLUMETRY_TIMEOUT_S)
+        r.raise_for_status()
+        data = r.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        msg = _exc_msg(exc)
+        log.warning("fetch_volumetry: %s", msg)
+        STATE["errors"] = (STATE["errors"] + [f"volumetry:{msg}"])[-10:]
+        # On conserve la dernière mesure valide plutôt que de simuler un zéro
+        # (un échec de collecte n'est pas une absence de trafic).
+        return _VOL_CACHE["data"]
+    out: dict[str, Any] = {}
+    for it in data.get("items", []):
+        if not it.get("measured"):
+            continue  # non mesuré ≠ zéro : on ne fabrique jamais de donnée
+        out[it["intake_uuid"]] = {
+            "count": it.get("count") or 0,
+            "hostnames": {},
+            "last_event_ts": data.get("collected_at") if it.get("count") else None,
+            "intake_name": it.get("intake_name"),
+            "intake_status": it.get("intake_status"),
+            "intake_format_name": it.get("intake_format_name"),
+            "entity_name": it.get("entity_name"),
+            "connector_name": it.get("connector_name"),
+        }
+    STATE["volumetry"] = {
+        "collected_at": data.get("collected_at"),
+        "duration_s": data.get("duration_s"),
+        "intakes_measured": data.get("intakes_measured"),
+        "intakes_silent": data.get("intakes_silent"),
+        "events_total": data.get("events_sum_intakes"),
+        "events_unattributed": data.get("events_unattributed"),
+    }
+    _VOL_CACHE.update({"ts": now, "data": out})
+    return out
+
+
+async def _legacy_local_volumetry(client: httpx.AsyncClient, window: str = "1h") -> dict[str, Any]:
+    """Ancienne source locale, conservée pour les déploiements qui alimentent
+    réellement un index de télémétrie (SEKOIA_TELEMETRY_INDEX)."""
     body = {
         "size": 0,
         "query": {"range": {"@timestamp": {"gte": f"now-{window}"}}},
@@ -239,7 +309,7 @@ async def poll_once(client: httpx.AsyncClient) -> None:
     intakes = payload.get("items", [])
     STATE["intakes_count"] = len(intakes)
 
-    volumes_1h = await fetch_volumetry(client, "1h")
+    volumes_1h = await fetch_volumetry(client, VOLUMETRY_WINDOW)
     baselines = await update_baselines(client, volumes_1h) if volumes_1h else {}
     month = _month_suffix()
     now = _now_iso()
@@ -255,7 +325,11 @@ async def poll_once(client: httpx.AsyncClient) -> None:
         avg = base.get("avg", 0)
         drop_ratio = (current / avg) if avg else None
         last_ts = vol.get("last_event_ts") if vol else None
-        silent = False
+        # Un intake MESURÉ à 0 événement sur la fenêtre EST silencieux : c'est
+        # le signal opérationnel principal (60 des 66 intakes du tenant). La
+        # logique précédente ne s'appuyait que sur last_event_ts, jamais rempli
+        # pour une source muette — donc silence jamais détecté.
+        silent = bool(vol) and current == 0
         if last_ts:
             try:
                 dt = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
@@ -280,12 +354,28 @@ async def poll_once(client: httpx.AsyncClient) -> None:
             "hostnames_count": len(vol["hostnames"]) if vol else 0,
         }))
         if vol:
+            # Point de volumétrie AU NIVEAU INTAKE, écrit systématiquement.
+            # L'ancienne version n'écrivait que des points par hostname : sans
+            # hostname, l'index sekoia-volumetry-* restait vide et toute la
+            # chaîne baselines/anomalies/SLO/prévisions ne démarrait jamais.
+            docs.append((f"sekoia-volumetry-{month}", {
+                "@timestamp": now, "intake_uuid": uuid,
+                "intake_name": it.get("intake_name") or it.get("name"),
+                "intake_status": it.get("intake_status"),
+                "intake_format_name": it.get("intake_format_name_via_script")
+                                      or it.get("intake_format_name"),
+                "entity_name": it.get("entity_name"),
+                "connector_name": it.get("connector_name"),
+                "window": VOLUMETRY_WINDOW,
+                "count_1h": current, "intake_count_1h": current,
+                "measured": True, "silent": current == 0,
+            }))
             for hostname, cnt in vol["hostnames"].items():
                 docs.append((f"sekoia-volumetry-{month}", {
                     "@timestamp": now, "intake_uuid": uuid,
                     "intake_name": it.get("intake_name") or it.get("name"),
                     "log_hostname": hostname, "count_1h": cnt,
-                    "intake_count_1h": current,
+                    "intake_count_1h": current, "measured": True,
                 }))
 
     ok = await os_bulk(client, docs)
@@ -443,27 +533,39 @@ async def alerter_loop():
     async with httpx.AsyncClient() as client:
         while True:
             try:
-                alerts = await evaluate_alerts(client)
-                if alerts:
-                    month = _month_suffix()
-                    await os_bulk(client, [(f"sekoia-alerts-{month}", a) for a in alerts])
-                    log.info("alerter: %d nouvelles alertes", len(alerts))
-                    if ALERT_WEBHOOK_URL:
-                        try:
-                            await client.post(ALERT_WEBHOOK_URL, json={"alerts": alerts}, timeout=10)
-                        except httpx.HTTPError as exc:
-                            log.warning("webhook: %s", exc)
+                # Moteur de règles de la Sekoia Extended Platform (control-plane) :
+                # règles configurables, seuils dynamiques, pics/baisses/dérives,
+                # déduplication et REGROUPEMENT (65 alertes → 12 incidents mesurés).
+                # L'ancien évaluateur local à seuils figés reste disponible sous
+                # evaluate_alerts() mais n'est plus la source de vérité.
+                r = await client.post(f"{CP_URL}/control/sekoia/alerting/evaluate",
+                                      headers=_cp_headers(), timeout=180)
+                r.raise_for_status()
+                result = r.json()
+                count = result.get("alerts_new") or 0
+                if count:
+                    log.info("alerter: %d alertes → %d incidents (%s)",
+                             count, result.get("incidents"), result.get("by_severity"))
                     if thehive_enabled():
-                        for a in alerts:
+                        # Un case par INCIDENT (groupe), pas par alerte.
+                        seen = set()
+                        for a in result.get("alerts", []):
+                            key = a.get("group_id") or a.get("fingerprint")
+                            if key in seen:
+                                continue
+                            seen.add(key)
                             try:
                                 await create_thehive_case(client, a)
                             except httpx.HTTPError as exc:
                                 log.warning("thehive: %s", exc)
-                STATE["alerts_open"] = len(alerts)
+                STATE["alerts_open"] = count
+                STATE["alert_incidents"] = result.get("incidents")
+                STATE["alert_by_severity"] = result.get("by_severity")
                 STATE["last_alert_eval_ts"] = _now_iso()
             except Exception as exc:
-                log.warning("evaluate_alerts: %s", exc)
-                STATE["errors"] = (STATE["errors"] + [f"alert:{exc}"])[-10:]
+                msg = _exc_msg(exc)
+                log.warning("alerting/evaluate: %s", msg)
+                STATE["errors"] = (STATE["errors"] + [f"alert:{msg}"])[-10:]
             await asyncio.sleep(ALERT_INTERVAL_S)
 
 

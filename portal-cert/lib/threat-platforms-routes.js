@@ -297,7 +297,11 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
 
   // Catch-all proxy : conserve méthode, query, body — restreint à une allowlist
   // de ressources (correctif audit P-06) et sans fuite de topologie interne.
-  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol)(\/|$)/;
+  // Ressources autorisées côté proxy. Les trois dernières sont les moteurs de la
+  // Sekoia Extended Platform (volumétrie, alerting configurable, opérations en
+  // lot) : sans elles ici, l'UI ne peut pas les atteindre malgré leur présence
+  // dans le control-plane.
+  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
     if (!mapped || !ALLOWED_PROXY_RE.test(req.path)) {
@@ -312,7 +316,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     const url = `${mapped.base}${mapped.target}`;
     // Timeouts adaptés : la collecte d'événements (jobs Sekoia) peut dépasser
     // 60 s ; les inventaires volumineux (1000+ règles) aussi au 1er refresh.
-    const heavy = /^\/sekoia\/(fetch|events|search)(\/|$)/.test(req.path);
+    const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting)(\/|$)/.test(req.path);
     const timeout = heavy
       ? Number(process.env.SEKOIA_PROXY_TIMEOUT_HEAVY_MS || 240000)
       : Number(process.env.SEKOIA_PROXY_TIMEOUT_MS || 120000);

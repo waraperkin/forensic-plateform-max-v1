@@ -112,7 +112,8 @@
     "velociraptor_dfir": "Velociraptor DFIR",
     "psoar": "PSOAR — Incidents",
     "psoar_playbooks": "PSOAR — Playbooks",
-    "purge": "Purge & nettoyage"
+    "purge": "Purge & nettoyage",
+    "sekoia_extended": "Sekoia Extended Platform"
   },
   "header": {
     "brand_sub": "Centre opérations CERT / forensic",
@@ -366,7 +367,8 @@
     "delete_secrets": "Supprimer les secrets",
     "fetch_collecting": "Collecte en cours...",
     "fetch_json_limit": "Limite de reponse JSON atteinte",
-    "fetch_truncated": "Reponse tronquee"
+    "fetch_truncated": "Reponse tronquee",
+    "sekoia_extended_lead": "Supervision de l'ingestion, alerting configurable et opérations en lot — les capacités que le SIEM Sekoia n'expose pas."
   },
   "kb": {
     "lead": "Guides analyste, procédures et playbooks (référentiel FP-Master).",

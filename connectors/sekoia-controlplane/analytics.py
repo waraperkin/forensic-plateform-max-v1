@@ -44,7 +44,32 @@ ALERTS_PAGE = 100
 # Dictionnaire attack-pattern STIX → libellé, alimenté par les `ttps` des
 # alertes Sekoia. C'est la seule source de résolution disponible : l'API CTI
 # Sekoia répond 404 sur ces UUID et OpenCTI local ne les connaît pas.
-TTP_NAMES: dict[str, str] = {}
+# PERSISTÉ sur /data : un cache mémoire seul se vidait à chaque redémarrage du
+# control-plane, et la couverture ATT&CK retombait à « 0 pattern nommé ».
+TTP_NAMES_PATH = os.environ.get("TTP_NAMES_PATH", "/data/sekoia-ttp-names.json")
+
+
+def _load_ttp_names() -> dict[str, str]:
+    try:
+        with open(TTP_NAMES_PATH, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (FileNotFoundError, ValueError, OSError):
+        return {}
+
+
+def _save_ttp_names() -> None:
+    try:
+        os.makedirs(os.path.dirname(TTP_NAMES_PATH), exist_ok=True)
+        tmp = f"{TTP_NAMES_PATH}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(TTP_NAMES, fh, ensure_ascii=False)
+        os.replace(tmp, TTP_NAMES_PATH)
+    except OSError as exc:
+        cp.log.warning("ttp names: %s", exc)
+
+
+TTP_NAMES: dict[str, str] = _load_ttp_names()
 
 
 def _percentiles(values: list[float]) -> Optional[dict]:
@@ -446,6 +471,8 @@ def register(analytics_app) -> None:
                 joined.append({"rule_uuid": rid, "rule_name": agg["rule"],
                                "severity": None, "alerts": agg["alerts"],
                                "last_alert": agg["last"]})
+        if TTP_NAMES:
+            _save_ttp_names()
         joined.sort(key=lambda j: -j["alerts"])
         noisy = [j for j in joined if j["alerts"] > 0][:10]
         silent = [j for j in joined if j["alerts"] == 0][:50]
@@ -495,6 +522,14 @@ def register(analytics_app) -> None:
         """
         full = await cp.get_full()
         rules = full.get("rules") or []
+
+        # Amorçage paresseux du dictionnaire de libellés : sans lui, la première
+        # consultation après un redémarrage affichait 0 pattern nommé.
+        if not TTP_NAMES:
+            try:
+                await _effectiveness(7)
+            except Exception as exc:  # la couverture reste servie sans libellés
+                cp.log.warning("amorçage TTP_NAMES: %s", exc)
 
         # ── Signal fiable : attack-patterns rattachés par Sekoia ──
         refs_all: set[str] = set()

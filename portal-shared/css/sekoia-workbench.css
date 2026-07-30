@@ -173,6 +173,9 @@
   border-bottom: 1px solid var(--swb-line);
   white-space: nowrap;
 }
+/* Un en-tete de colonne numerique s'aligne sur ses valeurs, sinon l'oeil
+   ne relie plus le titre a la colonne. */
+.swb-table thead th.swb-num { text-align: right; }
 .swb-table thead th.swb-sortable { cursor: pointer; user-select: none; }
 .swb-table thead th.swb-sortable:hover { color: inherit; }
 .swb-table tbody td {

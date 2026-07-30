@@ -54,6 +54,29 @@ fill_secret PORTAL_SESSION_SECRET "rand_hex 32"
 fill_secret PORTAL_ADMIN_PASSWORD "rand_b64 18"
 fill_secret INTERNAL_API_TOKEN   "rand_hex 32"
 fill_secret SEKOIA_SECRETS_KEY   fernet_key
+
+# Garde-fou : une SEKOIA_SECRETS_KEY héritée d'une ancienne version (format non
+# Fernet) casse le store chiffré du control-plane ("SEKOIA_SECRETS_KEY invalide").
+# On valide le format (base64 urlsafe → 32 octets) et on régénère si invalide.
+_fernet_valid() {
+  local k="$1"
+  [ -n "$k" ] || return 1
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "import base64,sys; k=sys.argv[1].encode(); sys.exit(0 if len(k)==44 and len(base64.urlsafe_b64decode(k))==32 else 1)" "$k" 2>/dev/null
+  else
+    # Fallback sans python : 44 car. base64 urlsafe terminé par '='
+    [[ ${#k} -eq 44 && "$k" =~ ^[A-Za-z0-9_-]{43}=$ ]]
+  fi
+}
+_cur_sk=$(grep -E "^SEKOIA_SECRETS_KEY=" "$ENV_FILE" | head -1 | cut -d= -f2- || true)
+if ! _fernet_valid "$_cur_sk"; then
+  _new_sk=$(fernet_key)
+  _tmp=$(mktemp)
+  awk -v val="$_new_sk" 'BEGIN{FS=OFS="="} $1=="SEKOIA_SECRETS_KEY" {$2=val} {print}' "$ENV_FILE" > "$_tmp"
+  mv "$_tmp" "$ENV_FILE"
+  echo "[generate-secrets] SEKOIA_SECRETS_KEY invalide (format Fernet attendu) — régénérée"
+fi
+
 fill_secret REDIS_PASSWORD       "rand_b64 24"
 fill_secret POSTGRES_PASSWORD    "rand_b64 24"
 fill_secret MYSQL_ROOT_PASSWORD  "rand_b64 24"

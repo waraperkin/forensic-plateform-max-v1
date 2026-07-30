@@ -673,6 +673,78 @@ def opencti_misp_link_check() -> bool:
         return True
 
 
+# Logo 32×32 plateforme (PNG embarqué) posé sur les organisations MISP sans logo.
+# P12 — la console UI MISP spamme des 404 /organisations/getOrgLogo/{id}.json
+# pour chaque organisation créée sans logo (seed/défaut).
+_FP_ORG_LOGO_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAWUlEQVR4nO3RsQ0AIAwEwZz"
+    "/O0eBA5CgSJIkSZIkSZIk+b0LAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMB+A2RxAT+bj3rKAAAAAElFTkSuQmCC"
+)
+
+
+def fix_org_logos() -> int:
+    """Pose un logo sur les organisations MISP qui n'en ont pas (P12, cosmétique).
+
+    Best effort : tout échec est ignoré (le 404 getOrgLogo est inoffensif, on
+    supprime juste le bruit console + carrés vides dans l'UI)."""
+    import base64
+
+    try:
+        resp = misp_req("/organisations/index?limit=100", timeout=60)
+        rows = resp.get("response", resp if isinstance(resp, list) else [])
+        orgs = []
+        for row in rows:
+            org = row.get("Organisation", row) if isinstance(row, dict) else {}
+            if org.get("id"):
+                orgs.append(org)
+        if not orgs:
+            return 0
+        s = ui_session()
+        if s is None:
+            return 0
+        logo_bytes = base64.b64decode(_FP_ORG_LOGO_B64)
+        fixed = 0
+        for org in orgs:
+            oid = org["id"]
+            try:
+                has = s.get(f"{MISP_UI_URL}/organisations/getOrgLogo/{oid}.json", timeout=15)
+                if has.status_code == 200:
+                    continue
+                form = s.get(f"{MISP_UI_URL}/admin/organisations/edit/{oid}", timeout=20)
+                if form.status_code != 200:
+                    continue
+                key = re.search(r'name="data\[_Token\]\[key\]"[^>]*value="([^"]+)"', form.text)
+                fields = re.search(r'name="data\[_Token\]\[fields\]"[^>]*value="([^"]*)"', form.text)
+                if not key:
+                    continue
+                data = {
+                    "_method": "PUT",
+                    "data[_Token][key]": key.group(1),
+                    "data[_Token][fields]": fields.group(1) if fields else "",
+                    "data[_Token][unlocked]": "",
+                    "data[Organisation][name]": org.get("name", f"Org {oid}"),
+                }
+                files = {"data[Organisation][logo]": ("fp-org-logo.png", logo_bytes, "image/png")}
+                up = s.post(
+                    f"{MISP_UI_URL}/admin/organisations/edit/{oid}",
+                    data=data,
+                    files=files,
+                    headers={"Referer": f"{MISP_UI_URL}/admin/organisations/edit/{oid}"},
+                    allow_redirects=False,
+                    timeout=30,
+                )
+                if up.status_code in (200, 302, 303):
+                    fixed += 1
+            except requests.RequestException:
+                continue
+        if fixed:
+            ok(f"logos organisations MISP posés: {fixed}")
+        return fixed
+    except Exception:  # noqa: BLE001 — cosmétique, jamais bloquant
+        return 0
+
+
 def ui_session() -> requests.Session | None:
     try:
         s = requests.Session()

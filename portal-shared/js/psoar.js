@@ -37,7 +37,17 @@
 
   function delegate(root, handlers) {
     root.addEventListener('click', (e) => {
-      const el = e.target.closest('[data-act]'); if (!el || !root.contains(el)) return;
+      let el = e.target.closest('[data-act]');
+      // P21 — UX SOAR : un clic sur la LIGNE (pas seulement le bouton) ouvre
+      // l'élément. On délègue alors au premier bouton d'action de la ligne.
+      if ((!el || !root.contains(el))) {
+        const tr = e.target.closest && e.target.closest('tr, .pso-rail-item');
+        if (tr && root.contains(tr)) {
+          const btn = tr.querySelector('[data-act]');
+          if (btn) el = btn;
+        }
+      }
+      if (!el || !root.contains(el)) return;
       const h = handlers[el.dataset.act]; if (h) h(el);
     });
   }

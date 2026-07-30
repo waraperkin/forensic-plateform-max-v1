@@ -9,6 +9,7 @@ import csv
 import io
 import os
 import sys
+import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -22,6 +23,10 @@ TARGET_OBS = int(os.environ.get("OPENCTI_TI_DEEP_MIN_OBS", "5000"))
 MAX_IMPORT = int(os.environ.get("OPENCTI_TI_DEEP_MAX", "6000"))
 # Pour 100k+ : utiliser scripts/opencti-populate-ti-massive.py
 WORKERS = int(os.environ.get("OPENCTI_TI_DEEP_WORKERS", "8"))
+# P05 — deadline interne : le script s'arrête proprement AVANT le timeout de
+# l'appelant (master setup), en conservant le progrès déjà importé.
+DEADLINE_S = int(os.environ.get("FP_TI_DEEP_DEADLINE_S", "480"))
+CHUNK = 200
 URLHAUS_CSV = os.environ.get(
     "URLHAUS_CSV_URL", "https://urlhaus.abuse.ch/downloads/csv_recent/"
 )
@@ -132,16 +137,27 @@ def main() -> int:
     print(f"[opencti-deep] Import {len(urls)} URLs (workers={WORKERS}, skip={skip})...")
 
     created = 0
+    start = time.monotonic()
+    processed = 0
+    stop = False
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        futures = {pool.submit(create_indicator, session, u): u for u in urls}
-        for i, fut in enumerate(as_completed(futures), 1):
-            if fut.result():
-                created += 1
-            if i % 200 == 0:
-                ind, obs, _ = metrics(session)
-                print(f"[opencti-deep]   progress {i}/{len(urls)} ind={ind} obs={obs}")
-                if ind >= TARGET_IND and obs >= TARGET_OBS:
-                    break
+        for off in range(0, len(urls), CHUNK):
+            if stop or time.monotonic() - start > DEADLINE_S:
+                print(
+                    f"[opencti-deep] deadline {DEADLINE_S}s atteinte — "
+                    f"arrêt propre après {processed}/{len(urls)} (progrès conservé)"
+                )
+                break
+            chunk = urls[off : off + CHUNK]
+            futures = {pool.submit(create_indicator, session, u): u for u in chunk}
+            for fut in as_completed(futures):
+                if fut.result():
+                    created += 1
+            processed += len(chunk)
+            ind, obs, _ = metrics(session)
+            print(f"[opencti-deep]   progress {processed}/{len(urls)} ind={ind} obs={obs}")
+            if ind >= TARGET_IND and obs >= TARGET_OBS:
+                stop = True
 
     ind, obs, stix = metrics(session)
     print(f"[opencti-deep] créés≈{created} après: indicateurs={ind} observables={obs} stix={stix}")

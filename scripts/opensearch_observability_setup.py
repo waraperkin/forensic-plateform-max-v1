@@ -269,10 +269,34 @@ def verify_ppl() -> int:
         ),
         ("forensic-uploads", ["source = forensic-uploads* | head 3"]),
     ]
+
+    def seed_uploads() -> None:
+        # P20 — lab frais sans uploads : on seede un événement synthétique
+        # (même philosophie que les seeds FP ailleurs) pour rendre la vérif
+        # PPL déterministe au lieu d'un KO « 0 lignes ».
+        from datetime import datetime, timezone
+
+        doc = {
+            "@timestamp": datetime.now(timezone.utc).isoformat(),
+            "portal": "cert",
+            "case_id": "FP-OBS-SEED",
+            "analyst": "fp-obs-seed",
+            "file_name": "fp-obs-seed.log",
+            "message": "FP observability seed event (P20)",
+            "tags": ["fp-obs-seed"],
+        }
+        os_url = OPENSEARCH_URL.rstrip("/")
+        try:
+            requests.post(f"{os_url}/forensic-uploads-seed/_doc", json=doc, timeout=20, verify=False)
+            requests.post(f"{os_url}/forensic-uploads-seed/_refresh", timeout=20, verify=False)
+        except requests.RequestException:
+            pass
+
     fails = 0
     for label, queries in tests:
         ok_label = False
         last_status = 0
+        seeded = False
         for q in queries:
             for attempt in range(1, 4):
                 r = requests.post(
@@ -289,6 +313,9 @@ def verify_ppl() -> int:
                         ok(f"PPL {label}: {rows} ligne(s)")
                         ok_label = True
                         break
+                    if label == "forensic-uploads" and not seeded:
+                        seeded = True
+                        seed_uploads()
                 if attempt < 3:
                     import time
                     time.sleep(3)

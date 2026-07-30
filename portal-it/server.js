@@ -465,7 +465,9 @@ app.get('/api/token/operations', async (req, res) => {
 // Vérification token (GET, pas de multipart)
 app.get('/api/token/verify', async (req, res) => {
   const token = req.query.token || parseCookies(req).it_token;
-  if (!token) return res.status(400).json({ valid: false, error: 'Token manquant' });
+  // P13 — l'absence de token est un état ATTENDU (première visite) : 200 + valid:false,
+  // pas 400 (sinon erreur console côté front alors que la bannière info doit s'afficher).
+  if (!token) return res.json({ valid: false, error: 'Token manquant', code: 'TOKEN_MISSING' });
   if (!redis.isReady) {
     return res.status(503).json({ valid: false, error: 'Service temporairement indisponible. Réessayez.' });
   }
@@ -616,14 +618,20 @@ app.use('/api', createMasterIntakesRoutes({ os: osClient, logger, axios }));
 app.use('/api', createMasterIngestErrorsRoutes({ os: osClient, logger }));
 
 // Proxy zones master (dashboard IT, incidents, etc.) → portail CERT
+// P04 : le gate auth du portail CERT exige une session ; en service-à-service
+// on présente le token interne partagé (jamais exposé au navigateur).
 app.use('/api/master', async (req, res) => {
   const url = `${CERT_PORTAL_URL}/api/master${req.url}`;
   try {
+    const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    if (process.env.INTERNAL_API_TOKEN) {
+      headers['X-Internal-Token'] = process.env.INTERNAL_API_TOKEN;
+    }
     const r = await axios({
       method: req.method,
       url,
       data: req.body,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers,
       timeout: 30000,
       validateStatus: () => true,
     });

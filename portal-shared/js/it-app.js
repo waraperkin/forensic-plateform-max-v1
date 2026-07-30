@@ -325,6 +325,15 @@ document.addEventListener('i18n:language-changed', () => {
   refreshItUi();
 });
 
+// P17 — binding direct du toggle FR/EN (jamais bindé : PortalV6.init non appelé).
+{
+  const langBtn = document.getElementById('lang-switch');
+  if (langBtn && !langBtn.dataset.fpLangBound) {
+    langBtn.dataset.fpLangBound = '1';
+    langBtn.addEventListener('click', () => { if (window.i18n) i18n.toggleLanguage(); });
+  }
+}
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {

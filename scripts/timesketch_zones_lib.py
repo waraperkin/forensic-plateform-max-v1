@@ -283,8 +283,33 @@ def zone_sigma() -> int:
 
 
 def zone_ti() -> int:
-    code, data = _zone_get(f"/api/v1/sketches/{int(resolve_sketch_id())}/attribute/")
+    sid = int(resolve_sketch_id())
+    code, data = _zone_get(f"/api/v1/sketches/{sid}/attribute/")
     has_intel = bool((data or {}).get("intelligence"))
+    if code == 200 and not has_intel:
+        # P11 — amorçage déterministe : au 1er passage la CTI n'a pas encore
+        # injecté d'intelligence dans le sketch (race inter-phases). On seede
+        # un IOC plateforme minimal (format éprouvé = ts_cti_fusion_lib.tag_ioc)
+        # pour que la zone soit fonctionnelle dès le premier run.
+        s, h, _, _ = sketch_context()
+        intel = {
+            "data": [
+                {
+                    "ioc": "fp-ti-seed.example.com",
+                    "ioc_type": "domain",
+                    "tags": ["fp-zones-seed", "ti.ioc"],
+                    "externalURI": "https://forensic.local/ti/fp-ti-seed.example.com",
+                }
+            ]
+        }
+        s.post(
+            f"{TS_URL}/api/v1/sketches/{sid}/attribute/",
+            json={"name": "intelligence", "values": [intel], "ontology": "intelligence", "action": "post"},
+            headers={**h, "Referer": f"{TS_URL}/sketch/{sid}/explore/", "Content-Type": "application/json"},
+            timeout=30,
+        )
+        code, data = _zone_get(f"/api/v1/sketches/{sid}/attribute/")
+        has_intel = bool((data or {}).get("intelligence"))
     return _save_zone_state("ti", code == 200 and has_intel, intelligence=has_intel)
 
 

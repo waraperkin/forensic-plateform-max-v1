@@ -1310,6 +1310,8 @@ services:
       - UPLOAD_MAX_FILES=${UPLOAD_MAX_FILES}
       - UPLOAD_MAX_SIZE_BYTES=${UPLOAD_MAX_SIZE_BYTES}
       - SECRET_KEY=${IT_PORTAL_SECRET}
+      # P04 : token service-à-service pour le proxy master → portail CERT
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-}
       - NODE_ENV=production
       - PORT=3001
     ports:

@@ -1184,6 +1184,9 @@
 [data-edition="cybercorp"] .pso-rail-item { display: grid; grid-template-columns: auto 1fr; gap: .5rem; align-items: start; width: 100%; text-align: left; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: .5rem .6rem; cursor: pointer; color: var(--text); transition: border-color .15s ease, background .15s ease; }
 [data-edition="cybercorp"] .pso-rail-item:hover { border-color: var(--border-focus); background: var(--bg-hover); }
 [data-edition="cybercorp"] .pso-rail-item.active { border-color: var(--accent); background: var(--accent-muted); }
+/* P21 — lignes de la file PSOAR cliquables (ouverture incident au clic ligne, façon SOAR) */
+[data-edition="cybercorp"] #psoar-root .fp-table tbody tr:has([data-act]) { cursor: pointer; }
+[data-edition="cybercorp"] #psoar-root .fp-table tbody tr:has([data-act]):hover td { background: var(--bg-hover); }
 [data-edition="cybercorp"] .pso-rail-main { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
 [data-edition="cybercorp"] .pso-rail-main strong { font-size: .85rem; font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 [data-edition="cybercorp"] .pso-rail-main .fp-muted { font-size: .72rem; display: block; }

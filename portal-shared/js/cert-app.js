@@ -716,6 +716,14 @@ function initCertApp() {
     i18n.translateDOM(document);
     tab(activeTab);
   });
+
+  // P17 — le bouton langue n'était jamais bindé (PortalV6.init() jamais appelé)
+  // : le toggle FR/EN était totalement mort. Binding direct et idempotent.
+  const langBtn = document.getElementById('lang-switch');
+  if (langBtn && !langBtn.dataset.fpLangBound) {
+    langBtn.dataset.fpLangBound = '1';
+    langBtn.addEventListener('click', () => { if (window.i18n) i18n.toggleLanguage(); });
+  }
 }
 
 async function boot() {

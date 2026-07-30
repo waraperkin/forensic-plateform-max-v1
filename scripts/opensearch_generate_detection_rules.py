@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -409,6 +410,16 @@ def main() -> int:
     if not wait_opensearch(session, OS, timeout_total=300):
         print("[det-rules] KO OpenSearch inaccessible — abandon", file=sys.stderr)
         return 1
+    # P07 — garantit la capacité Alerting (défaut 1000 insuffisant) avant déploiement.
+    try:
+        subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "opensearch_alerting_limits.py")],
+            check=False,
+            timeout=60,
+            env={**os.environ, "OS_URL": OS},
+        )
+    except Exception:  # noqa: BLE001
+        pass
     catalog = generate_rule_catalog()
     print(f"[det-rules] Catalogue généré : {len(catalog)} règles")
     docs = [d for d, _ in catalog]

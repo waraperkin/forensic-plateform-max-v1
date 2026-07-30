@@ -520,14 +520,31 @@ def sync_opensearch_fp() -> bool:
 
 
 def run_bootstrap_scripts() -> None:
+    """Scripts de bootstrap OpenCTI — P05 : un timeout/échec d'un script ne doit
+    JAMAIS faire échouer tout le setup master (le populate TI deep dépassait
+    600 s sous charge → crash → entités FP-Master jamais créées)."""
+    import os as _os
+
+    default_timeout = int(_os.environ.get("FP_OPENCTI_BOOTSTRAP_TIMEOUT", "600"))
+    deep_timeout = int(_os.environ.get("FP_OPENCTI_POPULATE_DEEP_TIMEOUT", "1200"))
     for name in (
         "opencti-bootstrap-indicators.py",
         "opencti-populate-entities.py",
         "opencti-populate-ti-deep.py",
     ):
         p = ROOT / "scripts" / name
-        if p.is_file():
-            subprocess.run([sys.executable, str(p)], cwd=str(ROOT), timeout=600, capture_output=True)
+        if not p.is_file():
+            continue
+        t = deep_timeout if "ti-deep" in name else default_timeout
+        try:
+            r = subprocess.run([sys.executable, str(p)], cwd=str(ROOT), timeout=t, capture_output=True)
+            if r.returncode != 0:
+                tail = (r.stderr or b"").decode("utf-8", "replace")[-300:]
+                ko(f"bootstrap {name} rc={r.returncode} {tail} (non bloquant)")
+        except subprocess.TimeoutExpired:
+            ko(f"bootstrap {name} timeout {t}s — poursuite du setup (non bloquant)")
+        except Exception as exc:  # noqa: BLE001
+            ko(f"bootstrap {name}: {exc} (non bloquant)")
 
 
 def save_state(data: dict[str, Any]) -> None:

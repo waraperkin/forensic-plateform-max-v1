@@ -310,6 +310,12 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
       }
     }
     const url = `${mapped.base}${mapped.target}`;
+    // Timeouts adaptés : la collecte d'événements (jobs Sekoia) peut dépasser
+    // 60 s ; les inventaires volumineux (1000+ règles) aussi au 1er refresh.
+    const heavy = /^\/sekoia\/(fetch|events|search)(\/|$)/.test(req.path);
+    const timeout = heavy
+      ? Number(process.env.SEKOIA_PROXY_TIMEOUT_HEAVY_MS || 240000)
+      : Number(process.env.SEKOIA_PROXY_TIMEOUT_MS || 120000);
     try {
       const r = await axios.request({
         method: req.method,
@@ -317,7 +323,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
         params: req.query,
         data: ['GET', 'HEAD'].includes(req.method) ? undefined : (req.body || {}),
         headers: { ...internalHeaders },
-        timeout: 60000,
+        timeout,
         validateStatus: () => true,
       });
       // Audit : enregistre les écritures (création/modif/suppression) relayées.
@@ -328,12 +334,15 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
       return res.status(r.status).json(r.data);
     } catch (e) {
       log.warn?.(`threat proxy ${req.method} ${url}: ${e.message}`);
-      // Dégradation propre : pas d'erreur HTTP pour l'UI
+      // Dégradation propre : message exploitable, code technique à part (pas de
+      // stack/code réseau brut type ENOTFOUND exposé dans l'UI).
       return res.json({
         configured: false,
         items: [],
         count: 0,
-        error: `Control-plane injoignable (${e.code || 'erreur réseau'})`,
+        error: 'Control-plane Sekoia momentanément indisponible — le service démarre ou est redémarré. Réessayez dans quelques secondes.',
+        error_code: e.code || 'network_error',
+        controlplane_unavailable: true,
       });
     }
   });

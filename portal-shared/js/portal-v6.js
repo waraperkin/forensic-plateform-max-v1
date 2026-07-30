@@ -142,8 +142,11 @@
 
   function bindLangSwitch() {
     const btn = global.document?.getElementById('lang-switch');
-    if (!btn || btn.dataset.pv6LangBound) return;
+    // Garde partagée avec cert-app/it-app (fpLangBound) : un double binding
+    // appellerait toggleLanguage 2× par clic (FR→EN→FR = no-op).
+    if (!btn || btn.dataset.pv6LangBound || btn.dataset.fpLangBound) return;
     btn.dataset.pv6LangBound = '1';
+    btn.dataset.fpLangBound = '1';
     btn.addEventListener('click', () => {
       if (global.i18n) global.i18n.toggleLanguage();
     });

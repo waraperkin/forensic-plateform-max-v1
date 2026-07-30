@@ -558,7 +558,6 @@ start_activation_layers() {
   fp_try "Timesketch Playbook verify" timesketch_playbook_verify
   fp_try "Timesketch zones setup" timesketch_zones_setup
   fp_try "Timesketch zones verify" timesketch_zones_verify
-  fp_try "Timesketch full zones integration" timesketch_full_zones_integration_verify
 
   fp_try "Cross-Pivot setup" crosspivot_setup
   fp_try "Cross-Pivot verify" crosspivot_verify
@@ -588,6 +587,11 @@ start_activation_layers() {
   fp_try "Visualizations Master setup" visualizations_master_setup
   fp_try "Visualizations Master verify" visualizations_master_verify
   fp_try "Visualizations Master UI verify" visualizations_master_ui_verify
+
+  # P11 — l'intégration full-zones exige ≥80 saved views, créées par les masters
+  # Sigma/TI/Analyzers/Visualizations ci-dessus : elle doit donc passer APRÈS eux
+  # (avant : 4 vues au 1er essai → KO systématique puis OK au retry).
+  fp_try "Timesketch full zones integration" timesketch_full_zones_integration_verify
 
   fp_try "SOC Autonomous run" soc_autonomous_run
   fp_try "SOC Autonomous verify" soc_autonomous_verify
@@ -857,6 +861,12 @@ fp_opensearch_repair() {
     info "Réparation disque/watermark OpenSearch (non destructive)..."
     OS_URL="$os_url" python3 "$DIR/scripts/opensearch_disk_repair.py" \
       || warn "Réparation OpenSearch partielle"
+  fi
+  # P07 — la limite Alerting par défaut (1000 monitors) rejetait les créations
+  # FP-SIGMA-* en HTTP 400 (cluster déjà plein détection+TI). Idempotent.
+  if [ -f "$DIR/scripts/opensearch_alerting_limits.py" ]; then
+    OS_URL="$os_url" python3 "$DIR/scripts/opensearch_alerting_limits.py" \
+      || warn "Réglage limite monitors Alerting différé"
   fi
   # Attendre la STABILISATION de l'allocation (réplicas) avant l'activation :
   # sinon les écritures précoces (ISM, .opendistro-ism-config) échouent en

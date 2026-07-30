@@ -145,7 +145,7 @@ def create_monitors(s: requests.Session) -> int:
                 ok = True
                 break
         if not ok and i < 3:
-            print(f"[sigma] WARN monitor {name} HTTP {r.status_code}", file=sys.stderr)
+            print(f"[sigma] WARN monitor {name} HTTP {r.status_code}: {r.text[:200]}", file=sys.stderr)
         time.sleep(0.02)
     # Vérification réelle (_search prefix/wildcard peu fiable sur alerting)
     vr = s.post(
@@ -171,6 +171,18 @@ def index_sigma_catalog(s: requests.Session, n: int) -> None:
 
 
 def main() -> int:
+    # P07 — garantit la capacité Alerting avant toute création (idempotent).
+    try:
+        import subprocess
+
+        subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "opensearch_alerting_limits.py")],
+            check=False,
+            timeout=60,
+            env={**os.environ, "OS_URL": OS},
+        )
+    except Exception:  # noqa: BLE001 — best effort, la création tentera quand même
+        pass
     s = session()
     yaml_n = write_sigma_yaml_files()
     mon_n = create_monitors(s)

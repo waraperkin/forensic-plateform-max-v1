@@ -620,4 +620,13 @@ forensic-minimal/
 - Composants tiers sous leurs licences respectives (OpenSearch, Grafana, OpenCTI, MISP, TheHive, Timesketch, Velociraptor, HELK, Sigma, etc.).
 - Règles Sigma HELK : voir `helk/sigma/LICENSE`.
 
+### Bruit attendu en environnement lab (non-critique)
+
+Ces messages sont **inoffensifs et documentés** — ils ne signalent pas de panne :
+
+- **TheHive — `No license set as current was found in database`** : TheHive fonctionne en édition communautaire sans licence commerciale ; l'avertissement est purement informatif (toutes les API/cases restent opérationnelles).
+- **CSP `script-src` inline (OpenSearch Dashboards / HELK Kibana)** : les consoles navigateur affichent des avertissements CSP sur les scripts inline — configuration stricte volontaire en lab, sans impact fonctionnel.
+- **OSD « home »** : la page d'accueil upstream d'OpenSearch Dashboards 2.12 contient un bug JS (`TypeError … 'split'`) quand `server.basePath` est actif ; la plateforme pose `defaultRoute` sur l'overview FP à l'import des dashboards (étape 3c de `scripts/opensearch_dashboards_import_fp.sh`) pour le court-circuiter.
+- **MISP — 404 `getOrgLogo`** : supprimés par `fix_org_logos()` (`scripts/misp_master_lib.py`) qui pose un logo plateforme sur les organisations qui n'en ont pas.
+
 Pour la documentation approfondie : [`docs/FORENSIC-MINIMAL.md`](docs/FORENSIC-MINIMAL.md), [`docs/PORTAL/OVERVIEW.md`](docs/PORTAL/OVERVIEW.md).

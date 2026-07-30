@@ -55,6 +55,11 @@ def _env(key: str, default: str = "") -> str:
 
 CORTEX_SECRET = _env("CORTEX_SECRET", "forensic-cortex-secret-2024-changeme-in-prod")
 CORTEX_LEGACY_KEY = _env("CORTEX_API_KEY", "forensic-cortex-api-key-2024-internal")
+# Mot de passe du compte admin exposé dans .env. Historiquement le bootstrap
+# créait le superadmin avec CORTEX_SECRET → login .env KO (401, audit P02).
+# Désormais : création ET login avec CORTEX_ADMIN_PASSWORD (fallback legacy +
+# réalignement automatique du mot de passe pour les installs existantes).
+CORTEX_ADMIN_PASS = _env("CORTEX_ADMIN_PASSWORD", "") or CORTEX_SECRET
 
 
 def _now() -> str:
@@ -90,18 +95,40 @@ class CortexClient:
         self.csrf = ""
 
     def login(self) -> None:
-        r = self.session.post(
-            f"{CX_URL}/api/login",
-            json={"user": ADMIN_USER, "password": CORTEX_SECRET},
-            timeout=30,
-            verify=False,
-        )
-        if r.status_code >= 400:
-            raise RuntimeError(f"login HTTP {r.status_code}: {r.text[:200]}")
-        self.session.get(f"{CX_URL}/", timeout=20, verify=False)
-        self.csrf = self.session.cookies.get("CORTEX-XSRF-TOKEN", "")
-        if not self.csrf:
-            raise RuntimeError("cookie CORTEX-XSRF-TOKEN absent")
+        last = ""
+        for cand in dict.fromkeys([CORTEX_ADMIN_PASS, CORTEX_SECRET]):
+            r = self.session.post(
+                f"{CX_URL}/api/login",
+                json={"user": ADMIN_USER, "password": cand},
+                timeout=30,
+                verify=False,
+            )
+            if r.status_code < 400:
+                if cand != CORTEX_ADMIN_PASS:
+                    self._realign_password()
+                self.session.get(f"{CX_URL}/", timeout=20, verify=False)
+                self.csrf = self.session.cookies.get("CORTEX-XSRF-TOKEN", "")
+                if not self.csrf:
+                    raise RuntimeError("cookie CORTEX-XSRF-TOKEN absent")
+                return
+            last = f"login HTTP {r.status_code}: {r.text[:200]}"
+        raise RuntimeError(last or "login Cortex impossible")
+
+    def _realign_password(self) -> None:
+        """Login legacy (CORTEX_SECRET) réussi → réaligne sur CORTEX_ADMIN_PASSWORD."""
+        try:
+            r = self.session.post(
+                f"{CX_URL}/api/user/{ADMIN_USER}/password",
+                json={"password": CORTEX_ADMIN_PASS},
+                timeout=30,
+                verify=False,
+            )
+            if r.status_code < 400:
+                ok("mot de passe Cortex réaligné sur CORTEX_ADMIN_PASSWORD")
+            else:
+                ko(f"réalignement mot de passe: HTTP {r.status_code}")
+        except requests.RequestException as exc:
+            ko(f"réalignement mot de passe: {exc}")
 
     def renew_key(self) -> str:
         r = self.session.post(
@@ -254,7 +281,7 @@ def _ensure_org_and_superadmin() -> None:
                 "login": ADMIN_USER,
                 "name": "FP Admin",
                 "roles": ["superadmin"],
-                "password": CORTEX_SECRET,
+                "password": CORTEX_ADMIN_PASS,
                 "organization": ORG_NAME,
             },
             timeout=30,

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Libère de la capacité monitors Alerting (limite OS ~1000) — garde TI + priorité."""
+"""Libère de la capacité monitors Alerting en dernier recours (soupape de sécurité).
+
+La limite OpenSearch Alerting est montée à 10000 (P07 — opensearch_alerting_limits.py
++ opensearch.yml). Ce pruneur n'intervient donc plus dans le fonctionnement nominal ;
+il ne taille que si le parc approche réellement le plafond cluster."""
 from __future__ import annotations
 
 import os
@@ -8,7 +12,7 @@ import sys
 import requests
 
 OS = os.environ.get("OS_URL", "http://localhost:9200").rstrip("/")
-MAX_MONITORS = int(os.environ.get("FP_ALERTING_MAX", "995"))
+MAX_MONITORS = int(os.environ.get("FP_ALERTING_MAX", "9000"))
 KEEP_PREFIXES = ("FP-TI-Match", "FP-DET-TI", "FP-DET-AUTH", "FP-DET-BEHAV")
 DELETE_FIRST = ("FP-DET-TEST", "FP-DET-GEN", "FP-DET-NET", "FP-DET-WEB", "FP-DET-SIGMA", "FP-DET-LINUX", "FP-DET-PLATFORM")
 

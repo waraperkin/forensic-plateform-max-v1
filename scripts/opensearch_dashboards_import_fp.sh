@@ -94,6 +94,19 @@ python3 "$ROOT/scripts/opensearch_refresh_index_pattern.py" \
   fp-obs-logs fp-mitre fp-fusion fp-ti-enriched >>"$LOG" 2>&1 || true
 ok "index-patterns rafraîchis"
 
+# P10 — la page « home » d'OSD 2.12 plante en JS (TypeError … 'split') quand
+# server.basePath est actif (bug upstream). On court-circuite le home en
+# posant la route par défaut sur l'overview FP (best effort, non bloquant).
+log "3c/4 — defaultRoute → overview FP (contournement bug home OSD, P10)..."
+CODE=$(curl -sk -o /dev/null -w '%{http_code}' -X POST "${IMPORT_BASE}/api/opensearch-dashboards/settings" \
+  -H "osd-xsrf: true" -H "securitytenant: global" -H 'Content-Type: application/json' \
+  -d '{"changes":{"defaultRoute":"/app/dashboards#/view/fp-opensearch-overview"}}' 2>/dev/null || echo "000")
+if [ "$CODE" = "200" ]; then
+  ok "defaultRoute → /app/dashboards#/view/fp-opensearch-overview"
+else
+  bad "defaultRoute HTTP $CODE (non bloquant)"
+fi
+
 log "4/4 — Vérification dashboards..."
 for uid in fp-opensearch-overview fp-opensearch-security; do
   CODE=$(curl -sk -o /dev/null -w '%{http_code}' "${IMPORT_BASE}/api/saved_objects/dashboard/${uid}" 2>/dev/null)

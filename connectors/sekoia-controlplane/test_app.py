@@ -443,3 +443,35 @@ def test_config_expose_etat_donnees():
     j = r.json()
     assert j["secrets_store"] == "encrypted-fernet"
     assert "data" in j and j["data"]["persisted"] is False
+
+
+# ── Masquage des secrets dans l'API ──────────────────────────────────────────
+def test_mask_secret():
+    assert cp._mask_secret("") == ""
+    assert cp._mask_secret(None) == ""
+    assert cp._mask_secret("abc") == "••••••"
+    m = cp._mask_secret("abcdef1234567890")
+    assert m == "abcd…90"
+    assert "ef123456" not in m
+
+
+def test_intake_key_masquee_dans_inventaire(monkeypatch):
+    """L'intake_key ne doit JAMAIS remonter en clair dans l'API/UI."""
+    inv = _fake_inventory()
+    inv["intakes"] = [{"uuid": "u1", "intake_key": "SECRETINTAKEKEY123456"}]
+    # Simule la ligne d'inventaire construite avec la clé brute
+    async def fake_inv():
+        out = _fake_inventory()
+        out["main_inventory"][0]["intake_key"] = cp._mask_secret("SECRETINTAKEKEY123456")
+        return out
+
+    async def fake_rules(format_by_uuid):
+        return [], None
+
+    monkeypatch.setattr(cp, "build_inventory", fake_inv)
+    monkeypatch.setattr(cp, "build_detection_rules", fake_rules)
+    monkeypatch.setattr(cp, "configured", lambda: True)
+    r = client.get("/control/sekoia/inventory?refresh=1", headers=AUTH)
+    assert r.status_code == 200
+    assert "SECRETINTAKEKEY123456" not in r.text
+    assert r.json()["items"][0]["intake_key"] == "SECR…56"

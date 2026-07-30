@@ -7,3 +7,6 @@ http.cors.enabled: true
 http.cors.allow-origin: "*"
 http.cors.allow-headers: "X-Requested-With,Content-Type,Content-Length,Authorization"
 indices.query.bool.max_clause_count: 4096
+# P07 — détection à grande échelle : le défaut Alerting (1000 monitors) bloquait
+# les créations FP-SIGMA-* en HTTP 400 une fois le parc détection+TI déployé.
+plugins.alerting.monitor.max_monitors: 10000

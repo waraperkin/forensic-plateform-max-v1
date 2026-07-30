@@ -14,6 +14,7 @@ from misp_master_lib import (  # noqa: E402
     create_fp_master_event,
     ensure_master_attributes,
     ensure_pymisp_installed,
+    fix_org_logos,
     ko,
     metrics,
     ok,
@@ -66,6 +67,7 @@ def main() -> int:
 
     opencti_misp_link_check()
     pivot = pivot_ioc_opensearch_timesketch()
+    fix_org_logos()  # P12 — logos orgs (404 getOrgLogo), best effort non bloquant
 
     m2 = metrics()
     save_state(

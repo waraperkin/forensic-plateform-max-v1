@@ -36,6 +36,13 @@ from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [sekoia-cp] %(levelname)s %(message)s")
 log = logging.getLogger("sekoia-cp")
 
+# Anti import circulaire : lancé via `python app.py`, ce module est __main__ et
+# `import app` (fait par analytics.py / sol.py) ré-exécuterait tout le fichier.
+# On alias sys.modules["app"] → ce module pour que l'import retourne l'instance
+# courante (partiellement initialisée mais complétée avant tout appel runtime).
+import sys as _sys
+_sys.modules.setdefault("app", _sys.modules[__name__])
+
 # ── Configuration ─────────────────────────────────────────────────────────────
 PORT = int(os.environ.get("CONTROLPLANE_PORT", "8901"))
 HTTP_TIMEOUT = float(os.environ.get("SEKOIA_HTTP_TIMEOUT", "30"))
@@ -356,6 +363,17 @@ def _flat(v):
     return v
 
 
+def _mask_secret(v) -> str:
+    """Masque un secret (intake_key…) pour l'API/UI : jamais de valeur en clair.
+    Format : 4 premiers car. + «…» + 2 derniers (permet l'identification)."""
+    s = str(v or "").strip()
+    if not s:
+        return ""
+    if len(s) <= 8:
+        return "••••••"
+    return f"{s[:4]}…{s[-2:]}"
+
+
 async def build_inventory() -> dict:
     # Fan-out parallèle des 5 collections + actions des playbooks (sémaphore).
     (modules_cfg, e1), (connectors_cfg, e2), (intakes, e3), (ingest_formats, e4), (playbooks, e5) = \
@@ -399,7 +417,8 @@ async def build_inventory() -> dict:
             "intake_uuid": intake.get("uuid"),
             "intake_name": intake.get("name"),
             "intake_status": intake.get("status"),
-            "intake_key": intake.get("intake_key"),
+            "intake_key": _mask_secret(intake.get("intake_key")),
+            "intake_key_present": bool(intake.get("intake_key")),
             "intake_format_uuid": intake.get("format_uuid"),
             "entity_name": (intake.get("entity") or {}).get("name"),
             "intake_created_at": intake.get("created_at"),

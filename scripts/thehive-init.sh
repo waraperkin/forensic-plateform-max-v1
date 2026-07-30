@@ -31,7 +31,53 @@ echo "[INIT] TheHive et Cortex répondent"
 AUTH_CUSTOM="${THEHIVE_ADMIN_LOGIN:-}:${THEHIVE_ADMIN_PASSWORD:-}"
 AUTH_DEFAULT="${TH_DEFAULT_LOGIN}:${TH_DEFAULT_PASS}"
 
-BRAND_CODE=$(curl -sS -o /tmp/th_branding.json -w '%{http_code}' -u "$AUTH_DEFAULT" -X POST "$THEHIVE_URL/api/v1/branding" \
+# ── Provisionnement de l'admin .env dans TheHive ─────────────────────────────
+# Le .env annonce THEHIVE_ADMIN_LOGIN/THEHIVE_ADMIN_PASSWORD, mais TheHive ne
+# crée au boot que son admin par défaut (admin@thehive.local/secret) : sans
+# provisionnement, le login .env échoue (401 AuthenticationError — audit P01).
+# On crée le compte .env (ou on réaligne son mot de passe) via l'admin par
+# défaut, puis TOUT le script utilise les identifiants .env.
+th_code() { # method path user:pass [json-body] [field]
+  curl -sS -o "${5:-/dev/null}" -w '%{http_code}' -X "$1" "$THEHIVE_URL$2" \
+    -H "Content-Type: application/json" -u "$3" ${4:+-d "$4"} 2>/dev/null || printf '000'
+}
+
+ensure_env_admin() {
+  _login="${THEHIVE_ADMIN_LOGIN:-}"
+  _pass="${THEHIVE_ADMIN_PASSWORD:-}"
+  if [ -z "$_login" ] || [ -z "$_pass" ]; then
+    echo "[INIT] WARN THEHIVE_ADMIN_LOGIN/PASSWORD absents du .env — admin par défaut conservé" >&2
+    return 1
+  fi
+  # 1) Déjà aligné ?
+  if [ "$(th_code GET /api/v1/user/current "$_login:$_pass")" = "200" ]; then
+    echo "[INIT] Admin .env ($_login) déjà fonctionnel"
+    return 0
+  fi
+  # 2) Création (profil plateforme admin) via l'admin par défaut
+  code=$(th_code POST /api/v1/user "$AUTH_DEFAULT" \
+    "{\"login\":\"$_login\",\"name\":\"Platform Admin\",\"profile\":\"admin\",\"password\":\"$_pass\"}" /tmp/th_user_create.json)
+  case "$code" in
+    200|201) echo "[INIT] Admin .env $_login créé dans TheHive" ; return 0 ;;
+  esac
+  # 3) Existe déjà (ou = admin par défaut) → réalignement du mot de passe
+  code=$(th_code PUT "/api/v1/user/$_login/password" "$AUTH_DEFAULT" "{\"password\":\"$_pass\"}")
+  case "$code" in
+    200|204)
+      echo "[INIT] Mot de passe TheHive de $_login réaligné sur .env"
+      return 0 ;;
+  esac
+  echo "[INIT] WARN provisionnement admin .env ($_login) impossible (create/reset HTTP $code)" >&2
+  return 1
+}
+
+if ensure_env_admin; then
+  AUTH_EFFECTIVE="$AUTH_CUSTOM"
+else
+  AUTH_EFFECTIVE="$AUTH_DEFAULT"
+fi
+
+BRAND_CODE=$(curl -sS -o /tmp/th_branding.json -w '%{http_code}' -u "$AUTH_EFFECTIVE" -X POST "$THEHIVE_URL/api/v1/branding" \
   -F "title=Forensic Minimal" || printf '%s' "000")
 case "$BRAND_CODE" in
   200|201|204|409) echo "[INIT] TheHive branding : HTTP $BRAND_CODE" ;;
@@ -41,7 +87,7 @@ esac
 BODY="{\"type\":\"cortex\",\"name\":\"Cortex-Forensic\",\"url\":\"${CORTEX_URL}\",\"auth\":{\"type\":\"bearer\",\"key\":\"${CORTEX_API_KEY}\"},\"includedTheHiveOrganisations\":[\"*\"],\"statusCheckInterval\":60}"
 
 CODE="000"
-for cand in "$AUTH_CUSTOM" "$AUTH_DEFAULT"; do
+for cand in "$AUTH_EFFECTIVE" "$AUTH_DEFAULT"; do
   for attempt in 1 2 3 4 5; do
     CODE=$(curl -sS -o /tmp/th_cortex_reg.json -w '%{http_code}' -X POST "$THEHIVE_URL/api/v1/connector" \
       -H "Content-Type: application/json" \
@@ -61,13 +107,13 @@ for cand in "$AUTH_CUSTOM" "$AUTH_DEFAULT"; do
 done
 
 # Utilisateur analyste E2E (création case)
-ORG_ID=$(curl -sS -u "$AUTH_DEFAULT" -H "Content-Type: application/json" \
+ORG_ID=$(curl -sS -u "$AUTH_EFFECTIVE" -H "Content-Type: application/json" \
   -d '{"query":[{"_name":"listOrganisation"}]}' "$THEHIVE_URL/api/v1/query" 2>/dev/null \
   | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['_id'] if d else '~20584')" 2>/dev/null || echo "~20584")
 E2E_LOGIN="${THEHIVE_ANALYST_LOGIN:-cert-analyst@forensic.local}"
 E2E_PASS="${THEHIVE_ANALYST_PASSWORD:-F0r3ns1c_TH_Analyst!}"
 curl -sS -o /dev/null -w '%{http_code}' -X POST "$THEHIVE_URL/api/v1/user" \
-  -H "Content-Type: application/json" -u "$AUTH_DEFAULT" \
+  -H "Content-Type: application/json" -u "$AUTH_EFFECTIVE" \
   -d "{\"login\":\"$E2E_LOGIN\",\"name\":\"CERT Analyst\",\"profile\":\"org-admin\",\"password\":\"$E2E_PASS\",\"organisations\":[{\"organisation\":\"$ORG_ID\",\"profile\":\"org-admin\"}]}" \
   | grep -qE '200|201|409' && echo "[INIT] Utilisateur E2E $E2E_LOGIN prêt" || true
 

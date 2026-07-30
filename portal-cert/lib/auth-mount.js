@@ -1,8 +1,20 @@
 'use strict';
 
+const crypto = require('crypto');
 const store = require('./auth-store');
 const session = require('./auth-session');
 const { createAuthRouter } = require('./auth-routes');
+
+// P04 — token service-à-service (scripts master, proxy IT, monitoring interne).
+// Partagé via .env (INTERNAL_API_TOKEN), jamais exposé au navigateur.
+const INTERNAL_API_TOKEN = (process.env.INTERNAL_API_TOKEN || '').trim();
+
+function isInternalService(req) {
+  if (!INTERNAL_API_TOKEN) return false;
+  const presented = String(req.headers['x-internal-token'] || '');
+  if (!presented || presented.length !== INTERNAL_API_TOKEN.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(presented), Buffer.from(INTERNAL_API_TOKEN));
+}
 
 /**
  * Gate API — deny by default (correctif audit P-01).
@@ -82,6 +94,14 @@ function mountAuth(app) {
 
     // API publiques (healthchecks, login, certificat CA)
     if (isPublicApi(req.path)) return next();
+
+    // Service-à-service : le token interne agit comme une session admin de
+    // service (comparaison constant-time). Permet aux scripts master et au
+    // proxy IT d'atteindre /api/master/* sans session navigateur (P04).
+    if (req.path.startsWith('/api/') && !req.user && isInternalService(req)) {
+      req.user = { id: 'svc-internal', username: 'svc-internal', role: 'admin', internal: true };
+      return next();
+    }
 
     // À partir d'ici : toute route /api/* exige une session.
     if (req.path.startsWith('/api/')) {

@@ -207,7 +207,20 @@
       ? stateBox('Série en cours de constitution',
         `Deux points de collecte au minimum sont nécessaires pour tracer une tendance. `
         + `Le collecteur écrit un point toutes les 5 minutes.`)
-      : (function () {
+      : tl.length < 4 ? (function () {
+        // Avec deux ou trois releves, une aire produit un aplat qui ne dit rien.
+        // Des barres restituent honnetement la mesure ponctuelle.
+        const max = Math.max.apply(null, tl.map((p) => p.count)) || 1;
+        const cells = tl.map((p) => `<div style="flex:1 1 0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:.35rem">
+            <span style="font-size:.74rem;color:var(--swb-muted)">${esc(nf(p.count))}</span>
+            <span style="width:min(72px,80%);height:${Math.max(6, Math.round((p.count / max) * 130))}px;
+              background:linear-gradient(180deg,var(--swb-accent),color-mix(in srgb,var(--swb-accent) 45%,transparent));
+              border-radius:5px 5px 0 0" title="${esc(dt(p.ts))} — ${esc(nf(p.count))}"></span>
+            <span style="font-size:.7rem;color:var(--swb-muted)">${esc(dt(p.ts).slice(11))}</span>
+          </div>`).join('');
+        return `<div style="display:flex;align-items:flex-end;gap:1rem;height:190px;padding:0 .5rem">${cells}</div>
+          <p class="swb-hint" style="margin-top:.5rem">Série en constitution : ${tl.length} relevés. La courbe se dessine au-delà de quatre points.</p>`;
+      }()) : (function () {
         const w = 1000; const h = 190;
         const max = Math.max.apply(null, tl.map((p) => p.count)) || 1;
         const dx = w / (tl.length - 1);

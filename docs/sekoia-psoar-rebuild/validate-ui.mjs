@@ -191,14 +191,16 @@ try {
 
 
 // ── V12/V13/V14 Sekoia Extended Platform ──
-for (const [id, view, label] of [['V12','supervision','Supervision'],['V13','alerting','Alerting'],['V14','operations','Opérations en lot']]) {
+for (const [id, view, label] of [['V15','dashboard','Tableau de bord'],['V12','supervision','Supervision'],['V13','alerting','Alerting'],['V14','operations','Opérations en lot']]) {
   try {
     await openTab('sekoia-extended');
     await page.waitForTimeout(2500);
-    if (view !== 'supervision') {
-      await page.locator(`[data-sep-view="${view}"]`).first().click({ timeout: 10000 });
-      await page.waitForTimeout(3500);
-    }
+    // On clique TOUJOURS la vue : la vue par defaut de la console a change
+    // (dashboard), et un test qui ne clique pas mesurait la mauvaise vue.
+    await page.locator(`[data-sep-view="${view}"]`).first().click({ timeout: 10000 });
+    await page.waitForFunction(
+      () => (document.getElementById('sekoia-extended-root')?.innerText || '').length > 300,
+      { timeout: 60000 }).catch(() => {});
     const s = await shot(`${id}-sep-${view}`);
     const body = await page.locator('#sekoia-extended-root').innerText();
     const bad = /ENOTFOUND|ECONNREFUSED|\[object Object\]|undefined/.test(body);

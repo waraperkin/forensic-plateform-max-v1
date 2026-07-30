@@ -1569,6 +1569,11 @@ alerting.register(app)
 import bulkops  # noqa: E402
 bulkops.register(app)
 
+# ── Sekoia Extended Platform — Dashboard & Visualization Layer.
+#    Agrégation serveur : le front reçoit des séries prêtes à tracer.
+import dashboards  # noqa: E402
+dashboards.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

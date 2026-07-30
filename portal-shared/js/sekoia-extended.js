@@ -18,7 +18,7 @@
   const toast = (m, c) => { if (TC && TC.toast) TC.toast(m, c); };
 
   const API = '/api/threat/sekoia';
-  const st = { view: 'supervision', data: {}, loading: false, error: null };
+  const st = { view: 'dashboard', range: 24, data: {}, loading: false, error: null };
 
   function nf(n) {
     if (n === null || n === undefined) return '—';
@@ -46,6 +46,7 @@
 
   function shell(body) {
     const tabs = [
+      ['dashboard', 'Tableau de bord'],
       ['supervision', 'Supervision'],
       ['alerting', 'Alerting'],
       ['operations', 'Opérations en lot'],
@@ -75,6 +76,104 @@
       + '<div class="sep-stat-label">' + esc(label) + '</div>'
       + (hint ? '<div class="sep-stat-hint">' + esc(hint) + '</div>' : '')
       + '</div>';
+  }
+
+  // ── Graphiques SVG en ligne ────────────────────────────────────────────────
+  // Tracés à la main plutôt qu'avec une librairie : aucune dépendance externe,
+  // rien à charger, et un rendu net dans les deux thèmes.
+  function sparkArea(points, w, h) {
+    if (!points || points.length < 2) {
+      return '<p class="fp-muted">Série insuffisante — au moins deux points de collecte sont nécessaires.</p>';
+    }
+    const max = Math.max.apply(null, points.map(function (p) { return p.count; })) || 1;
+    const dx = w / (points.length - 1);
+    const xy = points.map(function (p, i) {
+      return [i * dx, h - (p.count / max) * (h - 12) - 6];
+    });
+    const line = xy.map(function (c, i) { return (i ? 'L' : 'M') + c[0].toFixed(1) + ' ' + c[1].toFixed(1); }).join(' ');
+    const area = line + ' L' + w + ' ' + h + ' L0 ' + h + ' Z';
+    const dots = xy.map(function (c, i) {
+      return '<circle cx="' + c[0].toFixed(1) + '" cy="' + c[1].toFixed(1) + '" r="2.5" class="sep-dot">'
+        + '<title>' + esc(points[i].ts) + ' \u2014 ' + esc(nf(points[i].count)) + '</title></circle>';
+    }).join('');
+    return '<svg class="sep-chart" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" role="img" '
+      + 'aria-label="Volumétrie d’ingestion, maximum ' + esc(nf(max)) + ' événements par heure">'
+      + '<path d="' + area + '" class="sep-area"/><path d="' + line + '" class="sep-line"/>' + dots + '</svg>'
+      + '<div class="sep-axis"><span>' + esc(points[0].ts.slice(5, 16).replace('T', ' ')) + '</span>'
+      + '<span>max ' + esc(nf(max)) + '/h</span>'
+      + '<span>' + esc(points[points.length - 1].ts.slice(5, 16).replace('T', ' ')) + '</span></div>';
+  }
+
+  function bars(rows, valueKey, labelKey) {
+    if (!rows || !rows.length) return '<p class="fp-muted">Aucune donnée.</p>';
+    const max = Math.max.apply(null, rows.map(function (r) { return r[valueKey] || 0; })) || 1;
+    return '<div class="sep-bars">' + rows.map(function (r) {
+      const pct = Math.max(1, Math.round(((r[valueKey] || 0) / max) * 100));
+      return '<div class="sep-bar-row"><span class="sep-bar-label" title="' + esc(r[labelKey]) + '">'
+        + esc(r[labelKey]) + '</span>'
+        + '<span class="sep-bar-track"><span class="sep-bar-fill" style="width:' + pct + '%"></span></span>'
+        + '<span class="sep-bar-value">' + esc(nf(r[valueKey])) + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  function heat(hm) {
+    if (!hm || !hm.rows || !hm.rows.length) return '<p class="fp-muted">Carte de chaleur indisponible.</p>';
+    const max = hm.max || 1;
+    return '<div class="sep-heat">' + hm.rows.map(function (r) {
+      const cells = r.values.map(function (v, i) {
+        // Échelle logarithmique : sans elle une source à 1 M écrase toutes les
+        // autres et la carte ne montre plus rien.
+        const lvl = v <= 0 ? 0 : Math.min(5, Math.ceil((Math.log10(v + 1) / Math.log10(max + 1)) * 5));
+        return '<span class="sep-heat-cell sep-heat-' + lvl + '" title="' + esc(hm.slots[i] || '')
+          + ' \u2014 ' + esc(nf(v)) + '"></span>';
+      }).join('');
+      return '<div class="sep-heat-row"><span class="sep-heat-label" title="' + esc(r.label) + '">'
+        + esc(r.label) + '</span><span class="sep-heat-cells">' + cells + '</span></div>';
+    }).join('') + '<div class="sep-heat-legend"><span>moins</span>'
+      + [0, 1, 2, 3, 4, 5].map(function (l) { return '<span class="sep-heat-cell sep-heat-' + l + '"></span>'; }).join('')
+      + '<span>plus</span></div></div>';
+  }
+
+  // ── Tableau de bord ────────────────────────────────────────────────────────
+  function renderDashboard() {
+    const d = st.data.dashboard;
+    if (!d || !d.available) {
+      return degraded((d && d.errors && d.errors[0]) || "Aucune télémétrie agrégée pour l’instant.");
+    }
+    const k = d.kpi || {};
+    const sev = (d.alerts && d.alerts.by_severity) || {};
+    const byType = (d.alerts && d.alerts.by_type) || {};
+    const types = Object.keys(byType).map(function (t) {
+      return { type: t, count: byType[t] };
+    }).sort(function (a, b) { return b.count - a.count; });
+
+    const ranges = [[6, '6 h'], [24, '24 h'], [168, '7 j'], [720, '30 j']];
+    const picker = '<div class="sep-range">' + ranges.map(function (r) {
+      const on = (st.range || 24) === r[0];
+      return '<button type="button" class="fp-btn fp-btn-sm' + (on ? ' fp-btn-primary' : ' fp-btn-ghost')
+        + '" data-sep-act="range" data-hours="' + r[0] + '">' + esc(r[1]) + '</button>';
+    }).join('') + '</div>';
+
+    return '<div class="sep-row-between"><h3 class="fp-section-title">Ingestion \u2014 '
+      + esc(d.hours) + ' h (granularité ' + esc(d.interval) + ')</h3>' + picker + '</div>'
+      + '<div class="sep-stats">'
+      + stat('Débit courant', nf(k.events_per_hour) + '/h', 'ok', 'dernier créneau mesuré')
+      + stat('Pic sur la fenêtre', nf(k.events_peak) + '/h', 'warn')
+      + stat('Sources actives', nf(k.sources_active), k.sources_active ? 'ok' : 'danger')
+      + stat('Sources silencieuses', nf(k.sources_silent), k.sources_silent ? 'danger' : 'ok')
+      + stat('Alertes critiques', nf(sev.critical || 0), sev.critical ? 'danger' : 'ok')
+      + '</div>'
+      + '<div class="fp-card"><h3 class="fp-section-title">Volumétrie d’ingestion</h3>'
+      + sparkArea(d.timeline, 900, 170) + '</div>'
+      + '<div class="sep-grid2">'
+      + '<div class="fp-card"><h3 class="fp-section-title">Sources les plus volumineuses</h3>'
+      + bars(d.top_sources, 'count', 'name') + '</div>'
+      + '<div class="fp-card"><h3 class="fp-section-title">Alertes par type</h3>'
+      + bars(types, 'count', 'type') + '</div>'
+      + '</div>'
+      + '<div class="fp-card"><h3 class="fp-section-title">Carte de chaleur \u2014 activité par source</h3>'
+      + '<p class="fp-muted">Échelle logarithmique : sans elle, une source à 1 M/h écraserait toutes les autres.</p>'
+      + heat(d.heatmap) + '</div>';
   }
 
   // ── Supervision : volumétrie réelle ────────────────────────────────────────
@@ -245,7 +344,9 @@
   async function load() {
     st.loading = true; st.error = null; paint();
     try {
-      if (st.view === 'supervision') {
+      if (st.view === 'dashboard') {
+        st.data.dashboard = await api('/dashboard?hours=' + (st.range || 24) + '&top=10');
+      } else if (st.view === 'supervision') {
         st.data.health = await api('/intakes/health');
       } else if (st.view === 'alerting') {
         const res = await Promise.all([
@@ -273,6 +374,7 @@
     let body;
     if (st.loading) body = '<p class="fp-muted">Chargement…</p>';
     else if (st.error) body = degraded(st.error);
+    else if (st.view === 'dashboard') body = renderDashboard();
     else if (st.view === 'supervision') body = renderSupervision();
     else if (st.view === 'alerting') body = renderAlerting();
     else body = renderOperations();
@@ -308,6 +410,7 @@
       const act = btn.dataset.sepAct;
       try {
         if (act === 'refresh') { load(); return; }
+        if (act === 'range') { st.range = Number(btn.dataset.hours) || 24; load(); return; }
         if (act === 'evaluate') {
           const r = await api('/alerting/evaluate?dry_run=1', { method: 'POST' });
           toast(r.alerts_new + ' alerte(s) → ' + r.incidents + ' incident(s)', 'ok');

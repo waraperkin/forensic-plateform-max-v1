@@ -75,3 +75,49 @@
   .sep-form select, .sep-form input { min-width: 100%; }
   .sep-form label { width: 100%; }
 }
+
+/* ── Tableau de bord (module 3.7) ────────────────────────────────────────── */
+.sep-range { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.sep-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 1rem; }
+
+.sep-chart { width: 100%; height: 170px; display: block; }
+.sep-area { fill: rgba(56, 160, 255, 0.16); stroke: none; }
+.sep-line { fill: none; stroke: #38a0ff; stroke-width: 2; stroke-linejoin: round; }
+.sep-dot { fill: #38a0ff; stroke: var(--fp-panel, #14181f); stroke-width: 1.5; }
+.sep-axis {
+  display: flex; justify-content: space-between;
+  font-size: 0.7rem; opacity: 0.6; margin-top: 0.35rem;
+}
+
+.sep-bars { display: flex; flex-direction: column; gap: 0.4rem; }
+.sep-bar-row { display: grid; grid-template-columns: minmax(90px, 1fr) 2fr auto; gap: 0.6rem; align-items: center; }
+.sep-bar-label {
+  font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sep-bar-track {
+  height: 9px; border-radius: 5px; overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+}
+.sep-bar-fill { display: block; height: 100%; background: linear-gradient(90deg, #38a0ff, #19c37d); }
+.sep-bar-value { font-size: 0.78rem; font-variant-numeric: tabular-nums; opacity: 0.85; }
+
+.sep-heat { display: flex; flex-direction: column; gap: 3px; overflow-x: auto; }
+.sep-heat-row { display: grid; grid-template-columns: minmax(120px, 200px) 1fr; gap: 0.6rem; align-items: center; }
+.sep-heat-label {
+  font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sep-heat-cells { display: flex; gap: 2px; }
+.sep-heat-cell { width: 14px; height: 14px; border-radius: 3px; flex: 0 0 auto; }
+/* Palette séquentielle : lisible en clair comme en sombre. */
+.sep-heat-0 { background: rgba(255, 255, 255, 0.06); }
+.sep-heat-1 { background: #0b3d2e; }
+.sep-heat-2 { background: #10614a; }
+.sep-heat-3 { background: #17876a; }
+.sep-heat-4 { background: #1fae89; }
+.sep-heat-5 { background: #2fd6a8; }
+.sep-heat-legend {
+  display: flex; align-items: center; gap: 3px;
+  margin-top: 0.5rem; font-size: 0.7rem; opacity: 0.6;
+}
+.sep-heat-legend span:first-child { margin-right: 0.3rem; }
+.sep-heat-legend span:last-child { margin-left: 0.3rem; }

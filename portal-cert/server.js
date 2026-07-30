@@ -774,6 +774,12 @@ app.use('/api', require('./routes/incident-routes').createIncidentRoutes({
   os, s3, axios, logger, auditAction, tsDeleteSketch: deleteTsSketchByName,
 }));
 
+// PSOAR — Playbook Orchestration Engine : etapes typees, branches, approbations
+// bloquantes, simulation integrale, journal d'execution, versionning.
+app.use('/api', require('./routes/playbook-routes').createPlaybookRoutes({
+  os, axios, logger, auditAction,
+}));
+
 app.get('/api/cases', async (req,res) => {
   try { const r=await os.search({index:'forensic-uploads*',body:{size:0,aggs:{cases:{terms:{field:'case_id',size:100},aggs:{files:{value_count:{field:'upload_id'}},last_upload:{max:{field:'@timestamp'}},portals:{terms:{field:'portal',size:5}}}}}}}); res.json((r.body.aggregations?.cases?.buckets||[]).map(b=>({case_id:b.key,files:b.files.value,last_upload:b.last_upload.value_as_string,portals:b.portals.buckets.map(p=>p.key)}))); }
   catch{res.json([]);}

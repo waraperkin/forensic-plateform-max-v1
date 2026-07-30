@@ -1559,6 +1559,16 @@ sol.register(app)
 import volumetry  # noqa: E402
 volumetry.register(app)
 
+# ── Sekoia Extended Platform — Alerting & Anomaly Detection Engine.
+#    Règles configurables, seuils dynamiques, pics/baisses/dérives, regroupement.
+import alerting  # noqa: E402
+alerting.register(app)
+
+# ── Sekoia Extended Platform — Bulk Operations Engine.
+#    Opérations en lot par filtre, dry-run, export/import, rollback.
+import bulkops  # noqa: E402
+bulkops.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

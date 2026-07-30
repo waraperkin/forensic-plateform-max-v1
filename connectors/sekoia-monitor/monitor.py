@@ -533,27 +533,39 @@ async def alerter_loop():
     async with httpx.AsyncClient() as client:
         while True:
             try:
-                alerts = await evaluate_alerts(client)
-                if alerts:
-                    month = _month_suffix()
-                    await os_bulk(client, [(f"sekoia-alerts-{month}", a) for a in alerts])
-                    log.info("alerter: %d nouvelles alertes", len(alerts))
-                    if ALERT_WEBHOOK_URL:
-                        try:
-                            await client.post(ALERT_WEBHOOK_URL, json={"alerts": alerts}, timeout=10)
-                        except httpx.HTTPError as exc:
-                            log.warning("webhook: %s", exc)
+                # Moteur de règles de la Sekoia Extended Platform (control-plane) :
+                # règles configurables, seuils dynamiques, pics/baisses/dérives,
+                # déduplication et REGROUPEMENT (65 alertes → 12 incidents mesurés).
+                # L'ancien évaluateur local à seuils figés reste disponible sous
+                # evaluate_alerts() mais n'est plus la source de vérité.
+                r = await client.post(f"{CP_URL}/control/sekoia/alerting/evaluate",
+                                      headers=_cp_headers(), timeout=180)
+                r.raise_for_status()
+                result = r.json()
+                count = result.get("alerts_new") or 0
+                if count:
+                    log.info("alerter: %d alertes → %d incidents (%s)",
+                             count, result.get("incidents"), result.get("by_severity"))
                     if thehive_enabled():
-                        for a in alerts:
+                        # Un case par INCIDENT (groupe), pas par alerte.
+                        seen = set()
+                        for a in result.get("alerts", []):
+                            key = a.get("group_id") or a.get("fingerprint")
+                            if key in seen:
+                                continue
+                            seen.add(key)
                             try:
                                 await create_thehive_case(client, a)
                             except httpx.HTTPError as exc:
                                 log.warning("thehive: %s", exc)
-                STATE["alerts_open"] = len(alerts)
+                STATE["alerts_open"] = count
+                STATE["alert_incidents"] = result.get("incidents")
+                STATE["alert_by_severity"] = result.get("by_severity")
                 STATE["last_alert_eval_ts"] = _now_iso()
             except Exception as exc:
-                log.warning("evaluate_alerts: %s", exc)
-                STATE["errors"] = (STATE["errors"] + [f"alert:{exc}"])[-10:]
+                msg = _exc_msg(exc)
+                log.warning("alerting/evaluate: %s", msg)
+                STATE["errors"] = (STATE["errors"] + [f"alert:{msg}"])[-10:]
             await asyncio.sleep(ALERT_INTERVAL_S)
 
 

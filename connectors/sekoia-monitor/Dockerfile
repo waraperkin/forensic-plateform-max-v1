@@ -9,7 +9,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && groupadd -r mon && useradd -r -g mon -d /app mon
 
-COPY monitor.py .
+# Tout module importé par monitor.py DOIT figurer ici : un COPY oublié met le
+# service en crash-loop au démarrage (précédent : sol.py, commit e02b3c8).
+COPY monitor.py templates.py .
 USER mon
 
 EXPOSE 8903

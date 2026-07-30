@@ -1554,6 +1554,11 @@ analytics.register(app)
 import sol  # noqa: E402
 sol.register(app)
 
+# ── Sekoia Extended Platform — Ingestion & Volumetry Engine.
+#    Reconstruit la volumétrie par intake que le SIEM n'expose pas.
+import volumetry  # noqa: E402
+volumetry.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

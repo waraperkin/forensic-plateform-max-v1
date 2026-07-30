@@ -365,10 +365,25 @@ async def get_ingest_formats():
                                page_params=("sizePage", "indexPage"))
 
 
+RULES_CATALOG_PATH = "/api/v1/sic/conf/rules-catalog/rules"
+RULES_CATALOG_FALLBACK = "/api/v1/sic/conf/rules-catalog/multi-tenant/rules"
+
+
 async def get_detection_rules():
-    return await paginated_get(
-        f"{conf()['base']}/api/v1/sic/conf/rules-catalog/multi-tenant/rules",
-        {"enabled": "true"})
+    """Catalogue de règles du tenant.
+
+    On interroge /rules-catalog/rules (instances du tenant) et NON
+    /rules-catalog/multi-tenant/rules : ce dernier est le catalogue global — il
+    renvoie moins de règles (1109 vs 1180) et surtout AUCUN related_object_refs,
+    ce qui privait le moteur de couverture de sa seule source d'attack-patterns.
+    Repli sur l'ancien chemin si le tenant ne l'expose pas.
+    """
+    items, err = await paginated_get(f"{conf()['base']}{RULES_CATALOG_PATH}")
+    if items or not err:
+        return items, err
+    log.warning("rules-catalog/rules indisponible (%s) — repli multi-tenant", err)
+    return await paginated_get(f"{conf()['base']}{RULES_CATALOG_FALLBACK}",
+                               {"enabled": "true"})
 
 
 def _flat(v):
@@ -496,7 +511,14 @@ async def build_detection_rules(format_by_uuid: dict) -> tuple[list, Optional[st
         dialect_uuids = list(dict.fromkeys(DIALECT_REGEX.findall(payload)))
         alert_type = rule.get("alert_type") or {}
         alert_category = rule.get("alert_category") or {}
+        # Attack-patterns STIX rattachés à la règle : seule source de couverture
+        # offensive réellement fournie par Sekoia (les identifiants Txxxx ne sont
+        # exposés nulle part dans le catalogue — cf. audit §3.5).
+        attack_refs = [str(x) for x in (rule.get("related_object_refs") or [])
+                       if str(x).startswith("attack-pattern--")]
         rows.append({
+            "rule_attack_refs": ",".join(attack_refs),
+            "rule_attack_refs_count": len(attack_refs),
             "rule_uuid": rule.get("uuid"), "rule_name": rule.get("name"),
             "rule_type": rule.get("type"), "rule_enabled": rule.get("enabled"),
             "rule_severity": rule.get("severity"), "rule_effort": rule.get("effort"),
@@ -1418,7 +1440,14 @@ async def patch_entity(entity_id: str, request: Request):
 # ── Détail d'une règle (payload complet, sans trim) ───────────────────────────
 @app.get("/control/sekoia/rules/{rule_id}", dependencies=[Depends(require_internal_token)])
 async def rule_detail(rule_id: str):
-    payload, err = await sek_request("GET", f"/api/v1/sic/conf/rules/{rule_id}")
+    # /api/v1/sic/conf/rules/{id} n'existe pas (404 T404 systématique) : le
+    # détail d'une règle était donc TOUJOURS vide dans l'UI. Le bon chemin est
+    # celui du catalogue, avec repli multi-tenant.
+    payload, err = await sek_request("GET", f"{RULES_CATALOG_PATH}/{rule_id}")
+    if err:
+        payload, err2 = await sek_request("GET", f"{RULES_CATALOG_FALLBACK}/{rule_id}")
+        if err2 is None:
+            err = None
     return {"ok": err is None, "error": err, "rule": payload, "id": rule_id}
 
 

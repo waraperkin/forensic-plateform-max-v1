@@ -331,3 +331,28 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Carte de repli du hub Sekoia (« Ingest logs & volumétrie ») — elle n'emprunte
+   pas le chemin PortalHubPremium.wrapCard et n'était stylée que par
+   cybercorp-ultra.css / command-center.css, qui ne sont PAS chargées par
+   index.html : titre et sous-titre se retrouvaient collés sur une même ligne. */
+.cc-hub-card-stack > button.cc-card-click {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  text-align: left;
+}
+.cc-hub-card-stack > button.cc-card-click .cc-card-click-title {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.cc-hub-card-stack > button.cc-card-click .cc-card-click-meta {
+  display: block;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  opacity: 0.72;
+}

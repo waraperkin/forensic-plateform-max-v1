@@ -1292,6 +1292,19 @@ OS_USER = os.environ.get("OPENSEARCH_USER", "")
 OS_PASSWORD = os.environ.get("OPENSEARCH_PASSWORD", "")
 
 
+def _os_reason(r: httpx.Response) -> str:
+    """Extrait la raison lisible d'une erreur OpenSearch (jamais de stack brute)."""
+    try:
+        err = (r.json() or {}).get("error") or {}
+        if isinstance(err, dict):
+            root = (err.get("root_cause") or [{}])[0]
+            reason = root.get("reason") or err.get("reason") or err.get("type") or ""
+            return str(reason)[:300]
+        return str(err)[:300]
+    except ValueError:
+        return r.text[:200]
+
+
 async def os_search(index: str, body: dict) -> tuple[Optional[dict], Optional[str]]:
     """Requête _search sur l'OpenSearch local. (payload, erreur)."""
     auth = (OS_USER, OS_PASSWORD) if OS_PASSWORD else None
@@ -1299,7 +1312,10 @@ async def os_search(index: str, body: dict) -> tuple[Optional[dict], Optional[st
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, auth=auth) as c:
             r = await c.post(f"{OS_URL}/{index}/_search", json=body)
         if r.status_code >= 400:
-            return None, f"OpenSearch HTTP {r.status_code}"
+            # Le motif exact (mapping absent, fielddata, index manquant) doit
+            # remonter jusqu'à l'analyste : « OpenSearch HTTP 400 » seul rendait
+            # tout diagnostic impossible depuis l'UI.
+            return None, f"OpenSearch HTTP {r.status_code}: {_os_reason(r)}"
         return r.json(), None
     except httpx.HTTPError as exc:
         return None, str(exc)
@@ -1454,9 +1470,9 @@ async def local_timeseries(intake_uuid: str = "", hours: int = 24):
     interval = "1h" if hours <= 72 else "1d"
     filters: list = [{"range": {"@timestamp": {"gte": f"now-{hours}h"}}}]
     if intake_uuid:
-        filters.append({"term": {"intake_uuid": intake_uuid}})
+        filters.append({"term": {"intake_uuid.keyword": intake_uuid}})
     body = {"size": 0, "query": {"bool": {"filter": filters}}, "aggs": {
-        "per_intake": {"terms": {"field": "intake_uuid", "size": 25}, "aggs": {
+        "per_intake": {"terms": {"field": "intake_uuid.keyword", "size": 25}, "aggs": {
             "ts": {"date_histogram": {"field": "@timestamp", "fixed_interval": interval},
                    "aggs": {"vol": {"sum": {"field": "count_1h"}}}}}},
         "total_ts": {"date_histogram": {"field": "@timestamp", "fixed_interval": interval},
@@ -1484,9 +1500,9 @@ async def local_top_hostnames(hours: int = 24, size: int = 50, intake_uuid: str 
     size = max(1, min(size, 500))
     filters: list = [{"range": {"@timestamp": {"gte": f"now-{hours}h"}}}]
     if intake_uuid:
-        filters.append({"term": {"intake_uuid": intake_uuid}})
+        filters.append({"term": {"intake_uuid.keyword": intake_uuid}})
     body = {"size": 0, "query": {"bool": {"filter": filters}}, "aggs": {
-        "hosts": {"terms": {"field": "log_hostname", "size": size}, "aggs": {
+        "hosts": {"terms": {"field": "log_hostname.keyword", "size": size}, "aggs": {
             "vol": {"sum": {"field": "count_1h"}},
             "last_seen": {"max": {"field": "@timestamp"}}}}}}
     res, err = await os_search("sekoia-volumetry-*", body)

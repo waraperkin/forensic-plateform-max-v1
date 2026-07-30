@@ -64,10 +64,29 @@ SEKOIA_AUTO_THEHIVE = os.environ.get("SEKOIA_AUTO_THEHIVE", "false").lower() in 
 THEHIVE_SEVERITY = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 MONITOR_PORT = int(os.environ.get("MONITOR_PORT", "8903"))
 
+# Le refresh complet du control-plane (66 intakes + actions de 42 playbooks +
+# 1109 règles) dépasse régulièrement 45 s sur cache expiré : le timeout doit
+# couvrir le pire cas, sinon un poll sur deux échoue par ReadTimeout.
+CP_TIMEOUT_S = float(os.environ.get("SEKOIA_CP_TIMEOUT_S", "180"))
+# Nombre d'échecs consécutifs à partir duquel /health devient dégradé.
+POLL_FAIL_DEGRADED = int(os.environ.get("SEKOIA_POLL_FAIL_DEGRADED", "5"))
+
 STATE = {
     "last_poll_ts": None, "last_poll_ok": None, "intakes_count": 0,
     "last_alert_eval_ts": None, "alerts_open": 0, "errors": [],
+    "poll_fail_streak": 0, "last_poll_error": None,
 }
+
+
+def _exc_msg(exc: BaseException) -> str:
+    """Message d'exception TOUJOURS exploitable.
+
+    httpx.ReadTimeout & co. ont un str() vide : journaliser f"poll:{exc}"
+    produisait des entrées « poll: » sans type ni cause, inexploitables en
+    exploitation. On préfixe systématiquement par le type.
+    """
+    detail = str(exc).strip()
+    return f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__
 
 from contextlib import asynccontextmanager
 
@@ -86,7 +105,11 @@ app = FastAPI(title="sekoia-monitor", docs_url=None, redoc_url=None, openapi_url
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "sekoia-monitor", **STATE}
+    # /health doit refléter l'état FONCTIONNEL : un conteneur « healthy » alors
+    # que le poll échoue depuis des heures masquait la panne (audit B01).
+    degraded = STATE["poll_fail_streak"] >= POLL_FAIL_DEGRADED
+    return {"status": "degraded" if degraded else "ok",
+            "service": "sekoia-monitor", "degraded": degraded, **STATE}
 
 
 def _now_iso() -> str:
@@ -209,7 +232,8 @@ async def update_baselines(client: httpx.AsyncClient, volumes_1h: dict) -> dict[
 
 # ── Boucle poller ─────────────────────────────────────────────────────────────
 async def poll_once(client: httpx.AsyncClient) -> None:
-    r = await client.get(f"{CP_URL}/control/sekoia/intakes", headers=_cp_headers(), timeout=45)
+    r = await client.get(f"{CP_URL}/control/sekoia/intakes", headers=_cp_headers(),
+                         timeout=CP_TIMEOUT_S)
     r.raise_for_status()
     payload = r.json()
     intakes = payload.get("items", [])
@@ -267,6 +291,9 @@ async def poll_once(client: httpx.AsyncClient) -> None:
     ok = await os_bulk(client, docs)
     STATE["last_poll_ts"] = now
     STATE["last_poll_ok"] = ok
+    if ok:
+        STATE["poll_fail_streak"] = 0
+        STATE["last_poll_error"] = None
     log.info("poll: %d intakes, %d docs indexés, volumétrie_locale=%s",
              len(intakes), len(docs), bool(volumes_1h))
 
@@ -278,9 +305,12 @@ async def poller_loop():
             try:
                 await poll_once(client)
             except Exception as exc:  # boucle immortelle, erreur tracée
-                log.warning("poll_once: %s", exc)
+                msg = _exc_msg(exc)
+                log.warning("poll_once: %s", msg)
                 STATE["last_poll_ok"] = False
-                STATE["errors"] = (STATE["errors"] + [f"poll:{exc}"])[-10:]
+                STATE["last_poll_error"] = msg
+                STATE["poll_fail_streak"] += 1
+                STATE["errors"] = (STATE["errors"] + [f"poll:{msg}"])[-10:]
             await asyncio.sleep(POLL_INTERVAL_S)
 
 

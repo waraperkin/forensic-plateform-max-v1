@@ -36,6 +36,10 @@ WATCHLISTS_PATH = os.environ.get("WATCHLISTS_PATH", "/data/sekoia-watchlists.jso
 SNAPSHOTS_PATH = os.environ.get("SNAPSHOTS_PATH", "/data/sekoia-snapshots.json")
 SNAPSHOTS_KEEP = 50
 ALERTS_CAP = 5000
+# Taille de page pour /api/v1/sic/alerts. L'API Sekoia rejette (VA301) tout
+# limit > 100 : une valeur supérieure faisait échouer TOUTE la pagination et
+# déclarait à tort les 1109 règles « silencieuses ».
+ALERTS_PAGE = 100
 
 TACTICS = [
     "reconnaissance", "resource-development", "initial-access", "execution",
@@ -232,11 +236,11 @@ def register(analytics_app) -> None:
     async def _hosts_intel(new_hours: int, gone_hours: int) -> dict:
         body = {"size": 0,
                 "query": {"range": {"@timestamp": {"gte": "now-7d"}}},
-                "aggs": {"hosts": {"terms": {"field": "log_hostname", "size": 2000},
+                "aggs": {"hosts": {"terms": {"field": "log_hostname.keyword", "size": 2000},
                                    "aggs": {"first_seen": {"min": {"field": "@timestamp"}},
                                             "last_seen": {"max": {"field": "@timestamp"}},
                                             "vol": {"sum": {"field": "count_1h"}},
-                                            "intakes": {"cardinality": {"field": "intake_uuid"}}}}}}
+                                            "intakes": {"cardinality": {"field": "intake_uuid.keyword"}}}}}}
         res, err = await cp.os_search("sekoia-volumetry-*", body)
         out = {"new_hosts": [], "disappeared_hosts": [], "multi_intake_hosts": [],
                "top_talkers": [], "error": err}
@@ -276,12 +280,12 @@ def register(analytics_app) -> None:
                   target: float = Query(default=99.0, ge=50, le=100)):
         body = {"size": 0,
                 "query": {"range": {"@timestamp": {"gte": f"now-{hours}h"}}},
-                "aggs": {"per_intake": {"terms": {"field": "intake_uuid", "size": 500},
+                "aggs": {"per_intake": {"terms": {"field": "intake_uuid.keyword", "size": 500},
                                         "aggs": {
                                             "ok": {"filter": {"bool": {"filter": [
                                                 {"term": {"silent": False}},
                                                 {"term": {"volume_available": True}}]}}},
-                                            "name": {"terms": {"field": "intake_name", "size": 1}}}}}}
+                                            "name": {"terms": {"field": "intake_name.keyword", "size": 1}}}}}}
         res, err = await cp.os_search("sekoia-intakes-*", body)
         items = []
         if not err and res:
@@ -352,7 +356,7 @@ def register(analytics_app) -> None:
         while total_alerts < ALERTS_CAP:
             payload, e = await cp.sek_request(
                 "GET", "/api/v1/sic/alerts",
-                params={"limit": 1000, "offset": offset})
+                params={"limit": ALERTS_PAGE, "offset": offset})
             if e:
                 err = e
                 break
@@ -382,7 +386,7 @@ def register(analytics_app) -> None:
                 if ts and (slot["last"] is None or str(ts) > slot["last"]):
                     slot["last"] = str(ts)
                 total_alerts += 1
-            if len(items) < 1000:
+            if len(items) < ALERTS_PAGE:
                 break
             offset += len(items)
         # Catalogue de règles (activées) depuis le cache inventaire
@@ -432,9 +436,15 @@ def register(analytics_app) -> None:
         techniques_all: set[str] = set()
         rules_with = 0
         for r in rules:
+            # Les lignes produites par build_detection_rules() exposent
+            # rule_payload / rule_tags / rule_description (pas payload/tags/
+            # description) : scanner les mauvaises clés ne trouvait AUCUN Txxxx
+            # et rendait techniques_distinct systématiquement nul.
             raw = " ".join(str(r.get(k) or "") for k in
-                           ("rule_name", "name", "payload", "tags",
-                            "rule_tags", "description"))
+                           ("rule_name", "name", "rule_payload", "payload",
+                            "rule_tags", "tags", "rule_description", "description",
+                            "rule_datasources", "rule_alert_type_value",
+                            "rule_alert_category_name"))
             text = raw.lower()
             techs = set(TECH_RE.findall(raw))
             matched = False

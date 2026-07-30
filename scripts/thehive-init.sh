@@ -28,7 +28,17 @@ wait_http "TheHive" "$THEHIVE_URL/api/status"
 wait_http "Cortex" "$CORTEX_URL/api/status"
 echo "[INIT] TheHive et Cortex répondent"
 
-AUTH_CUSTOM="${THEHIVE_ADMIN_LOGIN:-}:${THEHIVE_ADMIN_PASSWORD:-}"
+# TheHive 5.3 exige un login email ("expected valid email address"). Un
+# THEHIVE_ADMIN_LOGIN hérité sans '@' (ex. "admin") rendait le provisionnement
+# impossible (create 400 / reset 404) et le login .env KO (audit V02) →
+# normalisation systématique avant toute utilisation.
+TH_ENV_LOGIN="${THEHIVE_ADMIN_LOGIN:-}"
+case "$TH_ENV_LOGIN" in
+  ""|*@*) : ;;
+  *) TH_ENV_LOGIN="${TH_ENV_LOGIN}@forensic.local"
+     echo "[INIT] THEHIVE_ADMIN_LOGIN non-email → normalisé en ${TH_ENV_LOGIN}" ;;
+esac
+AUTH_CUSTOM="${TH_ENV_LOGIN}:${THEHIVE_ADMIN_PASSWORD:-}"
 AUTH_DEFAULT="${TH_DEFAULT_LOGIN}:${TH_DEFAULT_PASS}"
 
 # ── Provisionnement de l'admin .env dans TheHive ─────────────────────────────
@@ -43,7 +53,7 @@ th_code() { # method path user:pass [json-body] [field]
 }
 
 ensure_env_admin() {
-  _login="${THEHIVE_ADMIN_LOGIN:-}"
+  _login="$TH_ENV_LOGIN"
   _pass="${THEHIVE_ADMIN_PASSWORD:-}"
   if [ -z "$_login" ] || [ -z "$_pass" ]; then
     echo "[INIT] WARN THEHIVE_ADMIN_LOGIN/PASSWORD absents du .env — admin par défaut conservé" >&2
@@ -54,20 +64,22 @@ ensure_env_admin() {
     echo "[INIT] Admin .env ($_login) déjà fonctionnel"
     return 0
   fi
-  # 2) Création (profil plateforme admin) via l'admin par défaut
+  # 2) Création (profil plateforme admin, mot de passe inclus dans le body)
+  #    via l'admin par défaut — pattern confirmé TheHive 4/5.
   code=$(th_code POST /api/v1/user "$AUTH_DEFAULT" \
     "{\"login\":\"$_login\",\"name\":\"Platform Admin\",\"profile\":\"admin\",\"password\":\"$_pass\"}" /tmp/th_user_create.json)
   case "$code" in
     200|201) echo "[INIT] Admin .env $_login créé dans TheHive" ; return 0 ;;
   esac
+  echo "[INIT] création admin .env ($_login) → HTTP $code: $(head -c 300 /tmp/th_user_create.json 2>/dev/null)" >&2
   # 3) Existe déjà (ou = admin par défaut) → réalignement du mot de passe
-  code=$(th_code PUT "/api/v1/user/$_login/password" "$AUTH_DEFAULT" "{\"password\":\"$_pass\"}")
+  code=$(th_code PUT "/api/v1/user/$_login/password" "$AUTH_DEFAULT" "{\"password\":\"$_pass\"}" /tmp/th_user_reset.json)
   case "$code" in
     200|204)
       echo "[INIT] Mot de passe TheHive de $_login réaligné sur .env"
       return 0 ;;
   esac
-  echo "[INIT] WARN provisionnement admin .env ($_login) impossible (create/reset HTTP $code)" >&2
+  echo "[INIT] WARN provisionnement admin .env ($_login) impossible (reset HTTP $code): $(head -c 300 /tmp/th_user_reset.json 2>/dev/null)" >&2
   return 1
 }
 

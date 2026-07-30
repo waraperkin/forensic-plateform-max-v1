@@ -692,31 +692,44 @@ def fix_org_logos() -> int:
 
     try:
         resp = misp_req("/organisations/index?limit=100", timeout=60)
-        rows = resp.get("response", resp if isinstance(resp, list) else [])
+        # /organisations/index renvoie une LISTE [{Organisation:...}] sur MISP 2.5.
+        # L'ancien resp.get(...) levait AttributeError → except externe silencieux
+        # → "fixed 0" alors que les 404 getOrgLogo persistaient (audit V12).
+        if isinstance(resp, dict):
+            rows = resp.get("response") or resp.get("organisations") or []
+        elif isinstance(resp, list):
+            rows = resp
+        else:
+            rows = []
         orgs = []
         for row in rows:
             org = row.get("Organisation", row) if isinstance(row, dict) else {}
             if org.get("id"):
                 orgs.append(org)
         if not orgs:
+            ko(f"fix_org_logos: aucune organisation (réponse {type(resp).__name__}, {len(rows)} lignes)")
             return 0
         s = ui_session()
         if s is None:
             return 0
         logo_bytes = base64.b64decode(_FP_ORG_LOGO_B64)
         fixed = 0
+        skipped = {"has_logo": 0, "form": 0, "token": 0, "upload": 0, "err": 0}
         for org in orgs:
             oid = org["id"]
             try:
                 has = s.get(f"{MISP_UI_URL}/organisations/getOrgLogo/{oid}.json", timeout=15)
                 if has.status_code == 200:
+                    skipped["has_logo"] += 1
                     continue
                 form = s.get(f"{MISP_UI_URL}/admin/organisations/edit/{oid}", timeout=20)
                 if form.status_code != 200:
+                    skipped["form"] += 1
                     continue
                 key = re.search(r'name="data\[_Token\]\[key\]"[^>]*value="([^"]+)"', form.text)
                 fields = re.search(r'name="data\[_Token\]\[fields\]"[^>]*value="([^"]*)"', form.text)
                 if not key:
+                    skipped["token"] += 1
                     continue
                 data = {
                     "_method": "PUT",
@@ -736,12 +749,18 @@ def fix_org_logos() -> int:
                 )
                 if up.status_code in (200, 302, 303):
                     fixed += 1
+                else:
+                    skipped["upload"] += 1
             except requests.RequestException:
+                skipped["err"] += 1
                 continue
         if fixed:
             ok(f"logos organisations MISP posés: {fixed}")
+        else:
+            ko(f"fix_org_logos: fixed=0/{len(orgs)} détail={skipped}")
         return fixed
-    except Exception:  # noqa: BLE001 — cosmétique, jamais bloquant
+    except Exception as exc:  # noqa: BLE001 — cosmétique, jamais bloquant
+        ko(f"fix_org_logos: exception {type(exc).__name__}: {exc}")
         return 0
 
 

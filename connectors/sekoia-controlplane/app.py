@@ -106,8 +106,23 @@ def _fernet():
         from cryptography.fernet import Fernet
         return Fernet(key.encode() if isinstance(key, str) else key)
     except Exception as exc:
-        log.error("SEKOIA_SECRETS_KEY invalide (clé Fernet attendue): %s", exc)
-        return None
+        # Clé non-Fernet (ex. héritée d'une ancienne version — audit V01, len=35
+        # au lieu de 44). Dérivation déterministe : le store chiffré reste
+        # utilisable et stable entre redémarrages quelle que soit la valeur
+        # brute du .env (défense en profondeur avec generate-secrets.sh).
+        import base64
+        import hashlib
+        derived = base64.urlsafe_b64encode(hashlib.sha256(key.encode()).digest()).decode()
+        log.warning(
+            "SEKOIA_SECRETS_KEY invalide (%s) — clé Fernet dérivée (sha256) utilisée",
+            exc,
+        )
+        try:
+            from cryptography.fernet import Fernet
+            return Fernet(derived.encode())
+        except Exception as exc2:
+            log.error("SEKOIA_SECRETS_KEY dérivation impossible: %s", exc2)
+            return None
 
 
 def load_overrides() -> dict:

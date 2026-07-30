@@ -2,6 +2,11 @@
 """Tests API pour toutes les phases SIEM OSD — complément au navigateur intégré."""
 from __future__ import annotations
 
+# Script E2E autonome (les fonctions test_* reçoivent une session live via
+# main()) — ne pas laisser pytest les collecter comme des tests unitaires
+# (fixture 's' not found). __test__ = False exclut le module de la collecte.
+__test__ = False
+
 import json
 import os
 import sys

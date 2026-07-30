@@ -104,31 +104,64 @@ class CortexClient:
                 verify=False,
             )
             if r.status_code < 400:
-                if cand != CORTEX_ADMIN_PASS:
-                    self._realign_password()
                 self.session.get(f"{CX_URL}/", timeout=20, verify=False)
                 self.csrf = self.session.cookies.get("CORTEX-XSRF-TOKEN", "")
                 if not self.csrf:
                     raise RuntimeError("cookie CORTEX-XSRF-TOKEN absent")
+                if cand != CORTEX_ADMIN_PASS and self._realign_password():
+                    # Session propre : le mot de passe .env est désormais effectif.
+                    r2 = self.session.post(
+                        f"{CX_URL}/api/login",
+                        json={"user": ADMIN_USER, "password": CORTEX_ADMIN_PASS},
+                        timeout=30,
+                        verify=False,
+                    )
+                    if r2.status_code < 400:
+                        self.session.get(f"{CX_URL}/", timeout=20, verify=False)
+                        self.csrf = self.session.cookies.get(
+                            "CORTEX-XSRF-TOKEN", self.csrf
+                        )
+                    else:
+                        ko(f"login post-réalignement: HTTP {r2.status_code}")
                 return
             last = f"login HTTP {r.status_code}: {r.text[:200]}"
         raise RuntimeError(last or "login Cortex impossible")
 
-    def _realign_password(self) -> None:
-        """Login legacy (CORTEX_SECRET) réussi → réaligne sur CORTEX_ADMIN_PASSWORD."""
+    def _realign_password(self) -> bool:
+        """Login legacy (CORTEX_SECRET) réussi → réaligne sur CORTEX_ADMIN_PASSWORD.
+
+        Endpoint officiel Cortex : POST /api/user/{login}/password/set → 204.
+        L'ancien POST /api/user/{login}/password n'existe pas → échec silencieux
+        puis 401 au login .env (audit V03). Vérifié par un login réel.
+        """
         try:
             r = self.session.post(
-                f"{CX_URL}/api/user/{ADMIN_USER}/password",
+                f"{CX_URL}/api/user/{ADMIN_USER}/password/set?csrfToken={self.csrf}",
                 json={"password": CORTEX_ADMIN_PASS},
                 timeout=30,
                 verify=False,
             )
-            if r.status_code < 400:
-                ok("mot de passe Cortex réaligné sur CORTEX_ADMIN_PASSWORD")
-            else:
-                ko(f"réalignement mot de passe: HTTP {r.status_code}")
+            if r.status_code not in (200, 204):
+                ko(f"réalignement mot de passe: HTTP {r.status_code} {r.text[:200]}")
+                return False
         except requests.RequestException as exc:
             ko(f"réalignement mot de passe: {exc}")
+            return False
+        try:
+            chk = requests.post(
+                f"{CX_URL}/api/login",
+                json={"user": ADMIN_USER, "password": CORTEX_ADMIN_PASS},
+                timeout=30,
+                verify=False,
+            )
+        except requests.RequestException as exc:
+            ko(f"vérification réalignement: {exc}")
+            return False
+        if chk.status_code < 400:
+            ok("mot de passe Cortex réaligné sur CORTEX_ADMIN_PASSWORD (login vérifié)")
+            return True
+        ko(f"vérification réalignement: login HTTP {chk.status_code}")
+        return False
 
     def renew_key(self) -> str:
         r = self.session.post(

@@ -84,6 +84,18 @@ fill_secret MYSQL_PASSWORD       "rand_b64 24"
 fill_secret MINIO_ROOT_PASSWORD  "rand_b64 24"
 fill_secret GRAFANA_ADMIN_PASSWORD "rand_b64 18"
 fill_secret THEHIVE_SECRET       "rand_hex 32"
+
+# Garde-fou : TheHive 5.3 exige un login email ("expected valid email address").
+# Un THEHIVE_ADMIN_LOGIN hérité sans '@' (ex. "admin") casse le provisionnement
+# de l'admin .env et le login portail (audit V02) → migration automatique.
+_cur_th=$(grep -E "^THEHIVE_ADMIN_LOGIN=" "$ENV_FILE" | head -1 | cut -d= -f2- || true)
+if [ -n "$_cur_th" ] && [[ "$_cur_th" != *@* ]]; then
+  _new_th="admin@forensic.local"
+  _tmp=$(mktemp)
+  awk -v val="$_new_th" 'BEGIN{FS=OFS="="} $1=="THEHIVE_ADMIN_LOGIN" {$2=val} {print}' "$ENV_FILE" > "$_tmp"
+  mv "$_tmp" "$ENV_FILE"
+  echo "[generate-secrets] THEHIVE_ADMIN_LOGIN non-email ('$_cur_th') — migré vers $_new_th"
+fi
 fill_secret CORTEX_SECRET        "rand_hex 32"
 fill_secret MISP_ENCRYPTION_KEY  "rand_hex 32"
 fill_secret OPENCTI_ENCRYPTION_KEY "rand_hex 32"

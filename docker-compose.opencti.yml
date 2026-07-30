@@ -164,7 +164,11 @@ services:
       - ALIENVAULT_TLP=White
       - ALIENVAULT_CREATE_OBSERVABLES=true
       - ALIENVAULT_CREATE_INDICATORS=true
-      - ALIENVAULT_PULSE_START_TIMESTAMP=${ALIENVAULT_PULSE_START_TIMESTAMP:-2024-02-28T04:00:00}
+      # Défaut récent : un premier run depuis 2024 ingère ~2 ans de pulses et se
+      # fait tuer (SIGTERM, audit V06) avant de sauvegarder son état → chaque
+      # restart re-fetchait TOUT ("Connector first run" en boucle). Premier run
+      # léger → état sauvegardé → runs incrémentaux ensuite.
+      - ALIENVAULT_PULSE_START_TIMESTAMP=${ALIENVAULT_PULSE_START_TIMESTAMP:-2026-01-01T00:00:00}
       - ALIENVAULT_REPORT_TYPE=threat-report
       - ALIENVAULT_REPORT_STATUS=New
       - ALIENVAULT_GUESS_MALWARE=true

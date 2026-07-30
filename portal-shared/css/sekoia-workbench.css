@@ -1,0 +1,305 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SEKOIA WORKBENCH — système de design de la couche Sekoia.
+
+   Objectif : densité informationnelle d'un outil d'exploitation professionnel
+   (Datadog, Splunk, Grafana) sans le bruit visuel des gabarits génériques.
+
+   Règles tenues :
+   - une seule échelle typographique et un seul rythme d'espacement ;
+   - chiffres en chasse tabulaire partout : les colonnes s'alignent à l'œil ;
+   - couleur porteuse de sens uniquement (état, sévérité), jamais décorative ;
+   - tout tableau large défile dans son conteneur, jamais la page ;
+   - états vide / chargement / dégradé DESSINÉS, pas laissés au navigateur.
+
+   Namespacing strict en .swb-* : ce dossier est partagé avec le portail IT,
+   aucune règle ne doit fuir.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.swb {
+  --swb-gap: 0.75rem;
+  --swb-radius: 10px;
+  --swb-line: color-mix(in srgb, currentColor 12%, transparent);
+  --swb-surface: color-mix(in srgb, currentColor 3%, transparent);
+  --swb-surface-2: color-mix(in srgb, currentColor 6%, transparent);
+  --swb-accent: #38a0ff;
+  --swb-ok: #19c37d;
+  --swb-warn: #e0902b;
+  --swb-danger: #e0553b;
+  --swb-muted: color-mix(in srgb, currentColor 62%, transparent);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--swb-gap);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Barre de navigation par mission ────────────────────────────────────── */
+.swb-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--swb-line);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--fp-bg, #0d1117);
+}
+.swb-nav-group { display: flex; gap: 0.25rem; align-items: center; }
+.swb-nav-sep {
+  width: 1px; height: 18px; margin: 0 0.4rem;
+  background: var(--swb-line);
+}
+.swb-nav-spacer { flex: 1 1 auto; }
+.swb-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.34rem 0.7rem;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  opacity: 0.72;
+  transition: background 0.12s, opacity 0.12s;
+}
+.swb-tab:hover { background: var(--swb-surface-2); opacity: 1; }
+.swb-tab[aria-selected="true"] {
+  opacity: 1;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--swb-accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--swb-accent) 38%, transparent);
+}
+.swb-tab-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0 0.32rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  background: var(--swb-surface-2);
+}
+.swb-tab-badge-danger { background: color-mix(in srgb, var(--swb-danger) 30%, transparent); }
+
+/* ── En-tête de vue ─────────────────────────────────────────────────────── */
+.swb-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+}
+.swb-title { font-size: 1.02rem; font-weight: 620; letter-spacing: -0.01em; margin: 0; }
+.swb-sub { font-size: 0.79rem; color: var(--swb-muted); margin: 0.15rem 0 0; max-width: 78ch; }
+.swb-actions { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+
+/* ── Indicateurs ────────────────────────────────────────────────────────── */
+.swb-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.6rem;
+}
+.swb-kpi {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--swb-line);
+  border-radius: var(--swb-radius);
+  background: var(--swb-surface);
+  position: relative;
+  overflow: hidden;
+}
+/* Le liseré porte l'état : pas de bandeau coloré tape-à-l'œil. */
+.swb-kpi::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 3px;
+  background: var(--swb-line);
+}
+.swb-kpi-ok::before { background: var(--swb-ok); }
+.swb-kpi-warn::before { background: var(--swb-warn); }
+.swb-kpi-danger::before { background: var(--swb-danger); }
+.swb-kpi-value {
+  font-size: 1.42rem; font-weight: 640; line-height: 1.1; letter-spacing: -0.02em;
+}
+.swb-kpi-label {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--swb-muted); margin-top: 0.2rem;
+}
+.swb-kpi-hint { font-size: 0.7rem; color: var(--swb-muted); margin-top: 0.25rem; }
+
+/* ── Panneaux ───────────────────────────────────────────────────────────── */
+.swb-panel {
+  border: 1px solid var(--swb-line);
+  border-radius: var(--swb-radius);
+  background: var(--swb-surface);
+  padding: 0.9rem 1rem;
+}
+.swb-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.6rem;
+}
+.swb-panel-title { font-size: 0.88rem; font-weight: 600; margin: 0; }
+.swb-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: var(--swb-gap); }
+.swb-grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--swb-gap); }
+
+/* ── Filtres ────────────────────────────────────────────────────────────── */
+.swb-filters {
+  display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.swb-input, .swb-select {
+  appearance: none;
+  font: inherit; font-size: 0.82rem; color: inherit;
+  padding: 0.36rem 0.6rem;
+  border-radius: 7px;
+  border: 1px solid var(--swb-line);
+  background: var(--swb-surface-2);
+  min-width: 150px;
+}
+.swb-input:focus, .swb-select:focus {
+  outline: 2px solid color-mix(in srgb, var(--swb-accent) 55%, transparent);
+  outline-offset: 1px;
+}
+.swb-search { min-width: 240px; flex: 1 1 240px; }
+.swb-count { font-size: 0.76rem; color: var(--swb-muted); white-space: nowrap; }
+
+/* ── Tableaux de données ────────────────────────────────────────────────── */
+.swb-tablewrap { overflow: auto; max-height: 62vh; border-radius: 8px; }
+.swb-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.82rem; }
+.swb-table thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--fp-panel, #14181f);
+  text-align: left;
+  font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--swb-muted);
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--swb-line);
+  white-space: nowrap;
+}
+.swb-table thead th.swb-sortable { cursor: pointer; user-select: none; }
+.swb-table thead th.swb-sortable:hover { color: inherit; }
+.swb-table tbody td {
+  padding: 0.42rem 0.6rem;
+  border-bottom: 1px solid var(--swb-line);
+  vertical-align: top;
+}
+.swb-table tbody tr { transition: background 0.1s; }
+.swb-table tbody tr:hover { background: var(--swb-surface-2); }
+.swb-table tbody tr.swb-clickable { cursor: pointer; }
+.swb-table tbody tr.swb-selected {
+  background: color-mix(in srgb, var(--swb-accent) 14%, transparent);
+}
+.swb-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.swb-truncate { max-width: 34ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.swb-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; }
+
+/* ── Pastilles d'état ───────────────────────────────────────────────────── */
+.swb-pill {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem; font-weight: 550;
+  border: 1px solid var(--swb-line);
+  white-space: nowrap;
+}
+.swb-pill::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; opacity: 0.9;
+}
+.swb-pill-ok { color: var(--swb-ok); border-color: color-mix(in srgb, var(--swb-ok) 35%, transparent); }
+.swb-pill-warn { color: var(--swb-warn); border-color: color-mix(in srgb, var(--swb-warn) 35%, transparent); }
+.swb-pill-danger { color: var(--swb-danger); border-color: color-mix(in srgb, var(--swb-danger) 35%, transparent); }
+.swb-pill-mute { color: var(--swb-muted); }
+.swb-pill-flat::before { display: none; }
+
+/* Note de santé A–D : lisible d'un coup d'œil dans une colonne étroite. */
+.swb-grade {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 21px; height: 21px; border-radius: 6px;
+  font-size: 0.72rem; font-weight: 700;
+}
+.swb-grade-A { background: color-mix(in srgb, var(--swb-ok) 24%, transparent); color: var(--swb-ok); }
+.swb-grade-B { background: color-mix(in srgb, var(--swb-accent) 22%, transparent); color: var(--swb-accent); }
+.swb-grade-C { background: color-mix(in srgb, var(--swb-warn) 24%, transparent); color: var(--swb-warn); }
+.swb-grade-D { background: color-mix(in srgb, var(--swb-danger) 24%, transparent); color: var(--swb-danger); }
+
+/* ── Micro-graphiques dans les tableaux ─────────────────────────────────── */
+.swb-spark { display: block; width: 92px; height: 22px; }
+.swb-spark-line { fill: none; stroke: var(--swb-accent); stroke-width: 1.6; }
+.swb-spark-area { fill: color-mix(in srgb, var(--swb-accent) 18%, transparent); stroke: none; }
+
+.swb-meter {
+  display: block; height: 6px; border-radius: 4px; min-width: 60px;
+  background: var(--swb-surface-2); overflow: hidden;
+}
+.swb-meter > span { display: block; height: 100%; background: var(--swb-accent); }
+.swb-meter-ok > span { background: var(--swb-ok); }
+.swb-meter-warn > span { background: var(--swb-warn); }
+.swb-meter-danger > span { background: var(--swb-danger); }
+
+/* ── Volet de détail (slide-over) ───────────────────────────────────────── */
+.swb-drawer {
+  position: fixed; inset: 0 0 0 auto;
+  width: min(560px, 94vw);
+  z-index: 60;
+  background: var(--fp-panel, #14181f);
+  border-left: 1px solid var(--swb-line);
+  box-shadow: -18px 0 48px rgba(0, 0, 0, 0.42);
+  display: flex; flex-direction: column;
+  animation: swb-slide 0.16s ease-out;
+}
+@keyframes swb-slide { from { transform: translateX(22px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .swb-drawer { animation: none; } }
+.swb-drawer-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 1rem; padding: 0.9rem 1rem; border-bottom: 1px solid var(--swb-line);
+}
+.swb-drawer-body { overflow: auto; padding: 0.9rem 1rem; flex: 1 1 auto; }
+.swb-drawer-close {
+  appearance: none; border: 1px solid var(--swb-line); background: transparent;
+  color: inherit; font: inherit; cursor: pointer;
+  border-radius: 7px; padding: 0.1rem 0.5rem; line-height: 1.5;
+}
+.swb-scrim {
+  position: fixed; inset: 0; z-index: 59;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+/* Paires clé/valeur du volet : alignement stable même avec des libellés longs. */
+.swb-kv { display: grid; grid-template-columns: minmax(110px, 34%) 1fr; gap: 0.3rem 0.75rem; }
+.swb-kv dt { font-size: 0.72rem; color: var(--swb-muted); }
+.swb-kv dd { margin: 0; font-size: 0.82rem; word-break: break-word; }
+
+/* ── États : vide, chargement, dégradé ──────────────────────────────────── */
+.swb-state {
+  border: 1px dashed var(--swb-line);
+  border-radius: var(--swb-radius);
+  padding: 1.6rem 1.2rem;
+  text-align: center;
+}
+.swb-state-title { font-weight: 600; margin-bottom: 0.25rem; }
+.swb-state-msg { font-size: 0.82rem; color: var(--swb-muted); max-width: 62ch; margin: 0 auto 0.7rem; }
+.swb-state-degraded { border-style: solid; border-left: 3px solid var(--swb-warn); text-align: left; }
+
+.swb-skel {
+  height: 11px; border-radius: 5px; margin: 0.4rem 0;
+  background: linear-gradient(90deg,
+    var(--swb-surface-2) 25%, var(--swb-surface) 37%, var(--swb-surface-2) 63%);
+  background-size: 320% 100%;
+  animation: swb-shimmer 1.15s linear infinite;
+}
+@keyframes swb-shimmer { to { background-position: -320% 0; } }
+@media (prefers-reduced-motion: reduce) { .swb-skel { animation: none; } }
+
+/* ── Aide clavier ───────────────────────────────────────────────────────── */
+.swb-kbd {
+  display: inline-block; padding: 0 0.3rem; border-radius: 4px;
+  border: 1px solid var(--swb-line); background: var(--swb-surface-2);
+  font-family: ui-monospace, monospace; font-size: 0.7rem;
+}
+.swb-hint { font-size: 0.72rem; color: var(--swb-muted); }
+
+/* ── Adaptation petits écrans ───────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .swb-nav { position: static; }
+  .swb-search, .swb-input, .swb-select { min-width: 100%; flex-basis: 100%; }
+  .swb-kv { grid-template-columns: 1fr; }
+  .swb-kv dt { margin-top: 0.4rem; }
+}

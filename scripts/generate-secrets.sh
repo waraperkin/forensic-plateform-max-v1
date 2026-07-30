@@ -96,6 +96,29 @@ if [ -n "$_cur_th" ] && [[ "$_cur_th" != *@* ]]; then
   mv "$_tmp" "$ENV_FILE"
   echo "[generate-secrets] THEHIVE_ADMIN_LOGIN non-email ('$_cur_th') — migré vers $_new_th"
 fi
+# Garde-fou : l'installeur génère des placeholders Fp_* pour les clés API
+# externes optionnelles. Une clé AlienVault Fp_* démarre le connecteur qui
+# crash en boucle SIGTERM 143 dès l'appel OTX (validation V06). On vide ces
+# placeholders pour forcer un idle / skip tant qu'une vraie clé n'est pas fournie.
+_purge_fp_placeholder() {
+  local var="$1"
+  local cur
+  cur=$(grep -E "^${var}=" "$ENV_FILE" | head -1 | cut -d= -f2- || true)
+  cur=$(printf '%s' "$cur" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+  case "$cur" in
+    Fp_*)
+      _tmp=$(mktemp)
+      awk -v k="$var" 'BEGIN{FS=OFS="="} $1==k {$2=""} {print}' "$ENV_FILE" > "$_tmp"
+      mv "$_tmp" "$ENV_FILE"
+      echo "[generate-secrets] ${var} placeholder Fp_* vidé (clé API externe requise)"
+      ;;
+  esac
+}
+_purge_fp_placeholder ALIENVAULT_API_KEY
+_purge_fp_placeholder ABUSEIPDB_API_KEY
+_purge_fp_placeholder SHODAN_API_KEY
+_purge_fp_placeholder SEKOIA_API_KEY
+
 fill_secret CORTEX_SECRET        "rand_hex 32"
 fill_secret MISP_ENCRYPTION_KEY  "rand_hex 32"
 fill_secret OPENCTI_ENCRYPTION_KEY "rand_hex 32"

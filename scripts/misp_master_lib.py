@@ -686,82 +686,115 @@ _FP_ORG_LOGO_B64 = (
 def fix_org_logos() -> int:
     """Pose un logo sur les organisations MISP qui n'en ont pas (P12, cosmétique).
 
-    Best effort : tout échec est ignoré (le 404 getOrgLogo est inoffensif, on
-    supprime juste le bruit console + carrés vides dans l'UI)."""
+    MISP sert les logos depuis ``app/files/img/orgs/{Organisation.name}.png``.
+    L'API ``/organisations/index`` ne renvoie que les orgs *locales* (souvent 1),
+    alors que l'UI demande getOrgLogo pour les orgs distantes (feeds) → 404.
+    On liste donc toutes les orgs via MySQL et on dépose le PNG plateforme
+    manquant via ``docker cp`` dans le conteneur MISP.
+    """
     import base64
+    import tempfile
 
+    logo_bytes = base64.b64decode(_FP_ORG_LOGO_B64)
+    container = os.environ.get("MISP_CONTAINER", "forensic-misp")
+    logo_dir = "/var/www/MISP/app/files/img/orgs"
+
+    # 1) Inventaire complet (locales + distantes) depuis MySQL
+    orgs: list[tuple[str, str]] = []
     try:
-        resp = misp_req("/organisations/index?limit=100", timeout=60)
-        # /organisations/index renvoie une LISTE [{Organisation:...}] sur MISP 2.5.
-        # L'ancien resp.get(...) levait AttributeError → except externe silencieux
-        # → "fixed 0" alors que les 404 getOrgLogo persistaient (audit V12).
-        if isinstance(resp, dict):
-            rows = resp.get("response") or resp.get("organisations") or []
-        elif isinstance(resp, list):
-            rows = resp
-        else:
-            rows = []
-        orgs = []
-        for row in rows:
-            org = row.get("Organisation", row) if isinstance(row, dict) else {}
-            if org.get("id"):
-                orgs.append(org)
-        if not orgs:
-            ko(f"fix_org_logos: aucune organisation (réponse {type(resp).__name__}, {len(rows)} lignes)")
+        root_pw = os.environ.get("MYSQL_ROOT_PASSWORD") or _env_file_value("MYSQL_ROOT_PASSWORD")
+        db_name = os.environ.get("MYSQL_DATABASE") or _env_file_value("MYSQL_DATABASE") or "misp"
+        db_container = os.environ.get("MISP_DB_CONTAINER", "forensic-misp-db")
+        cmd = [
+            "docker", "exec", db_container,
+            "mysql", "-uroot", f"-p{root_pw}", "-N", "-B",
+            "-e", f"SELECT id, name FROM {db_name}.organisations ORDER BY id;",
+        ]
+        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, text=True, timeout=60)
+        for line in out.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split("\t", 1)
+            if len(parts) != 2:
+                parts = line.split(None, 1)
+            if len(parts) == 2 and parts[0].isdigit():
+                orgs.append((parts[0], parts[1]))
+    except Exception as exc:  # noqa: BLE001
+        ko(f"fix_org_logos: MySQL inventaire KO ({type(exc).__name__}: {exc})")
+
+    # Fallback API (orgs locales seulement) si DB inaccessible
+    if not orgs:
+        try:
+            resp = misp_req("/organisations/index?limit=200", timeout=60)
+            rows = resp if isinstance(resp, list) else (resp.get("response") or []) if isinstance(resp, dict) else []
+            for row in rows:
+                org = row.get("Organisation", row) if isinstance(row, dict) else {}
+                if org.get("id") and org.get("name"):
+                    orgs.append((str(org["id"]), str(org["name"])))
+        except Exception as exc:  # noqa: BLE001
+            ko(f"fix_org_logos: API inventaire KO ({type(exc).__name__})")
             return 0
-        s = ui_session()
-        if s is None:
-            return 0
-        logo_bytes = base64.b64decode(_FP_ORG_LOGO_B64)
-        fixed = 0
-        skipped = {"has_logo": 0, "form": 0, "token": 0, "upload": 0, "err": 0}
-        for org in orgs:
-            oid = org["id"]
+
+    if not orgs:
+        ko("fix_org_logos: aucune organisation")
+        return 0
+
+    fixed = 0
+    skipped = {"has_logo": 0, "write": 0, "err": 0}
+    with tempfile.TemporaryDirectory(prefix="fp-misp-logo-") as tmp:
+        local_png = Path(tmp) / "fp-org-logo.png"
+        local_png.write_bytes(logo_bytes)
+        for oid, name in orgs:
+            # Nom de fichier = nom d'org tel que stocké par MISP (getOrgLogo)
+            safe = name.replace("/", "_").replace("\0", "")
+            remote = f"{logo_dir}/{safe}.png"
             try:
-                has = s.get(f"{MISP_UI_URL}/organisations/getOrgLogo/{oid}.json", timeout=15)
-                if has.status_code == 200:
+                # Déjà présent ?
+                chk = subprocess.run(
+                    ["docker", "exec", container, "test", "-s", remote],
+                    capture_output=True, timeout=15,
+                )
+                if chk.returncode == 0:
                     skipped["has_logo"] += 1
                     continue
-                form = s.get(f"{MISP_UI_URL}/admin/organisations/edit/{oid}", timeout=20)
-                if form.status_code != 200:
-                    skipped["form"] += 1
-                    continue
-                key = re.search(r'name="data\[_Token\]\[key\]"[^>]*value="([^"]+)"', form.text)
-                fields = re.search(r'name="data\[_Token\]\[fields\]"[^>]*value="([^"]*)"', form.text)
-                if not key:
-                    skipped["token"] += 1
-                    continue
-                data = {
-                    "_method": "PUT",
-                    "data[_Token][key]": key.group(1),
-                    "data[_Token][fields]": fields.group(1) if fields else "",
-                    "data[_Token][unlocked]": "",
-                    "data[Organisation][name]": org.get("name", f"Org {oid}"),
-                }
-                files = {"data[Organisation][logo]": ("fp-org-logo.png", logo_bytes, "image/png")}
-                up = s.post(
-                    f"{MISP_UI_URL}/admin/organisations/edit/{oid}",
-                    data=data,
-                    files=files,
-                    headers={"Referer": f"{MISP_UI_URL}/admin/organisations/edit/{oid}"},
-                    allow_redirects=False,
-                    timeout=30,
+                cp = subprocess.run(
+                    ["docker", "cp", str(local_png), f"{container}:{remote}"],
+                    capture_output=True, text=True, timeout=30,
                 )
-                if up.status_code in (200, 302, 303):
-                    fixed += 1
-                else:
-                    skipped["upload"] += 1
-            except requests.RequestException:
+                if cp.returncode != 0:
+                    skipped["write"] += 1
+                    continue
+                subprocess.run(
+                    ["docker", "exec", container, "chown", "www-data:www-data", remote],
+                    capture_output=True, timeout=15,
+                )
+                fixed += 1
+            except Exception:
                 skipped["err"] += 1
                 continue
-        if fixed:
-            ok(f"logos organisations MISP posés: {fixed}")
-        else:
-            ko(f"fix_org_logos: fixed=0/{len(orgs)} détail={skipped}")
-        return fixed
-    except Exception as exc:  # noqa: BLE001 — cosmétique, jamais bloquant
-        ko(f"fix_org_logos: exception {type(exc).__name__}: {exc}")
-        return 0
+
+    # Vérif HTTP sur un échantillon (best effort)
+    sample_ok = 0
+    try:
+        s = ui_session()
+        if s is not None:
+            for oid, _name in orgs[:12]:
+                r = s.get(f"{MISP_UI_URL}/organisations/getOrgLogo/{oid}.json", timeout=15)
+                if r.status_code == 200:
+                    sample_ok += 1
+    except Exception:
+        pass
+
+    if fixed or skipped["has_logo"] == len(orgs) or sample_ok == min(12, len(orgs)):
+        ok(
+            f"logos organisations MISP posés: {fixed} "
+            f"(échantillon HTTP 200: {sample_ok}/{min(12, len(orgs))}, skip={skipped})"
+        )
+    else:
+        ko(f"fix_org_logos: fixed=0/{len(orgs)} détail={skipped} sample_ok={sample_ok}")
+    return fixed
+
 
 
 def ui_session() -> requests.Session | None:

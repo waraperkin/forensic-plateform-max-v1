@@ -151,6 +151,11 @@ services:
     container_name: forensic-connector-alienvault
     logging: *default-logging
     restart: unless-stopped
+    # Entrypoint plateforme : idle stable si clé OTX absente/placeholder Fp_* /
+    # refusée (sinon boucle SIGTERM 143 dès "Fetching subscribed pulses…", V06).
+    entrypoint: ["/bin/sh", "/fp-entrypoint.sh"]
+    volumes:
+      - ./scripts/connectors/alienvault-entrypoint.sh:/fp-entrypoint.sh:ro
     environment:
       - OPENCTI_URL=http://opencti:8080/cti
       - OPENCTI_TOKEN=${OPENCTI_ADMIN_TOKEN}

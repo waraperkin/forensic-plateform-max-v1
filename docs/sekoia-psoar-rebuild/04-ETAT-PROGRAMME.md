@@ -1,7 +1,7 @@
 # 04 — ÉTAT DU PROGRAMME (Sekoia Extended Platform & PSOAR)
 
-**Dernier commit `main`** : `abeef40` — poussé sur GitHub.
-**Validation** : 15 contrôles visuels + API, **0 FAIL**. Santé plateforme **16/16 OK**.
+**Dernier commit `main`** : `00f6264` — poussé sur GitHub.
+**Validation** : 17 contrôles visuels + API, **0 FAIL**. Santé plateforme **16/16 OK**.
 **Services reconstruits** : `sekoia-controlplane`, `sekoia-monitor`, `cert-portal`.
 Aucun autre service touché.
 
@@ -16,13 +16,15 @@ Aucun autre service touché.
 | **3.2 Ingestion & Volumetry** | livré | 66 intakes mesurés en 19,5 s, 1 587 078 événements/h, 60 sources silencieuses |
 | **3.4 Alerting & Anomaly Detection** | livré | 6 types de règles, seuils z-score, **65 alertes → 12 incidents** par regroupement |
 | **3.6 Bulk Operations** | livré | sélection par filtre (16 intakes Windows), dry-run, export YAML, rollback |
-| Console analyste | livrée | 3 vues, validées visuellement sans état dégradé |
+| **3.7 Dashboards & Visualization** | livré | courbe SVG, carte de chaleur log, top sources, fenêtres 6 h→30 j ; surcompte ×35 corrigé |
+| Console analyste | livrée | 4 vues, validées visuellement sans état dégradé |
 
 ### PSOAR
 
 | Module | État | Preuve |
 |---|---|---|
 | **3.3 Playbook Orchestration** | livré | condition évaluée avec valeur observée, arrêt sur approbation, reprise, statut incident réellement passé à `contained` |
+| Console d'orchestration | livrée | création depuis modèle NIST, simulation, exécution, arbitrage des approbations, journal pas à pas |
 
 ---
 
@@ -52,14 +54,13 @@ hostname (donc jamais) ; le silence n'était jamais détecté faute de
 - **3.1** Data Intake Layer (connecteurs universels, normalisation)
 - **3.3** Monitoring & Telemetry Core (temps réel, heatmaps, latence)
 - **3.5** Inventory & Asset Management (versioning, détection d'incohérences)
-- **3.7** Dashboards & Visualization — *prochaine étape recommandée : la donnée existe enfin*
 - **3.8** API Gateway (GraphQL, quotas)
 - **3.9** Storage Layer (hot/warm/cold, ILM)
 
 ### PSOAR
 - **3.1** Alert Intake & Correlation
 - **3.2** Incident Management Core (au-delà de l'existant)
-- **3.4** Automation & Action Engine (workers, queues, retry)
+- **3.4** Automation & Action Engine (workers, queues, retry) — *prochaine étape recommandée*
 - **3.5** Case Management Layer
 - **3.6** Integration & Connector Hub
 - **3.7** Knowledge Base & Enrichment
@@ -67,7 +68,7 @@ hostname (donc jamais) ; le silence n'était jamais détecté faute de
 - **3.9** Audit, Compliance & Reporting
 - **3.10** Storage & Indexing
 
-**Bilan : 4 modules livrés sur 19.**
+**Bilan : 5 modules livrés sur 19**, plus deux consoles analyste.
 
 ---
 

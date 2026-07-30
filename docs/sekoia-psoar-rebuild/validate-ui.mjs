@@ -68,7 +68,12 @@ try {
 // ── V02 Règles Sekoia (1180 attendues) ──
 try {
   await openTab('sekoia-rules');
-  await page.waitForTimeout(3000);
+  // Le 1er chargement apres un redemarrage du control-plane reconstruit tout
+  // l'inventaire (66 intakes + 42 playbooks + 1180 regles): on attend le
+  // contenu plutot qu'un delai fixe, sinon le test mesure la latence du cache.
+  await page.waitForFunction(
+    () => (document.getElementById('sekoia-rules-root')?.innerText || '').length > 200,
+    { timeout: 180000 }).catch(() => {});
   const s = await shot('V02-sekoia-regles');
   const body = await page.locator('#sekoia-rules-root').innerText();
   push('V02', body.length > 200 ? 'PASS' : 'FAIL',
@@ -183,6 +188,25 @@ try {
   push('V11', raw.length === 0 ? 'PASS' : 'FAIL',
     { note: `clés i18n brutes visibles : ${raw.length}${raw.length ? ' — ' + raw.slice(0, 5).join(', ') : ''}`, shot: s });
 } catch (e) { push('V11', 'FAIL', { note: `exception ${e.message}` }); }
+
+
+// ── V12/V13/V14 Sekoia Extended Platform ──
+for (const [id, view, label] of [['V12','supervision','Supervision'],['V13','alerting','Alerting'],['V14','operations','Opérations en lot']]) {
+  try {
+    await openTab('sekoia-extended');
+    await page.waitForTimeout(2500);
+    if (view !== 'supervision') {
+      await page.locator(`[data-sep-view="${view}"]`).first().click({ timeout: 10000 });
+      await page.waitForTimeout(3500);
+    }
+    const s = await shot(`${id}-sep-${view}`);
+    const body = await page.locator('#sekoia-extended-root').innerText();
+    const bad = /ENOTFOUND|ECONNREFUSED|\[object Object\]|undefined/.test(body);
+    const degraded = /Données momentanément indisponibles/.test(body);
+    push(id, (bad || degraded) ? 'FAIL' : 'PASS',
+      { note: `SEP ${label} rendu (${body.length} car.), dégradé=${degraded}, erreur brute=${bad}`, shot: s });
+  } catch (e) { push(id, 'FAIL', { note: `exception ${e.message}` }); }
+}
 
 push('V10', consoleErrors.length === 0 ? 'PASS' : 'WARN',
   { note: `erreurs console navigateur : ${consoleErrors.length}${consoleErrors.length ? ' — ' + consoleErrors.slice(0, 3).join(' | ') : ''}` });

@@ -1,0 +1,73 @@
+{
+  "ts": "2026-07-30T20-53-04",
+  "results": [
+    {
+      "id": "V00",
+      "status": "PASS",
+      "note": "connexion portail CERT (https://192.168.2.67/)",
+      "shot": "2026-07-30T20-53-04-V00-portail-connecte.png"
+    },
+    {
+      "id": "V01",
+      "status": "PASS",
+      "note": "Control Center rendu, 1530 car., aucune erreur brute=true",
+      "shot": "2026-07-30T20-53-04-V01-sekoia-control-center.png"
+    },
+    {
+      "id": "V02",
+      "status": "PASS",
+      "note": "catalogue de règles rendu (35215 car.)",
+      "shot": "2026-07-30T20-53-04-V02-sekoia-regles.png"
+    },
+    {
+      "id": "V03",
+      "status": "PASS",
+      "note": "inventaire intakes rendu — 0/66 clé(s) non masquée(s)",
+      "shot": "2026-07-30T20-53-04-V03-sekoia-intakes.png"
+    },
+    {
+      "id": "V04",
+      "status": "PASS",
+      "note": "file PSOAR rendue (367 car.)",
+      "shot": "2026-07-30T20-53-04-V04-psoar-file-incidents.png"
+    },
+    {
+      "id": "V05",
+      "status": "PASS",
+      "note": "clic sur la ligne (cellule, hors bouton) ouvre le détail",
+      "shot": "2026-07-30T20-53-04-V05-psoar-clic-ligne-detail.png"
+    },
+    {
+      "id": "V06",
+      "status": "PASS",
+      "note": "mitre-coverage via portail : 92.5% des règles, 270 patterns dont 112 nommés"
+    },
+    {
+      "id": "V07",
+      "status": "PASS",
+      "note": "effectiveness : 5000 alertes, 203 règles actives, MTTD p50=7s sur 4979 échantillons"
+    },
+    {
+      "id": "V08",
+      "status": "PASS",
+      "note": "slo : available=true, 66 intakes, error=null"
+    },
+    {
+      "id": "V09",
+      "status": "PASS",
+      "note": "santé globale 16/16 OK, 0 down"
+    },
+    {
+      "id": "V11",
+      "status": "PASS",
+      "note": "clés i18n brutes visibles : 0",
+      "shot": "2026-07-30T20-53-04-V11-i18n-hub.png"
+    },
+    {
+      "id": "V10",
+      "status": "PASS",
+      "note": "erreurs console navigateur : 0"
+    }
+  ],
+  "consoleErrors": []
+}

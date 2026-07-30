@@ -54,7 +54,11 @@
   margin-bottom: 0.25rem;
 }
 [data-edition="cybercorp"] .cc-card-click-meta {
+  /* display:block indispensable : sans lui le sous-titre se colle au titre sur
+     une meme ligne (carte « Ingest logs & volumetrie » du hub Sekoia). */
+  display: block;
   font-size: 0.72rem;
+  line-height: 1.35;
   color: var(--text-muted);
 }
 

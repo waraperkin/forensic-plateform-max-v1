@@ -365,10 +365,25 @@ async def get_ingest_formats():
                                page_params=("sizePage", "indexPage"))
 
 
+RULES_CATALOG_PATH = "/api/v1/sic/conf/rules-catalog/rules"
+RULES_CATALOG_FALLBACK = "/api/v1/sic/conf/rules-catalog/multi-tenant/rules"
+
+
 async def get_detection_rules():
-    return await paginated_get(
-        f"{conf()['base']}/api/v1/sic/conf/rules-catalog/multi-tenant/rules",
-        {"enabled": "true"})
+    """Catalogue de règles du tenant.
+
+    On interroge /rules-catalog/rules (instances du tenant) et NON
+    /rules-catalog/multi-tenant/rules : ce dernier est le catalogue global — il
+    renvoie moins de règles (1109 vs 1180) et surtout AUCUN related_object_refs,
+    ce qui privait le moteur de couverture de sa seule source d'attack-patterns.
+    Repli sur l'ancien chemin si le tenant ne l'expose pas.
+    """
+    items, err = await paginated_get(f"{conf()['base']}{RULES_CATALOG_PATH}")
+    if items or not err:
+        return items, err
+    log.warning("rules-catalog/rules indisponible (%s) — repli multi-tenant", err)
+    return await paginated_get(f"{conf()['base']}{RULES_CATALOG_FALLBACK}",
+                               {"enabled": "true"})
 
 
 def _flat(v):
@@ -496,7 +511,14 @@ async def build_detection_rules(format_by_uuid: dict) -> tuple[list, Optional[st
         dialect_uuids = list(dict.fromkeys(DIALECT_REGEX.findall(payload)))
         alert_type = rule.get("alert_type") or {}
         alert_category = rule.get("alert_category") or {}
+        # Attack-patterns STIX rattachés à la règle : seule source de couverture
+        # offensive réellement fournie par Sekoia (les identifiants Txxxx ne sont
+        # exposés nulle part dans le catalogue — cf. audit §3.5).
+        attack_refs = [str(x) for x in (rule.get("related_object_refs") or [])
+                       if str(x).startswith("attack-pattern--")]
         rows.append({
+            "rule_attack_refs": ",".join(attack_refs),
+            "rule_attack_refs_count": len(attack_refs),
             "rule_uuid": rule.get("uuid"), "rule_name": rule.get("name"),
             "rule_type": rule.get("type"), "rule_enabled": rule.get("enabled"),
             "rule_severity": rule.get("severity"), "rule_effort": rule.get("effort"),
@@ -1292,6 +1314,19 @@ OS_USER = os.environ.get("OPENSEARCH_USER", "")
 OS_PASSWORD = os.environ.get("OPENSEARCH_PASSWORD", "")
 
 
+def _os_reason(r: httpx.Response) -> str:
+    """Extrait la raison lisible d'une erreur OpenSearch (jamais de stack brute)."""
+    try:
+        err = (r.json() or {}).get("error") or {}
+        if isinstance(err, dict):
+            root = (err.get("root_cause") or [{}])[0]
+            reason = root.get("reason") or err.get("reason") or err.get("type") or ""
+            return str(reason)[:300]
+        return str(err)[:300]
+    except ValueError:
+        return r.text[:200]
+
+
 async def os_search(index: str, body: dict) -> tuple[Optional[dict], Optional[str]]:
     """Requête _search sur l'OpenSearch local. (payload, erreur)."""
     auth = (OS_USER, OS_PASSWORD) if OS_PASSWORD else None
@@ -1299,7 +1334,10 @@ async def os_search(index: str, body: dict) -> tuple[Optional[dict], Optional[st
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, auth=auth) as c:
             r = await c.post(f"{OS_URL}/{index}/_search", json=body)
         if r.status_code >= 400:
-            return None, f"OpenSearch HTTP {r.status_code}"
+            # Le motif exact (mapping absent, fielddata, index manquant) doit
+            # remonter jusqu'à l'analyste : « OpenSearch HTTP 400 » seul rendait
+            # tout diagnostic impossible depuis l'UI.
+            return None, f"OpenSearch HTTP {r.status_code}: {_os_reason(r)}"
         return r.json(), None
     except httpx.HTTPError as exc:
         return None, str(exc)
@@ -1402,7 +1440,14 @@ async def patch_entity(entity_id: str, request: Request):
 # ── Détail d'une règle (payload complet, sans trim) ───────────────────────────
 @app.get("/control/sekoia/rules/{rule_id}", dependencies=[Depends(require_internal_token)])
 async def rule_detail(rule_id: str):
-    payload, err = await sek_request("GET", f"/api/v1/sic/conf/rules/{rule_id}")
+    # /api/v1/sic/conf/rules/{id} n'existe pas (404 T404 systématique) : le
+    # détail d'une règle était donc TOUJOURS vide dans l'UI. Le bon chemin est
+    # celui du catalogue, avec repli multi-tenant.
+    payload, err = await sek_request("GET", f"{RULES_CATALOG_PATH}/{rule_id}")
+    if err:
+        payload, err2 = await sek_request("GET", f"{RULES_CATALOG_FALLBACK}/{rule_id}")
+        if err2 is None:
+            err = None
     return {"ok": err is None, "error": err, "rule": payload, "id": rule_id}
 
 
@@ -1454,9 +1499,9 @@ async def local_timeseries(intake_uuid: str = "", hours: int = 24):
     interval = "1h" if hours <= 72 else "1d"
     filters: list = [{"range": {"@timestamp": {"gte": f"now-{hours}h"}}}]
     if intake_uuid:
-        filters.append({"term": {"intake_uuid": intake_uuid}})
+        filters.append({"term": {"intake_uuid.keyword": intake_uuid}})
     body = {"size": 0, "query": {"bool": {"filter": filters}}, "aggs": {
-        "per_intake": {"terms": {"field": "intake_uuid", "size": 25}, "aggs": {
+        "per_intake": {"terms": {"field": "intake_uuid.keyword", "size": 25}, "aggs": {
             "ts": {"date_histogram": {"field": "@timestamp", "fixed_interval": interval},
                    "aggs": {"vol": {"sum": {"field": "count_1h"}}}}}},
         "total_ts": {"date_histogram": {"field": "@timestamp", "fixed_interval": interval},
@@ -1484,9 +1529,9 @@ async def local_top_hostnames(hours: int = 24, size: int = 50, intake_uuid: str 
     size = max(1, min(size, 500))
     filters: list = [{"range": {"@timestamp": {"gte": f"now-{hours}h"}}}]
     if intake_uuid:
-        filters.append({"term": {"intake_uuid": intake_uuid}})
+        filters.append({"term": {"intake_uuid.keyword": intake_uuid}})
     body = {"size": 0, "query": {"bool": {"filter": filters}}, "aggs": {
-        "hosts": {"terms": {"field": "log_hostname", "size": size}, "aggs": {
+        "hosts": {"terms": {"field": "log_hostname.keyword", "size": size}, "aggs": {
             "vol": {"sum": {"field": "count_1h"}},
             "last_seen": {"max": {"field": "@timestamp"}}}}}}
     res, err = await os_search("sekoia-volumetry-*", body)

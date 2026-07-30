@@ -36,6 +36,29 @@ WATCHLISTS_PATH = os.environ.get("WATCHLISTS_PATH", "/data/sekoia-watchlists.jso
 SNAPSHOTS_PATH = os.environ.get("SNAPSHOTS_PATH", "/data/sekoia-snapshots.json")
 SNAPSHOTS_KEEP = 50
 ALERTS_CAP = 5000
+# Taille de page pour /api/v1/sic/alerts. L'API Sekoia rejette (VA301) tout
+# limit > 100 : une valeur supérieure faisait échouer TOUTE la pagination et
+# déclarait à tort les 1109 règles « silencieuses ».
+ALERTS_PAGE = 100
+
+# Dictionnaire attack-pattern STIX → libellé, alimenté par les `ttps` des
+# alertes Sekoia. C'est la seule source de résolution disponible : l'API CTI
+# Sekoia répond 404 sur ces UUID et OpenCTI local ne les connaît pas.
+TTP_NAMES: dict[str, str] = {}
+
+
+def _percentiles(values: list[float]) -> Optional[dict]:
+    """Statistiques de cycle de vie (secondes). None si aucun échantillon."""
+    if not values:
+        return None
+    s = sorted(values)
+    def pct(p: float) -> float:
+        return s[min(len(s) - 1, int(round((len(s) - 1) * p)))]
+    return {"count": len(s),
+            "avg_s": round(sum(s) / len(s), 1),
+            "p50_s": round(pct(0.50), 1),
+            "p90_s": round(pct(0.90), 1),
+            "max_s": round(s[-1], 1)}
 
 TACTICS = [
     "reconnaissance", "resource-development", "initial-access", "execution",
@@ -232,11 +255,11 @@ def register(analytics_app) -> None:
     async def _hosts_intel(new_hours: int, gone_hours: int) -> dict:
         body = {"size": 0,
                 "query": {"range": {"@timestamp": {"gte": "now-7d"}}},
-                "aggs": {"hosts": {"terms": {"field": "log_hostname", "size": 2000},
+                "aggs": {"hosts": {"terms": {"field": "log_hostname.keyword", "size": 2000},
                                    "aggs": {"first_seen": {"min": {"field": "@timestamp"}},
                                             "last_seen": {"max": {"field": "@timestamp"}},
                                             "vol": {"sum": {"field": "count_1h"}},
-                                            "intakes": {"cardinality": {"field": "intake_uuid"}}}}}}
+                                            "intakes": {"cardinality": {"field": "intake_uuid.keyword"}}}}}}
         res, err = await cp.os_search("sekoia-volumetry-*", body)
         out = {"new_hosts": [], "disappeared_hosts": [], "multi_intake_hosts": [],
                "top_talkers": [], "error": err}
@@ -276,12 +299,12 @@ def register(analytics_app) -> None:
                   target: float = Query(default=99.0, ge=50, le=100)):
         body = {"size": 0,
                 "query": {"range": {"@timestamp": {"gte": f"now-{hours}h"}}},
-                "aggs": {"per_intake": {"terms": {"field": "intake_uuid", "size": 500},
+                "aggs": {"per_intake": {"terms": {"field": "intake_uuid.keyword", "size": 500},
                                         "aggs": {
                                             "ok": {"filter": {"bool": {"filter": [
                                                 {"term": {"silent": False}},
                                                 {"term": {"volume_available": True}}]}}},
-                                            "name": {"terms": {"field": "intake_name", "size": 1}}}}}}
+                                            "name": {"terms": {"field": "intake_name.keyword", "size": 1}}}}}}
         res, err = await cp.os_search("sekoia-intakes-*", body)
         items = []
         if not err and res:
@@ -340,6 +363,9 @@ def register(analytics_app) -> None:
     async def _effectiveness(days: int) -> dict:
         # Alertes Sekoia paginées (plafond borné)
         per_rule: dict[str, dict] = {}
+        mttd: list[float] = []
+        mttr: list[float] = []
+        mttres: list[float] = []
         total_alerts = 0
         offset = 0
         err: Optional[str] = None
@@ -352,7 +378,7 @@ def register(analytics_app) -> None:
         while total_alerts < ALERTS_CAP:
             payload, e = await cp.sek_request(
                 "GET", "/api/v1/sic/alerts",
-                params={"limit": 1000, "offset": offset})
+                params={"limit": ALERTS_PAGE, "offset": offset})
             if e:
                 err = e
                 break
@@ -382,7 +408,20 @@ def register(analytics_app) -> None:
                 if ts and (slot["last"] is None or str(ts) > slot["last"]):
                     slot["last"] = str(ts)
                 total_alerts += 1
-            if len(items) < 1000:
+                # Dictionnaire attack-pattern → nom : les alertes sont la SEULE
+                # source qui résout les UUID STIX de Sekoia en libellés lisibles
+                # (l'API CTI répond 404). Alimente mitre-coverage.
+                for ttp in (a.get("ttps") or []):
+                    tid, tname = ttp.get("id"), ttp.get("name")
+                    if tid and tname:
+                        TTP_NAMES[tid] = tname
+                # Métriques de cycle de vie RÉELLES fournies par Sekoia (secondes).
+                for key, bucket in (("time_to_detect", mttd), ("time_to_respond", mttr),
+                                    ("time_to_resolve", mttres)):
+                    v = a.get(key)
+                    if isinstance(v, (int, float)) and v > 0:
+                        bucket.append(float(v))
+            if len(items) < ALERTS_PAGE:
                 break
             offset += len(items)
         # Catalogue de règles (activées) depuis le cache inventaire
@@ -412,10 +451,23 @@ def register(analytics_app) -> None:
         silent = [j for j in joined if j["alerts"] == 0][:50]
         top5 = sum(j["alerts"] for j in joined[:5])
         fatigue = round(top5 / total_alerts * 100, 1) if total_alerts else None
+        # Les règles qui alertent sans figurer au catalogue local sont comptées à
+        # part : les mélanger aux « silencieuses » donnait un total incohérent
+        # (1109 silencieuses ALORS QUE 203 règles alertaient).
+        off_catalog = sum(1 for rid in per_rule if rid not in by_uuid)
         return {"available": bool(joined) or err is None, "error": err,
                 "days": days, "total_alerts": total_alerts,
+                "alerts_capped": total_alerts >= ALERTS_CAP,
+                "catalog_rules": len(by_uuid),
                 "rules_with_alerts": sum(1 for j in joined if j["alerts"] > 0),
-                "rules_silent": sum(1 for j in joined if j["alerts"] == 0),
+                "rules_silent": sum(1 for j in joined
+                                    if j["alerts"] == 0 and j["rule_uuid"] in by_uuid),
+                "rules_alerting_off_catalog": off_catalog,
+                # Proxies MTTD / MTTR issus des champs natifs Sekoia (secondes).
+                "lifecycle": {"mttd": _percentiles(mttd),
+                              "mttr": _percentiles(mttr),
+                              "mttresolve": _percentiles(mttres),
+                              "source": "sekoia.alerts.time_to_*"},
                 "fatigue_top5_pct": fatigue,
                 "noisy": noisy, "silent": silent, "items": joined[:200]}
 
@@ -426,36 +478,104 @@ def register(analytics_app) -> None:
     # ── G. Couverture MITRE ATT&CK ───────────────────────────────────────────
     @analytics_app.get("/control/sekoia/mitre-coverage", dependencies=dep)
     async def mitre_coverage():
+        """Couverture offensive du catalogue de détection.
+
+        HONNÊTETÉ DE LA DONNÉE (cf. audit §3.5). Le catalogue Sekoia n'expose
+        AUCUN identifiant ATT&CK `Txxxx` : le champ `payload` ne contient que la
+        requête de détection (124–161 caractères) et les attack-patterns sont
+        référencés par des UUID STIX internes à Sekoia, non résolubles (404 sur
+        l'API CTI Sekoia, absents d'OpenCTI local).
+
+        On expose donc DEUX signaux clairement séparés, jamais mélangés :
+        - `attack_patterns` : la couverture RÉELLE (related_object_refs), fiable ;
+        - `lexical` : la reconnaissance de noms de tactiques dans le texte des
+          règles, explicitement marquée `confidence: "low"`. L'ancienne version
+          présentait ce signal lexical comme une matrice ATT&CK — ce qui
+          produisait une heatmap dépourvue de sens.
+        """
         full = await cp.get_full()
         rules = full.get("rules") or []
+
+        # ── Signal fiable : attack-patterns rattachés par Sekoia ──
+        refs_all: set[str] = set()
+        rules_with_refs = 0
+        per_rule_refs = []
+        ref_rule_count: dict[str, int] = {}
+        for r in rules:
+            refs = [x for x in str(r.get("rule_attack_refs") or "").split(",") if x]
+            if refs:
+                rules_with_refs += 1
+                refs_all |= set(refs)
+                for x in refs:
+                    ref_rule_count[x] = ref_rule_count.get(x, 0) + 1
+                per_rule_refs.append({
+                    "rule_uuid": r.get("rule_uuid"), "rule_name": r.get("rule_name"),
+                    "severity": r.get("rule_severity"), "enabled": r.get("rule_enabled"),
+                    "attack_patterns": len(refs),
+                    "attack_pattern_names": sorted(
+                        {TTP_NAMES[x] for x in refs if x in TTP_NAMES}),
+                })
+        per_rule_refs.sort(key=lambda x: -x["attack_patterns"])
+        # Top attack-patterns couverts, nommés quand le dictionnaire le permet.
+        top_patterns = sorted(
+            ({"id": k, "name": TTP_NAMES.get(k), "rules": v}
+             for k, v in ref_rule_count.items()),
+            key=lambda x: -x["rules"])[:50]
+        named = sum(1 for x in refs_all if x in TTP_NAMES)
+
+        # ── Signal faible : correspondance lexicale sur les noms de tactiques ──
         tactics: dict[str, dict] = {t: {"rules": 0, "techniques": set()} for t in TACTICS}
         techniques_all: set[str] = set()
-        rules_with = 0
         for r in rules:
             raw = " ".join(str(r.get(k) or "") for k in
-                           ("rule_name", "name", "payload", "tags",
-                            "rule_tags", "description"))
+                           ("rule_name", "rule_payload", "rule_tags",
+                            "rule_description", "rule_datasources",
+                            "rule_alert_type_value", "rule_alert_category_name"))
             text = raw.lower()
             techs = set(TECH_RE.findall(raw))
-            matched = False
+            techniques_all |= techs
             for t in TACTICS:
                 if t in text or t.replace("-", " ") in text:
                     tactics[t]["rules"] += 1
                     tactics[t]["techniques"] |= techs
-                    matched = True
-            if techs or matched:
-                rules_with += 1
-                techniques_all |= techs
         matrix = [{"tactic": t, "rules": v["rules"],
                    "techniques": sorted(v["techniques"]),
                    "techniques_count": len(v["techniques"])}
                   for t, v in tactics.items()]
-        covered = sum(1 for m in matrix if m["rules"] > 0)
-        return {"available": bool(rules), "rules_total": len(rules),
-                "rules_with_mitre": rules_with,
-                "techniques_distinct": len(techniques_all),
-                "tactics_covered": covered, "tactics_total": len(TACTICS),
-                "matrix": matrix}
+
+        coverage_pct = round(rules_with_refs / len(rules) * 100, 1) if rules else 0.0
+        return {
+            "available": bool(rules),
+            "rules_total": len(rules),
+            "attack_patterns": {
+                "source": "sekoia.related_object_refs",
+                "confidence": "high",
+                "rules_with_attack_patterns": rules_with_refs,
+                "rules_without": len(rules) - rules_with_refs,
+                "coverage_pct": coverage_pct,
+                "distinct_attack_patterns": len(refs_all),
+                "named_attack_patterns": named,
+                "naming_source": ("sekoia.alerts.ttps — appeler /effectiveness alimente "
+                                  "le dictionnaire de libellés"),
+                "top_patterns": top_patterns,
+                "top_rules": per_rule_refs[:50],
+            },
+            "techniques": {
+                "resolvable": False,
+                "distinct": len(techniques_all),
+                "reason": ("Le catalogue Sekoia n'expose aucun identifiant ATT&CK Txxxx ; "
+                           "les attack-patterns sont des UUID STIX internes non résolubles "
+                           "(API CTI Sekoia 404, absents d'OpenCTI local)."),
+            },
+            "lexical": {
+                "confidence": "low",
+                "note": ("Correspondance sur le nom des tactiques dans le texte des règles — "
+                         "indicatif uniquement, ne pas lire comme une couverture ATT&CK."),
+                "tactics_matched": sum(1 for m in matrix if m["rules"] > 0),
+                "tactics_total": len(TACTICS),
+                "matrix": matrix,
+            },
+        }
 
     # ── H. Watchlists locales ────────────────────────────────────────────────
     @analytics_app.get("/control/sekoia/watchlists", dependencies=dep)

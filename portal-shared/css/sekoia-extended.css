@@ -121,3 +121,12 @@
 }
 .sep-heat-legend span:first-child { margin-right: 0.3rem; }
 .sep-heat-legend span:last-child { margin-left: 0.3rem; }
+
+/* ── PSOAR — orchestrateur de playbooks ──────────────────────────────────── */
+.pso-pb-orch .pso-pb-badges { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.5rem 0; }
+.pso-run-row { cursor: pointer; }
+.pso-approval {
+  border-left: 3px solid #e0902b;
+  margin: 0.75rem 0;
+}
+.pso-approval h4 { margin-bottom: 0.3rem; }

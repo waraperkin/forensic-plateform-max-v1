@@ -72,7 +72,12 @@ FORMAT_MAP = {
     "41e3ca4e-a714-41aa-ad69-684a0b3835fc": "Sekoia activity logs",
     "5702ae4e-7d8a-455f-a47b-ef64dd87c981": "Fortigate Firewall",
 }
-DIALECT_REGEX = re.compile(r'sekoiaio\.intake\.dialect_uuid:\s*"(.*?)"')
+# Le payload ecrit l'UUID SANS guillemets :
+#   sekoiaio.intake.dialect_uuid: 07c556c0-0675-478c-9803-e7990afe78b6
+# La regex qui en exigeait echouait sur 98,4 % des regles (19/1180 extraites),
+# ce qui vidait la matrice de couverture et le graphe de telemetrie.
+DIALECT_REGEX = re.compile(
+    r'sekoiaio\.intake\.dialect_uuid:\s*"?([0-9a-fA-F-]{36})"?')
 
 app = FastAPI(title="sekoia-controlplane", version="2.1.0", docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -509,6 +514,10 @@ async def build_detection_rules(format_by_uuid: dict) -> tuple[list, Optional[st
     for rule in rules:
         payload = rule.get("payload") or ""
         dialect_uuids = list(dict.fromkeys(DIALECT_REGEX.findall(payload)))
+        # Le format declare de la regle complete l'extraction sans la remplacer :
+        # une regle peut cibler plusieurs dialectes dans sa requete.
+        if rule.get("format_uuid") and rule["format_uuid"] not in dialect_uuids:
+            dialect_uuids.append(rule["format_uuid"])
         alert_type = rule.get("alert_type") or {}
         alert_category = rule.get("alert_category") or {}
         # Attack-patterns STIX rattachés à la règle : seule source de couverture
@@ -1598,6 +1607,10 @@ telemetry.register(app)
 #    Hôtes et comptes réellement observés, couverture d'actifs, apparitions.
 import assets  # noqa: E402
 assets.register(app)
+
+# ── Sekoia Extended Platform — Graphe, simulateur what-if, moteur de couverture.
+import graph  # noqa: E402
+graph.register(app)
 
 
 if __name__ == "__main__":

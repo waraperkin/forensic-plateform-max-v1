@@ -127,6 +127,9 @@
   }
   function spark(points) {
     if (!points || points.length < 2) return '<span class="swb-hint">—</span>';
+    // Une serie entierement nulle tracee comme une ligne plate se confond avec
+    // une courbe reelle : on affiche explicitement l'absence de volume.
+    if (!points.some((v) => v > 0)) return '<span class="swb-hint">aucun volume</span>';
     const w = 92; const h = 22;
     const max = Math.max.apply(null, points) || 1;
     const dx = w / (points.length - 1);
@@ -331,8 +334,9 @@
 
     const body = rows.map((x) => {
       const pts = (x.points || []).map((p) => p.count);
+      const stopped = x.cur === 0 && x.base > 0;
       const dTone = x.delta === null ? 'mute' : (x.delta < -50 ? 'danger' : x.delta > 100 ? 'warn' : 'ok');
-      const dTxt = x.delta === null ? '—' : `${x.delta > 0 ? '+' : ''}${x.delta.toFixed(0)} %`;
+      const dTxt = x.delta === null ? '—' : (stopped ? 'arrêtée' : `${x.delta > 0 ? '+' : ''}${x.delta.toFixed(0)} %`);
       return `<tr>
         <td class="swb-truncate" title="${esc(x.intake_name)}">${esc(x.intake_name)}</td>
         <td>${spark(pts)}</td>
@@ -343,9 +347,20 @@
         <td class="swb-num">${pill(dTxt, dTone, true)}</td></tr>`;
     }).join('');
 
-    const silent = ((h && h.items) || []).filter((i) => i.silent);
-    const silentList = silent.slice(0, 12).map((i) => `<li>${esc(i.intake_name)}
-      <span class="swb-hint">· ${esc(i.entity_name || '—')}</span></li>`).join('');
+    // Le drapeau `silent` porte sur le DERNIER releve, alors que le volume porte
+    // sur toute la fenetre. Une source peut donc avoir emis 1 M d'evenements ce
+    // matin et etre muette a l'instant : afficher les deux faits cote a cote
+    // sans le dire serait contradictoire.
+    const volByName = {};
+    series.forEach((x) => { volByName[x.intake_name] = x.total || 0; });
+    const silentAll = ((h && h.items) || []).filter((i) => i.silent);
+    const silentDropped = silentAll.filter((i) => (volByName[i.intake_name] || 0) > 0);
+    const silentAlways = silentAll.filter((i) => !(volByName[i.intake_name] || 0));
+    const liOf = (i, withVol) => `<li>${esc(i.intake_name)}
+      <span class="swb-hint">· ${esc(i.entity_name || '—')}${
+  withVol ? ` · ${nf(volByName[i.intake_name])} sur la fenêtre` : ''}</span></li>`;
+    const silentList = silentAlways.slice(0, 12).map((i) => liOf(i, false)).join('');
+    const droppedList = silentDropped.slice(0, 8).map((i) => liOf(i, true)).join('');
 
     return `<div class="swb-head">
         <div><h2 class="swb-title">Ingestion des logs — volumétrie</h2>
@@ -365,11 +380,15 @@
           ${th('Source', 'intake_name')}<th>Tendance</th>${th('Volume', 'total', 'swb-num')}
           <th>Part</th>${th('%', 'share', 'swb-num')}${th('Baseline', 'base', 'swb-num')}${th('Écart', 'delta', 'swb-num')}
         </tr></thead><tbody>${body || '<tr><td colspan="7"><p class="swb-hint" style="padding:1rem">Aucune source mesurée sur la fenêtre.</p></td></tr>'}</tbody></table></div></div>
-      ${silent.length ? `<div class="swb-panel"><div class="swb-panel-head">
-        <h3 class="swb-panel-title">Sources muettes — ${nf(silent.length)}</h3></div>
-        <p class="swb-hint" style="margin-bottom:.5rem">Aucun événement mesuré sur la fenêtre de collecte. À traiter comme une panne de collecte, pas comme une accalmie.</p>
+      ${silentDropped.length ? `<div class="swb-panel" style="border-left:3px solid var(--swb-danger)">
+        <div class="swb-panel-head"><h3 class="swb-panel-title">Collecte interrompue — ${nf(silentDropped.length)}</h3></div>
+        <p class="swb-hint" style="margin-bottom:.5rem">Ces sources ont émis sur la fenêtre mais ne remontent plus rien au dernier relevé. C'est le signal le plus urgent : une source qui produisait vient de se taire.</p>
+        <ul style="margin:0;padding-left:1.1rem;font-size:.82rem;columns:2;column-gap:2rem">${droppedList}</ul></div>` : ''}
+      ${silentAlways.length ? `<div class="swb-panel"><div class="swb-panel-head">
+        <h3 class="swb-panel-title">Sources sans aucun volume — ${nf(silentAlways.length)}</h3></div>
+        <p class="swb-hint" style="margin-bottom:.5rem">Aucun événement sur toute la fenêtre. Intake configuré mais jamais alimenté, ou source arrêtée de longue date.</p>
         <ul style="margin:0;padding-left:1.1rem;font-size:.82rem;columns:2;column-gap:2rem">${silentList}</ul>
-        ${silent.length > 12 ? `<p class="swb-hint" style="margin-top:.5rem">…et ${nf(silent.length - 12)} autres. Voir l'écran Sources pour la liste complète.</p>` : ''}</div>` : ''}`;
+        ${silentAlways.length > 12 ? `<p class="swb-hint" style="margin-top:.5rem">…et ${nf(silentAlways.length - 12)} autres. Voir l'écran Sources pour la liste complète.</p>` : ''}</div>` : ''}`;
   }
 
   // ── Sources ───────────────────────────────────────────────────────────────

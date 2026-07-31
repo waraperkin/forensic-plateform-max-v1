@@ -38,6 +38,14 @@ const MAX_STEPS = 200;
 // Garde-fou anti-boucle : un graphe mal formé ne doit pas tourner à l'infini.
 const MAX_TRANSITIONS = 500;
 
+// Reprise sur erreur transitoire : trois tentatives, backoff exponentiel borné.
+const RETRY_MAX_ATTEMPTS = Number(process.env.PSOAR_RETRY_ATTEMPTS || 3);
+const RETRY_BASE_MS = Number(process.env.PSOAR_RETRY_BASE_MS || 800);
+const RETRY_MAX_DELAY_MS = Number(process.env.PSOAR_RETRY_MAX_DELAY_MS || 8000);
+// File d'exécution : un playbook long ne doit pas tenir une requête HTTP ouverte.
+const WORKER_TICK_MS = Number(process.env.PSOAR_WORKER_TICK_MS || 3000);
+const WORKER_CONCURRENCY = Number(process.env.PSOAR_WORKER_CONCURRENCY || 2);
+
 /**
  * Catalogue d'actions. Chaque action déclare si elle produit un effet de bord
  * et si elle exige une intégration : c'est ce qui permet le mode sandbox.
@@ -179,6 +187,44 @@ function createPlaybookRoutes(deps) {
     if (kind === 'sekoia') return Boolean(SEKOIA_URL);
     if (kind === 'opensearch' || kind === 'cti') return Boolean(os);
     return true;
+  }
+
+  /**
+   * Une erreur TRANSITOIRE mérite une nouvelle tentative ; une erreur de
+   * configuration n'en mérite aucune. Réessayer un 400 ou un 403 ne fait que
+   * retarder l'échec et brouiller le journal.
+   */
+  function isTransient(err) {
+    const m = String(err || '').toLowerCase();
+    if (/http 4\d\d/.test(m) && !/http 408|http 429/.test(m)) return false;
+    return /timeout|econnreset|econnrefused|enotfound|socket hang up|network|http 5\d\d|http 408|http 429/.test(m);
+  }
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  /**
+   * Exécute une action avec reprise exponentielle bornée.
+   * Chaque tentative est journalisée : un run doit pouvoir expliquer pourquoi
+   * il a mis vingt secondes.
+   */
+  async function runActionWithRetry(step, ctx, dryRun, entry) {
+    const max = Math.max(1, RETRY_MAX_ATTEMPTS);
+    let last = null;
+    for (let attempt = 1; attempt <= max; attempt += 1) {
+      const res = await runAction(step, ctx, dryRun);
+      if (res.ok) {
+        if (attempt > 1) entry.attempts = attempt;
+        return res;
+      }
+      last = res;
+      if (dryRun || attempt === max || !isTransient(res.error)) break;
+      const delay = Math.min(RETRY_BASE_MS * (2 ** (attempt - 1)), RETRY_MAX_DELAY_MS);
+      entry.retries = entry.retries || [];
+      entry.retries.push({ attempt, error: res.error, retry_in_ms: delay });
+      await sleep(delay);
+    }
+    if (last && entry.retries) last.detail = `${max} tentatives — échec persistant`;
+    return last || { ok: false, error: 'action sans résultat' };
   }
 
   // ── Exécution d'une action ────────────────────────────────────────────────
@@ -339,7 +385,7 @@ function createPlaybookRoutes(deps) {
         cursor = step.next;
         continue;
       } else {
-        const result = await runAction(step, ctx, dryRun);
+        const result = await runActionWithRetry(step, ctx, dryRun, entry);
         Object.assign(entry, result);
         if (!result.ok) {
           entry.finished_at = nowIso();
@@ -458,6 +504,21 @@ function createPlaybookRoutes(deps) {
     const ctx = { incident, vars: {}, run_id: run.run_id,
       actor: req.user?.username || 'psoar' };
 
+    // Mode ASYNCHRONE : un playbook long (approbations, retries, actions
+    // reseau) ne doit pas tenir une requete HTTP ouverte ni mourir avec elle.
+    // Le run est mis en file, un worker le reprend, le client suit son statut.
+    if (req.body?.async === true && !dryRun) {
+      run.status = 'queued';
+      run.queued_at = nowIso();
+      run.context = { vars: {}, actor: ctx.actor };
+      run.journal.push({ step_id: null, name: 'Mise en file', type: 'note', ok: true,
+        detail: 'Exécution confiée au worker', started_at: nowIso(), finished_at: nowIso() });
+      await saveRun(run);
+      auditAction?.('playbook_enqueue', req, {
+        playbook_id: run.playbook_id, incident_id: incident.incident_id, run_id: run.run_id });
+      return res.json({ ok: true, queued: true, run });
+    }
+
     await execute(playbook, ctx, run, playbook.start, dryRun);
     run.finished_at = run.status === 'waiting_approval' ? null : nowIso();
     run.vars = ctx.vars;
@@ -529,6 +590,107 @@ function createPlaybookRoutes(deps) {
       const r = await os.get({ index: RUN_INDEX, id: req.params.runId });
       res.json({ id: r.body._id, ...r.body._source });
     } catch { res.status(404).json({ error: 'Exécution introuvable' }); }
+  });
+
+  // ── Worker d'exécution ────────────────────────────────────────────────────
+  // Boucle in-process : le portail est mono-instance, un worker interne suffit
+  // et évite un conteneur de plus. La revendication par `worker_id` prépare
+  // néanmoins le passage à plusieurs instances : deux workers ne peuvent pas
+  // exécuter le même run.
+  const WORKER_ID = `w_${crypto.randomBytes(4).toString('hex')}`;
+  let workerBusy = 0;
+
+  async function claim(run) {
+    try {
+      await os.update({
+        index: RUN_INDEX, id: run.run_id, refresh: true,
+        body: {
+          script: {
+            // La revendication n'aboutit QUE si le run est encore en file :
+            // c'est ce test côté serveur qui empêche la double exécution.
+            source: "if (ctx._source.status == 'queued') {"
+              + " ctx._source.status = 'running';"
+              + " ctx._source.worker_id = params.w;"
+              + " ctx._source.claimed_at = params.t; } else { ctx.op = 'noop'; }",
+            params: { w: WORKER_ID, t: nowIso() },
+          },
+        },
+      });
+      const fresh = await os.get({ index: RUN_INDEX, id: run.run_id });
+      return fresh.body._source.worker_id === WORKER_ID ? fresh.body._source : null;
+    } catch (e) {
+      logger?.warn?.(`psoar claim ${run.run_id}: ${e.message}`);
+      return null;
+    }
+  }
+
+  async function drainQueue() {
+    if (workerBusy >= WORKER_CONCURRENCY) return;
+    let queued = [];
+    try {
+      const r = await os.search({
+        index: RUN_INDEX, size: WORKER_CONCURRENCY,
+        body: {
+          query: { term: { 'status.keyword': 'queued' } },
+          sort: [{ queued_at: { order: 'asc' } }],
+        },
+      });
+      queued = (r.body.hits?.hits || []).map((h) => h._source);
+    } catch { return; }   // index absent au premier démarrage
+
+    for (const q of queued) {
+      if (workerBusy >= WORKER_CONCURRENCY) break;
+      const run = await claim(q);
+      if (!run) continue;
+      workerBusy += 1;
+      (async () => {
+        try {
+          const incident = await loadIncident(run.incident_id);
+          if (!incident) {
+            run.status = 'failed';
+            run.error = 'Incident introuvable au moment de l\'exécution';
+          } else {
+            const playbook = { steps: run.definition, start: run.definition[0]?.id };
+            const ctx = { incident, vars: run.context?.vars || {}, run_id: run.run_id,
+              actor: run.context?.actor || 'psoar' };
+            await execute(playbook, ctx, run, playbook.start, false);
+            run.vars = ctx.vars;
+          }
+          if (run.status !== 'waiting_approval') run.finished_at = nowIso();
+          await saveRun(run);
+          logger?.info?.(`psoar run ${run.run_id} → ${run.status}`);
+        } catch (e) {
+          run.status = 'failed';
+          run.error = `${e.name}: ${e.message}`;
+          run.finished_at = nowIso();
+          await saveRun(run).catch(() => {});
+          logger?.error?.(`psoar run ${run.run_id}: ${e.message}`);
+        } finally {
+          workerBusy -= 1;
+        }
+      })();
+    }
+  }
+
+  const workerTimer = setInterval(() => { drainQueue().catch(() => {}); }, WORKER_TICK_MS);
+  // Ne maintient pas le processus en vie à lui seul : le portail doit pouvoir
+  // s'arrêter proprement.
+  if (typeof workerTimer.unref === 'function') workerTimer.unref();
+
+  router.get('/playbook-queue', async (_req, res) => {
+    try {
+      const r = await os.search({
+        index: RUN_INDEX, size: 0,
+        body: { aggs: { by_status: { terms: { field: 'status.keyword', size: 10 } } } },
+      });
+      const buckets = r.body.aggregations?.by_status?.buckets || [];
+      res.json({
+        worker_id: WORKER_ID, in_flight: workerBusy, concurrency: WORKER_CONCURRENCY,
+        tick_ms: WORKER_TICK_MS,
+        retry: { attempts: RETRY_MAX_ATTEMPTS, base_ms: RETRY_BASE_MS, max_delay_ms: RETRY_MAX_DELAY_MS },
+        by_status: Object.fromEntries(buckets.map((b) => [b.key, b.doc_count])),
+      });
+    } catch (e) { res.json({ worker_id: WORKER_ID, in_flight: workerBusy, by_status: {} }); }
   });
 
   return router;

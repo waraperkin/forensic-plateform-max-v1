@@ -50,6 +50,22 @@ if(n){
     const good=bd.length>300&&!/\[object Object\]|undefined/.test(bd);
     console.log(`[${good?'PASS':'FAIL'}] onglet ${label}`); if(!good)fails++;
   }
+  // Enrichissement CTI depuis l'onglet IOC
+  await p.locator('[data-pso-tab="iocs"]').first().click(); await p.waitForTimeout(800);
+  const hasBtn=await p.locator('[data-pso-act="enrich"]').count();
+  console.log(`[${hasBtn?'PASS':'FAIL'}] bouton enrichir present`); if(!hasBtn)fails++;
+  if(hasBtn){
+    await p.locator('[data-pso-act="enrich"]').first().click();
+    await p.waitForFunction(()=>/malveillant|suspect|signal.|inconnu/i.test(
+      document.getElementById('psoar-root').innerText),{timeout:90000}).catch(()=>{});
+    await p.waitForTimeout(1200);
+    await p.screenshot({path:path.join(SHOT,`${TS}-PSO-enrichissement.png`)});
+    const eb=await p.locator('#psoar-root').innerText();
+    const ok2=/verdict/i.test(eb)&&/(malveillant|suspect|signal.|inconnu)/i.test(eb);
+    console.log(`[${ok2?'PASS':'FAIL'}] verdict CTI affiche`); if(!ok2)fails++;
+    const declared=/r.f.rentiels indisponibles|Cortex/i.test(eb);
+    console.log(`[${declared?'PASS':'WARN'}] sources indisponibles declarees`);
+  }
   await p.screenshot({path:path.join(SHOT,`${TS}-PSO-rapport.png`)});
   // Retour clavier
   await p.keyboard.press('Escape'); await p.waitForTimeout(1500);

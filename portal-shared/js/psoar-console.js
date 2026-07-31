@@ -344,15 +344,27 @@
         <span class="swb-hint">${t.done}/${t.total} tâches terminées</span></div>` + panel;
     } else if (st.tab === 'iocs') {
       const iocs = byKind('ioc');
+      const ver = st.enrich || {};
+      const vTone = { malveillant: 'danger', suspect: 'warn', 'signalé': 'warn', inconnu: 'mute' };
       panel = `<div class="swb-filters">
           <input class="swb-input swb-search" id="pso-ioc" placeholder="IP, domaine, hash, URL…">
           <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-pso-act="add-ioc">Ajouter l'IOC</button>
-          <button type="button" class="fp-btn fp-btn-sm" data-pso-act="scan">Scanner les logs ingérés</button></div>`
+          <button type="button" class="fp-btn fp-btn-sm" data-pso-act="scan">Scanner les logs ingérés</button>
+          <button type="button" class="fp-btn fp-btn-sm" data-pso-act="enrich">Enrichir (CTI)</button></div>`
         + (iocs.length ? `<div class="swb-tablewrap"><table class="swb-table"><thead><tr>
-          <th>Valeur</th><th>Type</th><th>Ajouté</th></tr></thead><tbody>${iocs.map((e) => `<tr>
+          <th>Valeur</th><th>Type</th><th>Verdict</th><th>Sources</th><th>Ajouté</th></tr></thead><tbody>${iocs.map((e) => {
+    const v = ver[e.value];
+    return `<tr>
             <td class="swb-mono">${esc(e.value)}</td><td>${pill(e.ioc_type || '?', 'mute', true)}</td>
-            <td class="swb-hint">${esc(dt(e.created_at))}</td></tr>`).join('')}</tbody></table></div>`
-          : '<p class="swb-hint">Aucun IOC rattaché. Le scan compare les IOC de l\'incident et les watchlists Sekoia aux logs ingérés.</p>');
+            <td>${v ? pill(`${v.verdict.level} (${v.verdict.score})`, vTone[v.verdict.level] || 'mute')
+    : '<span class="swb-hint">non enrichi</span>'}</td>
+            <td class="swb-hint swb-truncate" title="${v ? esc(v.verdict.rationale) : ''}">${
+  v ? esc((v.sources || []).filter((x) => x.found).map((x) => x.name).join(', ') || '—') : '—'}</td>
+            <td class="swb-hint">${esc(dt(e.created_at))}</td></tr>`;
+  }).join('')}</tbody></table></div>`
+    + (st.enrichUnavailable ? `<p class="swb-hint" style="margin-top:.5rem">Référentiels indisponibles : ${
+  esc(st.enrichUnavailable.join(' · '))}. Le verdict est partiel.</p>` : '')
+          : '<p class="swb-hint">Aucun IOC rattaché. Le scan compare les IOC de l\'incident et les watchlists Sekoia aux logs ingérés ; l\'enrichissement interroge le renseignement (TI local, OpenCTI, MISP).</p>');
     } else if (st.tab === 'evidence') {
       const ev = byKind('evidence');
       const ups = d.uploads || [];
@@ -551,6 +563,20 @@
           if (!v.trim()) { toast('Saisissez un IOC', 'err'); return; }
           await api(`/incidents/${encodeURIComponent(inc.incident_id)}/events`,
             { method: 'POST', body: { kind: 'ioc', title: `IOC ${v.trim()}`, value: v.trim() } });
+          await refreshDetail(); return;
+        }
+        if (act === 'enrich' && inc) {
+          toast('Enrichissement en cours…', 'ok');
+          const r = await api(`/incidents/${encodeURIComponent(inc.incident_id)}/enrich`, { method: 'POST' });
+          st.enrich = {};
+          st.enrichUnavailable = null;
+          (r.results || []).forEach((x) => {
+            st.enrich[x.value] = x;
+            if (x.sources_unavailable) st.enrichUnavailable = x.sources_unavailable;
+          });
+          toast(r.enriched
+            ? `${r.flagged} indicateur(s) signalé(s) sur ${r.enriched}`
+            : (r.note || 'Aucun IOC à enrichir'), r.flagged ? 'warn' : 'ok');
           await refreshDetail(); return;
         }
         if (act === 'scan' && inc) {

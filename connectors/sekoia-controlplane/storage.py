@@ -33,6 +33,9 @@ RETENTION = {
     "sekoia-volumetry-*": int(os.environ.get("SEKOIA_RETENTION_VOLUMETRY_DAYS", "30")),
     "sekoia-intakes-*": int(os.environ.get("SEKOIA_RETENTION_INTAKES_DAYS", "90")),
     "sekoia-alerts-*": int(os.environ.get("SEKOIA_RETENTION_ALERTS_DAYS", "180")),
+    # Les relevés par hôte sont plus nombreux que ceux par intake (une ligne par
+    # machine et par cycle) et ne servent qu'à établir une normale récente.
+    "sekoia-hostvol-*": int(os.environ.get("SEKOIA_RETENTION_HOSTVOL_DAYS", "21")),
 }
 # `sekoia-baselines` n'a PAS de rétention : c'est un état courant réécrit en
 # place, pas une série temporelle. L'expirer reviendrait à perdre les références

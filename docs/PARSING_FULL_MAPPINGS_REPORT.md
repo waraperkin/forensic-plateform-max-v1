@@ -1,6 +1,6 @@
 # Rapport mappings Full Spectrum
 
-Généré : 2026-07-20 15:45 UTC
+Généré : 2026-07-30 00:00 UTC
 
 ## Templates patchés
 

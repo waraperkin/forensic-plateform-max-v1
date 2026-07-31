@@ -29,6 +29,7 @@
     { id: 'detections', label: 'Détections', key: 'd', group: 1 },
     { id: 'inventory', label: 'Inventaire', key: 'i', group: 1 },
     { id: 'telemetry', label: 'Télémétrie', key: 't', group: 1 },
+    { id: 'hosts', label: 'Hôtes', key: 'h', group: 1 },
     { id: 'alerting', label: 'Alerting', key: 'a', group: 2 },
     { id: 'operations', label: 'Opérations', key: 'p', group: 2 },
     { id: 'apikeys', label: 'Clés API', key: 'k', group: 3 },
@@ -938,6 +939,72 @@
         </tr></thead><tbody>${body || '<tr><td colspan="6"><p class="swb-hint" style="padding:1rem">Aucune alerte sur la période.</p></td></tr>'}</tbody></table></div></div>`;
   }
 
+
+  // ── Surveillance par hôte ─────────────────────────────────────────────────
+  function viewHosts() {
+    const v = st.data.hostvol; const ev = st.data.hostEval;
+    if (!v) return degraded('Surveillance par hôte injoignable.');
+    if (v.available === false) return degraded(v.reason || v.error || 'Aucun hôte observable.');
+
+    const items = (v.items || []).filter((h) => match(h, ['host', 'intake_name']));
+    const unmanaged = (v.items || []).filter((h) => !h.known_asset).length;
+    const alerts = (ev && ev.alerts) || [];
+
+    // L'estimation est annoncée AVANT les chiffres : un volume par machine que
+    // Sekoia ne mesure pas doit être lu comme un ordre de grandeur.
+    const note = `<div class="swb-panel" style="border-left:3px solid var(--swb-accent)">
+      <p class="swb-hint" style="margin:0">${esc(v.estimation_note || '')}</p></div>`;
+
+    let evBlock;
+    if (!ev) {
+      evBlock = '';
+    } else if (!ev.ok || (ev.reason && !alerts.length)) {
+      // Refus de conclure : on l'affiche comme une information, pas comme une panne.
+      evBlock = `<div class="swb-panel" style="border-left:3px solid var(--swb-muted)">
+        <h3 class="swb-panel-title">Pas encore de verdict</h3>
+        <p class="swb-hint" style="margin:.3rem 0 0">${esc(ev.reason || ev.error || '')}</p></div>`;
+    } else if (!alerts.length) {
+      evBlock = `<div class="swb-panel" style="border-left:3px solid var(--swb-ok)">
+        <h3 class="swb-panel-title">Aucune anomalie sur ${esc(ev.hosts_measured || 0)} machine(s)</h3>
+        <p class="swb-hint" style="margin:.3rem 0 0">Comparé aux ${esc(ev.snapshots_seen || 0)} relevés de même fenêtre.</p></div>`;
+    } else {
+      evBlock = alerts.slice(0, 25).map((a) => `<div class="swb-panel" style="border-left:3px solid ${
+        a.severity === 'critical' ? 'var(--swb-danger)' : 'var(--swb-warn)'}">
+        <div class="swb-panel-head"><h3 class="swb-panel-title">${esc(a.host)}</h3>
+          ${pill(a.severity, a.severity === 'critical' ? 'danger' : 'warn', true)}</div>
+        <p class="swb-hint" style="margin:.3rem 0 0">${esc(a.message)}</p>
+        ${a.group_size > 1 ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(a.group_label)} — traitez la source, pas chaque machine.</p>` : ''}
+      </div>`).join('');
+    }
+
+    const rows = items.slice(0, 250).map((h) => `<tr>
+      <td class="swb-truncate">${esc(h.host)}</td>
+      <td class="swb-truncate">${esc(h.intake_name || '—')}</td>
+      <td class="swb-num">${nf(h.estimated_events)}</td>
+      <td class="swb-num swb-hint">${esc(h.share_pct)} %</td>
+      <td class="swb-num swb-hint">${nf(h.sampled)}</td>
+      <td>${h.known_asset ? pill('inventorié', 'ok') : pill('hors inventaire', 'warn')}</td>
+    </tr>`).join('');
+
+    return `<div class="swb-head">
+        <div><h2 class="swb-title">Surveillance par hôte</h2>
+          <p class="swb-sub">Une machine qui se tait derrière un relais ne fait pas bouger le total de sa source : l'alerting par intake ne la voit pas. Ce niveau-ci la voit.</p></div>
+        <div class="swb-actions">
+          <button type="button" class="fp-btn fp-btn-sm" data-swb-act="host-eval">Évaluer les anomalies</button></div></div>
+      <div class="swb-kpis">
+        ${kpi('Machines observées', nf(v.hosts), 'ok', `échantillon de ${nf(v.sample_total)} événements`)}
+        ${kpi('Hors inventaire', nf(unmanaged), unmanaged ? 'warn' : 'ok', 'émettent sans exister comme actif')}
+        ${kpi('Anomalies', nf(alerts.length), alerts.length ? 'danger' : 'ok')}
+        ${kpi('Relevés comparés', nf((ev && ev.snapshots_seen) || 0), 'ok', `${nf((ev && ev.rules_active) || 0)} règles hôte`)}
+      </div>
+      ${note}
+      ${evBlock}
+      ${toolbar('Filtrer par machine ou source…', '', `${nf(items.length)} machines`)}
+      <div class="swb-panel" style="padding:0"><div class="swb-tablewrap"><table class="swb-table"><thead><tr>
+        <th>Machine</th><th>Source</th><th>Volume estimé</th><th>Part</th><th>Échantillonné</th><th>Actif</th>
+      </tr></thead><tbody>${rows || '<tr><td colspan="6"><p class="swb-hint" style="padding:1rem">Aucune machine.</p></td></tr>'}</tbody></table></div></div>`;
+  }
+
   // ── Opérations en lot ─────────────────────────────────────────────────────
   function viewOperations() {
     const t = st.data.targets; const hist = st.data.history; const prev = st.data.preview;
@@ -968,6 +1035,8 @@
           ${(cur.actions || []).filter((a) => a !== 'patch').map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}
         </select>
         <input class="swb-input swb-search" id="swb-bulkq" placeholder="Filtrer les objets (nom ou identifiant)">
+        ${cur.taggable ? `<input class="swb-input" id="swb-tags" style="max-width:16rem"
+           placeholder="Étiquettes, séparées par des virgules">` : ''}
         <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-swb-act="bulk-dry">Simuler</button>
         <a class="fp-btn fp-btn-sm fp-btn-ghost" href="/api/threat/sekoia/bulk/export/${esc(st.filters.target || 'intakes')}?fmt=yaml"
            target="_blank" rel="noopener">Exporter en YAML</a>
@@ -1098,6 +1167,7 @@
     else if (st.view === 'detections') body = viewDetections();
     else if (st.view === 'inventory') body = viewInventory();
     else if (st.view === 'telemetry') body = viewTelemetry();
+    else if (st.view === 'hosts') body = viewHosts();
     else if (st.view === 'alerting') body = viewAlerting();
     else if (st.view === 'operations') body = viewOperations();
     else if (st.view === 'apikeys') body = viewApiKeys();
@@ -1169,6 +1239,16 @@
         ]);
         st.data.arules = r[0]; st.data.alerts = r[1];
         if (r[1] && r[1].total) st.badges.alerting = { text: String(r[1].total), tone: 'danger' };
+      } else if (st.view === 'hosts') {
+        // Le relevé est persisté à chaque consultation : c'est ce qui construit
+        // l'historique sans lequel aucune anomalie n'est jugeable.
+        const r = await Promise.all([
+          api('/hosts/volumetry?window=1h&sample=1500&persist=1'),
+          api('/hosts/evaluate?window=1h&sample=1500&dry_run=1', { method: 'POST' }).catch(() => null),
+        ]);
+        st.data.hostvol = r[0]; st.data.hostEval = r[1];
+        const n = (r[1] && r[1].alerts_new) || 0;
+        if (n) st.badges.hosts = { text: String(n), tone: 'danger' };
       } else if (st.view === 'operations') {
         const r = await Promise.all([api('/bulk/targets'), api('/bulk/history').catch(() => null)]);
         st.data.targets = r[0]; st.data.history = r[1];
@@ -1202,12 +1282,19 @@
   async function bulk(dry) {
     const action = (document.getElementById('swb-action') || {}).value || 'disable';
     const search = (document.getElementById('swb-bulkq') || {}).value || '';
+    const raw = (document.getElementById('swb-tags') || {}).value || '';
+    const tags = raw.split(',').map((t) => t.trim()).filter(Boolean);
+    if (action.indexOf('tag_') === 0 && !tags.length && action !== 'tag_set') {
+      toast('Indiquez au moins une étiquette.', 'err'); return;
+    }
     try {
       st.data.preview = await api(`/bulk/${encodeURIComponent(st.filters.target || 'intakes')}`, {
-        method: 'POST', body: { action, search, dry_run: dry ? 1 : 0 },
+        method: 'POST', body: { action, search, tags, dry_run: dry ? 1 : 0 },
       });
       if (!dry) {
-        toast(`Lot appliqué : ${st.data.preview.done}/${st.data.preview.selected}`, 'ok');
+        const p = st.data.preview;
+        toast(`Lot appliqué : ${p.done}/${p.selected}${p.skipped ? ` — ${p.skipped} sans changement` : ''}`,
+          p.failed ? 'err' : 'ok');
         st.data.history = await api('/bulk/history').catch(() => st.data.history);
       }
       paint();
@@ -1308,6 +1395,13 @@
           return;
         }
         if (act === 'run-search') { runSearch(); return; }
+        if (act === 'host-eval') {
+          const r = await api('/hosts/evaluate?window=1h&sample=1500&dry_run=1', { method: 'POST' });
+          st.data.hostEval = r;
+          toast(r.reason ? r.reason : `${r.alerts_new || 0} anomalie(s) sur ${r.hosts_measured || 0} machine(s)`,
+            (r.alerts_new || 0) ? 'err' : 'ok');
+          paint(); return;
+        }
         if (act === 'bulk-dry') { bulk(true); return; }
         if (act === 'bulk-apply') { bulk(false); return; }
         if (act === 'evaluate') {

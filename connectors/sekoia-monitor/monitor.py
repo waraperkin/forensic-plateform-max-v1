@@ -50,6 +50,17 @@ OS_PASSWORD = os.environ.get("OPENSEARCH_PASSWORD", "")
 INTERNAL_API_TOKEN = os.environ.get("INTERNAL_API_TOKEN", "")
 POLL_INTERVAL_S = int(os.environ.get("POLL_INTERVAL_S", "60"))
 ALERT_INTERVAL_S = int(os.environ.get("ALERT_INTERVAL_S", "60"))
+# La surveillance par hôte a sa PROPRE cadence : chaque passage lance un job de
+# recherche Sekoia et prélève des événements, là où l'alerting par intake ne lit
+# que des compteurs déjà écrits. La caler sur 60 s ferait tourner un job en
+# permanence pour une information qui ne bouge pas à cette vitesse.
+HOST_INTERVAL_S = int(os.environ.get("HOST_INTERVAL_S", "900"))
+HOST_WINDOW = os.environ.get("HOST_WINDOW", "1h")
+HOST_SAMPLE = int(os.environ.get("HOST_SAMPLE", "1500"))
+
+
+class _Skip(Exception):
+    """Cycle hôte non échu — sortie silencieuse, ce n'est pas une erreur."""
 TELEMETRY_INDEX = os.environ.get("SEKOIA_TELEMETRY_INDEX", "forensic-sekoia-telemetry*")
 SILENCE_MINUTES = int(os.environ.get("SILENCE_MINUTES", "60"))
 DROP_RATIO = float(os.environ.get("DROP_RATIO", "0.5"))
@@ -585,6 +596,35 @@ async def alerter_loop():
                                 await create_thehive_case(client, a)
                             except httpx.HTTPError as exc:
                                 log.warning("thehive: %s", exc)
+                # Surveillance par HÔTE, dans le même cycle et sur une fenêtre
+                # FIXE. La fenêtre ne doit jamais varier d'un passage à l'autre :
+                # comparer un relevé de 30 min à un relevé d'1 h fabrique des
+                # « chutes de 70 % » qui ne sont qu'un changement d'unité.
+                # C'est ce cycle, et non l'ouverture d'un onglet, qui construit
+                # l'historique sans lequel aucune anomalie n'est jugeable.
+                due = (time.time() - STATE.get("_host_last", 0)) >= HOST_INTERVAL_S
+                try:
+                    if not due:
+                        raise _Skip()
+                    STATE["_host_last"] = time.time()
+                    rh = await client.post(
+                        f"{CP_URL}/control/sekoia/hosts/evaluate",
+                        params={"window": HOST_WINDOW, "sample": HOST_SAMPLE},
+                        headers=_cp_headers(), timeout=300)
+                    rh.raise_for_status()
+                    hres = rh.json()
+                    hcount = hres.get("alerts_new") or 0
+                    if hcount:
+                        log.info("alerter hôtes: %d anomalie(s) sur %s machine(s)",
+                                 hcount, hres.get("hosts_measured"))
+                    STATE["host_alerts"] = hcount
+                    STATE["hosts_measured"] = hres.get("hosts_measured")
+                    STATE["host_snapshots"] = hres.get("snapshots_seen")
+                except _Skip:
+                    pass
+                except Exception as exc:
+                    log.warning("hosts/evaluate: %s", _exc_msg(exc))
+
                 STATE["alerts_open"] = count
                 STATE["alert_incidents"] = result.get("incidents")
                 STATE["alert_by_severity"] = result.get("by_severity")

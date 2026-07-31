@@ -316,7 +316,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     const url = `${mapped.base}${mapped.target}`;
     // Timeouts adaptés : la collecte d'événements (jobs Sekoia) peut dépasser
     // 60 s ; les inventaires volumineux (1000+ règles) aussi au 1er refresh.
-    const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting|telemetry|intake|graph|simulate)(\/|$)/.test(req.path);
+    const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting|telemetry|intake|graph|simulate|hosts)(\/|$)/.test(req.path);
     const timeout = heavy
       ? Number(process.env.SEKOIA_PROXY_TIMEOUT_HEAVY_MS || 240000)
       : Number(process.env.SEKOIA_PROXY_TIMEOUT_MS || 120000);

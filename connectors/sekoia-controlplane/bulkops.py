@@ -33,6 +33,9 @@ import app as cp
 HISTORY_PATH = os.environ.get("BULKOPS_HISTORY_PATH", "/data/sekoia-bulkops.json")
 HISTORY_KEEP = 200
 MAX_BULK = int(os.environ.get("SEKOIA_MAX_BULK", "500"))
+# Plafond de LECTURE pour les cibles distantes : borne la pagination afin
+# qu'un tenant très fourni ne fasse pas boucler l'appel indéfiniment.
+MAX_FETCH = int(os.environ.get("SEKOIA_MAX_FETCH", "5000"))
 
 # Cibles supportées : chemin d'écriture Sekoia + champs identifiants/filtrables.
 TARGETS: dict[str, dict] = {
@@ -58,8 +61,9 @@ TARGETS: dict[str, dict] = {
             "enable": {"enabled": True},
             "disable": {"enabled": False},
         },
-        "restore_fields": ["enabled"],
+        "restore_fields": ["enabled", "tags"],
         "filters": ["rule_type", "rule_severity", "rule_enabled", "rule_source"],
+        "taggable": True,
     },
     "playbooks": {
         "path": "/api/v1/symphony/playbooks/{id}",
@@ -73,7 +77,25 @@ TARGETS: dict[str, dict] = {
         "restore_fields": ["status"],
         "filters": ["status"],
     },
+    # Les actifs ne figurent pas dans l'inventaire de configuration : ils sont
+    # lus à la demande sur l'API v2, seule version à exposer `tags` et
+    # `criticality`.
+    "assets": {
+        "path": "/api/v2/asset-management/assets/{id}",
+        "id_field": "uuid",
+        "name_field": "name",
+        "collection": "assets",
+        "remote": "/api/v2/asset-management/assets",
+        "actions": {},
+        "restore_fields": ["tags", "criticality"],
+        "filters": ["type", "criticality", "source"],
+        "taggable": True,
+    },
 }
+
+# Les champs de marquage diffèrent d'une cible à l'autre ; seules celles qui
+# déclarent `taggable` acceptent les actions d'étiquetage.
+TAG_ACTIONS = ("tag_add", "tag_remove", "tag_set")
 
 
 def _now() -> str:
@@ -103,11 +125,73 @@ def _save_history(items: list) -> bool:
 
 
 async def _objects(target: str) -> list[dict]:
-    full = await cp.get_full()
     spec = TARGETS[target]
+    if spec.get("remote"):
+        # Pagination explicite : l'API plafonne à 100 par page et un tenant peut
+        # porter plusieurs milliers d'actifs. S'arrêter à la première page
+        # donnerait une sélection silencieusement tronquée — le pire défaut
+        # possible pour une opération en lot.
+        out: list[dict] = []
+        offset = 0
+        while len(out) < MAX_FETCH:
+            data, err = await cp.sek_request(
+                "GET", spec["remote"], params={"limit": 100, "offset": offset})
+            if err:
+                cp.log.warning("bulkops fetch %s: %s", target, err)
+                break
+            items = (data or {}).get("items") or []
+            if not items:
+                break
+            out.extend(items)
+            offset += len(items)
+            if len(items) < 100:
+                break
+        return out
+    full = await cp.get_full()
     if spec["collection"] == "rules":
         return list(full.get("rules") or [])
     return list((full.get("inventory") or {}).get(spec["collection"]) or [])
+
+
+def _current_tags(obj: dict, spec: Optional[dict] = None) -> list[str]:
+    """Étiquettes en place, quel que soit le nom du champ dans la source.
+
+    Les lignes d'inventaire préfixent les champs : une règle porte `rule_tags`,
+    pas `tags`. Lire naïvement `tags` renverrait une liste vide, et un `tag_add`
+    écrirait alors la seule étiquette demandée — EFFAÇANT toutes les autres.
+    On résout donc l'alias avant de lire.
+    """
+    tags = obj.get("tags")
+    if tags is None and spec is not None:
+        tags = obj.get(_alias(spec, "tags"))
+    if isinstance(tags, str):
+        return [tags]
+    return [str(t) for t in tags] if isinstance(tags, list) else []
+
+
+def _tag_body(action: str, obj: dict, tags: list[str],
+              spec: Optional[dict] = None) -> tuple[list[str], list[str]]:
+    """Nouvelle liste d'étiquettes pour cet objet, et l'ancienne.
+
+    `tag_add` et `tag_remove` sont RELATIFS : ils lisent les étiquettes en place
+    et n'écrasent pas celles qu'un autre outil aurait posées. Envoyer un
+    `tags: [...]` uniforme à quarante règles effacerait sans bruit tout le
+    marquage existant — c'est `tag_set`, et il porte ce nom pour qu'on sache ce
+    qu'on fait en le choisissant.
+    """
+    before = _current_tags(obj, spec)
+    if action == "tag_set":
+        return list(dict.fromkeys(tags)), before
+    if action == "tag_remove":
+        drop = {t.lower() for t in tags}
+        return [t for t in before if t.lower() not in drop], before
+    merged = list(before)
+    have = {t.lower() for t in before}
+    for t in tags:
+        if t.lower() not in have:
+            merged.append(t)
+            have.add(t.lower())
+    return merged, before
 
 
 def _select(objects: list[dict], spec: dict, ids: Optional[list],
@@ -137,16 +221,25 @@ def _select(objects: list[dict], spec: dict, ids: Optional[list],
 
 async def run_bulk(target: str, action: str, ids: Optional[list] = None,
                    filters: Optional[dict] = None, search: str = "",
-                   dry_run: bool = True, patch: Optional[dict] = None) -> dict:
+                   dry_run: bool = True, patch: Optional[dict] = None,
+                   tags: Optional[list] = None) -> dict:
     spec = TARGETS[target]
-    if action not in spec["actions"] and action != "patch":
-        return {"ok": False, "error": f"action inconnue (attendu : "
-                                      f"{', '.join(list(spec['actions']) + ['patch'])})"}
+    tagging = action in TAG_ACTIONS
+    allowed = list(spec["actions"]) + ["patch"] + (
+        list(TAG_ACTIONS) if spec.get("taggable") else [])
+    if action not in allowed:
+        return {"ok": False, "error": f"action inconnue pour {target} (attendu : "
+                                      f"{', '.join(allowed)})"}
     body = dict(spec["actions"].get(action) or {})
     if action == "patch":
         if not isinstance(patch, dict) or not patch:
             return {"ok": False, "error": "action patch : corps `patch` requis"}
         body = patch
+    clean_tags: list[str] = []
+    if tagging:
+        clean_tags = [str(t).strip()[:80] for t in (tags or []) if str(t).strip()]
+        if not clean_tags and action != "tag_set":
+            return {"ok": False, "error": f"action {action} : liste `tags` requise"}
 
     objects = await _objects(target)
     selected = _select(objects, spec, ids, filters, search)
@@ -165,42 +258,86 @@ async def run_bulk(target: str, action: str, ids: Optional[list] = None,
                             for f in spec["restore_fields"]}}
                 for o in selected]
 
+    # Le marquage produit un corps DIFFÉRENT pour chaque objet, puisqu'il part
+    # des étiquettes déjà en place.
+    bodies: dict[str, dict] = {}
+    if tagging:
+        for obj in selected:
+            after, before = _tag_body(action, obj, clean_tags, spec)
+            bodies[str(obj.get(id_field))] = {"tags": after}
+            if after == before:
+                bodies[str(obj.get(id_field))] = {}
+        for p in previous:
+            p["before"] = {"tags": _current_tags(
+                next(o for o in selected if str(o.get(id_field)) == p["id"]), spec)}
+
+    def _body_for(oid: str) -> dict:
+        return bodies.get(oid, body) if tagging else body
+
     if dry_run:
+        rows = []
+        for p in previous:
+            b = _body_for(p["id"])
+            rows.append({"id": p["id"], "name": p["name"],
+                         "would_apply": b, "before": p["before"],
+                         # Sans cette mention, un lot où rien ne change afficherait
+                         # « 40 sélectionnés » et laisserait croire à 40 écritures.
+                         "no_change": tagging and not b})
+        changing = sum(1 for r in rows if not r["no_change"])
         return {"ok": True, "dry_run": True, "target": target, "action": action,
-                "selected": len(selected), "capped": capped, "max_bulk": MAX_BULK,
-                "patch": body,
-                "results": [{"id": p["id"], "name": p["name"], "would_apply": body,
-                             "before": p["before"]} for p in previous]}
+                "selected": len(selected), "changing": changing,
+                "unchanged": len(rows) - changing,
+                "capped": capped, "max_bulk": MAX_BULK,
+                "patch": body if not tagging else {"tags": clean_tags},
+                "results": rows}
 
     results = []
     for obj in selected:
         oid = str(obj.get(id_field))
-        _, err = await cp.sek_request("PATCH", spec["path"].format(id=oid), json_body=body)
+        b = _body_for(oid)
+        if not b:
+            # Rien à écrire : l'étiquette est déjà posée (ou déjà absente). On
+            # n'appelle pas l'API pour ne pas polluer le journal d'audit Sekoia
+            # de modifications qui ne modifient rien.
+            results.append({"id": oid, "name": obj.get(name_field),
+                            "ok": True, "skipped": True,
+                            "reason": "aucun changement"})
+            continue
+        _, err = await cp.sek_request("PATCH", spec["path"].format(id=oid), json_body=b)
         results.append({"id": oid, "name": obj.get(name_field),
                         "ok": err is None, "error": err})
     cp.invalidate_cache()
 
-    done = sum(1 for r in results if r["ok"])
+    skipped = sum(1 for r in results if r.get("skipped"))
+    done = sum(1 for r in results if r["ok"] and not r.get("skipped"))
+    failed = sum(1 for r in results if not r["ok"])
+    # Le rollback ne doit restaurer QUE ce qui a réellement changé : réécrire
+    # l'état antérieur d'un objet qu'on n'a pas touché rouvrirait une fenêtre
+    # d'écrasement sur des modifications faites entre-temps par un autre outil.
+    touched = {r["id"] for r in results if r["ok"] and not r.get("skipped")}
     batch = {
         "batch_id": f"b_{uuidlib.uuid4().hex[:12]}",
-        "ts": _now(), "target": target, "action": action, "patch": body,
-        "selected": len(selected), "done": done, "failed": len(results) - done,
-        "previous": previous,
+        "ts": _now(), "target": target, "action": action,
+        "patch": body if action not in TAG_ACTIONS else {"tags": clean_tags},
+        "selected": len(selected), "done": done, "failed": failed,
+        "skipped": skipped,
+        "previous": [p for p in previous if p["id"] in touched],
         "rolled_back": False,
     }
     history = _load_history()
     history.append(batch)
     _save_history(history)
 
-    return {"ok": done > 0, "dry_run": False, "batch_id": batch["batch_id"],
+    return {"ok": failed == 0, "dry_run": False, "batch_id": batch["batch_id"],
             "target": target, "action": action, "selected": len(selected),
-            "done": done, "failed": len(results) - done, "capped": capped,
+            "done": done, "failed": failed, "skipped": skipped, "capped": capped,
             "results": results}
 
 
 def _alias(spec: dict, field: str) -> str:
     """Les lignes d'inventaire préfixent certains champs (intake_status…)."""
-    prefix = {"intakes": "intake_", "rules": "rule_", "playbooks": ""}[
+    prefix = {"intakes": "intake_", "rules": "rule_",
+              "playbooks": "", "assets": ""}[
         next(k for k, v in TARGETS.items() if v is spec)]
     return f"{prefix}{field}"
 
@@ -285,7 +422,11 @@ def register(bulk_app) -> None:
     @bulk_app.get("/control/sekoia/bulk/targets", dependencies=dep)
     async def targets():
         return {"max_bulk": MAX_BULK,
-                "items": [{"target": k, "actions": list(v["actions"]) + ["patch"],
+                "tag_actions": list(TAG_ACTIONS),
+                "items": [{"target": k,
+                           "actions": list(v["actions"]) + ["patch"]
+                                      + (list(TAG_ACTIONS) if v.get("taggable") else []),
+                           "taggable": bool(v.get("taggable")),
                            "filters": v["filters"], "id_field": v["id_field"]}
                           for k, v in TARGETS.items()]}
 
@@ -302,6 +443,7 @@ def register(bulk_app) -> None:
             filters=body.get("filters") if isinstance(body.get("filters"), dict) else None,
             search=str(body.get("search") or ""),
             patch=body.get("patch"),
+            tags=body.get("tags") if isinstance(body.get("tags"), list) else None,
             dry_run=bool(int(body.get("dry_run", dry_run))),
         )
 

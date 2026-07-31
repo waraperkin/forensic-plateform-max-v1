@@ -99,3 +99,70 @@ rétention, playbooks : tous se jouent à blanc d'abord.
   pas, contourné par la couverture attack-pattern nommée à 92,5 %.
 - Intelligence par hostname : le compteur d'un search job ne ventile pas par
   hôte ; nécessiterait un échantillonnage dédié.
+
+## Surveillance par hôte et étiquetage en lot
+
+### Pourquoi le niveau « hôte »
+L'alerting existant raisonne par intake. Un intake porte souvent des dizaines de
+machines — le relais `UFRPA4I004` en fronte jusqu'à vingt-cinq sur ce tenant.
+Quand une seule cesse d'émettre, le total de l'intake bouge à peine et aucune
+alerte ne part. C'est pourtant le cas qui compte : un serveur dont l'agent est
+mort, ou qu'un attaquant a fait taire, disparaissait sans bruit.
+
+### Méthode et sa limite
+Sekoia n'expose aucun compteur par machine. On mesure une PART dans un
+échantillon d'événements et on l'applique au total réel de l'intake, mesuré lui
+par compteur. Le volume par hôte est donc une **estimation**, déclarée comme
+telle dans chaque réponse et affichée avant les chiffres dans l'interface.
+
+### Garde-fous
+Un hôte absent d'un échantillon n'a pas cessé d'émettre : il n'a pas été tiré.
+Quatre conditions doivent être réunies avant tout verdict de silence :
+
+| Garde-fou | Raison |
+|---|---|
+| ≥ 3 relevés | sans historique, aucune normale à laquelle comparer |
+| présent dans TOUS les relevés | sinon l'absence n'est pas un signal |
+| ≥ 20 événements estimés | sous ce seuil, l'hôte est marginal |
+| ≥ 15 tirages habituels | **le garde-fou décisif** |
+
+Le dernier mérite d'être explicité. Le volume extrapolé peut être élevé alors
+que l'échantillonnage ne voit l'hôte que six fois sur mille deux cents : ne pas
+le tirer une fois est alors un événement de hasard ordinaire. La probabilité
+d'une absence fortuite décroît avec le NOMBRE DE TIRAGES, pas avec le volume
+qu'on en déduit. À quinze tirages, elle tombe à trois sur dix millions.
+
+### Deux bugs trouvés en construisant ce module
+1. **Fenêtres mélangées.** `_history()` ne filtrait pas sur la fenêtre. Un relevé
+   de 30 min porte la moitié du volume d'un relevé d'1 h : le moteur a produit
+   cinq « chutes de 70 % » qui n'étaient qu'un changement d'unité de mesure.
+   Corrigé par un filtre sur `window`, et la cadence automatique fixe la fenêtre.
+2. **Garde-fou fondé sur le mauvais chiffre.** Voir ci-dessus : la première
+   version bornait sur le volume estimé, pas sur les tirages.
+
+### Cadence
+La surveillance tourne dans le poller à sa propre cadence (`HOST_INTERVAL_S`,
+900 s par défaut) et non toutes les 60 s comme l'alerting par intake : chaque
+passage lance un job de recherche Sekoia, là où l'alerting ne lit que des
+compteurs déjà écrits. C'est ce cycle, et non l'ouverture d'un onglet, qui
+construit l'historique.
+
+### Étiquetage en lot
+`tag_add`, `tag_remove` et `tag_set` sur les règles et les actifs (API v2, seule
+version exposant `tags`). Les deux premiers sont **relatifs** : ils lisent les
+étiquettes en place et n'écrasent pas celles qu'un autre outil aurait posées.
+`tag_set` écrase, et porte ce nom pour qu'on sache ce qu'on fait en le
+choisissant.
+
+Un piège évité de peu : les lignes d'inventaire préfixent les champs — une règle
+porte `rule_tags`, pas `tags`. Lire naïvement `tags` aurait renvoyé une liste
+vide, et `tag_add` aurait alors écrit la seule étiquette demandée, **effaçant
+toutes les autres** sur chaque règle du lot. La résolution d'alias est testée.
+
+Les objets déjà conformes sont **ignorés sans appel API**, pour ne pas remplir le
+journal d'audit Sekoia de modifications qui ne modifient rien ; ils sont comptés
+séparément (`skipped`) et exclus du rollback, qui ne restaure que ce qui a
+réellement changé.
+
+Les actifs sont paginés jusqu'à `MAX_FETCH` (5 000) : s'arrêter à la première
+page aurait donné une sélection silencieusement tronquée.

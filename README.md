@@ -1,6 +1,6 @@
 # Forensic Plateform MAX — Plateforme SOC / DFIR
 
-Plateforme forensic et SOC **clé en main**, pensée pour le lab, la formation et les équipes CERT/DFIR. Elle regroupe ingestion, SIEM, threat intelligence, gestion d’incidents, timelines, hunting et collecte endpoint derrière un point d’entrée HTTPS unique, avec une **couche Sekoia.io v2.1** (Control Center complet) et des portails CERT/IT premium FR/EN en mode dark/light.
+Plateforme forensic et SOC **clé en main**, pensée pour le lab, la formation et les équipes CERT/DFIR. Elle regroupe ingestion, SIEM, threat intelligence, gestion d’incidents, timelines, hunting et collecte endpoint derrière un point d’entrée HTTPS unique, avec une **couche Sekoia.io v3** (Sekoia Extended Platform + PSOAR) et des portails CERT/IT premium FR/EN en mode dark/light.
 
 **Dépôt :** [`waraperkin/forensic-plateform-max-v1`](https://github.com/waraperkin/forensic-plateform-max-v1) — snapshot portable, QA navigateur et correctifs proxy (MISP, Timesketch, Velociraptor).
 
@@ -71,7 +71,7 @@ Galerie complète (25 captures portails + outils) : [`docs/PORTAL/SCREENS.md`](d
 | **Incident Response** | TheHive, Cortex |
 | **Observabilité** | Grafana, Prometheus, Loki, Tempo |
 | **Hunting & DFIR** | HELK (sidecar ES/Kibana/Logstash), Velociraptor |
-| **Couche Sekoia.io** | `sekoia-controlplane` (inventaires CRUD, alertes, collecte), `sekoia-monitor` (volumétrie temps réel, alertes d'ingestion) — voir [`docs/SEKOIA.md`](docs/SEKOIA.md) |
+| **Couche Sekoia.io** | `sekoia-controlplane` (inventaires, volumétrie, télémétrie, graphe, surveillance par hôte, opérations en lot), `sekoia-monitor` (poller de volumétrie, moteurs d'alerting) — voir [`docs/SEKOIA.md`](docs/SEKOIA.md) et [`docs/sekoia-psoar-rebuild/`](docs/sekoia-psoar-rebuild/) |
 | **Infrastructure** | PostgreSQL, Redis, RabbitMQ, Cassandra |
 
 ### Flux de données (schéma logique)
@@ -98,39 +98,126 @@ Les bridges `helk-bridge` et `velociraptor-bridge` synchronisent les sidecars av
 
 ---
 
-## Couche Sekoia.io (v2.3) — Sekoia Control Center
+## Couche Sekoia.io (v3) — Sekoia Extended Platform & PSOAR
 
-La couche Sekoia dépasse largement la console Sekoia standard : le **Sekoia Control Center** (portail CERT) offre 22 onglets pilotés par l'API Sekoia et par la télémétrie locale.
+La console Sekoia ne sait pas produire d'inventaire exploitable, d'opération en
+lot, de tableau de bord avancé, de supervision d'ingestion ni d'alerting fiable.
+Cette couche construit ce qui manque, au-dessus de l'API Sekoia.
 
-- **Inventaires CRUD complets** : intakes, règles (pattern / SIGMA, sévérité 0-100), playbooks, connecteurs, modules, formats — création, édition, suppression, recherche avancée, filtrage dynamique, **actions en masse** (activation / désactivation).
-- **Monitoring d'ingestion temps réel** : volumétrie par intake / source / `log.hostname`, top hostnames, dernier événement, **alertes automatiques** (chute de volumétrie, intake muet, hostname absent, anomalie de parsing) avec **acquittement** tracé, dashboard Grafana *Sekoia Ingestion*.
-- **Analytics v2.2 — ce que la console Sekoia ne fait pas** :
-  - **Score de santé par intake** (0-100, grade A-D) : fraîcheur, stabilité, maturité baseline, diversité de sources ;
-  - **Détection d'anomalies par z-score** sur baselines glissantes 7 j (drops, spikes, hosts nouveaux/disparus) — plus de seuils statiques ;
-  - **SLO de fraîcheur d'ingestion** par intake (conformité %) et **prévisions de volumétrie** (régression, J+1 / J+7) ;
-  - **Efficacité des règles / alert fatigue** : règles bruyantes, règles muettes, concentration top 5 ;
-  - **Couverture MITRE ATT&CK** du catalogue de détection (14 tactiques) ;
-  - **Intelligence des hosts** : nouveaux hosts, hosts disparus, hosts multi-intakes, top talkers ;
-  - **Watchlists** (hosts / IOC / utilisateurs) avec matching dans la télémétrie ;
-  - **Snapshots de configuration** + diff + restauration avec dry-run (detection-as-code light) ;
-  - **Digest SOC quotidien** agrégé.
-- **Workspace SOL (v2.3)** : le langage **SOL** (Sekoia Operating Language, pipe-style KQL) intégré au portail — **validation locale instantanée** (tables, opérateurs, pipes, quotes) sans consommer le quota API, **exécution** via l'API Sekoia (endpoint configurable `SEKOIA_SOL_API_PATH`), **bibliothèque de requêtes** réutilisable et **8 exemples officiels commentés**.
-- **Onglet Incidents — SOAR (v2.3)** : cycle complet d'un incident forensic — CRUD (sévérité, statuts, assignation), timeline / notes / evidences / IOCs typés automatiquement, ingestion de logs **tout format** via le pipeline existant (`case_id` = incident), **scan IOC** (IOCs de l'incident + watchlists Sekoia) avec échantillons et statistiques de parsing, **rapport Markdown** généré, et **purge complète de fin d'investigation** (logs OpenSearch, objets MinIO, uploads, sketch Timesketch — dry-run obligatoire + double confirmation + audit).
-- **Recherche d'événements** : requêtes Lucene asynchrones sur les événements Sekoia (plage et limite paramétrables).
-- **Couverture de détection** : matrice formats × règles, détection des intakes actifs sans règle (GAP).
-- **Testeur de logs** : détection automatique du format d'un échantillon (CEF, LEEF, syslog RFC3164/5424, JSON, CSV, key=value, XML…) et suggestion des formats Sekoia correspondants.
-- **IOC / CTI fédéré** : un observable est interrogé simultanément dans **OpenCTI + MISP + OpenSearch** ; pivots en un clic vers **TheHive** (création de case, aussi automatique sur alerte critique) et **Cortex** (analyseurs).
-- **XDR** : timeline fusionnée Sekoia + SentinelOne, graphe de corrélation.
-- **API interne documentée** : toutes les actions passent par `/api/sekoia/*` — voir [`docs/SEKOIA.md`](docs/SEKOIA.md) et [`docs/INTERCONNEXIONS.md`](docs/INTERCONNEXIONS.md).
-- **UX premium** : interface FR/EN intégrale, dark/light, badges de sévérité, focus visible, `prefers-reduced-motion` respecté. Documentation portail : *Guides → Sekoia Control Center* (FR/EN).
+### Le verrou levé : Sekoia n'expose aucune métrique d'ingestion
 
-Validation de bout en bout de la couche :
+`/sic/metrics`, `/ingest/metrics` et `/events/statistics` répondent 404 ;
+`short_histogram` est toujours nul. Aucune volumétrie n'était donc mesurable.
+
+La solution retenue est un **job de recherche par intake dont on ne lit que le
+`total`** — 66 intakes en ~19,5 s à concurrence 8. Ce seul mécanisme a débloqué
+six moteurs jusque-là inertes : volumétrie, baselines, anomalies, SLO,
+prévisions et digest. Le même échantillonnage d'événements a ensuite ouvert la
+qualité de parsing, la latence de livraison et l'intelligence d'actifs.
+
+### Sekoia Extended Platform (SEP)
+
+Console unifiée montée sur les 8 écrans historiques du portail, en 11 vues.
+
+- **Sources & santé** — score par intake, fraîcheur, stabilité, maturité de
+  baseline ; détection des **relais de collecte** (un `log.hostname` unique
+  derrière lequel remontent jusqu'à 25 machines).
+- **Détections** — catalogue de 1 180 règles, couverture ATT&CK par
+  attack-patterns rattachés, et **moteur de recommandations** : priorité, motif,
+  action, formats nommés.
+- **Graphe de télémétrie unifié** — intakes, connecteurs, formats, entités et
+  règles dans un objet navigable (1 343 nœuds, 465 liens) ; répond à « qu'est-ce
+  qui dépend de cette source ? ».
+- **Simulateur what-if** — verdict en clair avant de désactiver une règle ou un
+  intake, plutôt qu'une décision à l'aveugle.
+- **Surveillance par hôte** — voir plus bas.
+- **Télémétrie à la demande** — qualité de parsing, latence de livraison et
+  hôtes en un seul prélèvement (deux jobs concurrents en produisaient un vide).
+- **Inventaire** — snapshots, dérive entre relevés, cohérence (161 anomalies
+  relevées sur le tenant, chacune avec son action).
+- **Alerting d'ingestion** — règles configurables, seuils dynamiques (z-score),
+  déduplication et **regroupement en incidents** : 40 sources tombant derrière
+  le même connecteur forment un incident, pas 40 notifications.
+- **Opérations en lot** — sélection par filtre, `dry-run` systématique, rollback,
+  export JSON/YAML, et **étiquetage** des règles et des actifs.
+- **Stockage** — état réel des index, projection de croissance mesurée, rétention
+  par paliers avec simulation obligatoire.
+
+### Surveillance par hôte
+
+L'alerting classique raisonne par intake. Quand une seule machine derrière un
+relais cesse d'émettre, le total de la source bouge à peine et **aucune alerte
+ne part**. Ce module descend au niveau de l'hôte : silence, chute, apparition,
+absence d'inventaire.
+
+Sekoia n'expose aucun compteur par machine : on mesure une **part** dans un
+échantillon, appliquée au total réel de l'intake. Le volume par hôte est donc
+une **estimation**, déclarée comme telle dans chaque réponse et affichée avant
+les chiffres.
+
+Cette approche impose des garde-fous, car un hôte absent d'un échantillon n'a
+pas cessé d'émettre — il n'a pas été tiré :
+
+| Garde-fou | Raison |
+|---|---|
+| ≥ 3 relevés, même fenêtre | un relevé de 30 min porte la moitié du volume d'un relevé d'1 h |
+| présent dans **tous** les relevés | sinon l'absence n'est pas un signal |
+| ≥ 15 tirages habituels | une absence fortuite dépend du **nombre de tirages**, pas du volume extrapolé |
+| chute > 2 × l'erreur d'échantillonnage | ±32 % d'incertitude à 10 tirages, ±6 % à 323 : un seuil unique qualifierait le bruit de panne |
+
+Sans historique, le module **refuse de conclure** et l'écrit en clair.
+
+**Normale par créneau** (jour ouvré / week-end × heure) : un poste bureautique
+est muet la nuit sans qu'il y ait panne. L'échelle de repli — créneau, heure,
+globale — est toujours déclarée, pour distinguer « anormal par rapport aux
+lundis 19 h » de « anormal par rapport à la moyenne de tout ».
+
+**Corrélation avec les détections** : une machine qui se tait le dimanche à 3 h
+est un rythme ; la même machine qui se tait vingt minutes après une alerte la
+visant est le schéma d'un attaquant qui coupe la journalisation. La jointure se
+fait par **UUID d'actif**, jamais par nom. Trois verdicts distincts — détection
+préalable (escalade), même source (signal faible, sans escalade), non corrélable
+(machine hors inventaire : absence de *moyen de chercher*, pas absence
+d'alerte).
+
+### PSOAR
+
+Réponse à incident complète : incidents (sévérité, statuts, assignation,
+timeline, notes, evidences, IOCs typés), **playbooks** avec conditions et
+actions, enrichissement CTI fédéré (OpenCTI + MISP + OpenSearch), marquage TLP,
+chaîne de custody, webhooks signés HMAC-SHA256, quotas en fenêtre glissante,
+rapport Markdown et purge de fin d'investigation (dry-run obligatoire, double
+confirmation, audit).
+
+### Ce que la plateforme a révélé sur le tenant
+
+61 intakes actifs sans connecteur · 29 formats ingérés sans aucune règle ·
+71 règles désactivées · 61 des 66 sources silencieuses · 8 machines sur 43
+absentes de l'inventaire d'actifs · TheHive et Cortex rejettent leurs clés API
+(HTTP 401) · MTTD médian de 7 s mais résolution médiane à 18,8 jours.
+
+### Validation
 
 ```bash
-./scripts/validate-sekoia.sh            # services, routes API, télémétrie, CTI
-python -m pytest connectors/sekoia-controlplane connectors/sekoia-monitor -q   # 74 tests
-node portal-cert/test-incident-routes.js                                       # 34 smoke tests SOAR
+./scripts/validate-sekoia.sh                       # services, routes API, télémétrie, CTI
+
+# 153 tests unitaires du control-plane (dans le conteneur — dépendances requises)
+docker exec -u root forensic-sekoia-controlplane pip install -q pytest pytest-asyncio
+for f in connectors/sekoia-controlplane/test_*.py; do docker cp "$f" forensic-sekoia-controlplane:/tmp/; done
+docker exec -u root -w /app forensic-sekoia-controlplane sh -c 'python -m pytest /tmp/test_*.py -q'
+
+# 20 tests unitaires PSOAR — le test n'est pas dans l'image, on l'y copie
+docker exec forensic-cert-portal mkdir -p /app/test
+docker cp portal-cert/test/psoar.test.js forensic-cert-portal:/app/test/
+docker exec -w /app forensic-cert-portal node --test test/psoar.test.js
 ```
+
+Validation visuelle (Playwright, captures dans `screenshots/`) : 11 vues du
+workbench, 8 onglets historiques, console PSOAR — 0 FAIL, 0 erreur console.
+
+Documentation détaillée : [`docs/sekoia-psoar-rebuild/`](docs/sekoia-psoar-rebuild/)
+— audit initial, architecture cible, changelog fonctionnel, validation, et le
+programme complet avec les bugs trouvés et leur cause.
 
 ---
 
@@ -546,6 +633,29 @@ BASE_URL=https://<IP> npm test
 
 Projets disponibles : `ui`, `playwright`, `ui-integration` (voir `tests/package.json`).
 
+### Couche Sekoia (SEP + PSOAR)
+
+```bash
+# 153 tests unitaires du control-plane — logique pure, sans réseau
+docker exec -u root forensic-sekoia-controlplane pip install -q pytest pytest-asyncio
+for f in connectors/sekoia-controlplane/test_*.py; do docker cp "$f" forensic-sekoia-controlplane:/tmp/; done
+docker exec -u root -w /app forensic-sekoia-controlplane sh -c 'python -m pytest /tmp/test_*.py -q'
+
+# 20 tests unitaires PSOAR (playbooks, typage IOC, TLP)
+# Le test doit rester a cote de portal-cert/routes/ pour resoudre ses imports.
+docker exec forensic-cert-portal mkdir -p /app/test
+docker cp portal-cert/test/psoar.test.js forensic-cert-portal:/app/test/
+docker exec -w /app forensic-cert-portal node --test test/psoar.test.js
+```
+
+Les tests unitaires restent **hors des images de production** : ils sont copiés
+dans le conteneur au moment de les exécuter, jamais embarqués.
+
+Validation visuelle par Playwright — 11 vues du workbench, 8 onglets historiques
+et la console PSOAR, avec contrôle des erreurs de console et détection
+d'affichage brut (JSON non formaté, métriques trompeuses). Voir
+[`docs/sekoia-psoar-rebuild/RUN-TESTS.md`](docs/sekoia-psoar-rebuild/RUN-TESTS.md).
+
 ### Scripts de validation ciblés
 
 ```bash
@@ -608,8 +718,11 @@ forensic-minimal/
 ├── portal-cert/ portal-it/  # Portails opérationnels
 ├── dashboards/              # Saved objects OpenSearch Dashboards
 ├── helk/ velociraptor/      # Sidecars hunting & DFIR
+├── connectors/              # sekoia-controlplane, sekoia-monitor (+ tests unitaires)
+├── portal-shared/           # Workbench SEP, consoles PSOAR (JS/CSS partagés)
 ├── tests/                   # Playwright
 └── docs/                    # Documentation détaillée
+    └── sekoia-psoar-rebuild/  # Audit, architecture, changelog, validation SEP/PSOAR
 ```
 
 ---

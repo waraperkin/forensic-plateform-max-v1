@@ -173,7 +173,12 @@
     }).join('');
 
     const opt = (v, l, cur) => `<option value="${esc(v)}"${cur === v ? ' selected' : ''}>${esc(l)}</option>`;
-    return `<div class="swb-head">
+    return `<nav class="swb-nav" style="position:static">
+        <button type="button" class="swb-tab" aria-selected="true">File d'incidents</button>
+        <button type="button" class="swb-tab" aria-selected="false" data-pso-act="intake">Candidats corrélés${
+  st.intakeCount ? `<span class="swb-tab-badge swb-tab-badge-danger">${esc(st.intakeCount)}</span>` : ''}</button>
+      </nav>
+      <div class="swb-head">
         <div><h2 class="swb-title">File d'incidents</h2>
           <p class="swb-sub">Triage, SLA et progression des playbooks. Le clic sur une ligne ouvre le dossier.</p></div>
         <div class="swb-actions">
@@ -218,6 +223,57 @@
         <p class="swb-state-msg">Créez un incident pour ouvrir un dossier d'investigation : timeline, evidences, IOC,
         playbooks exécutables et rapport de clôture y sont rattachés.</p>
         <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-pso-act="new">Créer un incident</button></div>`;
+  }
+
+  // ── Candidats corréles ────────────────────────────────────────────────────
+  function renderIntake() {
+    const d = st.intake;
+    if (!d) return degraded('Moteur de corrélation injoignable.');
+    const cl = d.clusters || [];
+    const promotable = cl.filter((c) => !c.promoted_incident_id);
+
+    const rows = cl.map((c) => {
+      const tone = c.score >= 80 ? 'danger' : c.score >= 60 ? 'warn' : 'mute';
+      return `<tr>
+        <td class="swb-num">${pill(String(c.score), tone)}</td>
+        <td>${pill(c.max_severity, SEV_TONE[c.max_severity] || 'mute', true)}</td>
+        <td class="swb-truncate" title="${esc(c.rule_family)}">${esc(c.rule_family)}</td>
+        <td class="swb-truncate" title="${esc(c.axis)}">${esc(c.axis)}</td>
+        <td class="swb-num">${esc(c.alert_count)}</td>
+        <td class="swb-num">${esc(c.targets.length)}</td>
+        <td class="swb-hint swb-truncate" title="${esc(c.rationale)}">${esc(c.rationale)}</td>
+        <td>${c.promoted_incident_id
+    ? `<span class="swb-hint">→ ${esc(c.promoted_incident_id)}</span>`
+    : `<button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-pso-act="promote"
+         data-key="${esc(c.correlation_key)}">Ouvrir un incident</button>`}</td></tr>`;
+    }).join('');
+
+    return `<nav class="swb-nav" style="position:static">
+        <button type="button" class="swb-tab" aria-selected="false" data-pso-act="queue">File d'incidents</button>
+        <button type="button" class="swb-tab" aria-selected="true">Candidats corrélés</button>
+      </nav>
+      <div class="swb-head">
+        <div><h2 class="swb-title">Candidats d'incident</h2>
+          <p class="swb-sub">Alertes du SIEM et de l'ingestion, dédupliquées puis regroupées par cause probable
+            sur une fenêtre de ${esc(d.window_min)} min. Le score est décomposé : il doit pouvoir être contesté.</p></div>
+        <div class="swb-actions">
+          <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-pso-act="intake">↻ Réévaluer</button></div></div>
+      <div class="swb-kpis">
+        ${kpi('Alertes collectées', nf(d.collected), 'ok', `${nf(d.in_window)} dans la fenêtre`)}
+        ${kpi('Doublons écartés', nf(d.deduplicated), d.deduplicated ? 'warn' : 'ok')}
+        ${kpi('Grappes', nf(d.clusters_total), 'ok', `${nf(promotable.length)} promouvables`)}
+        ${kpi('Promotion auto', d.auto_promote ? `≥ ${d.auto_min_score}` : 'désactivée',
+    d.auto_promote ? 'warn' : 'ok', d.auto_promote ? 'ouverture sans intervention' : 'l\'analyste décide')}
+      </div>
+      ${d.errors ? `<div class="swb-state swb-state-degraded"><p class="swb-state-title">Sources partiellement indisponibles</p>
+        <p class="swb-state-msg">${esc(d.errors.join(' · '))}</p></div>` : ''}
+      <div class="swb-panel" style="padding:0"><div class="swb-tablewrap"><table class="swb-table"><thead><tr>
+        <th class="swb-num">Score</th><th>Sévérité</th><th>Famille</th><th>Axe de corrélation</th>
+        <th class="swb-num">Alertes</th><th class="swb-num">Cibles</th><th>Justification</th><th></th>
+      </tr></thead><tbody>${rows || `<tr><td colspan="8"><div class="swb-state" style="margin:1rem">
+        <p class="swb-state-title">Aucun candidat</p>
+        <p class="swb-state-msg">Aucune alerte corrélable sur la fenêtre. Les alertes d'ingestion apparaissent
+        ici dès qu'une source décroche.</p></div></td></tr>`}</tbody></table></div></div>`;
   }
 
   // ── Dossier d'incident ────────────────────────────────────────────────────
@@ -332,7 +388,7 @@
     el.className = 'swb';
     if (st.loading) { el.innerHTML = skeleton(7); return; }
     if (st.error) { el.innerHTML = degraded(st.error); return; }
-    el.innerHTML = st.detail ? renderDetail() : renderQueue();
+    el.innerHTML = st.detail ? renderDetail() : (st.view === 'intake' ? renderIntake() : renderQueue());
   }
 
   async function load() {
@@ -397,6 +453,24 @@
       const inc = st.detail && st.detail.incident;
       try {
         if (act === 'reload') { st.detail = null; load(); return; }
+        if (act === 'queue') { st.view = 'queue'; st.detail = null; load(); return; }
+        if (act === 'intake') {
+          st.view = 'intake'; st.detail = null; st.loading = true; paint();
+          try {
+            st.intake = await api('/alert-intake?hours=24');
+            st.intakeCount = (st.intake.clusters || []).filter((c) => !c.promoted_incident_id).length;
+          } catch (e) { st.error = e.message; }
+          st.loading = false; paint(); return;
+        }
+        if (act === 'promote') {
+          const r = await api('/alert-intake/promote', {
+            method: 'POST', body: { correlation_key: b.dataset.key, hours: 24 },
+          });
+          toast(`Incident ${r.incident_id} ouvert`, 'ok');
+          st.intake = await api('/alert-intake?hours=24');
+          st.intakeCount = (st.intake.clusters || []).filter((c) => !c.promoted_incident_id).length;
+          paint(); return;
+        }
         if (act === 'open') { open(b.dataset.id); return; }
         if (act === 'back') { st.detail = null; load(); return; }
         if (act === 'new') {

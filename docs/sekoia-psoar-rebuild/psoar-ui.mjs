@@ -47,5 +47,23 @@ if(n){
   console.log(`[${back?'PASS':'FAIL'}] Echap revient a la file`); if(!back)fails++;
 }else{console.log('[SKIP] aucun incident en base');}
 console.log(`[${errs.length?'WARN':'PASS'}] console — ${errs.length} erreur(s)${errs.length?': '+errs.slice(0,2).join(' | '):''}`);
+// Vue « Candidats correles »
+await p.locator('[data-pso-act="intake"]').first().click();
+await p.waitForFunction(()=>/candidats d.incident/i.test(document.getElementById('psoar-root').innerText),{timeout:60000}).catch(()=>{});
+await p.waitForTimeout(1200);
+await p.screenshot({path:path.join(SHOT,`${TS}-PSO-candidats.png`)});
+const cb=await p.locator('#psoar-root').innerText();
+for(const [label,re] of [["vue candidats",/candidats d.incident/i],["score decompose",/s.v.rit.*volume.*.tendue/i],
+  ["promotion auto affichee",/promotion auto/i],["grappes",/grappes/i]]){
+  const ok=re.test(cb); if(!ok)fails++;
+  console.log(`[${ok?'PASS':'FAIL'}] ${label}`);
+}
+const badc=/\[object Object\]|undefined/.test(cb);
+console.log(`[${badc?'FAIL':'PASS'}] aucun rendu brut (candidats)`); if(badc)fails++;
+// Retour a la file
+await p.locator('[data-pso-act="queue"]').first().click(); await p.waitForTimeout(2000);
+const back2=/File d.incidents/i.test(await p.locator('#psoar-root').innerText());
+console.log(`[${back2?'PASS':'FAIL'}] retour a la file`); if(!back2)fails++;
+
 console.log(`=== ${fails} FAIL ===`);
 await b.close();

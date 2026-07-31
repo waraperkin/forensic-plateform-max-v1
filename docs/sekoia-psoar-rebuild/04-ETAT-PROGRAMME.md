@@ -70,7 +70,8 @@ hostname (donc jamais) ; le silence n'était jamais détecté faute de
 - **3.9** Audit, Compliance & Reporting
 - **3.10** Storage & Indexing
 
-**Bilan : 7 modules livrés sur 19**, plus quatre consoles analyste et 115 tests unitaires.
+**Bilan : 14 modules livrés sur 19.** PSOAR est **COMPLET (10/10)** ; il reste 5 modules SEP.
+Détail dans `07-PSOAR-COMPLET.md`. 135 tests unitaires (115 Python + 20 JavaScript).
 
 ---
 

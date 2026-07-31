@@ -780,6 +780,12 @@ app.use('/api', require('./routes/playbook-routes').createPlaybookRoutes({
   os, axios, logger, auditAction,
 }));
 
+// PSOAR — Knowledge Base & Enrichment : verdict CTI agrege (TI local, OpenCTI,
+// MISP) et analyseurs Cortex disponibles selon le type d'observable.
+app.use('/api', require('./routes/ioc-enrich-routes').createIocEnrichRoutes({
+  os, axios, logger, auditAction,
+}));
+
 // PSOAR — Incident Management Core : assignation tracee, passation avec
 // consignes, escalade automatique par paliers sur depassement de SLA.
 app.use('/api', require('./routes/incident-core-routes').createIncidentCoreRoutes({

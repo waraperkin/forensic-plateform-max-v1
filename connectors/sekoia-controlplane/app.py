@@ -1594,6 +1594,11 @@ gateway.register(app)
 import telemetry  # noqa: E402
 telemetry.register(app)
 
+# ── Sekoia Extended Platform — Asset & Host Intelligence.
+#    Hôtes et comptes réellement observés, couverture d'actifs, apparitions.
+import assets  # noqa: E402
+assets.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

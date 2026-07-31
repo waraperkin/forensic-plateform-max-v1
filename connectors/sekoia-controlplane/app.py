@@ -1574,6 +1574,11 @@ bulkops.register(app)
 import dashboards  # noqa: E402
 dashboards.register(app)
 
+# ── Sekoia Extended Platform — Inventory & Asset Management.
+#    Instantanés automatiques, dérive, chronologie, incohérences.
+import inventory  # noqa: E402
+inventory.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

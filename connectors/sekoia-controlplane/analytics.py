@@ -680,20 +680,33 @@ def register(analytics_app) -> None:
 
     # ── I. Snapshots de configuration + diff + restauration ──────────────────
     def _snapshot_payload(full: dict, label: str) -> dict:
-        inv = (full.get("inventory") or {}).get("items") or []
+        # get_full() expose les lignes d'inventaire sous `main_inventory`, jamais
+        # sous `items` : la cle erronee faisait capturer ZERO intake dans chaque
+        # snapshot, donc des diffs vides et une restauration sans objet.
+        inv = ((full.get("inventory") or {}).get("main_inventory")
+               or (full.get("inventory") or {}).get("items") or [])
         rules = full.get("rules") or []
+        # Le champ `connector` DOIT figurer ici : inventory.py ecrit dans le
+        # meme store, et deux ecrivains aux schemas differents produisent des
+        # diffs fantomes (un champ absent d'un cote se lit « null -> valeur »,
+        # soit un changement qui n'a jamais eu lieu).
         intakes = [{"uuid": i.get("intake_uuid") or i.get("uuid"),
                     "name": i.get("intake_name") or i.get("name"),
                     "status": i.get("intake_status") or i.get("status"),
                     "format_uuid": i.get("intake_format_uuid"),
-                    "entity": i.get("entity_name")}
+                    "entity": i.get("entity_name"),
+                    "connector": i.get("connector_name")}
                    for i in inv if i.get("intake_uuid") or i.get("uuid")]
         srules = []
         for r in rules:
             rid = r.get("rule_uuid") or r.get("uuid")
             if not rid:
                 continue
-            payload = str(r.get("payload") or r.get("pattern") or "")
+            # Meme confusion de cles que le bug MITRE : build_detection_rules
+            # produit `rule_payload`, pas `payload`. L'empreinte etait donc
+            # toujours nulle et aucune modification de regle n'etait detectee.
+            payload = str(r.get("rule_payload") or r.get("payload")
+                          or r.get("pattern") or "")
             srules.append({"uuid": rid,
                            "name": r.get("rule_name") or r.get("name"),
                            "enabled": r.get("rule_enabled", r.get("enabled")),

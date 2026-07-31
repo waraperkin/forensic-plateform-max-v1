@@ -780,6 +780,23 @@ app.use('/api', require('./routes/playbook-routes').createPlaybookRoutes({
   os, axios, logger, auditAction,
 }));
 
+// PSOAR — Storage & Indexing : mappings explicites et retention.
+const psoarStorage = require('./lib/psoar-storage');
+psoarStorage.ensureTemplates(os, logger).catch(() => {});
+app.get('/api/psoar-storage', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentification requise' });
+  res.json(await psoarStorage.storageState(os));
+});
+app.post('/api/psoar-storage/retention', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentification requise' });
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Reserve aux administrateurs' });
+  const dry = req.body?.dry_run !== false;
+  res.json({ ok: true, dry_run: dry, result: await psoarStorage.applyRetention(os, logger, dry) });
+});
+
+// PSOAR — Case Management : artefacts types, chaine de possession, promotion IOC.
+app.use('/api', require('./routes/case-routes').createCaseRoutes({ os, logger, auditAction }));
+
 // PSOAR — Knowledge Base & Enrichment : verdict CTI agrege (TI local, OpenCTI,
 // MISP) et analyseurs Cortex disponibles selon le type d'observable.
 app.use('/api', require('./routes/ioc-enrich-routes').createIocEnrichRoutes({

@@ -25,6 +25,8 @@ COPY portal-cert/routes/playbook-routes.js ./routes/playbook-routes.js
 COPY portal-cert/routes/alert-intake-routes.js ./routes/alert-intake-routes.js
 COPY portal-cert/routes/incident-core-routes.js ./routes/incident-core-routes.js
 COPY portal-cert/routes/ioc-enrich-routes.js ./routes/ioc-enrich-routes.js
+COPY portal-cert/routes/case-routes.js ./routes/case-routes.js
+COPY portal-cert/lib/psoar-storage.js ./lib/psoar-storage.js
 COPY portal-cert/routes/helk-routes.js ./routes/helk-routes.js
 COPY portal-cert/routes/velociraptor-routes.js ./routes/velociraptor-routes.js
 COPY portal-cert/routes/forensic-report-routes.js ./routes/forensic-report-routes.js

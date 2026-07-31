@@ -780,6 +780,12 @@ app.use('/api', require('./routes/playbook-routes').createPlaybookRoutes({
   os, axios, logger, auditAction,
 }));
 
+// PSOAR — Incident Management Core : assignation tracee, passation avec
+// consignes, escalade automatique par paliers sur depassement de SLA.
+app.use('/api', require('./routes/incident-core-routes').createIncidentCoreRoutes({
+  os, axios, logger, auditAction,
+}));
+
 // PSOAR — Alert Intake & Correlation : collecte multi-source, deduplication,
 // correlation en grappes, scoring, promotion idempotente en incident.
 app.use('/api', require('./routes/alert-intake-routes').createAlertIntakeRoutes({

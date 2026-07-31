@@ -70,7 +70,10 @@ hostname (donc jamais) ; le silence n'était jamais détecté faute de
 - **3.9** Audit, Compliance & Reporting
 - **3.10** Storage & Indexing
 
-**Bilan : 17 modules livrés sur 19.** PSOAR complet (10/10), SEP à 7/9.
+**Bilan : 19 modules livrés sur 19 — programme complet.**
+Voir `09-PROGRAMME-COMPLET.md`.
+
+**Ancien bilan :** PSOAR complet (10/10), SEP à 7/9.
 Voir `07-PSOAR-COMPLET.md` et `08-SEP-COMPLET.md`.
 
 **Ancien bilan :** PSOAR est **COMPLET (10/10)** ; il reste 5 modules SEP.

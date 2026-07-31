@@ -301,7 +301,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   // Sekoia Extended Platform (volumétrie, alerting configurable, opérations en
   // lot) : sans elles ici, l'UI ne peut pas les atteindre malgré leur présence
   // dans le control-plane.
-  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk|dashboard|inventory)(\/|$)/;
+  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk|dashboard|inventory|storage)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
     if (!mapped || !ALLOWED_PROXY_RE.test(req.path)) {

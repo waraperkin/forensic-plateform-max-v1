@@ -1579,6 +1579,11 @@ dashboards.register(app)
 import inventory  # noqa: E402
 inventory.register(app)
 
+# ── Sekoia Extended Platform — Storage Layer.
+#    État réel, projection de croissance, rétention par paliers.
+import storage  # noqa: E402
+storage.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

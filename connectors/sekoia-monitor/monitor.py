@@ -161,14 +161,23 @@ async def os_search(client: httpx.AsyncClient, index: str, body: dict) -> Option
         return None
 
 
-async def os_bulk(client: httpx.AsyncClient, docs: list[tuple[str, dict]]) -> bool:
-    """docs = [(index, document)]."""
+async def os_bulk(client: httpx.AsyncClient, docs: list[tuple]) -> bool:
+    """docs = [(index, document)] ou [(index, document, _id)].
+
+    L'identifiant explicite permet une écriture EN PLACE : sans lui, chaque
+    cycle crée un nouveau document et l'index enfle indéfiniment.
+    """
     if not docs:
         return True
     lines = []
-    for idx, doc in docs:
-        lines.append('{"index":{"_index":"%s"}}' % idx)
-        import json
+    import json
+    for entry in docs:
+        idx, doc = entry[0], entry[1]
+        doc_id = entry[2] if len(entry) > 2 else None
+        meta = {"index": {"_index": idx}}
+        if doc_id:
+            meta["index"]["_id"] = doc_id
+        lines.append(json.dumps(meta))
         lines.append(json.dumps(doc, ensure_ascii=False))
     payload = "\n".join(lines) + "\n"
     try:
@@ -292,10 +301,14 @@ async def update_baselines(client: httpx.AsyncClient, volumes_1h: dict) -> dict[
         avg = sum(vals) / len(vals) if vals else 0
         var = sum((v - avg) ** 2 for v in vals) / len(vals) if vals else 0
         baselines[uuid] = {"avg": avg, "std": var ** 0.5, "days": len(vals)}
+        # Identifiant = intake_uuid : la baseline est un ÉTAT COURANT, pas une
+        # série temporelle. Sans identifiant, chaque cycle empilait un document
+        # de plus (1122 documents pour 66 intakes constatés), et le lecteur
+        # prenait un document arbitraire — donc potentiellement périmé.
         docs.append(("sekoia-baselines", {
             "intake_uuid": uuid, "daily": daily, "baseline_avg": avg,
             "baseline_std": var ** 0.5, "updated_at": _now_iso(),
-        }))
+        }, uuid))
     await os_bulk(client, docs)
     return baselines
 

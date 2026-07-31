@@ -794,6 +794,11 @@ app.post('/api/psoar-storage/retention', async (req, res) => {
   res.json({ ok: true, dry_run: dry, result: await psoarStorage.applyRetention(os, logger, dry) });
 });
 
+// PSOAR — Connector Hub (3.6) et Audit/Reporting (3.9).
+app.use('/api', require('./routes/psoar-hub-routes').createPsoarHubRoutes({
+  os, axios, logger, auditAction,
+}));
+
 // PSOAR — Case Management : artefacts types, chaine de possession, promotion IOC.
 app.use('/api', require('./routes/case-routes').createCaseRoutes({ os, logger, auditAction }));
 

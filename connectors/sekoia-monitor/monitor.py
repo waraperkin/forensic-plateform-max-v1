@@ -378,6 +378,20 @@ async def poll_once(client: httpx.AsyncClient) -> None:
                     "intake_count_1h": current, "measured": True,
                 }))
 
+    # Instantané d'inventaire : le control-plane décide lui-même s'il en prend
+    # un (cadence propre). Le poller se contente de lui donner l'occasion, sans
+    # tenir de compteur de son côté.
+    try:
+        r = await client.post(f"{CP_URL}/control/sekoia/inventory/auto-snapshot",
+                              headers=_cp_headers(), timeout=240)
+        if r.status_code < 400:
+            snap = r.json()
+            if snap.get("created"):
+                log.info("instantané d'inventaire %s (%s intakes, %s règles)",
+                         snap["created"], snap.get("intakes"), snap.get("rules"))
+    except Exception as exc:  # un instantané raté ne doit pas casser le poll
+        log.warning("auto-snapshot: %s", _exc_msg(exc))
+
     ok = await os_bulk(client, docs)
     STATE["last_poll_ts"] = now
     STATE["last_poll_ok"] = ok

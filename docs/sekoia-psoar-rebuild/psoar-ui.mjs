@@ -22,6 +22,11 @@ await p.screenshot({path:path.join(SHOT,`${TS}-PSO-file.png`)});
 let body=await p.locator('#psoar-root').innerText();
 let ok=/File d'incidents/.test(body)&&/SLA/.test(body);
 console.log(`[${ok?'PASS':'FAIL'}] file d'incidents — ${body.length} car.`); if(!ok)fails++;
+for(const [label,re] of [["bandeau veille SLA",/veille sla/i],["paliers annonces",/palier/i],
+  ["garantie non-cloture",/ne cl.ture ni ne r.assigne/i]]){
+  const good=re.test(body); if(!good)fails++;
+  console.log(`[${good?'PASS':'FAIL'}] ${label}`);
+}
 // Clic sur une LIGNE (cellule, hors bouton) -> exigence non negociable
 const rows=p.locator('#psoar-root tbody tr[data-pso-act="open"]');
 const n=await rows.count();
@@ -33,6 +38,11 @@ if(n){
   body=await p.locator('#psoar-root').innerText();
   ok=/Retour à la file/.test(body)&&/Timeline/.test(body);
   console.log(`[${ok?'PASS':'FAIL'}] clic LIGNE ouvre le dossier — ${body.length} car.`); if(!ok)fails++;
+  for(const [label,sel] of [["champ assignation",'#pso-assignee'],["bouton assigner",'[data-pso-act="assign"]'],
+    ["bouton passation",'[data-pso-act="handoff"]']]){
+    const cnt=await p.locator(sel).count(); const good=cnt>0; if(!good)fails++;
+    console.log(`[${good?'PASS':'FAIL'}] ${label}`);
+  }
   // Onglets du workspace
   for(const [tab,label] of [['tasks','Playbook'],['iocs','IOC'],['evidence','Evidences'],['report','Rapport']]){
     await p.locator(`[data-pso-tab="${tab}"]`).first().click(); await p.waitForTimeout(700);

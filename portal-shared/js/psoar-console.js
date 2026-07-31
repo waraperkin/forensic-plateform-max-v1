@@ -190,6 +190,7 @@
         ${kpi('SLA dépassés', nf(overdue.length), overdue.length ? 'danger' : 'ok')}
         ${kpi('Non assignés', nf(unassigned.length), unassigned.length ? 'warn' : 'ok')}
       </div>
+      ${slaBanner()}
       <div class="swb-filters">
         <input type="search" class="swb-input swb-search" id="pso-q" placeholder="Rechercher un incident, un analyste, un tag…"
                value="${esc(st.q)}" aria-label="Rechercher">
@@ -212,6 +213,23 @@
         ${thh('Statut', 'status')}<th>SLA</th><th>Playbook</th>${thh('Assigné', 'assignee')}${thh('Créé', 'created_at')}
       </tr></thead><tbody>${body || `<tr><td colspan="8">${emptyQueue(all.length)}</td></tr>`}</tbody></table></div></div>`;
   }
+  // Veille SLA : sans ce bandeau, l'escalade automatique agirait sans que
+  // personne ne le sache — exactement le defaut qu'elle corrige.
+  function slaBanner() {
+    const w = st.sla;
+    if (!w) return '';
+    const tiers = (w.tiers || []).map((t) => `${esc(t.label)}${t.bump ? ' (+ sévérité)' : ''}`).join(' · ');
+    const tone = w.unassigned_overdue ? 'danger' : (w.overdue ? 'warn' : 'ok');
+    return `<div class="swb-panel" style="border-left:3px solid var(--swb-${tone === 'ok' ? 'ok' : tone})">
+      <div class="swb-panel-head"><h3 class="swb-panel-title">Veille SLA</h3>
+        <span class="swb-hint">paliers : ${tiers}${w.webhook ? ' · webhook actif' : ''}</span></div>
+      <p style="margin:0">
+        ${pill(`${nf(w.overdue)} dépassé(s)`, w.overdue ? 'danger' : 'ok')}
+        ${w.unassigned_overdue ? pill(`${nf(w.unassigned_overdue)} dépassé(s) NON assigné(s)`, 'danger') : ''}
+        <span class="swb-hint"> sur ${esc(nf(w.open))} incident(s) ouvert(s). L'escalade élève la sévérité et trace ;
+        elle ne clôture ni ne réassigne jamais d'elle-même.</span></p></div>`;
+  }
+
   function thh(label, key) {
     const on = st.sort === key;
     return `<th class="swb-sortable" data-pso-sort="${key}">${esc(label)}${on ? (st.sortDir < 0 ? ' ↓' : ' ↑') : ''}</th>`;
@@ -376,6 +394,14 @@
         ${kpi('Assigné à', inc.assignee || 'personne', inc.assignee ? 'ok' : 'warn')}
       </div>
       ${stepper(inc)}
+      <div class="swb-filters">
+        <input class="swb-input" id="pso-assignee" placeholder="Assigner à…" value="${esc(inc.assignee || '')}">
+        <button type="button" class="fp-btn fp-btn-sm" data-pso-act="assign">Assigner</button>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-pso-act="handoff">Passer la main…</button>
+        ${(inc.escalations || []).length
+    ? `<span class="swb-pill swb-pill-danger">escaladé : ${esc((inc.escalations || []).join(', '))}</span>` : ''}
+        ${inc.handoff_count ? `<span class="swb-pill swb-pill-warn swb-pill-flat">${esc(inc.handoff_count)} passation(s)</span>` : ''}
+      </div>
       <nav class="swb-nav" style="position:static">${WS_TABS.map(([k, l]) => `<button type="button"
         class="swb-tab" aria-selected="${st.tab === k}" data-pso-tab="${k}">${esc(l)}</button>`).join('')}</nav>
       <div class="swb-panel">${panel}</div>`;
@@ -393,7 +419,13 @@
 
   async function load() {
     st.loading = true; st.error = null; paint();
-    try { st.list = await api('/incidents'); } catch (e) { st.error = e.message; }
+    try {
+      const r = await Promise.all([
+        api('/incidents'),
+        api('/incidents-sla').catch(() => null),
+      ]);
+      st.list = r[0]; st.sla = r[1];
+    } catch (e) { st.error = e.message; }
     st.loading = false; paint();
   }
   async function open(id) {
@@ -486,11 +518,32 @@
             { method: 'PATCH', body: { status: b.dataset.status } });
           await refreshDetail(); toast('Statut mis à jour', 'ok'); return;
         }
+        if (act === 'assign' && inc) {
+          const v = (document.getElementById('pso-assignee') || {}).value || '';
+          await api(`/incidents/${encodeURIComponent(inc.incident_id)}/assign`,
+            { method: 'POST', body: { assignee: v.trim() } });
+          toast(v.trim() ? `Assigné à ${v.trim()}` : 'Assignation retirée', 'ok');
+          await refreshDetail(); return;
+        }
+        if (act === 'handoff' && inc) {
+          const to = window.prompt('Passer la main à quel analyste ?');
+          if (!to) return;
+          // Les consignes sont exigees cote serveur : on le dit ici plutot que
+          // de laisser l'analyste decouvrir un refus.
+          const notes = window.prompt('Consignes de passation (obligatoires) : où en est le dossier, que reste-t-il à faire ?');
+          if (!notes) { toast('Passation annulée : les consignes sont obligatoires', 'err'); return; }
+          await api(`/incidents/${encodeURIComponent(inc.incident_id)}/handoff`,
+            { method: 'POST', body: { to, notes } });
+          toast(`Dossier passé à ${to}`, 'ok');
+          await refreshDetail(); return;
+        }
         if (act === 'add-note' && inc) {
           const v = (document.getElementById('pso-note') || {}).value || '';
           if (!v.trim()) { toast('Saisissez une note', 'err'); return; }
-          await api(`/incidents/${encodeURIComponent(inc.incident_id)}/events`,
-            { method: 'POST', body: { kind: 'note', title: v.trim() } });
+          // /comment extrait les @mentions ; /events ne le fait pas.
+          const r = await api(`/incidents/${encodeURIComponent(inc.incident_id)}/comment`,
+            { method: 'POST', body: { text: v.trim() } });
+          if (r.mentions && r.mentions.length) toast(`Mentionné : ${r.mentions.join(', ')}`, 'ok');
           await refreshDetail(); return;
         }
         if (act === 'add-ioc' && inc) {

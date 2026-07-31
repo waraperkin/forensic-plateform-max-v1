@@ -93,7 +93,23 @@
     return d;
   }
 
-  function root() { return document.getElementById('sekoia-extended-root'); }
+  // Les onglets Sekoia sont des panneaux exclusifs : un seul est visible a la
+  // fois. Un socle unique se remonte donc dans le conteneur de l'onglet actif,
+  // plutot que neuf instances concurrentes.
+  const MOUNTS = [
+    { el: 'sekoia-extended-root', view: null, nav: true },
+    { el: 'sekoia-cc-root', view: 'overview', nav: false },
+    { el: 'sekoia-ingest-root', view: 'ingestion', nav: false },
+    { el: 'sekoia-assets-root', view: 'sources', nav: false },
+    { el: 'sekoia-rules-root', view: 'detections', nav: false },
+    { el: 'sekoia-fetch-root', view: 'telemetry', nav: false },
+    { el: 'sekoia-apikeys-root', view: 'apikeys', nav: false },
+    { el: 'audit-center-root', view: 'audit', nav: false },
+    { el: 'tp-config-root', view: 'config', nav: false },
+  ];
+  st.mount = 'sekoia-extended-root';
+  st.nav = true;
+  function root() { return document.getElementById(st.mount); }
 
   // ── Briques d'interface ───────────────────────────────────────────────────
   function kpi(label, value, tone, hint) {
@@ -284,6 +300,76 @@
           <p class="swb-hint" style="margin-bottom:.5rem">Échelle logarithmique : sans elle une source à 1 M/h écraserait les autres.</p>
           <div class="sep-heat">${heatRows || '<span class="swb-hint">Carte indisponible.</span>'}</div></div>
       </div>`;
+  }
+
+  // ── Ingestion : volumétrie détaillée par source ───────────────────────────
+  function viewIngestion() {
+    const d = st.data.dashboard;
+    const h = st.data.health;
+    if (!d || !d.available) return degraded((d && d.errors && d.errors[0]) || 'Aucune télémétrie agrégée.');
+    const k = d.kpi || {};
+    const series = d.series || [];
+    const ranges = [[6, '6 h'], [24, '24 h'], [168, '7 j'], [720, '30 j']];
+    const picker = ranges.map(([hh, l]) => `<button type="button" class="swb-tab"
+      aria-selected="${st.range === hh}" data-swb-act="range" data-hours="${hh}">${esc(l)}</button>`).join('');
+
+    // Table par source : volume, part du total, tendance, écart à la baseline.
+    const total = series.reduce((a, x) => a + (x.total || 0), 0) || 1;
+    const byName = {};
+    ((h && h.items) || []).forEach((i) => { byName[i.intake_name] = i; });
+    let rows = series.filter((x) => match({ n: x.intake_name }, ['n']));
+    rows = rows.map((x) => {
+      const st2 = byName[x.intake_name] || {};
+      const base = Math.round(st2.baseline_avg || 0);
+      const cur = st2.current_count;
+      const delta = (base > 0 && cur !== undefined && cur !== null) ? ((cur - base) / base) * 100 : null;
+      return Object.assign({}, x, { base, cur, delta, share: (x.total / total) * 100 });
+    });
+    const key = st.sort || 'total';
+    const dir = st.sort ? st.sortDir : -1;
+    rows.sort((a, b) => ((Number(a[key]) || 0) - (Number(b[key]) || 0)) * dir);
+
+    const body = rows.map((x) => {
+      const pts = (x.points || []).map((p) => p.count);
+      const dTone = x.delta === null ? 'mute' : (x.delta < -50 ? 'danger' : x.delta > 100 ? 'warn' : 'ok');
+      const dTxt = x.delta === null ? '—' : `${x.delta > 0 ? '+' : ''}${x.delta.toFixed(0)} %`;
+      return `<tr>
+        <td class="swb-truncate" title="${esc(x.intake_name)}">${esc(x.intake_name)}</td>
+        <td>${spark(pts)}</td>
+        <td class="swb-num">${esc(nf(x.total))}</td>
+        <td>${meter(x.share, x.share > 40 ? 'warn' : 'ok')}</td>
+        <td class="swb-num">${esc(x.share.toFixed(1))} %</td>
+        <td class="swb-num">${esc(nf(x.base))}</td>
+        <td class="swb-num">${pill(dTxt, dTone, true)}</td></tr>`;
+    }).join('');
+
+    const silent = ((h && h.items) || []).filter((i) => i.silent);
+    const silentList = silent.slice(0, 12).map((i) => `<li>${esc(i.intake_name)}
+      <span class="swb-hint">· ${esc(i.entity_name || '—')}</span></li>`).join('');
+
+    return `<div class="swb-head">
+        <div><h2 class="swb-title">Ingestion des logs — volumétrie</h2>
+          <p class="swb-sub">Volume, part du total, tendance et écart à la baseline, source par source. Le SIEM n'expose aucune de ces mesures.</p></div>
+        <div class="swb-actions">${picker}</div></div>
+      <div class="swb-kpis">
+        ${kpi('Débit courant', compact(k.events_per_hour) + '/h', 'ok', `granularité ${esc(d.interval)}`)}
+        ${kpi('Pic sur la fenêtre', compact(k.events_peak) + '/h', 'warn')}
+        ${kpi('Sources émettrices', nf(k.sources_active), k.sources_active ? 'ok' : 'danger', `sur ${nf(k.sources_total)}`)}
+        ${kpi('Sources muettes', nf(k.sources_silent), k.sources_silent ? 'danger' : 'ok')}
+        ${kpi('Concentration', `${((series[0] ? series[0].total : 0) / total * 100).toFixed(0)} %`,
+    ((series[0] ? series[0].total : 0) / total) > 0.6 ? 'warn' : 'ok', 'part de la 1re source')}
+      </div>
+      ${toolbar('Filtrer une source…', '', `${nf(rows.length)} sources mesurées`)}
+      <div class="swb-panel" style="padding:0">
+        <div class="swb-tablewrap"><table class="swb-table"><thead><tr>
+          ${th('Source', 'intake_name')}<th>Tendance</th>${th('Volume', 'total', 'swb-num')}
+          <th>Part</th>${th('%', 'share', 'swb-num')}${th('Baseline', 'base', 'swb-num')}${th('Écart', 'delta', 'swb-num')}
+        </tr></thead><tbody>${body || '<tr><td colspan="7"><p class="swb-hint" style="padding:1rem">Aucune source mesurée sur la fenêtre.</p></td></tr>'}</tbody></table></div></div>
+      ${silent.length ? `<div class="swb-panel"><div class="swb-panel-head">
+        <h3 class="swb-panel-title">Sources muettes — ${nf(silent.length)}</h3></div>
+        <p class="swb-hint" style="margin-bottom:.5rem">Aucun événement mesuré sur la fenêtre de collecte. À traiter comme une panne de collecte, pas comme une accalmie.</p>
+        <ul style="margin:0;padding-left:1.1rem;font-size:.82rem;columns:2;column-gap:2rem">${silentList}</ul>
+        ${silent.length > 12 ? `<p class="swb-hint" style="margin-top:.5rem">…et ${nf(silent.length - 12)} autres. Voir l'écran Sources pour la liste complète.</p>` : ''}</div>` : ''}`;
   }
 
   // ── Sources ───────────────────────────────────────────────────────────────
@@ -750,6 +836,7 @@
     if (st.loading) body = skeleton(8);
     else if (st.error) body = degraded(st.error);
     else if (st.view === 'overview') body = viewOverview();
+    else if (st.view === 'ingestion') body = viewIngestion();
     else if (st.view === 'sources') body = viewSources();
     else if (st.view === 'detections') body = viewDetections();
     else if (st.view === 'telemetry') body = viewTelemetry();
@@ -759,14 +846,17 @@
     else if (st.view === 'audit') body = viewAudit();
     else body = viewConfig();
     el.className = 'swb';
-    el.innerHTML = nav() + `<div class="swb-body">${body}</div>` + drawer();
+    el.innerHTML = (st.nav ? nav() : '') + `<div class="swb-body">${body}</div>` + drawer();
   }
 
   async function load() {
     st.loading = true; st.error = null; st.drawer = null; paint();
     try {
-      if (st.view === 'overview') {
-        st.data.dashboard = await api(`/dashboard?hours=${st.range}&top=10`);
+      if (st.view === 'overview' || st.view === 'ingestion') {
+        st.data.dashboard = await api(`/dashboard?hours=${st.range}&top=${st.view === 'ingestion' ? 25 : 10}`);
+        if (st.view === 'ingestion') {
+          st.data.health = await api('/intakes/health').catch(() => null);
+        }
         const k = st.data.dashboard.kpi || {};
         if (k.sources_silent) st.badges.sources = { text: String(k.sources_silent), tone: 'danger' };
       } else if (st.view === 'sources') {
@@ -958,9 +1048,38 @@
     load();
   }
 
-  window.SekoiaWorkbench = { init, load };
+  function mountAt(elId, view, withNav) {
+    st.mount = elId;
+    st.nav = withNav !== false;
+    if (view) st.view = view;
+    st.q = ''; st.filters = {}; st.sort = null; st.drawer = null;
+    const el = root();
+    if (!el) return;
+    bind(el);
+    if (!window.__swbKeys) { document.addEventListener('keydown', keys); window.__swbKeys = true; }
+    load();
+  }
+
+  window.SekoiaWorkbench = { init, load, mountAt };
   document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.querySelector('[data-tab-btn="sekoia-extended"]');
-    if (btn) btn.addEventListener('click', () => setTimeout(init, 50));
+    // Chaque entree de la barre laterale ouvre le socle sur SA mission :
+    // huit ecrans heterogenes deviennent huit vues d'un meme produit.
+    const TABS = {
+      'sekoia-extended': ['sekoia-extended-root', null, true],
+      'sekoia-cc': ['sekoia-cc-root', 'overview', false],
+      'sekoia-ingest': ['sekoia-ingest-root', 'ingestion', false],
+      'sekoia-assets': ['sekoia-assets-root', 'sources', false],
+      'sekoia-rules': ['sekoia-rules-root', 'detections', false],
+      'sekoia-fetch': ['sekoia-fetch-root', 'telemetry', false],
+      'sekoia-apikeys': ['sekoia-apikeys-root', 'apikeys', false],
+      'audit-center': ['audit-center-root', 'audit', false],
+      'tp-config': ['tp-config-root', 'config', false],
+    };
+    Object.keys(TABS).forEach((tab) => {
+      const btn = document.querySelector(`[data-tab-btn="${tab}"]`);
+      if (!btn) return;
+      const [elId, view, withNav] = TABS[tab];
+      btn.addEventListener('click', () => setTimeout(() => mountAt(elId, view, withNav), 60));
+    });
   });
 }());

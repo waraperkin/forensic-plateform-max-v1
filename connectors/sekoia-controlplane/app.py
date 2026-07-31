@@ -1584,6 +1584,11 @@ inventory.register(app)
 import storage  # noqa: E402
 storage.register(app)
 
+# ── Sekoia Extended Platform — API Gateway.
+#    Catalogue auto-décrit, quotas par jeton, webhooks signés.
+import gateway  # noqa: E402
+gateway.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

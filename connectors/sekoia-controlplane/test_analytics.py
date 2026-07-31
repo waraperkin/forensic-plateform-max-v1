@@ -77,15 +77,25 @@ def _bases():
 
 
 def _rules():
+    """Lignes au format REEL produit par build_detection_rules().
+
+    La fixture employait `payload`, alors que les lignes portent `rule_payload`
+    — la meme confusion de cles qui rendait la couverture MITRE nulle en
+    production. Un jeu de test qui ne reproduit pas la forme reelle des donnees
+    ne protege de rien.
+    """
     return [
         {"rule_uuid": "r-1", "rule_name": "Brute force RDP", "rule_severity": 70,
          "rule_enabled": True, "rule_type": "cti",
-         "payload": "selection: attack.T1110 | initial-access"},
+         "rule_payload": "selection: attack.T1110 | initial-access",
+         "rule_attack_refs": "attack-pattern--aaaa", "rule_attack_refs_count": 1},
         {"rule_uuid": "r-2", "rule_name": "LSASS dump", "rule_severity": 90,
          "rule_enabled": True, "rule_type": "sigma",
-         "payload": "technique: T1003.001 credential-access"},
+         "rule_payload": "technique: T1003.001 credential-access",
+         "rule_attack_refs": "attack-pattern--bbbb", "rule_attack_refs_count": 1},
         {"rule_uuid": "r-3", "rule_name": "Règle muette", "rule_severity": 40,
-         "rule_enabled": True, "rule_type": "sigma", "payload": "foo"},
+         "rule_enabled": True, "rule_type": "sigma", "rule_payload": "foo",
+         "rule_attack_refs": "", "rule_attack_refs_count": 0},
     ]
 
 
@@ -286,13 +296,28 @@ def test_mitre_coverage(monkeypatch):
     _patch_full(monkeypatch)
     r = client.get("/control/sekoia/mitre-coverage", headers=AUTH)
     d = r.json()
-    assert d["rules_total"] == 3 and d["rules_with_mitre"] == 2
-    assert "T1110" in {t for m in d["matrix"] for t in m["techniques"]}
-    by = {m["tactic"]: m for m in d["matrix"]}
+    # La reponse separe desormais STRICTEMENT deux signaux : les attack-patterns
+    # rattaches par Sekoia (confiance haute) et la correspondance lexicale sur
+    # les noms de tactiques (confiance basse, explicitement etiquetee).
+    # L'ancienne cle plate `rules_with_mitre` melangeait les deux et presentait
+    # une matrice depourvue de sens comme une couverture ATT&CK.
+    assert d["rules_total"] == 3
+    assert d["attack_patterns"]["confidence"] == "high"
+    # Deux regles sur trois portent un attack-pattern : signal de confiance haute.
+    assert d["attack_patterns"]["rules_with_attack_patterns"] == 2
+    assert d["attack_patterns"]["distinct_attack_patterns"] == 2
+    assert d["attack_patterns"]["coverage_pct"] == pytest.approx(66.7, abs=0.1)
+    assert d["lexical"]["confidence"] == "low"
+    # Le catalogue Sekoia n'expose aucun identifiant Txxxx : le moteur doit le
+    # DECLARER plutot que de retourner un zero silencieux.
+    assert d["techniques"]["resolvable"] is False
+    assert d["techniques"]["reason"]
+    assert "T1110" in {t for m in d["lexical"]["matrix"] for t in m["techniques"]}
+    by = {m["tactic"]: m for m in d["lexical"]["matrix"]}
     assert by["initial-access"]["rules"] == 1
     assert by["credential-access"]["rules"] == 1
     assert by["impact"]["rules"] == 0
-    assert d["tactics_covered"] == 2 and d["tactics_total"] == 14
+    assert d["lexical"]["tactics_matched"] == 2 and d["lexical"]["tactics_total"] == 14
 
 
 # ── H. Watchlists ─────────────────────────────────────────────────────────────

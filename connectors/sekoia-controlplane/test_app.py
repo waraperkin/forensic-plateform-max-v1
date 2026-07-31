@@ -266,8 +266,12 @@ def test_entities_create_validation():
 
 
 def test_rule_detail(monkeypatch):
+    """Le detail passe par le CATALOGUE. L'ancien chemin /sic/conf/rules/{id}
+    n'existe pas cote Sekoia (404 T404 systematique) : le panneau de detail
+    etait donc toujours vide. Ce test encodait le bug, il encode desormais
+    le comportement corrige."""
     async def fake_sek(method, path, json_body=None, params=None, use_api_host=False):
-        assert path == "/api/v1/sic/conf/rules/r-42"
+        assert path == "/api/v1/sic/conf/rules-catalog/rules/r-42"
         return {"uuid": "r-42", "name": "R", "payload": "detection: ..."}, None
 
     monkeypatch.setattr(cp, "sek_request", fake_sek)

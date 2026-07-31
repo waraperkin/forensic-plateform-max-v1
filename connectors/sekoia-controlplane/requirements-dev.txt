@@ -1,0 +1,7 @@
+# Dépendances de TEST uniquement — volontairement hors requirements.txt pour ne
+# pas alourdir l'image de production (dette D04 de l'audit : pytest absent de
+# l'image, donc 1068 lignes de tests jamais exécutées).
+#   pip install -r requirements-dev.txt && python -m pytest -q
+-r requirements.txt
+pytest>=8.0
+pytest-asyncio>=0.23

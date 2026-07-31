@@ -246,3 +246,65 @@ tranquilles ».
 
 La corrélation est validée par tests sur données construites, faute de pouvoir
 l'être sur le tenant.
+
+## Actionnabilité des vues et bascule FR/EN
+
+### Le reproche : « une vitrine »
+Les vues affichaient sans permettre d'agir. Toute opération d'écriture obligeait
+à passer par l'onglet Opérations et à retrouver ses objets par filtre.
+
+**Sélection de lignes** dans Sources et Détections, avec une barre d'actions :
+activer, désactiver, ajouter ou retirer une étiquette. Le tout passe par le
+**même moteur de lot** que l'onglet Opérations — simulation obligatoire,
+historique, rollback. Une action lancée depuis un tableau ne doit pas être moins
+sûre parce qu'elle est plus rapide d'accès.
+
+La simulation est affichée avant l'application, avec l'état avant et après pour
+chaque objet, et le nombre d'objets **déjà conformes** — sur lesquels aucune
+écriture ne sera faite.
+
+Détail qui compte : cocher une case ne doit pas ouvrir le volet de détail de la
+ligne. Les cases sont donc traitées avant les actions de ligne, et c'est vérifié
+par un test.
+
+### La bascule FR/EN
+Le workbench était **intégralement écrit en français dans le code**. Basculer en
+anglais ne changeait donc rien : la traduction du portail (`translateDOM`) ne
+sait agir que sur des attributs `data-i18n`, ce qui ne s'applique pas à du HTML
+généré en JavaScript.
+
+Deux mécanismes ont été ajoutés :
+
+1. **Clés de dictionnaire** (`swb.*`) pour la navigation, les colonnes, les
+   états et la barre de sélection — 68 clés, symétriques entre `fr.json` et
+   `en.json`.
+2. **Correspondance exacte** (`swbtx`, 124 entrées) pour les titres,
+   sous-titres, libellés de KPI, filtres et champs de recherche, appliquée après
+   rendu aux **seuls éléments de chrome**.
+
+La correspondance est exacte et la table ne contient que des chaînes connues :
+c'est ce qui garantit qu'aucune donnée du tenant — un nom de source, un hôte,
+une entité — ne sera jamais réécrite par erreur. La passe ne descend jamais dans
+les cellules de données.
+
+Une chaîne interpolée (« Granularité {interval} ») échappe par nature à la
+correspondance exacte et a reçu une clé à variable. C'est la limite de
+l'approche, et elle se traite au cas par cas.
+
+Le changement de langue **repeint sans recharger** : relancer les jeux de
+données ferait repartir des jobs de recherche Sekoia pour un simple changement
+de langue.
+
+### Ce qui reste en français, et pourquoi
+Le texte **analytique produit par le backend** — messages d'alerte, verdicts de
+simulation, recommandations de couverture, notes de méthode — est rédigé en
+français dans les modules Python. Il s'affiche donc en français même en mode
+anglais.
+
+Ce n'est pas un oubli : ces textes sont générés avec leurs variables et leur
+nuance (« 247 règle(s) activée(s) sur 57 format(s) jamais ingéré(s) »), et les
+traduire suppose de porter la génération elle-même, module par module. C'est un
+chantier distinct, à décider.
+
+Vérification : 8 vues contrôlées en anglais sur l'ensemble de leur chrome —
+titres, sous-titres, panneaux, KPI, en-têtes et options de filtres.

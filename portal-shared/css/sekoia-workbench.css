@@ -401,3 +401,16 @@
 @media (max-width: 760px) {
   .pdz-form label { flex-basis: 100%; }
 }
+
+/* Sélection de lignes — la case doit rester cliquable sans déclencher
+   l'ouverture du volet de l'objet, d'où la zone de clic élargie. */
+.swb-selbox {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--swb-accent);
+  vertical-align: middle;
+}
+.swb-table td:has(> .swb-selbox),
+.swb-table th:has(> .swb-selbox) { width: 2.2rem; text-align: center; }

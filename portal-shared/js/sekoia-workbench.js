@@ -24,27 +24,94 @@
   const API = '/api/threat/sekoia';
 
   const VIEWS = [
-    { id: 'overview', label: "Vue d'ensemble", key: 'o', group: 1 },
-    { id: 'sources', label: 'Sources', key: 's', group: 1 },
-    { id: 'detections', label: 'Détections', key: 'd', group: 1 },
-    { id: 'inventory', label: 'Inventaire', key: 'i', group: 1 },
-    { id: 'telemetry', label: 'Télémétrie', key: 't', group: 1 },
-    { id: 'hosts', label: 'Hôtes', key: 'h', group: 1 },
-    { id: 'alerting', label: 'Alerting', key: 'a', group: 2 },
-    { id: 'operations', label: 'Opérations', key: 'p', group: 2 },
-    { id: 'apikeys', label: 'Clés API', key: 'k', group: 3 },
-    { id: 'audit', label: 'Audit', key: 'u', group: 3 },
-    { id: 'config', label: 'Configuration', key: 'c', group: 3 },
+    { id: 'overview', key: 'o', group: 1 },
+    { id: 'sources', key: 's', group: 1 },
+    { id: 'detections', key: 'd', group: 1 },
+    { id: 'inventory', key: 'i', group: 1 },
+    { id: 'telemetry', key: 't', group: 1 },
+    { id: 'hosts', key: 'h', group: 1 },
+    { id: 'alerting', key: 'a', group: 2 },
+    { id: 'operations', key: 'p', group: 2 },
+    { id: 'apikeys', key: 'k', group: 3 },
+    { id: 'audit', key: 'u', group: 3 },
+    { id: 'config', key: 'c', group: 3 },
   ];
 
   const st = {
     view: 'overview', range: 24, loading: false, error: null,
     q: '', filters: {}, sort: null, sortDir: -1,
     drawer: null, data: {}, badges: {},
+    // Sélection courante, par vue : changer d'onglet ne doit jamais conserver
+    // une sélection invisible qu'une action appliquerait ensuite à l'aveugle.
+    sel: {}, selView: null, act: null,
   };
+
+  // Cible du moteur de lot pour chaque vue actionnable.
+  const SEL_TARGET = { sources: 'intakes', detections: 'rules' };
+
+  function selSet() {
+    if (st.selView !== st.view) { st.sel = {}; st.selView = st.view; }
+    return st.sel;
+  }
+  function selIds() { return Object.keys(selSet()); }
 
   // ── Utilitaires ───────────────────────────────────────────────────────────
   const lang = () => ((window.i18n && i18n.getLanguage && i18n.getLanguage() === 'en') ? 'en-US' : 'fr-FR');
+
+  // Traduction. Le workbench était intégralement écrit en français dans le
+  // code : basculer en anglais laissait donc tout le texte en français. Chaque
+  // libellé passe désormais par le dictionnaire partagé.
+  //
+  // Le repli renvoie la clé plutôt qu'une chaîne vide : une clé manquante doit
+  // se voir en recette, pas disparaître silencieusement de l'écran.
+  // Correspondance exacte français → anglais, pour le texte que le workbench
+  // fabrique lui-même (titres, sous-titres, libellés de KPI, filtres). Le
+  // moteur i18n du portail ne sait traduire que des attributs `data-i18n`, ce
+  // qui ne s'applique pas à du HTML généré.
+  //
+  // La correspondance est EXACTE : une chaîne absente de la table est laissée
+  // telle quelle. C'est ce qui garantit qu'aucune donnée du tenant — un nom de
+  // source, un hôte, une entité — ne sera jamais réécrite par erreur.
+  let TXMAP = null;
+  async function loadTx() {
+    if (TXMAP || lang() !== 'en-US') return;
+    try {
+      // Même base que le moteur i18n du portail : coder l'URL en dur ailleurs
+      // reviendrait à en maintenir deux, et j'ai commencé par me tromper.
+      const r = await fetch('/shared/i18n/en.json', { credentials: 'same-origin' });
+      TXMAP = ((await r.json()) || {}).swbtx || {};
+    } catch (_) { TXMAP = {}; }
+  }
+  function TX(fr) {
+    if (lang() !== 'en-US' || !TXMAP) return fr;
+    return Object.prototype.hasOwnProperty.call(TXMAP, fr) ? TXMAP[fr] : fr;
+  }
+
+  // Passe de traduction limitée aux éléments de CHROME. On ne descend jamais
+  // dans les cellules de données : un tableau contient des noms de machines et
+  // d'entités, qui ne doivent pas être touchés.
+  const CHROME = '.swb-title, .swb-sub, .swb-panel-title, .swb-kpi-label, .swb-kpi-hint,'
+    + ' .swb-hint, .swb-table thead th, .swb-select option, button[data-swb-act]';
+  function translateChrome(root) {
+    if (lang() !== 'en-US' || !TXMAP || !root) return;
+    root.querySelectorAll(CHROME).forEach((el) => {
+      if (el.children.length) return;          // sous-arbre : on ne réécrit pas
+      const raw = (el.textContent || '').trim();
+      if (raw && Object.prototype.hasOwnProperty.call(TXMAP, raw)) el.textContent = TXMAP[raw];
+    });
+    root.querySelectorAll('input[placeholder]').forEach((el) => {
+      const raw = el.getAttribute('placeholder');
+      if (raw && Object.prototype.hasOwnProperty.call(TXMAP, raw)) el.placeholder = TXMAP[raw];
+    });
+  }
+
+  function T(key, vars) {
+    if (window.i18n && typeof i18n.t === 'function') {
+      const out = i18n.t(key, vars);
+      if (out && out !== key) return out;
+    }
+    return key;
+  }
   function nf(n) {
     if (n === null || n === undefined || n === '') return '—';
     const v = Number(n);
@@ -159,6 +226,50 @@
     }
     return s + '</div>';
   }
+  function selectionBar() {
+    const target = SEL_TARGET[st.view];
+    const ids = selIds();
+    if (!target || !ids.length) return '';
+    const act = st.act;
+    // La simulation est montrée AVANT l'application : c'est le moteur de lot
+    // qui l'impose, l'interface ne fait que la rendre visible.
+    const preview = act && act.preview ? `<div class="swb-panel" style="margin:.5rem 0 0;border-left:3px solid var(--swb-warn)">
+        <div class="swb-panel-head"><h3 class="swb-panel-title">${T('swb.sel.simulation', {
+          n: nf(act.preview.selected || 0) })}</h3>
+          ${act.preview.changing ? `<button type="button" class="fp-btn fp-btn-sm fp-btn-danger"
+            data-swb-act="sel-apply">${T('swb.sel.apply', { n: nf(act.preview.changing) })}</button>` : ''}</div>
+        ${act.preview.error ? `<p class="swb-hint">${esc(act.preview.error)}</p>` : ''}
+        ${act.preview.unchanged ? `<p class="swb-hint">${T('swb.sel.unchanged', {
+          n: nf(act.preview.unchanged) })}</p>` : ''}
+        <div class="swb-tablewrap" style="max-height:24vh"><table class="swb-table"><tbody>
+          ${(act.preview.results || []).slice(0, 60).map((r) => `<tr>
+            <td class="swb-truncate">${esc(r.name || r.id)}</td>
+            <td class="swb-hint">${esc(JSON.stringify(r.before || {}))} → ${esc(JSON.stringify(r.would_apply || {}))}</td>
+          </tr>`).join('')}</tbody></table></div></div>` : '';
+
+    return `<div class="swb-panel" style="border-left:3px solid var(--swb-accent)">
+      <div class="swb-filters" style="align-items:center">
+        <strong>${T('swb.sel.count', { n: nf(ids.length) })}</strong>
+        <button type="button" class="fp-btn fp-btn-sm" data-swb-act="sel-do" data-op="enable">${T('swb.sel.enable')}</button>
+        <button type="button" class="fp-btn fp-btn-sm" data-swb-act="sel-do" data-op="disable">${T('swb.sel.disable')}</button>
+        <input class="swb-input" id="swb-seltags" style="max-width:14rem" placeholder="${T('swb.sel.tags_ph')}">
+        <button type="button" class="fp-btn fp-btn-sm" data-swb-act="sel-do" data-op="tag_add">${T('swb.sel.tag_add')}</button>
+        <button type="button" class="fp-btn fp-btn-sm" data-swb-act="sel-do" data-op="tag_remove">${T('swb.sel.tag_remove')}</button>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="sel-clear">${T('swb.sel.clear')}</button>
+      </div>${preview}</div>`;
+  }
+
+  function selHead() {
+    return `<th style="width:2rem"><input type="checkbox" class="swb-selbox" data-swb-selall="1"
+      aria-label="${T('swb.sel.all')}"></th>`;
+  }
+
+  function selCell(id) {
+    const on = selSet()[id] ? ' checked' : '';
+    return `<td><input type="checkbox" class="swb-selbox" data-swb-sel="${esc(id)}"${on}
+      aria-label="${T('swb.sel.pick')}"></td>`;
+  }
+
   function toolbar(placeholder, extra, count) {
     return `<div class="swb-filters">
       <input type="search" class="swb-input swb-search" id="swb-q" placeholder="${esc(placeholder)}"
@@ -288,7 +399,7 @@
 
     return `<div class="swb-head">
         <div><h2 class="swb-title">Ingestion — ${esc(d.hours)} h</h2>
-          <p class="swb-sub">Volumétrie mesurée source par source. Granularité ${esc(d.interval)}.</p></div>
+          <p class="swb-sub">${T('swb.v.ingest_sub', { interval: esc(d.interval) })}</p></div>
         <div class="swb-actions">${picker}</div></div>
       <div class="swb-kpis">
         ${kpi('Débit courant', compact(k.events_per_hour) + '/h', 'ok', 'dernier créneau mesuré')}
@@ -379,7 +490,7 @@
       ${toolbar('Filtrer une source…', '', `${nf(rows.length)} sources mesurées`)}
       <div class="swb-panel" style="padding:0">
         <div class="swb-tablewrap"><table class="swb-table"><thead><tr>
-          ${th('Source', 'intake_name')}<th>Tendance</th>${th('Volume', 'total', 'swb-num')}
+          ${th(T('swb.col.source'), 'intake_name')}<th>Tendance</th>${th('Volume', 'total', 'swb-num')}
           <th>Part</th>${th('%', 'share', 'swb-num')}${th('Baseline', 'base', 'swb-num')}${th('Écart', 'delta', 'swb-num')}
         </tr></thead><tbody>${body || '<tr><td colspan="7"><p class="swb-hint" style="padding:1rem">Aucune source mesurée sur la fenêtre.</p></td></tr>'}</tbody></table></div></div>
       ${qualityLatencyPanels()}
@@ -490,13 +601,14 @@
       const count = measured ? nf(r.current_count)
         : '<span class="swb-hint" title="Non mesuré — jamais assimilé à zéro">non mesuré</span>';
       return `<tr class="swb-clickable" data-swb-act="open-source" data-id="${esc(r.intake_uuid)}">
+        ${selCell(r.intake_uuid)}
         <td><span class="swb-grade swb-grade-${esc(r.grade)}">${esc(r.grade)}</span></td>
         <td class="swb-num">${esc(r.score)}</td>
         <td class="swb-truncate" title="${esc(r.intake_name)}">${esc(r.intake_name || r.intake_uuid)}</td>
         <td class="swb-truncate">${esc(r.entity_name || '—')}</td>
         <td class="swb-num">${count}</td>
         <td class="swb-num">${measured ? nf(Math.round(r.baseline_avg || 0)) : '—'}</td>
-        <td>${r.silent ? pill('silencieuse', 'danger') : (measured ? pill('active', 'ok') : pill('non mesurée', 'warn'))}</td>
+        <td>${r.silent ? pill(T('swb.pill.silent'), 'danger') : (measured ? pill(T('swb.pill.active'), 'ok') : pill(T('swb.pill.unmeasured'), 'warn'))}</td>
       </tr>`;
     }).join('');
 
@@ -506,12 +618,13 @@
           <p class="swb-sub">Inventaire complet avec volumétrie, baseline et note de santé — aucune de ces valeurs n'est exposée par le SIEM.</p></div>
         <div class="swb-actions">${kpiInline(h)}</div></div>
       ${toolbar('Rechercher une source, une entité, un identifiant…', extra, `${nf(rows.length)} / ${nf((h.items || []).length)}`)}
+      ${selectionBar()}
       <div class="swb-panel" style="padding:0">
         <div class="swb-tablewrap"><table class="swb-table"><thead><tr>
-          ${th('Note', 'grade')}${th('Score', 'score', 'swb-num')}${th('Source', 'intake_name')}
-          ${th('Entité', 'entity_name')}${th('Événements/h', 'current_count', 'swb-num')}
-          ${th('Baseline', 'baseline_avg', 'swb-num')}${th('État', 'silent')}
-        </tr></thead><tbody>${body || '<tr><td colspan="7"><p class="swb-hint" style="padding:1rem">Aucune source ne correspond aux filtres.</p></td></tr>'}</tbody></table></div>
+          ${selHead()}${th(T('swb.col.grade'), 'grade')}${th(T('swb.col.score'), 'score', 'swb-num')}${th(T('swb.col.source'), 'intake_name')}
+          ${th(T('swb.col.entity'), 'entity_name')}${th(T('swb.col.events_h'), 'current_count', 'swb-num')}
+          ${th(T('swb.col.baseline'), 'baseline_avg', 'swb-num')}${th(T('swb.col.state'), 'silent')}
+        </tr></thead><tbody>${body || '<tr><td colspan="8"><p class="swb-hint" style="padding:1rem">Aucune source ne correspond aux filtres.</p></td></tr>'}</tbody></table></div>
       </div>`;
   }
   /**
@@ -645,7 +758,8 @@
       const sev = Number(r.rule_severity) || 0;
       const tone = sev >= 80 ? 'danger' : sev >= 60 ? 'warn' : sev >= 40 ? 'mute' : 'mute';
       return `<tr class="swb-clickable" data-swb-act="open-rule" data-id="${esc(r.rule_uuid)}">
-        <td>${r.rule_enabled ? pill('active', 'ok') : pill('inactive', 'mute')}</td>
+        ${selCell(r.rule_uuid)}
+        <td>${r.rule_enabled ? pill(T('swb.pill.active'), 'ok') : pill(T('swb.pill.inactive'), 'mute')}</td>
         <td class="swb-truncate" title="${esc(r.rule_name)}">${esc(r.rule_name)}</td>
         <td class="swb-num">${pill(String(sev), tone, true)}</td>
         <td class="swb-truncate">${esc(r.rule_datasources || '—')}</td>
@@ -677,11 +791,12 @@
       ${coverage}
       ${toolbar('Rechercher une règle, un tag, une source de données…', extra,
     `${nf(rows.length)} / ${nf(items.length)}${rows.length > 300 ? ' · 300 affichées' : ''}`)}
+      ${selectionBar()}
       <div class="swb-panel" style="padding:0">
         <div class="swb-tablewrap"><table class="swb-table"><thead><tr>
-          ${th('État', 'rule_enabled')}${th('Règle', 'rule_name')}${th('Sévérité', 'rule_severity', 'swb-num')}
-          ${th('Sources de données', 'rule_datasources')}${th('ATT&CK', 'rule_attack_refs_count', 'swb-num')}${th('Tags', 'rule_tags')}
-        </tr></thead><tbody>${body || '<tr><td colspan="6"><p class="swb-hint" style="padding:1rem">Aucune règle ne correspond aux filtres.</p></td></tr>'}</tbody></table></div>
+          ${selHead()}${th(T('swb.col.state'), 'rule_enabled')}${th(T('swb.col.rule'), 'rule_name')}${th(T('swb.col.severity'), 'rule_severity', 'swb-num')}
+          ${th(T('swb.col.datasources'), 'rule_datasources')}${th(T('swb.col.attack'), 'rule_attack_refs_count', 'swb-num')}${th(T('swb.col.tags'), 'rule_tags')}
+        </tr></thead><tbody>${body || '<tr><td colspan="7"><p class="swb-hint" style="padding:1rem">Aucune règle ne correspond aux filtres.</p></td></tr>'}</tbody></table></div>
       </div>
       ${patternRows ? `<div class="swb-panel"><div class="swb-panel-head">
         <h3 class="swb-panel-title">Techniques les plus couvertes</h3></div>
@@ -896,7 +1011,7 @@
     if (!rules) return degraded('Moteur de règles injoignable.');
     const bySev = (alerts && alerts.by_severity) || {};
     const ruleRows = (rules.items || []).map((r) => `<tr>
-      <td>${r.enabled ? pill('active', 'ok') : pill('inactive', 'mute')}</td>
+      <td>${r.enabled ? pill(T('swb.pill.active'), 'ok') : pill(T('swb.pill.inactive'), 'mute')}</td>
       <td>${esc(r.name)}</td>
       <td><span class="swb-mono">${esc(r.type)}</span></td>
       <td>${pill(r.severity, r.severity === 'critical' ? 'danger' : r.severity === 'high' ? 'warn' : 'mute')}</td>
@@ -920,7 +1035,7 @@
         <div><h2 class="swb-title">Alerting d'ingestion</h2>
           <p class="swb-sub">Seuils dynamiques adossés à la baseline et à l'écart-type. Les alertes simultanées partageant une cause forment un incident unique.</p></div>
         <div class="swb-actions">
-          <button type="button" class="fp-btn fp-btn-sm" data-swb-act="evaluate">Évaluer (simulation)</button></div></div>
+          <button type="button" class="fp-btn fp-btn-sm" data-swb-act="evaluate">${T('swb.act.evaluate')}</button></div></div>
       <div class="swb-kpis">
         ${kpi('Alertes 24 h', nf((alerts && alerts.total) || 0), (alerts && alerts.total) ? 'warn' : 'ok')}
         ${kpi('Critiques', nf(bySev.critical || 0), bySev.critical ? 'danger' : 'ok')}
@@ -1037,14 +1152,14 @@
       <td class="swb-num">${nf(h.estimated_events)}</td>
       <td class="swb-num swb-hint">${esc(h.share_pct)} %</td>
       <td class="swb-num swb-hint">${nf(h.sampled)}</td>
-      <td>${h.known_asset ? pill('inventorié', 'ok') : pill('hors inventaire', 'warn')}</td>
+      <td>${h.known_asset ? pill(T('swb.pill.known'), 'ok') : pill(T('swb.pill.unknown'), 'warn')}</td>
     </tr>`).join('');
 
     return `<div class="swb-head">
         <div><h2 class="swb-title">Surveillance par hôte</h2>
           <p class="swb-sub">Une machine qui se tait derrière un relais ne fait pas bouger le total de sa source : l'alerting par intake ne la voit pas. Ce niveau-ci la voit.</p></div>
         <div class="swb-actions">
-          <button type="button" class="fp-btn fp-btn-sm" data-swb-act="host-eval">Évaluer les anomalies</button></div></div>
+          <button type="button" class="fp-btn fp-btn-sm" data-swb-act="host-eval">${T('swb.act.host_eval')}</button></div></div>
       <div class="swb-kpis">
         ${kpi('Machines observées', nf(v.hosts), 'ok', `échantillon de ${nf(v.sample_total)} événements`)}
         ${kpi('Hors inventaire', nf(unmanaged), unmanaged ? 'warn' : 'ok', 'émettent sans exister comme actif')}
@@ -1095,7 +1210,7 @@
            placeholder="Étiquettes, séparées par des virgules">` : ''}
         <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-swb-act="bulk-dry">Simuler</button>
         <a class="fp-btn fp-btn-sm fp-btn-ghost" href="/api/threat/sekoia/bulk/export/${esc(st.filters.target || 'intakes')}?fmt=yaml"
-           target="_blank" rel="noopener">Exporter en YAML</a>
+           target="_blank" rel="noopener">${T('swb.act.export_yaml')}</a>
       </div></div>
       ${previewBlock}
       <div class="swb-panel" style="padding:0"><div class="swb-panel-head" style="padding:.8rem .9rem 0">
@@ -1117,7 +1232,7 @@
       const days = r.expires_in_days;
       const tone = !r.enabled ? 'mute' : (days !== null && days !== undefined && days <= 30 ? 'warn' : 'ok');
       return `<tr>
-        <td>${r.enabled ? pill('active', 'ok') : pill(r.state || 'inactive', 'mute')}</td>
+        <td>${r.enabled ? pill(T('swb.pill.active'), 'ok') : pill(r.state || 'inactive', 'mute')}</td>
         <td class="swb-truncate" title="${esc(r.name)}">${esc(r.name)}</td>
         <td class="swb-hint">${esc(dt(r.created_at))}</td>
         <td>${r.expires_at ? `${esc(dt(r.expires_at))} ${days !== null && days !== undefined ? pill(`${days} j`, tone, true) : ''}` : '<span class="swb-hint">sans expiration</span>'}</td>
@@ -1204,11 +1319,11 @@
       group = v.group;
       const b = st.badges[v.id];
       html += `<button type="button" role="tab" class="swb-tab" aria-selected="${st.view === v.id}"
-        data-swb-view="${v.id}" title="Aller à ${esc(v.label)} (g puis ${esc(v.key)})">${esc(v.label)}${
+        data-swb-view="${v.id}" title="${esc(T('swb.nav.' + v.id))} (g · ${esc(v.key)})">${esc(T('swb.nav.' + v.id))}${
   b ? `<span class="swb-tab-badge${b.tone === 'danger' ? ' swb-tab-badge-danger' : ''}">${esc(b.text)}</span>` : ''}</button>`;
     });
     return html + `<span class="swb-nav-spacer"></span>
-      <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="reload">↻ Rafraîchir</button></nav>`;
+      <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="reload">↻ ${esc(T('swb.act.refresh'))}</button></nav>`;
   }
 
   function paint() {
@@ -1231,9 +1346,11 @@
     else body = viewConfig();
     el.className = 'swb';
     el.innerHTML = (st.nav ? nav() : '') + `<div class="swb-body">${body}</div>` + drawer();
+    translateChrome(el);
   }
 
   async function load() {
+    await loadTx();
     st.loading = true; st.error = null; st.drawer = null; paint();
     try {
       if (st.view === 'overview' || st.view === 'ingestion') {
@@ -1338,6 +1455,37 @@
     st.data.eventsLoading = false; paint();
   }
 
+  // Action de lot depuis une vue, sur la selection courante. Elle passe par le
+  // MEME moteur que l'onglet Operations : simulation obligatoire, historique,
+  // rollback. Une action lancee depuis un tableau ne doit pas etre moins sure
+  // parce qu'elle est plus rapide d'acces.
+  async function selRun(op, dry) {
+    const target = SEL_TARGET[st.view];
+    const ids = selIds();
+    if (!target || !op || !ids.length) return;
+    const raw = (document.getElementById('swb-seltags') || {}).value || '';
+    const tags = raw.split(',').map((t) => t.trim()).filter(Boolean);
+    if (op.indexOf('tag_') === 0 && !tags.length) {
+      toast(T('swb.sel.need_tags'), 'err'); return;
+    }
+    try {
+      const r = await api(`/bulk/${encodeURIComponent(target)}`, {
+        method: 'POST', body: { action: op, ids, tags, dry_run: dry ? 1 : 0 },
+      });
+      if (dry) {
+        st.act = { op, preview: r };
+        if (!r.selected) toast(T('swb.sel.none'), 'err');
+        paint(); return;
+      }
+      st.act = null; st.sel = {};
+      toast(T('swb.sel.done', {
+        done: nf(r.done || 0), total: nf(r.selected || 0),
+        skipped: r.skipped ? T('swb.sel.skipped', { n: nf(r.skipped) }) : '',
+      }), r.failed ? 'err' : 'ok');
+      load();
+    } catch (e) { toast(e.message, 'err'); }
+  }
+
   async function bulk(dry) {
     const action = (document.getElementById('swb-action') || {}).value || 'disable';
     const search = (document.getElementById('swb-bulkq') || {}).value || '';
@@ -1364,6 +1512,13 @@
   function bind(el) {
     if (el.dataset.swbBound) return;
     el.dataset.swbBound = '1';
+
+    window.addEventListener('i18n:language-changed', async () => {
+      // Seul le rendu est refait : recharger les donnees ferait repartir des
+      // jobs de recherche Sekoia pour un simple changement de langue.
+      await loadTx();
+      try { paint(); } catch (_) { /* la vue n'est pas encore montee */ }
+    });
 
     el.addEventListener('input', (ev) => {
       const t = ev.target;
@@ -1395,11 +1550,36 @@
         st.sortDir = (st.sort === k) ? -st.sortDir : -1;
         st.sort = k; paint(); return;
       }
+      // Cases a cocher : traitees AVANT les actions de ligne, sinon cocher une
+      // case ouvrirait aussi le volet de l'objet.
+      const box = ev.target.closest('[data-swb-sel]');
+      if (box) {
+        ev.stopPropagation();
+        const id = box.dataset.swbSel;
+        const set = selSet();
+        if (set[id]) delete set[id]; else set[id] = 1;
+        st.act = null; paint(); return;
+      }
+      const all = ev.target.closest('[data-swb-selall]');
+      if (all) {
+        ev.stopPropagation();
+        const set = selSet();
+        const ids = Array.from(el.querySelectorAll('[data-swb-sel]')).map((n) => n.dataset.swbSel);
+        // Tout decocher si tout est deja coche, sinon tout cocher : le meme
+        // controle sert dans les deux sens, comme partout ailleurs.
+        const every = ids.length && ids.every((i) => set[i]);
+        ids.forEach((i) => { if (every) delete set[i]; else set[i] = 1; });
+        st.act = null; paint(); return;
+      }
+
       const b = ev.target.closest('[data-swb-act]');
       if (!b) return;
       const act = b.dataset.swbAct;
       try {
         if (act === 'reload') { load(); return; }
+        if (act === 'sel-clear') { st.sel = {}; st.act = null; paint(); return; }
+        if (act === 'sel-do') { await selRun(b.dataset.op, true); return; }
+        if (act === 'sel-apply') { await selRun(st.act && st.act.op, false); return; }
         if (act === 'close-drawer') { st.drawer = null; paint(); return; }
         if (act === 'range') { st.range = Number(b.dataset.hours) || 24; load(); return; }
         if (act === 'snapshot') {

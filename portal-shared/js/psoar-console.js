@@ -108,6 +108,20 @@
     if (ms < 0) return pill(`dépassé de ${dur(ms).replace('−', '')}`, 'danger');
     return pill(`${dur(ms)} restant`, ms < 4 * 3600000 ? 'warn' : 'ok');
   }
+  /** Le SLA se lit IDENTIQUEMENT dans la file et dans le dossier : la file
+   *  annoncait « depasse de 57 min » quand le dossier n'affichait qu'une date. */
+  function slaKpi(inc) {
+    if (!inc.sla_due) return kpi('SLA', 'sans objet', 'mute', 'aucune echeance definie');
+    if (!OPEN.includes(inc.status)) {
+      return kpi('SLA', dt(inc.sla_due), 'mute', 'incident clos — compteur arrêté');
+    }
+    const ms = new Date(inc.sla_due).getTime() - Date.now();
+    if (!Number.isFinite(ms)) return kpi('SLA', '—', 'mute');
+    return ms < 0
+      ? kpi('SLA', `dépassé de ${dur(ms).replace('−', '')}`, 'danger', `échéance ${dt(inc.sla_due)}`)
+      : kpi('SLA', `${dur(ms)} restant`, ms < 4 * 3600000 ? 'warn' : 'ok', `échéance ${dt(inc.sla_due)}`);
+  }
+
   function tasks(inc) {
     const t = Array.isArray(inc.tasks) ? inc.tasks : [];
     const done = t.filter((x) => x.done).length;
@@ -301,9 +315,7 @@
       <div class="swb-kpis">
         ${kpi('Sévérité', inc.severity, SEV_TONE[inc.severity] || 'mute')}
         ${kpi('Statut', STATUS_LABEL[inc.status] || inc.status, STATUS_TONE[inc.status] || 'mute')}
-        ${kpi('SLA', inc.sla_due ? dt(inc.sla_due) : '—',
-    OPEN.includes(inc.status) && inc.sla_due && new Date(inc.sla_due) < new Date() ? 'danger' : 'ok',
-    OPEN.includes(inc.status) ? '' : 'incident clos')}
+        ${slaKpi(inc)}
         ${kpi('Playbook', `${t.done}/${t.total}`, t.total && t.pct === 100 ? 'ok' : 'warn')}
         ${kpi('Assigné à', inc.assignee || 'personne', inc.assignee ? 'ok' : 'warn')}
       </div>

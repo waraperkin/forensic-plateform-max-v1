@@ -499,7 +499,8 @@
       </tr>`;
     }).join('');
 
-    return `<div class="swb-head">
+    return `${assetsPanel()}
+      <div class="swb-head">
         <div><h2 class="swb-title">Sources d'ingestion</h2>
           <p class="swb-sub">Inventaire complet avec volumétrie, baseline et note de santé — aucune de ces valeurs n'est exposée par le SIEM.</p></div>
         <div class="swb-actions">${kpiInline(h)}</div></div>
@@ -512,6 +513,56 @@
         </tr></thead><tbody>${body || '<tr><td colspan="7"><p class="swb-hint" style="padding:1rem">Aucune source ne correspond aux filtres.</p></td></tr>'}</tbody></table></div>
       </div>`;
   }
+  /**
+   * Couverture d'actifs : les hôtes qui parlent et que Sekoia ne connaît pas.
+   * C'est l'angle mort le plus coûteux — un actif non référencé n'est ni
+   * corrélé, ni rattaché à une entité, ni couvert par les règles de périmètre.
+   */
+  function assetsPanel() {
+    const a = st.data.assets;
+    if (!a) return '';
+    if (!a.available) {
+      return `<div class="swb-panel"><div class="swb-panel-head">
+        <h3 class="swb-panel-title">Couverture d'actifs</h3></div>
+        <p class="swb-hint">${esc(a.reason || 'Mesure indisponible.')}</p></div>`;
+    }
+    const rows = (a.hosts || []).slice(0, 40).map((h) => `<tr>
+      <td class="swb-truncate" title="${esc(h.host)}">${esc(h.host)}</td>
+      <td class="swb-num">${esc(nf(h.events))}</td>
+      <td>${h.is_relay ? pill('relais', 'warn', true)
+    : h.known_asset ? pill('référencé', 'ok', true) : pill('non référencé', 'danger')}</td>
+      <td class="swb-truncate">${esc(h.intakes.join(', '))}</td>
+      <td class="swb-truncate swb-hint">${esc(h.dialects.join(', '))}</td>
+      <td class="swb-hint">${esc((h.ips || []).join(', ') || '—')}</td></tr>`).join('');
+
+    const relays = (a.relays || []).map((r) => `<li><span class="swb-mono">${esc(r.relay)}</span>
+      — ${esc(nf(r.hosts_behind))} hôtes derrière lui</li>`).join('');
+
+    return `<div class="swb-panel"><div class="swb-panel-head">
+        <h3 class="swb-panel-title">Couverture d'actifs</h3>
+        <span class="swb-hint">échantillon de ${esc(nf(a.sampled))} événements</span></div>
+      <div class="swb-kpis" style="margin-bottom:.6rem">
+        ${kpi('Hôtes observés', nf(a.hosts_total), 'ok')}
+        ${kpi('Référencés', `${a.coverage_pct} %`, a.coverage_pct >= 90 ? 'ok' : 'warn',
+    `${nf(a.hosts_known)} sur ${nf(a.machines_total)} machines`)}
+        ${kpi('NON référencés', nf(a.hosts_unmanaged), a.hosts_unmanaged ? 'danger' : 'ok',
+    'émettent sans exister dans l\'inventaire')}
+        ${kpi('Relais de collecte', nf(a.relays_count), a.relays_count ? 'warn' : 'ok')}
+        ${kpi('Comptes observés', nf(a.users_total), 'ok')}
+      </div>
+      ${a.hosts_unmanaged ? `<div class="swb-state" style="border-left:3px solid var(--swb-danger);text-align:left">
+        <p class="swb-state-title">${esc(nf(a.hosts_unmanaged))} hôte(s) non référencé(s)</p>
+        <p class="swb-state-msg">${esc(a.coverage_note)}</p>
+        <p class="swb-mono" style="font-size:.76rem">${esc((a.unmanaged || []).slice(0, 12).join(' · '))}</p></div>` : ''}
+      ${relays ? `<p class="swb-hint" style="margin:.6rem 0 .2rem">${esc(a.relay_note)}</p>
+        <ul style="margin:0 0 .6rem;padding-left:1.1rem;font-size:.82rem">${relays}</ul>` : ''}
+      <div class="swb-tablewrap" style="max-height:30vh"><table class="swb-table"><thead><tr>
+        <th>Hôte</th><th class="swb-num">Événements</th><th>Inventaire</th>
+        <th>Source</th><th>Dialecte</th><th>IP</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="swb-hint" style="margin-top:.4rem">${esc(a.sampling_note)}
+        ${a.snapshots_compared ? ` · ${esc(nf(a.first_seen_hosts.length))} première(s) apparition(s), ${esc(nf(a.absent_hosts.length))} absent(s) sur ${esc(a.snapshots_compared)} relevés.` : ''}</p></div>`;
+  }
+
   function kpiInline(h) {
     const items = h.items || [];
     const silent = items.filter((i) => i.silent).length;
@@ -1036,7 +1087,15 @@
         const k = st.data.dashboard.kpi || {};
         if (k.sources_silent) st.badges.sources = { text: String(k.sources_silent), tone: 'danger' };
       } else if (st.view === 'sources') {
-        st.data.health = await api('/intakes/health');
+        const r = await Promise.all([
+          api('/intakes/health'),
+          api('/assets/intelligence?window=1h&sample=1000&persist=1').catch(() => null),
+        ]);
+        st.data.health = r[0];
+        st.data.assets = r[1];
+        if (r[1] && r[1].hosts_unmanaged) {
+          st.badges.sources = { text: String(r[1].hosts_unmanaged), tone: 'danger' };
+        }
       } else if (st.view === 'detections') {
         const r = await Promise.all([
           api('/rules?limit=1200'),

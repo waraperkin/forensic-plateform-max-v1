@@ -112,7 +112,10 @@ def analyse(events: list, names: dict) -> dict:
             ip = ev.get("host.ip") or ev.get("source.ip")
             if isinstance(ip, list):
                 ip = ip[0] if ip else None
-            if ip:
+            # 127.0.0.1 est la boucle locale du collecteur, pas l'adresse de la
+            # machine qui a produit l'événement : l'afficher désignerait la
+            # mauvaise cible lors d'une investigation.
+            if ip and not str(ip).startswith(("127.", "::1")):
                 h["ips"].add(str(ip)[:64])
             if declared and normalised and str(declared) != str(normalised):
                 relays.setdefault(str(declared), set()).add(str(normalised))
@@ -146,7 +149,14 @@ def analyse(events: list, names: dict) -> dict:
                           "intakes_count": len(u["intakes"])}
                          for u in users.values()), key=lambda x: -x["events"])
 
-    unmanaged = [h for h in host_items if not h["known_asset"]]
+    # Un relais figure aussi parmi les hôtes (les événements dont le nom de
+    # machine n'a pas été extrait lui sont attribués). Le signaler évite qu'un
+    # analyste le poursuive comme une machine inconnue : ce n'en est pas une.
+    relay_names = {r for r, v in relays.items() if len(v) > 1}
+    for h in host_items:
+        h["is_relay"] = h["host"] in relay_names
+
+    unmanaged = [h for h in host_items if not h["known_asset"] and not h["is_relay"]]
     multi = [h for h in host_items if h["multi_source"]]
     # Un relais n'est retenu que s'il fronte au moins deux hôtes : en dessous,
     # c'est une simple différence de forme (nom court contre FQDN).
@@ -154,12 +164,17 @@ def analyse(events: list, names: dict) -> dict:
                            "hosts": sorted(v)[:25]}
                           for r, v in relays.items() if len(v) > 1),
                          key=lambda x: -x["hosts_behind"])
+    # Le taux de couverture porte sur les MACHINES : un relais exclu du
+    # numérateur doit l'être aussi du dénominateur, sinon il gonfle le taux.
+    machines = [h for h in host_items if not h["is_relay"]]
+    known = [h for h in machines if h["known_asset"]]
     return {
         "hosts_total": len(host_items),
-        "hosts_known": len(host_items) - len(unmanaged),
+        "machines_total": len(machines),
+        "relays_excluded": len(host_items) - len(machines),
+        "hosts_known": len(known),
         "hosts_unmanaged": len(unmanaged),
-        "coverage_pct": round((len(host_items) - len(unmanaged)) / len(host_items) * 100, 1)
-        if host_items else 0.0,
+        "coverage_pct": round(len(known) / len(machines) * 100, 1) if machines else 0.0,
         "hosts_multi_source": len(multi),
         "relays": relay_items[:20],
         "relays_count": len(relay_items),

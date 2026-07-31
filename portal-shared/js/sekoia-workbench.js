@@ -669,7 +669,8 @@
       <td>${meter((p.rules / maxP) * 100, 'ok')}</td>
       <td class="swb-num">${esc(nf(p.rules))}</td></tr>`).join('');
 
-    return `<div class="swb-head">
+    return `${coveragePanel()}
+      <div class="swb-head">
         <div><h2 class="swb-title">Règles de détection</h2>
           <p class="swb-sub">Catalogue du tenant avec couverture offensive réelle. Le SIEM n'expose aucun identifiant ATT&CK : la couverture provient des attack-patterns rattachés.</p></div></div>
       ${coverage}
@@ -684,6 +685,42 @@
       ${patternRows ? `<div class="swb-panel"><div class="swb-panel-head">
         <h3 class="swb-panel-title">Techniques les plus couvertes</h3></div>
         <div class="swb-tablewrap" style="max-height:320px"><table class="swb-table"><tbody>${patternRows}</tbody></table></div></div>` : ''}`;
+  }
+
+  /**
+   * Recommandations de couverture et topologie. Le moteur ne constate pas, il
+   * dit quoi faire — chaque recommandation porte sa priorité, son motif et son
+   * action.
+   */
+  function coveragePanel() {
+    const c = st.data.coverageEngine;
+    const g = st.data.graph;
+    if (!c || !c.available) return '';
+    const tone = { haute: 'danger', moyenne: 'warn', basse: 'mute' };
+    const recos = (c.recommendations || []).map((r) => `<div class="swb-panel"
+        style="border-left:3px solid var(--swb-${r.priority === 'haute' ? 'danger' : r.priority === 'moyenne' ? 'warn' : 'line'})">
+      <div class="swb-panel-head"><h4 class="swb-panel-title">${esc(r.title)}</h4>
+        ${pill(r.priority, tone[r.priority] || 'mute')}</div>
+      <p class="swb-hint" style="margin:0 0 .4rem">${esc(r.why)}</p>
+      <p style="margin:0 0 .4rem;font-size:.84rem"><strong>À faire :</strong> ${esc(r.action)}</p>
+      <p class="swb-mono swb-hint" style="font-size:.74rem;margin:0">${
+  esc((r.items || []).slice(0, 8).map((i) => i.format || i.intake || '').filter(Boolean).join(' · '))}</p>
+    </div>`).join('');
+
+    return `<div class="swb-panel"><div class="swb-panel-head">
+        <h3 class="swb-panel-title">Couverture de détection — recommandations</h3>
+        ${g ? `<span class="swb-hint">graphe : ${esc(nf(g.nodes_total))} nœuds, ${esc(nf(g.edges_total))} liens</span>` : ''}</div>
+      <div class="swb-kpis" style="margin-bottom:.6rem">
+        ${kpi('Formats couverts', `${c.coverage_pct} %`, c.coverage_pct >= 60 ? 'ok' : 'warn',
+    `${nf(c.formats_covered)} sur ${nf(c.formats_ingested_active)} · ${esc(c.coverage_scope)}`)}
+        ${kpi('Règles liées à un format', nf(c.rules_format_specific), 'ok')}
+        ${kpi('Règles agnostiques', nf(c.rules_format_agnostic_enabled), 'ok',
+    'activées, applicables à toute source')}
+        ${kpi('Recommandations', nf(c.recommendations_count), c.recommendations_count ? 'warn' : 'ok')}
+      </div>
+      <div class="swb-state" style="text-align:left;border-style:solid;border-left:3px solid var(--swb-accent)">
+        <p class="swb-state-msg" style="margin:0">${esc(c.coverage_caveat)}</p></div>
+      ${recos}</div>`;
   }
 
   async function openRule(id) {
@@ -705,7 +742,13 @@
         (r && r.rule_enabled)
           ? { act: 'rule-toggle', id: id, to: 'disable', label: 'Désactiver la règle', tone: 'danger' }
           : { act: 'rule-toggle', id: id, to: 'enable', label: 'Activer la règle', tone: 'primary' },
-      ]) + kv([
+      ]) + `<div class="swb-filters" style="margin:0 0 .8rem">
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="simulate"
+          data-kind="rule" data-id="${esc(id)}"
+          data-to="${(r && r.rule_enabled) ? 'disable' : 'enable'}">Simuler l'impact</button>
+        ${st.simulation && st.simulation.target && st.simulation.target.id === id
+    ? `<span class="swb-hint">${esc(st.simulation.verdict)}</span>` : ''}
+      </div>` + kv([
         ['Identifiant', `<span class="swb-mono">${esc(id)}</span>`],
         ['Type', esc((r && r.rule_type) || rule.type)],
         ['Description', esc((r && r.rule_description) || rule.description || '—')],
@@ -1100,8 +1143,14 @@
         const r = await Promise.all([
           api('/rules?limit=1200'),
           api('/mitre-coverage').catch(() => null),
+          api('/coverage/engine').catch(() => null),
+          api('/graph').catch(() => null),
         ]);
         st.data.rules = r[0]; st.data.mitre = r[1];
+        st.data.coverageEngine = r[2]; st.data.graph = r[3];
+        if (r[2] && r[2].recommendations_count) {
+          st.badges.detections = { text: String(r[2].recommendations_count), tone: 'danger' };
+        }
       } else if (st.view === 'inventory') {
         const r = await Promise.all([
           api('/inventory/consistency'),
@@ -1233,6 +1282,16 @@
         }
         if (act === 'open-source') { openSource(b.dataset.id); return; }
         if (act === 'open-rule') { openRule(b.dataset.id); return; }
+        if (act === 'simulate') {
+          const r = await api(`/simulate?kind=${encodeURIComponent(b.dataset.kind)}`
+            + `&id=${encodeURIComponent(b.dataset.id)}&action=${encodeURIComponent(b.dataset.to)}`);
+          if (!r.ok) { toast(r.error || 'Simulation impossible', 'err'); return; }
+          st.simulation = r;
+          // Le verdict est la valeur du simulateur : on le met en avant plutôt
+          // que de laisser l'analyste lire un objet JSON.
+          toast(r.verdict, r.impact && r.impact.creates_blind_spot ? 'err' : 'ok');
+          paint(); return;
+        }
         if (act === 'intake-toggle' || act === 'rule-toggle') {
           const kind = act === 'intake-toggle' ? 'intakes' : 'rules';
           const to = b.dataset.to === 'enable' ? 'enable' : 'disable';

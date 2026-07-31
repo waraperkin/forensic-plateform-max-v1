@@ -1615,6 +1615,9 @@ graph.register(app)
 import hostwatch  # noqa: E402
 hostwatch.register(app)
 
+import hostprofile  # noqa: E402
+hostprofile.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

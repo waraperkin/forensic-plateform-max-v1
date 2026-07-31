@@ -166,3 +166,83 @@ réellement changé.
 
 Les actifs sont paginés jusqu'à `MAX_FETCH` (5 000) : s'arrêter à la première
 page aurait donné une sélection silencieusement tronquée.
+
+## Normalité horaire et corrélation avec les détections
+
+### Calendrier de normalité
+Comparer un lundi 14 h à un dimanche 3 h n'a pas de sens sur un parc à rythme
+ouvré : la médiane globale d'un poste bureautique mélange ses heures de travail
+et ses nuits, et toute nuit devient alors une « chute de 80 % ». La normale est
+donc calculée par **créneau** — jour ouvré / week-end × heure, soit 48 cases.
+
+Sept jours distincts auraient multiplié les cases par 3,5 sans rien apporter :
+sur un parc d'entreprise, c'est l'opposition ouvré / week-end qui porte le
+signal, pas le mardi contre le jeudi.
+
+Échelle de repli, **toujours déclarée** dans la réponse et affichée dans l'UI :
+
+| Niveau | Référence | Saisonnier |
+|---|---|---|
+| créneau | « jours ouvrés à 19 h » | oui |
+| heure | « toutes journées à 19 h » | oui |
+| globale | « profil horaire pas encore constitué » | **non** |
+
+Un opérateur doit pouvoir distinguer « anormal par rapport aux lundis 14 h » de
+« anormal par rapport à la moyenne de tout » — la seconde affirmation vaut
+beaucoup moins. L'UI distingue aussi les *normales exploitables maintenant* des
+*profils complets* (24 créneaux sur 48) : les confondre laissait lire « 0 profil
+constitué » alors que six machines disposaient déjà d'une normale de créneau.
+
+### Seuil de significativité adapté à chaque machine
+Troisième bug de la même famille que les deux précédents, et le plus instructif.
+
+La première version du détecteur de chute appliquait un seuil unique. Elle a
+produit **neuf « chutes de 70 à 95 % »** sur des machines dont l'estimation
+oscillait spontanément entre 544 et 3 707 sans qu'il se passe quoi que ce soit.
+
+Cause : une estimation tirée de *n* échantillons porte une erreur relative de
+l'ordre de 1/√n. Un hôte tiré 10 fois a ±32 % d'incertitude ; un hôte tiré 323
+fois, ±6 %. Leur appliquer le même seuil revient à qualifier le bruit du premier
+de panne.
+
+Le moteur exige désormais que la chute dépasse **deux fois l'erreur
+d'échantillonnage de la machine concernée**, en plus du ratio demandé. Le seuil
+devient strict sur les hôtes peu tirés et sensible sur les hôtes bien tirés, et
+chaque alerte porte son seuil de bruit pour être auditable.
+
+Effet mesuré : **9 alertes → 4**, chacune concluante (par exemple 96,1 % de
+chute pour un bruit de 28 %, sur 51 tirages habituels).
+
+### Corrélation avec les détections
+Une machine qui se tait le dimanche à 3 h est un rythme. La même machine qui se
+tait vingt minutes après une alerte de détection la visant est le schéma d'un
+attaquant qui coupe la journalisation. Le SIEM possède les deux informations et
+ne les rapproche jamais.
+
+La jointure se fait par **UUID d'actif**, jamais par nom : deux machines peuvent
+porter le même nom court dans deux entités, et un rapprochement par nom
+attribuerait à l'une l'alerte de l'autre. Le relevé par hôte conserve désormais
+l'UUID de chaque machine (il ne gardait qu'un booléen, ce qui rendait la
+corrélation impossible).
+
+Trois verdicts distincts, et la distinction est le cœur du dispositif :
+
+- **détection préalable** — une alerte a visé CETTE machine dans les 2 h ; au
+  delà d'une urgence de 50, l'extinction est escaladée en `critical` : ce n'est
+  plus un incident d'exploitation mais une piste d'investigation ;
+- **même source** — une alerte a visé une AUTRE machine du même intake. Signal
+  faible, nommé comme tel, et **il n'escalade pas** ;
+- **non corrélable** — machine hors inventaire, donc sans UUID. Ce n'est pas
+  l'absence d'alerte, c'est l'absence de moyen de la chercher, et les confondre
+  laisserait croire à une machine tranquille.
+
+### État sur le tenant
+Le mécanisme est vérifié : les UUID des deux côtés se résolvent bien via la même
+API d'actifs. Il n'y a **aucun recouvrement actuel** — les détections des
+dernières 24 h visent d'autres actifs, dont des comptes utilisateurs
+(`administrator`, `ssm-user`) et un lab distinct. Un diagnostic de joignabilité
+est donc exposé en permanence, car « 0 corrélation » ne signifie pas « machines
+tranquilles ».
+
+La corrélation est validée par tests sur données construites, faute de pouvoir
+l'être sur le tenant.

@@ -185,3 +185,43 @@ def test_silence_confirme_si_hote_massivement_tire():
     assert hit is not None
     assert hit["baseline_sampled"] == 200
     assert "200 tirages" in hit["message"]
+
+
+def test_chute_ecartee_si_erreur_d_echantillonnage_la_couvre():
+    """10 tirages : ±32 % d'incertitude, une chute de 63 % n'est pas concluante.
+
+    C'est le defaut qui a produit neuf fausses « chutes de 70 a 95 % » sur des
+    machines dont l'estimation oscillait spontanement entre 544 et 3707.
+    """
+    regle = {"id": "h", "type": "host_drop",
+             "params": {"ratio": 0.4, "min_events": 50, "min_sampled": 10}}
+    passe = [{"host": "srv1", "intake_name": "S", "estimated_events": 1000,
+              "sampled": 10}] * 4
+    courant = {"host": "srv1", "intake_name": "S", "estimated_events": 370,
+               "sampled": 4}
+    assert hostwatch._judge(regle, courant, passe, snapshots_seen=4) is None
+
+
+def test_chute_retenue_sur_hote_bien_tire():
+    """323 tirages : ±11 %, une chute de 63 % est cette fois concluante."""
+    regle = {"id": "h", "type": "host_drop",
+             "params": {"ratio": 0.4, "min_events": 50, "min_sampled": 10}}
+    passe = [{"host": "srv1", "intake_name": "S", "estimated_events": 1000,
+              "sampled": 323}] * 4
+    courant = {"host": "srv1", "intake_name": "S", "estimated_events": 370,
+               "sampled": 120}
+    hit = hostwatch._judge(regle, courant, passe, snapshots_seen=4)
+    assert hit is not None
+    assert hit["noise_floor_pct"] < hit["drop_pct"]
+
+
+def test_le_seuil_de_bruit_s_adapte_au_nombre_de_tirages():
+    regle = {"id": "h", "type": "host_drop",
+             "params": {"ratio": 0.9, "min_events": 50, "min_sampled": 10}}
+    def seuil(n):
+        passe = [{"host": "s", "intake_name": "S", "estimated_events": 1000,
+                  "sampled": n}] * 4
+        courant = {"host": "s", "intake_name": "S", "estimated_events": 1,
+                   "sampled": 0}
+        return hostwatch._judge(regle, courant, passe, snapshots_seen=4)["noise_floor_pct"]
+    assert seuil(16) > seuil(400)   # peu tire => exigence plus forte

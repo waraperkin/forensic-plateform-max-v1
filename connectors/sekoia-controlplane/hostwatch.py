@@ -71,7 +71,10 @@ HOST_RULE_TYPES: dict[str, dict] = {
         "params": {"ratio": {"type": "float", "default": 0.4,
                              "help": "Alerte si estimé < ratio × médiane historique"},
                    "min_events": {"type": "int", "default": 50,
-                                  "help": "Volume médian requis pour que la chute soit mesurable"}},
+                                  "help": "Volume médian requis pour que la chute soit mesurable"},
+                   "min_sampled": {"type": "int", "default": 15,
+                                   "help": "Tirages habituels requis ; le seuil de chute "
+                                           "s'adapte ensuite à ce nombre"}},
         "default_severity": "high",
     },
     "host_new": {
@@ -132,12 +135,20 @@ def measure(events: list, totals: dict, names: dict) -> dict:
         key = (str(host)[:200], intake)
         h = per_host.setdefault(key, {
             "host": key[0], "intake_uuid": intake, "sampled": 0,
-            "known_asset": False, "dialects": set(),
+            "known_asset": False, "asset_uuid": None, "dialects": set(),
         })
         h["sampled"] += 1
         h["dialects"].add(ev.get("sekoiaio.intake.dialect") or "inconnu")
-        if ev.get("sekoiaio.assets.host.name.uuid"):
+        # L'UUID d'actif, et pas seulement sa presence : c'est la seule cle de
+        # jointure avec les alertes de detection Sekoia, qui referencent leurs
+        # actifs par UUID. Ne garder qu'un booleen rendait la correlation
+        # impossible.
+        auid = ev.get("sekoiaio.assets.host.name.uuid")
+        if isinstance(auid, list):
+            auid = auid[0] if auid else None
+        if auid:
             h["known_asset"] = True
+            h["asset_uuid"] = str(auid)
 
     items = []
     for h in per_host.values():
@@ -154,6 +165,7 @@ def measure(events: list, totals: dict, names: dict) -> dict:
             "estimated_events": int(round(share * total)) if total else None,
             "intake_total": total or None,
             "known_asset": h["known_asset"],
+            "asset_uuid": h["asset_uuid"],
             "dialects": sorted(h["dialects"]),
         })
     items.sort(key=lambda x: -(x["estimated_events"] or x["sampled"]))
@@ -223,7 +235,7 @@ async def _history(hours: int, window: str = "") -> dict[tuple, list[dict]]:
 
 # ── Évaluation ───────────────────────────────────────────────────────────────
 def _judge(rule: dict, current: Optional[dict], past: list[dict],
-           snapshots_seen: int) -> Optional[dict]:
+           snapshots_seen: int, ref: Optional[dict] = None) -> Optional[dict]:
     """Verdict pour une règle sur un couple (hôte, intake). None = pas d'alerte.
 
     Toute la prudence du module est ici : on refuse de conclure plutôt que
@@ -234,6 +246,15 @@ def _judge(rule: dict, current: Optional[dict], past: list[dict],
     volumes = [p.get("estimated_events") for p in past
                if p.get("estimated_events") is not None]
     median = statistics.median(volumes) if volumes else 0
+    # Normale SAISONNIÈRE quand elle existe. Comparer un dimanche 3 h à la
+    # médiane de toutes les heures fabrique une chute de 80 % sur un poste qui
+    # dort simplement. `ref` porte la normale du créneau courant et le NOM de la
+    # référence employée, pour que le message dise sur quoi il se fonde.
+    ref = ref or {}
+    if ref.get("median") is not None:
+        median = ref["median"]
+    ref_label = ref.get("reference_label") or "toutes heures confondues"
+    seasonal = bool(ref.get("seasonal"))
 
     if rtype == "host_new":
         if past or not current:
@@ -266,17 +287,23 @@ def _judge(rule: dict, current: Optional[dict], past: list[dict],
         # de hasard ordinaire, pas une panne. La probabilité de ne pas tirer un
         # hôte décroît avec le NOMBRE DE TIRAGES habituels, pas avec le volume
         # qu'on en déduit — c'est donc lui qu'on exige.
-        sampled = [p.get("sampled") for p in past if p.get("sampled") is not None]
-        med_sampled = statistics.median(sampled) if sampled else 0
+        if ref.get("median_sampled"):
+            med_sampled = ref["median_sampled"]
+        else:
+            sampled = [p.get("sampled") for p in past if p.get("sampled") is not None]
+            med_sampled = statistics.median(sampled) if sampled else 0
         floor_sampled = int(params.get("min_sampled", 15))
         if med_sampled < floor_sampled:
             return None
         host, intake = past[-1]["host"], past[-1].get("intake_name")
         return {"message": f"« {host} » n'émet plus rien sur {intake}. Présent dans les "
-                           f"{len(past)} derniers relevés (≈{int(median)} événements/relevé, "
+                           f"{len(past)} derniers relevés (≈{int(median)} événements "
+                           f"attendus pour ce créneau — {ref_label} —, "
                            f"{int(med_sampled)} tirages), absent maintenant.",
                 "baseline_median": int(median), "estimated_events": 0,
                 "baseline_sampled": int(med_sampled),
+                "baseline_reference": ref.get("reference", "globale"),
+                "baseline_reference_label": ref_label, "seasonal": seasonal,
                 "snapshots_present": len(past)}
 
     if rtype == "host_drop":
@@ -287,15 +314,41 @@ def _judge(rule: dict, current: Optional[dict], past: list[dict],
         floor = int(params.get("min_events", 50))
         if median < floor:
             return None
+        # SIGNIFICATIVITÉ, adaptée à chaque machine.
+        #
+        # Une estimation tirée de n échantillons porte une erreur relative de
+        # l'ordre de 1/√n. Un hôte tiré 10 fois a donc ±32 % d'incertitude : lui
+        # appliquer le même seuil qu'à un hôte tiré 323 fois (±6 %) revient à
+        # qualifier son bruit de panne. C'est ce que faisait la version
+        # précédente, et elle a produit neuf « chutes de 70 à 95 % » sur des
+        # machines dont l'estimation oscillait spontanément entre 544 et 3707.
+        #
+        # On exige donc que la chute dépasse DEUX fois l'erreur d'échantillonnage
+        # de la machine, en plus du ratio demandé. Le seuil devient strict sur
+        # les hôtes peu tirés et sensible sur les hôtes bien tirés.
+        sampled_hist = [p.get("sampled") for p in past if p.get("sampled") is not None]
+        med_sampled = (ref.get("median_sampled")
+                       or (statistics.median(sampled_hist) if sampled_hist else 0))
+        floor_sampled = int(params.get("min_sampled", 15))
+        if med_sampled < floor_sampled:
+            return None
         ratio = float(params.get("ratio", 0.4))
         est = current["estimated_events"]
         if est >= median * ratio:
             return None
-        drop = round((1 - est / median) * 100, 1) if median else 0
+        drop_frac = (1 - est / median) if median else 0
+        noise = 2 / (med_sampled ** 0.5)
+        if drop_frac <= noise:
+            return None
+        drop = round(drop_frac * 100, 1)
         return {"message": f"« {current['host']} » : {est} événements estimés contre "
-                           f"{int(median)} habituellement sur {current['intake_name']} "
-                           f"— chute de {drop} %.",
+                           f"{int(median)} attendus ({ref_label}) sur "
+                           f"{current['intake_name']} — chute de {drop} %.",
                 "baseline_median": int(median), "estimated_events": est,
+                "baseline_reference": ref.get("reference", "globale"),
+                "baseline_reference_label": ref_label, "seasonal": seasonal,
+                "baseline_sampled": int(med_sampled),
+                "noise_floor_pct": round(noise * 100, 1),
                 "drop_pct": drop}
     return None
 
@@ -338,23 +391,32 @@ async def evaluate(window: str = "1h", sample: int = 2000, hours: int = 24,
                           "comparer : aucune alerte n'est émise, et c'est délibéré.",
                 "estimation_note": current["estimation_note"]}
 
+    # Import différé : hostprofile importe hostwatch, l'importer en tête créerait
+    # un cycle. Le faire ici garde les deux modules autonomes.
+    import hostprofile
+
     now_by_key = {(i["host"], i["intake_uuid"]): i for i in current["items"]}
     rules = _host_rules()
     cooldown = max([r.get("cooldown_s", alerting.DEFAULT_COOLDOWN_S) for r in rules])
     recent = await alerting._open_fingerprints(cooldown)
+
+    refs = {k: hostprofile.expected(hostprofile.build_profile(v), v)
+            for k, v in past.items()}
+    seasonal_refs = sum(1 for r in refs.values() if r.get("seasonal"))
 
     ts = _now()
     candidates: list[dict] = []
     for key in set(now_by_key) | set(past):
         row = now_by_key.get(key)
         history = past.get(key, [])
-        ref = row or (history[-1] if history else None)
-        if not ref:
+        last = row or (history[-1] if history else None)
+        if not last:
             continue
+        ref = last
         for rule in rules:
-            if not _scoped(rule, ref):
+            if not _scoped(rule, last):
                 continue
-            hit = _judge(rule, row, history, snapshots_seen)
+            hit = _judge(rule, row, history, snapshots_seen, ref=refs.get(key))
             if not hit:
                 continue
             fp = alerting._fingerprint(rule["id"], f"{key[0]}@{key[1]}")
@@ -364,9 +426,10 @@ async def evaluate(window: str = "1h", sample: int = 2000, hours: int = 24,
                 "@timestamp": ts, "fingerprint": fp,
                 "rule_id": rule["id"], "rule": rule["name"], "rule_type": rule["type"],
                 "severity": rule["severity"], "status": "open",
-                "target_type": "host", "host": ref["host"],
-                "intake_uuid": ref.get("intake_uuid"),
-                "intake_name": ref.get("intake_name"),
+                "target_type": "host", "host": last["host"],
+                "intake_uuid": last.get("intake_uuid"),
+                "intake_name": last.get("intake_name"),
+                "asset_uuid": last.get("asset_uuid"),
                 "source": "sekoia-extended-platform",
                 "estimation": True,
                 **hit,
@@ -388,6 +451,11 @@ async def evaluate(window: str = "1h", sample: int = 2000, hours: int = 24,
             "hosts_measured": current["hosts"], "rules_active": len(rules),
             "alerts_new": len(grouped), "alerts_written": written,
             "by_severity": by_sev, "deduplicated": len(recent),
+            "seasonal_refs": seasonal_refs,
+            "seasonal_note": f"{seasonal_refs} machine(s) sur {len(refs)} disposent "
+                             "d'une normale par créneau horaire ; les autres sont "
+                             "jugées sur une médiane globale, ce que le message de "
+                             "chaque alerte précise.",
             "estimation_note": current["estimation_note"],
             "alerts": grouped[:200]}
 

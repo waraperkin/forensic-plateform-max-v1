@@ -973,8 +973,62 @@
         <div class="swb-panel-head"><h3 class="swb-panel-title">${esc(a.host)}</h3>
           ${pill(a.severity, a.severity === 'critical' ? 'danger' : 'warn', true)}</div>
         <p class="swb-hint" style="margin:.3rem 0 0">${esc(a.message)}</p>
+        ${a.noise_floor_pct !== undefined ? `<p class="swb-hint" style="margin:.2rem 0 0">
+          Concluant : ${esc(a.drop_pct)} % de chute pour un bruit d'échantillonnage de
+          ${esc(a.noise_floor_pct)} % (${nf(a.baseline_sampled)} tirages habituels).</p>` : ''}
         ${a.group_size > 1 ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(a.group_label)} — traitez la source, pas chaque machine.</p>` : ''}
       </div>`).join('');
+    }
+
+    // Maturité du profil horaire. Affichée AVANT les anomalies : tant qu'elle
+    // est faible, les verdicts se fondent sur une médiane globale et un poste
+    // qui dort la nuit ressemble à une panne.
+    const prof = st.data.hostProf;
+    let profBlock = '';
+    if (prof && prof.items && prof.items.length) {
+      const ready = prof.items.filter((p) => p.coverage && p.coverage.ready).length;
+      // Deux mesures distinctes, et les confondre induit en erreur : « complet »
+      // = la moitié des 48 créneaux renseignés ; « exploitable » = une normale de
+      // créneau utilisable MAINTENANT. La seconde arrive bien avant la première.
+      const usable = prof.items.filter((p) => p.expected_now && p.expected_now.seasonal).length;
+      const best = prof.items.slice(0, 6);
+      profBlock = `<div class="swb-panel">
+        <div class="swb-panel-head"><h3 class="swb-panel-title">Normale par créneau horaire</h3>
+          ${pill(`${usable}/${prof.items.length} normales de créneau exploitables`, usable ? 'ok' : 'warn', true)}
+          ${pill(`${ready} profil(s) complet(s)`, ready ? 'ok' : 'mute', true)}</div>
+        <p class="swb-hint" style="margin:.2rem 0 .6rem">${esc(prof.method || '')}</p>
+        <div class="swb-tablewrap" style="max-height:22vh"><table class="swb-table"><thead><tr>
+          <th>Machine</th><th>Relevés</th><th>Créneaux</th><th>Attendu maintenant</th><th>Référence</th>
+        </tr></thead><tbody>${best.map((p) => `<tr>
+          <td class="swb-truncate">${esc(p.host)}</td>
+          <td class="swb-num swb-hint">${nf(p.points)}</td>
+          <td class="swb-num">${nf(p.coverage.cells_filled)}/48</td>
+          <td class="swb-num">${nf(p.expected_now.median)}</td>
+          <td>${p.expected_now.seasonal ? pill(esc(p.expected_now.reference_label), 'ok')
+            : `<span class="swb-hint">${esc(p.expected_now.reference_label)}</span>`}</td>
+        </tr>`).join('')}</tbody></table></div></div>`;
+    }
+
+    // Corrélation avec les détections. Le diagnostic de joignabilité est
+    // indispensable : « 0 corrélation » ne veut pas dire « machines tranquilles ».
+    const corr = st.data.hostCorr;
+    let corrBlock = '';
+    if (corr && corr.ok) {
+      const j = corr.joinability || {};
+      const forts = (corr.items || []).filter((i) => i.correlation === 'detection_prealable');
+      corrBlock = `<div class="swb-panel" style="border-left:3px solid ${
+        corr.escalated ? 'var(--swb-danger)' : 'var(--swb-accent)'}">
+        <div class="swb-panel-head"><h3 class="swb-panel-title">Corrélation avec les détections</h3>
+          ${corr.escalated ? pill(`${corr.escalated} escaladée(s)`, 'danger', true) : ''}</div>
+        ${forts.length ? forts.slice(0, 6).map((i) => `<p class="swb-hint" style="margin:.3rem 0">
+            <strong>${esc(i.host)}</strong> — ${esc(i.correlation_verdict)}</p>`).join('')
+          : `<p class="swb-hint" style="margin:.3rem 0">${esc(corr.reason
+              || 'Aucune extinction suivie d\'une détection préalable.')}</p>`}
+        <p class="swb-hint" style="margin:.5rem 0 0">${esc(j.note || '')}</p>
+        ${j.assets_watched !== undefined ? `<p class="swb-hint" style="margin:.2rem 0 0">
+          ${nf(j.assets_watched)} actif(s) surveillé(s) · ${nf(j.assets_cited_by_alerts)} cité(s) par les détections ·
+          ${nf(j.assets_in_common)} en commun · ${nf(corr.not_correlatable || 0)} machine(s) non corrélable(s)</p>` : ''}
+      </div>`;
     }
 
     const rows = items.slice(0, 250).map((h) => `<tr>
@@ -998,7 +1052,9 @@
         ${kpi('Relevés comparés', nf((ev && ev.snapshots_seen) || 0), 'ok', `${nf((ev && ev.rules_active) || 0)} règles hôte`)}
       </div>
       ${note}
+      ${corrBlock}
       ${evBlock}
+      ${profBlock}
       ${toolbar('Filtrer par machine ou source…', '', `${nf(items.length)} machines`)}
       <div class="swb-panel" style="padding:0"><div class="swb-tablewrap"><table class="swb-table"><thead><tr>
         <th>Machine</th><th>Source</th><th>Volume estimé</th><th>Part</th><th>Échantillonné</th><th>Actif</th>
@@ -1245,8 +1301,11 @@
         const r = await Promise.all([
           api('/hosts/volumetry?window=1h&sample=1500&persist=1'),
           api('/hosts/evaluate?window=1h&sample=1500&dry_run=1', { method: 'POST' }).catch(() => null),
+          api('/hosts/profile?hours=336').catch(() => null),
+          api('/hosts/correlate?window=1h&hours=24').catch(() => null),
         ]);
         st.data.hostvol = r[0]; st.data.hostEval = r[1];
+        st.data.hostProf = r[2]; st.data.hostCorr = r[3];
         const n = (r[1] && r[1].alerts_new) || 0;
         if (n) st.badges.hosts = { text: String(n), tone: 'danger' };
       } else if (st.view === 'operations') {

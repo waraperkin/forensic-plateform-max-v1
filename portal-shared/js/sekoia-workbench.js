@@ -176,6 +176,15 @@
       .map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v === undefined || v === null || v === '' ? '—' : v}</dd>`)
       .join('') + '</dl>';
   }
+  // Barre d'actions du volet : un ecran d'exploitation doit permettre d'AGIR,
+  // pas seulement de consulter.
+  function actionsBar(actions) {
+    const btns = actions.filter(Boolean).map((a) => `<button type="button"
+      class="fp-btn fp-btn-sm${a.tone === 'danger' ? ' fp-btn-danger' : a.tone === 'primary' ? ' fp-btn-primary' : ' fp-btn-ghost'}"
+      data-swb-act="${esc(a.act)}" data-id="${esc(a.id)}" data-to="${esc(a.to || '')}">${esc(a.label)}</button>`).join(' ');
+    return `<div class="swb-filters" style="margin:0 0 .8rem">${btns}</div>`;
+  }
+
   function drawer() {
     if (!st.drawer) return '';
     const d = st.drawer;
@@ -356,6 +365,10 @@
         ['Dernier événement', r.last_event_age_min === null || r.last_event_age_min === undefined
           ? '—' : `il y a ${nf(Math.round(r.last_event_age_min))} min`],
         ['Silencieuse', r.silent ? pill('oui', 'danger') : pill('non', 'ok')],
+      ]) + actionsBar([
+        r.intake_status && String(r.intake_status).toLowerCase() === 'running'
+          ? { act: 'intake-toggle', id: r.intake_uuid, to: 'disable', label: 'Désactiver la source', tone: 'danger' }
+          : { act: 'intake-toggle', id: r.intake_uuid, to: 'enable', label: 'Activer la source', tone: 'primary' },
       ]) + `<h4 class="swb-panel-title" style="margin:1rem 0 .5rem">Décomposition du score</h4>`
         + kv([
           ['Fraîcheur', `${meter((c.freshness / 40) * 100, 'ok')} ${nf(c.freshness)}/40`],
@@ -465,7 +478,11 @@
     st.drawer = {
       title: (r && r.rule_name) || id,
       subtitle: `Sévérité ${(r && r.rule_severity) || '—'} · ${(r && r.rule_enabled) ? 'active' : 'inactive'}`,
-      body: kv([
+      body: actionsBar([
+        (r && r.rule_enabled)
+          ? { act: 'rule-toggle', id: id, to: 'disable', label: 'Désactiver la règle', tone: 'danger' }
+          : { act: 'rule-toggle', id: id, to: 'enable', label: 'Activer la règle', tone: 'primary' },
+      ]) + kv([
         ['Identifiant', `<span class="swb-mono">${esc(id)}</span>`],
         ['Type', esc((r && r.rule_type) || rule.type)],
         ['Description', esc((r && r.rule_description) || rule.description || '—')],
@@ -475,7 +492,11 @@
         ['Cycle de vie', esc((r && r.rule_lifecycle) || rule.lifecycle || '—')],
         ['Vérifiée', (r && r.rule_verified) ? pill('oui', 'ok') : pill('non', 'mute')],
       ]) + (refs.length ? `<h4 class="swb-panel-title" style="margin:1rem 0 .5rem">Attack-patterns (${refs.length})</h4>
-        <ul style="margin:0;padding-left:1.1rem;font-size:.8rem">${refs.map((x) => `<li>${esc(nameOf[x] || x)}</li>`).join('')}</ul>` : '')
+        <ul style="margin:0;padding-left:1.1rem;font-size:.8rem">${refs.map((x) => (nameOf[x]
+          ? `<li>${esc(nameOf[x])}</li>`
+          // Sekoia n'expose pas de referentiel resolvable : on le dit au lieu
+          // d'afficher un UUID brut qui ne renseigne personne.
+          : `<li><span class="swb-hint">libellé non résolu</span> <span class="swb-mono">${esc(x.replace('attack-pattern--', '').slice(0, 8))}…</span></li>`)).join('')}</ul>` : '')
         + (rule.payload ? `<h4 class="swb-panel-title" style="margin:1rem 0 .5rem">Requête de détection</h4>
           <pre class="swb-mono" style="white-space:pre-wrap;background:var(--swb-surface-2);padding:.6rem;border-radius:7px">${esc(rule.payload)}</pre>` : ''),
     };
@@ -851,6 +872,21 @@
         if (act === 'range') { st.range = Number(b.dataset.hours) || 24; load(); return; }
         if (act === 'open-source') { openSource(b.dataset.id); return; }
         if (act === 'open-rule') { openRule(b.dataset.id); return; }
+        if (act === 'intake-toggle' || act === 'rule-toggle') {
+          const kind = act === 'intake-toggle' ? 'intakes' : 'rules';
+          const to = b.dataset.to === 'enable' ? 'enable' : 'disable';
+          b.disabled = true;
+          const r = await api(`/${kind}/${encodeURIComponent(b.dataset.id)}/${to}`, { method: 'POST' });
+          if (r.ok) {
+            toast(to === 'enable' ? 'Activation appliquée' : 'Désactivation appliquée', 'ok');
+            st.drawer = null;
+            load();
+          } else {
+            b.disabled = false;
+            toast(r.error || 'Sekoia a refusé la modification', 'err');
+          }
+          return;
+        }
         if (act === 'run-search') { runSearch(); return; }
         if (act === 'bulk-dry') { bulk(true); return; }
         if (act === 'bulk-apply') { bulk(false); return; }

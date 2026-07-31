@@ -381,6 +381,7 @@
           ${th('Source', 'intake_name')}<th>Tendance</th>${th('Volume', 'total', 'swb-num')}
           <th>Part</th>${th('%', 'share', 'swb-num')}${th('Baseline', 'base', 'swb-num')}${th('Écart', 'delta', 'swb-num')}
         </tr></thead><tbody>${body || '<tr><td colspan="7"><p class="swb-hint" style="padding:1rem">Aucune source mesurée sur la fenêtre.</p></td></tr>'}</tbody></table></div></div>
+      ${qualityLatencyPanels()}
       ${silentDropped.length ? `<div class="swb-panel" style="border-left:3px solid var(--swb-danger)">
         <div class="swb-panel-head"><h3 class="swb-panel-title">Collecte interrompue — ${nf(silentDropped.length)}</h3></div>
         <p class="swb-hint" style="margin-bottom:.5rem">Ces sources ont émis sur la fenêtre mais ne remontent plus rien au dernier relevé. C'est le signal le plus urgent : une source qui produisait vient de se taire.</p>
@@ -390,6 +391,71 @@
         <p class="swb-hint" style="margin-bottom:.5rem">Aucun événement sur toute la fenêtre. Intake configuré mais jamais alimenté, ou source arrêtée de longue date.</p>
         <ul style="margin:0;padding-left:1.1rem;font-size:.82rem;columns:2;column-gap:2rem">${silentList}</ul>
         ${silentAlways.length > 12 ? `<p class="swb-hint" style="margin-top:.5rem">…et ${nf(silentAlways.length - 12)} autres. Voir l'écran Sources pour la liste complète.</p>` : ''}</div>` : ''}`;
+  }
+
+  /**
+   * Qualité de parsing et latence de livraison. Ces deux mesures répondent à ce
+   * que la volumétrie ne dit pas : ce qui entre est-il correctement interprété,
+   * et arrive-t-il assez tôt pour être exploitable.
+   */
+  function qualityLatencyPanels() {
+    const q = st.data.quality;
+    const l = st.data.latency;
+    if (!q && !l) return '';
+
+    const qBlock = !q || !q.available
+      ? `<div class="swb-panel"><div class="swb-panel-head">
+          <h3 class="swb-panel-title">Qualité d'ingestion</h3></div>
+          <p class="swb-hint">${esc((q && q.reason) || 'Mesure indisponible.')}</p></div>`
+      : `<div class="swb-panel"><div class="swb-panel-head">
+          <h3 class="swb-panel-title">Qualité d'ingestion</h3>
+          <span class="swb-hint">échantillon de ${esc(nf(q.sampled))} événements</span></div>
+        <div class="swb-kpis" style="margin-bottom:.6rem">
+          ${kpi('Parsing réussi', `${q.parsing_ok_pct} %`, q.parsing_ok_pct >= 99 ? 'ok' : q.parsing_ok_pct >= 90 ? 'warn' : 'danger')}
+          ${kpi('Sources en échec', nf(q.intakes_with_failures), q.intakes_with_failures ? 'danger' : 'ok')}
+          ${kpi('Dialectes mélangés', nf(q.intakes_mixed_dialects), q.intakes_mixed_dialects ? 'warn' : 'ok',
+    'plusieurs formats sur une même source')}
+        </div>
+        <div class="swb-tablewrap" style="max-height:26vh"><table class="swb-table"><thead><tr>
+          <th>Source</th><th class="swb-num">Parsing</th><th class="swb-num">Échecs</th>
+          <th>Dialecte</th><th class="swb-num">Champs</th></tr></thead><tbody>
+          ${(q.items || []).slice(0, 30).map((i) => `<tr>
+            <td class="swb-truncate" title="${esc(i.intake_name)}">${esc(i.intake_name)}</td>
+            <td class="swb-num">${pill(`${i.parsing_ok_pct} %`, i.parsing_ok_pct >= 99 ? 'ok' : 'danger', true)}</td>
+            <td class="swb-num">${esc(nf(i.parsing_failures))}</td>
+            <td class="swb-truncate">${esc(i.dialects.join(', '))}${i.mixed_dialects ? ' ' + pill('mélange', 'warn', true) : ''}</td>
+            <td class="swb-num">${esc(i.fields_count)}</td></tr>`).join('')}
+        </tbody></table></div>
+        <p class="swb-hint" style="margin-top:.4rem">${esc(q.sampling_note)}</p></div>`;
+
+    const lBlock = !l || !l.available
+      ? `<div class="swb-panel"><div class="swb-panel-head">
+          <h3 class="swb-panel-title">Latence de livraison</h3></div>
+          <p class="swb-hint">${esc((l && l.reason) || 'Mesure indisponible.')}</p></div>`
+      : `<div class="swb-panel"><div class="swb-panel-head">
+          <h3 class="swb-panel-title">Latence de livraison</h3>
+          <span class="swb-hint">${esc(nf(l.measured))} mesures</span></div>
+        <div class="swb-kpis" style="margin-bottom:.6rem">
+          ${kpi('Médiane', `${l.global.p50_s} s`, 'ok')}
+          ${kpi('p90', `${l.global.p90_s} s`, (l.global.p90_s || 0) > 300 ? 'danger' : 'ok')}
+          ${kpi('p99', `${l.global.p99_s} s`, (l.global.p99_s || 0) > 300 ? 'warn' : 'ok')}
+          ${kpi('Hors seuil', nf(l.intakes_above_threshold), l.intakes_above_threshold ? 'danger' : 'ok',
+    `> ${l.freshness_threshold_s} s au p90`)}
+        </div>
+        <p class="swb-hint" style="margin-bottom:.5rem">${esc(l.threshold_note)}</p>
+        ${l.clock_skew_note ? `<p class="swb-hint">${esc(nf(l.clock_skew_events))} événement(s) — ${esc(l.clock_skew_note)}</p>` : ''}
+        <div class="swb-tablewrap" style="max-height:22vh"><table class="swb-table"><thead><tr>
+          <th>Source</th><th class="swb-num">p50</th><th class="swb-num">p90</th>
+          <th class="swb-num">max</th><th class="swb-num">Mesures</th></tr></thead><tbody>
+          ${(l.items || []).slice(0, 30).map((i) => `<tr>
+            <td class="swb-truncate" title="${esc(i.intake_name)}">${esc(i.intake_name)}</td>
+            <td class="swb-num">${esc(i.p50_s)} s</td>
+            <td class="swb-num">${pill(`${i.p90_s} s`, (i.p90_s || 0) > 300 ? 'danger' : 'ok', true)}</td>
+            <td class="swb-num">${esc(i.max_s)} s</td>
+            <td class="swb-num">${esc(nf(i.samples))}</td></tr>`).join('')}
+        </tbody></table></div></div>`;
+
+    return `<div class="swb-grid2">${qBlock}${lBlock}</div>`;
   }
 
   // ── Sources ───────────────────────────────────────────────────────────────
@@ -953,7 +1019,19 @@
       if (st.view === 'overview' || st.view === 'ingestion') {
         st.data.dashboard = await api(`/dashboard?hours=${st.range}&top=${st.view === 'ingestion' ? 25 : 10}`);
         if (st.view === 'ingestion') {
-          st.data.health = await api('/intakes/health').catch(() => null);
+          // UN SEUL prélèvement pour les deux mesures : deux jobs Sekoia
+          // concurrents sur la même fenêtre doublaient le coût et l'un des
+          // deux pouvait revenir vide.
+          const extra = await Promise.all([
+            api('/intakes/health').catch(() => null),
+            api('/telemetry/sample?window=1h&sample=500').catch(() => null),
+          ]);
+          st.data.health = extra[0];
+          const smp = extra[1];
+          st.data.quality = (smp && smp.available) ? smp.quality
+            : { available: false, reason: (smp && smp.reason) || 'Prélèvement indisponible.' };
+          st.data.latency = (smp && smp.available) ? smp.latency
+            : { available: false, reason: (smp && smp.reason) || 'Prélèvement indisponible.' };
         }
         const k = st.data.dashboard.kpi || {};
         if (k.sources_silent) st.badges.sources = { text: String(k.sources_silent), tone: 'danger' };

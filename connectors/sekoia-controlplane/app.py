@@ -1589,6 +1589,11 @@ storage.register(app)
 import gateway  # noqa: E402
 gateway.register(app)
 
+# ── Sekoia Extended Platform — Data Intake Layer et Monitoring & Telemetry Core.
+#    Qualité de parsing, dérive de structure, latence de livraison, temps réel.
+import telemetry  # noqa: E402
+telemetry.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -127,10 +127,19 @@ async def collect(window: str = "1h",
         "intakes_silent": len(silent),
         "events_sum_intakes": sum_intakes,
         "events_global": global_total,
-        # Événements présents dans le SIEM mais rattachés à aucun intake connu :
-        # invisible depuis la console Sekoia.
-        "events_unattributed": (global_total - sum_intakes)
+        # Écart entre le total global et la somme par intake. Les deux mesures
+        # ne sont pas simultanées : les 66 jobs par intake s'étalent sur ~20 s
+        # pendant que le trafic continue, si bien que l'écart peut être NÉGATIF
+        # de quelques unités. Un « -6 événements non attribués » n'a aucun sens
+        # métier : on ne rapporte comme non attribué que ce qui l'est vraiment,
+        # et on expose l'écart brut à part pour rester vérifiable.
+        "events_unattributed": max(0, global_total - sum_intakes)
                                if (global_total is not None) else None,
+        "measurement_delta": (global_total - sum_intakes)
+                             if (global_total is not None) else None,
+        "measurement_note": "Le total global et la somme par intake ne sont pas "
+                            "mesurés au même instant : un écart de quelques unités "
+                            "reflète le trafic survenu pendant la collecte.",
         "global_error": global_err,
         "items": sorted(items, key=lambda i: -(i["count"] or 0)),
     }

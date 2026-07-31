@@ -204,15 +204,21 @@ def register(inv_app) -> None:
 
     @inv_app.get("/control/sekoia/inventory/drift", dependencies=dep)
     async def drift(since: str = Query(default=""), other: str = Query(default="")):
-        """Dérive entre deux instantanés. Par défaut : le plus ancien conservé
-        face au plus récent — la question « qu'est-ce qui a bougé ? »."""
+        """Dérive entre deux instantanés.
+
+        Par défaut : les DEUX PLUS RÉCENTS. C'est la question opérationnelle
+        (« qu'est-ce qui a bougé depuis le dernier point ? ») et cela évite de
+        comparer à un instantané ancien dont le format a pu changer — un champ
+        apparu depuis se lirait comme un changement qui n'a jamais eu lieu.
+        Une référence plus ancienne reste choisissable explicitement.
+        """
         snaps = _snaps()
         if len(snaps) < 2:
             return {"available": False,
                     "reason": "Au moins deux instantanés sont nécessaires pour mesurer une dérive.",
                     "count": len(snaps)}
         by_id = {s.get("id"): s for s in snaps}
-        a = by_id.get(since) or snaps[0]
+        a = by_id.get(since) or snaps[-2]
         b = by_id.get(other) or snaps[-1]
         di = _diff(a, b, "intakes")
         dr = _diff(a, b, "rules")

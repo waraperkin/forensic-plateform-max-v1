@@ -15,7 +15,7 @@ const t=p.locator('input:not([type=hidden])');
 await t.nth(0).fill(env.PORTAL_ADMIN_USER); await t.nth(1).fill(env.PORTAL_ADMIN_PASSWORD);
 await p.locator('button[type="submit"]').first().click(); await p.waitForTimeout(3000);
 await p.locator('[data-tab-btn="sekoia-extended"]').first().click(); await p.waitForTimeout(4000);
-const views=['overview','sources','detections','telemetry','alerting','operations','apikeys','audit','config'];
+const views=['overview','sources','detections','inventory','telemetry','alerting','operations','apikeys','audit','config'];
 let fails=0;
 for(const v of views){
   try{

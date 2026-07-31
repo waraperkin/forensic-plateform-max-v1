@@ -27,6 +27,7 @@
     { id: 'overview', label: "Vue d'ensemble", key: 'o', group: 1 },
     { id: 'sources', label: 'Sources', key: 's', group: 1 },
     { id: 'detections', label: 'Détections', key: 'd', group: 1 },
+    { id: 'inventory', label: 'Inventaire', key: 'i', group: 1 },
     { id: 'telemetry', label: 'Télémétrie', key: 't', group: 1 },
     { id: 'alerting', label: 'Alerting', key: 'a', group: 2 },
     { id: 'operations', label: 'Opérations', key: 'p', group: 2 },
@@ -608,6 +609,83 @@
     paint();
   }
 
+  // ── Inventaire : dérive et incohérences ───────────────────────────────────
+  function viewInventory() {
+    const c = st.data.consistency;
+    const d = st.data.drift;
+    const tl = st.data.invTimeline;
+    const snaps = st.data.snapshots;
+    if (!c) return degraded('Moteur d\'inventaire injoignable.');
+
+    const sevTone = { high: 'danger', medium: 'warn', low: 'mute' };
+    const issues = (c.issues || []).map((i) => `<tr class="swb-clickable"
+      data-swb-act="open-issue" data-kind="${esc(i.kind)}">
+      <td>${pill(i.severity, sevTone[i.severity] || 'mute')}</td>
+      <td>${esc(i.title)}</td>
+      <td class="swb-num">${esc(nf(i.count))}</td>
+      <td class="swb-hint swb-truncate" title="${esc(i.action)}">${esc(i.action)}</td></tr>`).join('');
+
+    const drift = (!d || !d.available)
+      ? stateBox('Dérive non mesurable', (d && d.reason)
+        || 'Au moins deux instantanés sont nécessaires. Le premier est pris automatiquement au démarrage.')
+      : `<div class="swb-kpis">
+          ${kpi('Changements', nf(d.total_changes), d.total_changes ? 'warn' : 'ok',
+    `sur ${esc(Math.abs(d.span_hours))} h`)}
+          ${kpi('Sources ajoutées', nf(d.intakes.added.length), d.intakes.added.length ? 'warn' : 'ok')}
+          ${kpi('Sources retirées', nf(d.intakes.removed.length), d.intakes.removed.length ? 'danger' : 'ok')}
+          ${kpi('Règles modifiées', nf(d.rules.changed.length), d.rules.changed.length ? 'warn' : 'ok')}
+        </div>
+        <div class="swb-panel" style="padding:0"><div class="swb-tablewrap" style="max-height:34vh">
+          <table class="swb-table"><thead><tr><th>Objet</th><th>Nature</th><th>Détail</th></tr></thead><tbody>
+          ${[...d.intakes.removed.map((x) => ['source', 'retirée', x.name, 'danger']),
+    ...d.intakes.added.map((x) => ['source', 'ajoutée', x.name, 'warn']),
+    ...d.intakes.changed.map((x) => ['source', 'modifiée', `${x.name} — ${fieldsOf(x.fields)}`, 'warn']),
+    ...d.rules.removed.map((x) => ['règle', 'retirée', x.name, 'danger']),
+    ...d.rules.added.map((x) => ['règle', 'ajoutée', x.name, 'warn']),
+    ...d.rules.changed.map((x) => ['règle', 'modifiée', `${x.name} — ${fieldsOf(x.fields)}`, 'warn'])]
+    .slice(0, 200).map(([o, n, det, tone]) => `<tr><td>${esc(o)}</td>
+      <td>${pill(n, tone, true)}</td><td class="swb-truncate" title="${esc(det)}">${esc(det)}</td></tr>`).join('')
+    || '<tr><td colspan="3"><p class="swb-hint" style="padding:1rem">Aucun changement sur la période.</p></td></tr>'}
+          </tbody></table></div></div>`;
+
+    const tlRows = ((tl && tl.points) || []).slice().reverse().map((p) => `<tr>
+      <td class="swb-hint">${esc(dt(p.ts))}</td>
+      <td>${p.auto ? pill('automatique', 'mute', true) : pill('manuel', 'mute', true)}</td>
+      <td class="swb-num">${esc(p.intakes_changed)}</td>
+      <td class="swb-num">${esc(p.rules_changed)}</td>
+      <td class="swb-num">${pill(String(p.total), p.total ? 'warn' : 'ok', true)}</td></tr>`).join('');
+
+    return `<div class="swb-head">
+        <div><h2 class="swb-title">Inventaire — dérive et cohérence</h2>
+          <p class="swb-sub">Ce qui a changé depuis le dernier point de référence, et ce qui ne tient pas debout
+            dans la configuration courante. Le SIEM n'historise ni l'un ni l'autre.</p></div>
+        <div class="swb-actions">
+          <span class="swb-hint">${esc(nf((snaps && snaps.count) || 0))} instantané(s)</span>
+          <button type="button" class="fp-btn fp-btn-sm" data-swb-act="snapshot">Prendre un instantané</button></div></div>
+      <div class="swb-kpis">
+        ${kpi('Incohérences', nf(c.issues_total), c.issues_total ? 'danger' : 'ok',
+    `${nf(c.checked_intakes)} sources analysées`)}
+        ${kpi('Gravité haute', nf((c.by_severity || {}).high), (c.by_severity || {}).high ? 'danger' : 'ok')}
+        ${kpi('Gravité moyenne', nf((c.by_severity || {}).medium), (c.by_severity || {}).medium ? 'warn' : 'ok')}
+        ${kpi('Règles analysées', nf(c.checked_rules), 'ok')}
+      </div>
+      <div class="swb-panel" style="padding:0"><div class="swb-panel-head" style="padding:.8rem .9rem 0">
+          <h3 class="swb-panel-title">Incohérences de configuration</h3></div>
+        <div class="swb-tablewrap" style="max-height:36vh"><table class="swb-table"><thead><tr>
+          <th>Gravité</th><th>Constat</th><th class="swb-num">Objets</th><th>Action attendue</th>
+        </tr></thead><tbody>${issues || '<tr><td colspan="4"><p class="swb-hint" style="padding:1rem">Aucune incohérence détectée.</p></td></tr>'}</tbody></table></div></div>
+      <h3 class="swb-panel-title" style="margin-top:.5rem">Dérive de configuration</h3>
+      ${drift}
+      ${tlRows ? `<div class="swb-panel" style="padding:0"><div class="swb-panel-head" style="padding:.8rem .9rem 0">
+        <h3 class="swb-panel-title">Chronologie des changements</h3></div>
+        <div class="swb-tablewrap" style="max-height:28vh"><table class="swb-table"><thead><tr>
+          <th>Date</th><th>Origine</th><th class="swb-num">Sources</th><th class="swb-num">Règles</th><th class="swb-num">Total</th>
+        </tr></thead><tbody>${tlRows}</tbody></table></div></div>` : ''}`;
+  }
+  function fieldsOf(f) {
+    return Object.entries(f || {}).map(([k, v]) => `${k} : ${v.avant} → ${v.apres}`).join(', ');
+  }
+
   // ── Télémétrie à la demande ───────────────────────────────────────────────
   function viewTelemetry() {
     const res = st.data.events;
@@ -858,6 +936,7 @@
     else if (st.view === 'ingestion') body = viewIngestion();
     else if (st.view === 'sources') body = viewSources();
     else if (st.view === 'detections') body = viewDetections();
+    else if (st.view === 'inventory') body = viewInventory();
     else if (st.view === 'telemetry') body = viewTelemetry();
     else if (st.view === 'alerting') body = viewAlerting();
     else if (st.view === 'operations') body = viewOperations();
@@ -886,6 +965,18 @@
           api('/mitre-coverage').catch(() => null),
         ]);
         st.data.rules = r[0]; st.data.mitre = r[1];
+      } else if (st.view === 'inventory') {
+        const r = await Promise.all([
+          api('/inventory/consistency'),
+          api('/inventory/drift').catch(() => null),
+          api('/inventory/timeline').catch(() => null),
+          api('/inventory/snapshots').catch(() => null),
+        ]);
+        st.data.consistency = r[0]; st.data.drift = r[1];
+        st.data.invTimeline = r[2]; st.data.snapshots = r[3];
+        if (r[0] && r[0].issues_total) {
+          st.badges.inventory = { text: String(r[0].issues_total), tone: 'danger' };
+        }
       } else if (st.view === 'alerting') {
         const r = await Promise.all([
           api('/alerting/rules'), api('/alerting/alerts?hours=24').catch(() => null),
@@ -979,6 +1070,30 @@
         if (act === 'reload') { load(); return; }
         if (act === 'close-drawer') { st.drawer = null; paint(); return; }
         if (act === 'range') { st.range = Number(b.dataset.hours) || 24; load(); return; }
+        if (act === 'snapshot') {
+          b.disabled = true;
+          const r = await api('/inventory/snapshots?label=manuel', { method: 'POST' });
+          toast(`Instantané pris : ${r.intakes} sources, ${r.rules} règles`, 'ok');
+          load(); return;
+        }
+        if (act === 'open-issue') {
+          const issue = (st.data.consistency.issues || []).find((x) => x.kind === b.dataset.kind);
+          if (!issue) return;
+          st.drawer = {
+            title: issue.title,
+            subtitle: `${issue.count} objet(s) · gravité ${issue.severity}`,
+            body: `<p class="swb-sub">${esc(issue.detail)}</p>`
+              + `<div class="swb-state" style="border-left:3px solid var(--swb-warn);text-align:left">
+                   <p class="swb-state-title">Action attendue</p>
+                   <p class="swb-state-msg">${esc(issue.action)}</p></div>`
+              + `<h4 class="swb-panel-title" style="margin:1rem 0 .5rem">Objets concernés</h4>`
+              + `<ul style="margin:0;padding-left:1.1rem;font-size:.82rem">${
+  issue.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`
+              + (issue.count > issue.items.length
+                ? `<p class="swb-hint" style="margin-top:.5rem">…et ${nf(issue.count - issue.items.length)} autres.</p>` : ''),
+          };
+          paint(); return;
+        }
         if (act === 'open-source') { openSource(b.dataset.id); return; }
         if (act === 'open-rule') { openRule(b.dataset.id); return; }
         if (act === 'intake-toggle' || act === 'rule-toggle') {

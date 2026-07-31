@@ -1,7 +1,7 @@
 # 04 — ÉTAT DU PROGRAMME (Sekoia Extended Platform & PSOAR)
 
-**Dernier commit `main`** : `00f6264` — poussé sur GitHub.
-**Validation** : 17 contrôles visuels + API, **0 FAIL**. Santé plateforme **16/16 OK**.
+**Dernier commit `main`** : `3482295` — poussé sur GitHub.
+**Validation** : 8 onglets + 9 vues + 13 contrôles PSOAR + **115 tests unitaires**, **0 FAIL**. Santé plateforme **16/16 OK**.
 **Services reconstruits** : `sekoia-controlplane`, `sekoia-monitor`, `cert-portal`.
 Aucun autre service touché.
 
@@ -25,6 +25,10 @@ Aucun autre service touché.
 |---|---|---|
 | **3.3 Playbook Orchestration** | livré | condition évaluée avec valeur observée, arrêt sur approbation, reprise, statut incident réellement passé à `contained` |
 | Console d'orchestration | livrée | création depuis modèle NIST, simulation, exécution, arbitrage des approbations, journal pas à pas |
+| **3.4 Automation & Action Engine** | livré | file d'exécution, worker avec revendication serveur, retry exponentiel borné, `queued → waiting_approval → completed` vérifié |
+| **3.1 Alert Intake & Correlation** | livré | 161 alertes → 6 grappes, score décomposé, promotion idempotente (409 sur doublon) |
+| Console d'incidents | livrée | file, SLA vivant, clic ligne, stepper, timeline, playbook NIST, IOC, evidences, rapport, purge en deux temps |
+| Vue candidats corrélés | livrée | grappes scorées avec justification en clair, promotion en un clic |
 
 ---
 
@@ -58,9 +62,7 @@ hostname (donc jamais) ; le silence n'était jamais détecté faute de
 - **3.9** Storage Layer (hot/warm/cold, ILM)
 
 ### PSOAR
-- **3.1** Alert Intake & Correlation
-- **3.2** Incident Management Core (au-delà de l'existant)
-- **3.4** Automation & Action Engine (workers, queues, retry) — *prochaine étape recommandée*
+- **3.2** Incident Management Core (au-delà de l'existant) — *prochaine étape recommandée*
 - **3.5** Case Management Layer
 - **3.6** Integration & Connector Hub
 - **3.7** Knowledge Base & Enrichment
@@ -68,7 +70,7 @@ hostname (donc jamais) ; le silence n'était jamais détecté faute de
 - **3.9** Audit, Compliance & Reporting
 - **3.10** Storage & Indexing
 
-**Bilan : 5 modules livrés sur 19**, plus deux consoles analyste.
+**Bilan : 7 modules livrés sur 19**, plus quatre consoles analyste et 115 tests unitaires.
 
 ---
 

@@ -306,3 +306,63 @@
   .swb-kv { grid-template-columns: 1fr; }
   .swb-kv dt { margin-top: 0.4rem; }
 }
+
+/* ── PSOAR — console d'incidents (reprend le meme systeme) ──────────────────── */
+.pso-stepper { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.pso-step {
+  appearance: none; font: inherit; font-size: 0.78rem; cursor: pointer;
+  padding: 0.3rem 0.75rem; border-radius: 999px;
+  border: 1px solid var(--swb-line); background: transparent; color: inherit;
+  opacity: 0.62; transition: opacity 0.12s, background 0.12s;
+}
+.pso-step:hover { opacity: 1; background: var(--swb-surface-2); }
+.pso-step-done { opacity: 1; color: var(--swb-ok); border-color: color-mix(in srgb, var(--swb-ok) 40%, transparent); }
+.pso-step-current {
+  opacity: 1; font-weight: 600;
+  background: color-mix(in srgb, var(--swb-accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--swb-accent) 45%, transparent);
+}
+
+/* Timeline : le filet vertical relie les evenements, la pastille porte le type. */
+.pso-timeline { list-style: none; margin: 0; padding: 0; position: relative; }
+.pso-timeline::before {
+  content: ""; position: absolute; left: 122px; top: 6px; bottom: 6px;
+  width: 1px; background: var(--swb-line);
+}
+.pso-timeline li {
+  display: grid; grid-template-columns: 110px 20px 1fr;
+  gap: 0.5rem; align-items: start; padding: 0.45rem 0;
+}
+.pso-time { font-size: 0.72rem; color: var(--swb-muted); text-align: right; padding-top: 2px; }
+.pso-dot {
+  width: 9px; height: 9px; border-radius: 50%; margin: 5px auto 0;
+  background: var(--swb-accent); position: relative; z-index: 1;
+  box-shadow: 0 0 0 3px var(--fp-panel, #14181f);
+}
+.pso-dot-status { background: var(--swb-warn); }
+.pso-timeline strong { font-size: 0.85rem; }
+.pso-timeline p { margin: 0.15rem 0 0; }
+
+.pso-phase { margin-bottom: 0.9rem; }
+.pso-tasks { list-style: none; margin: 0.35rem 0 0; padding: 0; }
+.pso-tasks li {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; padding: 0.25rem 0; font-size: 0.84rem;
+}
+.pso-tasks label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+.pso-done { text-decoration: line-through; opacity: 0.55; }
+
+.pso-evidence { margin: 0.35rem 0; font-size: 0.82rem; }
+.pso-evidence summary { cursor: pointer; }
+.pso-evidence pre, .pso-report {
+  white-space: pre-wrap; background: var(--swb-surface-2);
+  padding: 0.6rem; border-radius: 7px; max-height: 46vh; overflow: auto;
+  margin-top: 0.4rem;
+}
+
+@media (max-width: 760px) {
+  .pso-timeline::before { display: none; }
+  .pso-timeline li { grid-template-columns: 1fr; }
+  .pso-time { text-align: left; }
+  .pso-dot { display: none; }
+}

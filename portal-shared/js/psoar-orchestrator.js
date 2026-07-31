@@ -111,6 +111,29 @@
       + '<button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-pbo-act="close-run">Fermer</button></div>';
   }
 
+  // Etat de la file : sans ce bandeau, une execution confiee au worker serait
+  // invisible pour l'analyste qui l'a lancee.
+  function queueBanner() {
+    const q = st.queue;
+    if (!q) return '';
+    const by = q.by_status || {};
+    const chip = (k, l, cls) => (by[k]
+      ? '<span class="fp-tag' + (cls ? ' ' + cls : '') + '">' + esc(l) + ' : ' + esc(by[k]) + '</span> ' : '');
+    return '<div class="fp-card" style="border-left:3px solid var(--swb-accent,#38a0ff)">'
+      + '<div class="sep-row-between"><h4 class="fp-section-sub">File d\'exécution</h4>'
+      + '<span class="fp-muted" style="font-size:.75rem">worker ' + esc(q.worker_id)
+      + ' · ' + esc(q.in_flight) + '/' + esc(q.concurrency) + ' en vol · reprise '
+      + esc((q.retry || {}).attempts) + ' tentatives</span></div>'
+      + '<p style="margin:.4rem 0 0">'
+      + chip('queued', 'en file', 'fp-tag-warn')
+      + chip('running', 'en cours', 'fp-tag-warn')
+      + chip('waiting_approval', 'attente d\'approbation', 'fp-tag-warn')
+      + chip('completed', 'terminés', 'fp-tag-ok')
+      + chip('failed', 'échoués', 'fp-tag-danger')
+      + (Object.keys(by).length ? '' : '<span class="fp-muted">Aucune exécution enregistrée.</span>')
+      + '</p></div>';
+  }
+
   function render() {
     const el = root();
     if (!el) return;
@@ -143,6 +166,9 @@
         + esc(p.id) + '" data-dry="1">Simuler</button>'
         + '<button type="button" class="fp-btn fp-btn-sm fp-btn-danger" data-pbo-act="run" data-id="'
         + esc(p.id) + '" data-dry="0">Exécuter</button>'
+        + '<button type="button" class="fp-btn fp-btn-sm" data-pbo-act="run" data-id="'
+        + esc(p.id) + '" data-dry="0" data-async="1" title="Confie l\'exécution au worker : '
+        + 'la page n\'attend pas, le playbook survit à la fermeture de l\'onglet">Exécuter en file</button>'
         + '<button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-pbo-act="delete" data-id="'
         + esc(p.id) + '">Supprimer</button>'
         + '</div></article>';
@@ -171,6 +197,7 @@
       + 'd’exécution — à la différence des modèles ci-dessous, qui restent des check-lists.</p>'
       + '<div class="sep-form"><label>Incident cible<select id="pbo-incident">'
       + (incOpts || '<option value="">aucun incident</option>') + '</select></label></div>'
+      + queueBanner()
       + '<div class="sep-grid2">' + pbCards + '</div>'
       + (st.run ? journal(st.run) : '')
       + '<div class="fp-card sep-table-wrap"><h3 class="fp-section-title">Exécutions récentes</h3>'
@@ -182,6 +209,24 @@
       + '</tbody></table></div></div>';
   }
 
+  const TERMINAL = ['completed', 'failed', 'cancelled', 'waiting_approval'];
+  async function pollRun(runId, tries) {
+    if (tries > 20) return;
+    setTimeout(async function () {
+      try {
+        const run = await api('/playbook-runs/' + encodeURIComponent(runId));
+        if (st.run && st.run.run_id === runId) { st.run = run; }
+        st.queue = await api('/playbook-queue').catch(function () { return st.queue; });
+        st.runs = await api('/playbook-runs').catch(function () { return st.runs; });
+        render();
+        if (!TERMINAL.includes(run.status)) pollRun(runId, tries + 1);
+        else if (run.status !== 'waiting_approval') {
+          toast('Exécution ' + run.status, run.status === 'failed' ? 'err' : 'ok');
+        }
+      } catch (e) { /* le suivi ne doit jamais casser l'ecran */ }
+    }, 2000);
+  }
+
   async function load() {
     st.loading = true; st.error = null; render();
     try {
@@ -189,10 +234,12 @@
         api('/playbooks'),
         api('/playbook-runs'),
         api('/incidents').catch(function () { return []; }),
+        api('/playbook-queue').catch(function () { return null; }),
       ]);
       st.playbooks = Array.isArray(res[0]) ? res[0] : [];
       st.runs = Array.isArray(res[1]) ? res[1] : [];
       st.incidents = Array.isArray(res[2]) ? res[2] : [];
+      st.queue = res[3];
     } catch (e) { st.error = e.message; }
     st.loading = false; render();
   }
@@ -227,14 +274,22 @@
           const incident = (document.getElementById('pbo-incident') || {}).value;
           if (!incident) { toast('Sélectionnez un incident cible', 'err'); return; }
           const dry = btn.dataset.dry === '1';
+          const asyncMode = btn.dataset.async === '1';
           const r = await api('/playbooks/' + encodeURIComponent(id) + '/run', {
-            method: 'POST', body: { incident_id: incident, dry_run: dry },
+            method: 'POST', body: { incident_id: incident, dry_run: dry, async: asyncMode },
           });
           st.run = r.run;
-          const s = r.run.status;
-          toast(s === 'waiting_approval' ? 'Exécution en attente d’approbation'
-            : (dry ? 'Simulation terminée : ' + s : 'Exécution terminée : ' + s),
-          s === 'failed' ? 'err' : 'ok');
+          if (r.queued) {
+            toast('Exécution mise en file — le worker la reprend', 'ok');
+            // Suivi discret : on rafraichit tant que le run avance, sans
+            // bloquer l'analyste ni marteler le serveur.
+            pollRun(r.run.run_id, 0);
+          } else {
+            const s = r.run.status;
+            toast(s === 'waiting_approval' ? 'Exécution en attente d’approbation'
+              : (dry ? 'Simulation terminée : ' + s : 'Exécution terminée : ' + s),
+            s === 'failed' ? 'err' : 'ok');
+          }
           st.runs = await api('/playbook-runs').catch(function () { return st.runs; });
           render(); return;
         }

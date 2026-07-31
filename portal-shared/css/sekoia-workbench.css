@@ -366,3 +366,38 @@
   .pso-time { text-align: left; }
   .pso-dot { display: none; }
 }
+
+/* ── PSOAR — concepteur de workflow (3.8) ──────────────────────────────────── */
+.pdz-form { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+.pdz-form label {
+  display: flex; flex-direction: column; gap: 0.25rem; flex: 1 1 220px;
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+}
+.pdz-form .swb-input, .pdz-form .swb-select { text-transform: none; letter-spacing: normal; }
+
+.pdz-steps { display: flex; flex-direction: column; gap: 0.5rem; }
+.pdz-step {
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-left: 3px solid #38a0ff;
+  border-radius: 9px; padding: 0.6rem 0.8rem;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+}
+.pdz-step-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.pdz-step-id {
+  font-family: ui-monospace, monospace; font-size: 0.72rem;
+  opacity: 0.7; min-width: 62px;
+}
+.pdz-detail { margin: 0.35rem 0 0; }
+/* Le fil d'exécution est rendu sous chaque étape : le graphe se lit
+   verticalement sans avoir à ouvrir chaque carte. */
+.pdz-flow { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.4rem; }
+.pdz-arrow {
+  font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 6px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+.pdz-arrow b { font-family: ui-monospace, monospace; }
+
+@media (max-width: 760px) {
+  .pdz-form label { flex-basis: 100%; }
+}

@@ -55,6 +55,26 @@ if(n){
   const hasBtn=await p.locator('[data-pso-act="enrich"]').count();
   console.log(`[${hasBtn?'PASS':'FAIL'}] bouton enrichir present`); if(!hasBtn)fails++;
   if(hasBtn){
+    // Le test ouvrait le premier incident de la file, dont le contenu depend
+    // des donnees du moment: la correlation en cree qui n'ont aucun IOC.
+    // On garantit la precondition au lieu de dependre de l'ordre.
+    await p.evaluate(async ()=>{
+      const list=await (await fetch('/api/incidents',{credentials:'include'})).json();
+      const id=(list[0]||{}).incident_id; if(!id) return;
+      const det=await (await fetch('/api/incidents/'+id,{credentials:'include'})).json();
+      const has=(det.events||[]).some(e=>e.kind==='ioc');
+      if(!has){
+        await fetch('/api/incidents/'+id+'/events',{method:'POST',credentials:'include',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({kind:'ioc',title:'IOC de validation',value:'203.0.113.50'})});
+      }
+    });
+    // On est dans le detail : le bouton « Rafraichir » n'existe que dans la file.
+    // On repasse par la file pour recharger le dossier avec son nouvel IOC.
+    await p.locator('[data-pso-act="back"]').first().click(); await p.waitForTimeout(2500);
+    const rows2=p.locator('#psoar-root tbody tr[data-pso-act="open"]');
+    if(await rows2.count()){ await rows2.first().locator('td').nth(2).click(); await p.waitForTimeout(2500); }
+    await p.locator('[data-pso-tab="iocs"]').first().click(); await p.waitForTimeout(1000);
     await p.locator('[data-pso-act="enrich"]').first().click();
     await p.waitForFunction(()=>/malveillant|suspect|signal.|inconnu/i.test(
       document.getElementById('psoar-root').innerText),{timeout:90000}).catch(()=>{});

@@ -143,6 +143,37 @@ Console unifiée montée sur les 8 écrans historiques du portail, en 11 vues.
 - **Stockage** — état réel des index, projection de croissance mesurée, rétention
   par paliers avec simulation obligatoire.
 
+### Satisfiabilité des règles — ce qu'aucun SIEM ne sait dire
+La console dit quelles règles sont **activées**. Elle ne dit jamais lesquelles
+peuvent **se déclencher**. Une règle Sigma teste des champs ; si aucune source
+ingérée ne les produit, elle est verte, elle compte dans la couverture, et elle
+ne tirera jamais. C'est une protection imaginaire — la pire espèce, parce
+qu'elle rassure.
+
+Le moteur confronte les champs exigés par chaque règle aux champs réellement
+observés dans les événements, schéma que Sekoia n'expose pas et qu'on établit
+par échantillonnage.
+
+**Sur ce tenant : 305 règles activées ne peuvent pas se déclencher.** La lecture
+inverse est plus actionnable : collecter `process.parent.name` en réactive 72
+d'un coup.
+
+Trois disciplines : aucun verdict négatif sous 30 événements pour un format ;
+borne de fréquence rendue (règle de trois, < 3/n) ; aucun verdict négatif dur
+sur une règle agnostique du format.
+
+### Volume contre valeur
+Un SIEM compte les événements et les alertes, il ne les rapproche jamais. Le
+module joint la volumétrie par intake aux alertes de détection.
+
+Sur ce tenant : **2 sources ont produit 34 millions d'événements sans lever une
+seule alerte** (54,9 % du volume), et **une seule règle produit 58 % de toutes
+les alertes**.
+
+« Zéro alerte » ne veut pas dire « inutile » : une source d'accès peut ne jamais
+déclencher de règle et rester indispensable à l'investigation. Le module classe,
+il ne recommande pas la suppression.
+
 ### Surveillance par hôte
 
 L'alerting classique raisonne par intake. Quand une seule machine derrière un
@@ -182,6 +213,13 @@ d'alerte).
 
 ### PSOAR
 
+**Moteur de similarité et de récurrence** — « est-ce déjà arrivé ? » est la
+première question d'un analyste, et aucun outil de réponse n'y répond seul.
+Quatre signaux de force décroissante (IOC partagé, machine, étiquette,
+intitulé), chaque rapprochement portant ses raisons en clair. Un score n'est
+rendu que si un signal a réellement joué : le moteur refuse de fabriquer une
+ressemblance.
+
 Réponse à incident complète : incidents (sévérité, statuts, assignation,
 timeline, notes, evidences, IOCs typés), **playbooks** avec conditions et
 actions, enrichissement CTI fédéré (OpenCTI + MISP + OpenSearch), marquage TLP,
@@ -201,18 +239,19 @@ absentes de l'inventaire d'actifs · TheHive et Cortex rejettent leurs clés API
 ```bash
 ./scripts/validate-sekoia.sh                       # services, routes API, télémétrie, CTI
 
-# 153 tests unitaires du control-plane (dans le conteneur — dépendances requises)
+# 185 tests unitaires du control-plane (dans le conteneur — dépendances requises)
 docker exec -u root forensic-sekoia-controlplane pip install -q pytest pytest-asyncio
 for f in connectors/sekoia-controlplane/test_*.py; do docker cp "$f" forensic-sekoia-controlplane:/tmp/; done
 docker exec -u root -w /app forensic-sekoia-controlplane sh -c 'python -m pytest /tmp/test_*.py -q'
 
-# 20 tests unitaires PSOAR — le test n'est pas dans l'image, on l'y copie
+# 39 tests unitaires PSOAR — les tests ne sont pas dans l'image, on les y copie
 docker exec forensic-cert-portal mkdir -p /app/test
 docker cp portal-cert/test/psoar.test.js forensic-cert-portal:/app/test/
-docker exec -w /app forensic-cert-portal node --test test/psoar.test.js
+docker cp portal-cert/test/similarity.test.js forensic-cert-portal:/app/test/
+docker exec -w /app forensic-cert-portal node --test test/
 ```
 
-Validation visuelle (Playwright, captures dans `screenshots/`) : 11 vues du
+Validation visuelle (Playwright, captures dans `screenshots/`) : 12 vues du
 workbench, 8 onglets historiques, console PSOAR — 0 FAIL, 0 erreur console.
 
 Documentation détaillée : [`docs/sekoia-psoar-rebuild/`](docs/sekoia-psoar-rebuild/)
@@ -636,16 +675,17 @@ Projets disponibles : `ui`, `playwright`, `ui-integration` (voir `tests/package.
 ### Couche Sekoia (SEP + PSOAR)
 
 ```bash
-# 153 tests unitaires du control-plane — logique pure, sans réseau
+# 185 tests unitaires du control-plane — logique pure, sans réseau
 docker exec -u root forensic-sekoia-controlplane pip install -q pytest pytest-asyncio
 for f in connectors/sekoia-controlplane/test_*.py; do docker cp "$f" forensic-sekoia-controlplane:/tmp/; done
 docker exec -u root -w /app forensic-sekoia-controlplane sh -c 'python -m pytest /tmp/test_*.py -q'
 
-# 20 tests unitaires PSOAR (playbooks, typage IOC, TLP)
+# 39 tests unitaires PSOAR (playbooks, typage IOC, TLP, similarité)
 # Le test doit rester a cote de portal-cert/routes/ pour resoudre ses imports.
 docker exec forensic-cert-portal mkdir -p /app/test
 docker cp portal-cert/test/psoar.test.js forensic-cert-portal:/app/test/
-docker exec -w /app forensic-cert-portal node --test test/psoar.test.js
+docker cp portal-cert/test/similarity.test.js forensic-cert-portal:/app/test/
+docker exec -w /app forensic-cert-portal node --test test/
 ```
 
 Les tests unitaires restent **hors des images de production** : ils sont copiés

@@ -333,6 +333,33 @@
       </aside>`;
   }
 
+  // Rejeu d'une regle : le VERDICT en premier, le chiffre ensuite, et la reserve
+  // avec — un nombre d'evenements lu comme un nombre d'alertes ferait renoncer a
+  // une regle qui n'en aurait produit qu'une poignee.
+  function backtestPanel(bt) {
+    if (bt.loading) {
+      return `<div class="swb-panel"><p class="swb-hint" style="margin:0">${T('swb.bt.running')}</p></div>`;
+    }
+    if (bt.error || bt.reason) {
+      return `<div class="swb-panel" style="border-left:3px solid var(--swb-muted)">
+        <h3 class="swb-panel-title">${T('swb.bt.not_replayable')}</h3>
+        <p class="swb-hint" style="margin:.3rem 0 0">${esc(bt.reason || bt.error)}</p>
+        ${bt.note ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(bt.note)}</p>` : ''}</div>`;
+    }
+    const v = bt.verdict || {};
+    const tone = v.level === 'ingérable' ? 'var(--swb-danger)'
+      : v.level === 'a_surveiller' ? 'var(--swb-warn)'
+        : v.level === 'silencieuse' ? 'var(--swb-muted)' : 'var(--swb-ok)';
+    return `<div class="swb-panel" style="border-left:3px solid ${tone}">
+      <div class="swb-panel-head"><h3 class="swb-panel-title">${T('swb.bt.title')}</h3>
+        <span class="swb-pill swb-pill-flat">${nf(bt.matches)} ${T('swb.bt.events')}</span></div>
+      <p style="margin:.3rem 0 0"><strong>${esc(v.text || '')}</strong></p>
+      <p class="swb-hint" style="margin:.4rem 0 0">${esc(bt.upper_bound_note || '')}</p>
+      <p class="swb-hint" style="margin:.3rem 0 0">${esc(bt.vs_satisfiability || '')}</p>
+      <p class="swb-hint swb-mono" style="margin:.4rem 0 0;word-break:break-all">${esc(bt.query || '')}</p>
+    </div>`;
+  }
+
   // Volet de remédiation : la simulation intégrale AVANT l'écriture, et la
   // réserve du module affichée à côté du bouton — pas dans une infobulle qu'on
   // ne lit qu'après coup.
@@ -891,6 +918,9 @@
         <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="simulate"
           data-kind="rule" data-id="${esc(id)}"
           data-to="${(r && r.rule_enabled) ? 'disable' : 'enable'}">Simuler l'impact</button>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-swb-act="backtest"
+          data-id="${esc(r && r.rule_uuid)}">${T('swb.bt.run')}</button>
+        ${st.backtest && st.backtest.rule_uuid === (r && r.rule_uuid) ? backtestPanel(st.backtest) : ''}
         ${st.simulation && st.simulation.target && st.simulation.target.id === id
     ? `<span class="swb-hint">${esc(st.simulation.verdict)}</span>` : ''}
       </div>` + kv([
@@ -1847,6 +1877,20 @@
         }
         if (act === 'open-source') { openSource(b.dataset.id); return; }
         if (act === 'open-rule') { openRule(b.dataset.id); return; }
+        if (act === 'backtest') {
+          // Le rejeu lance un job de recherche Sekoia : on le signale, sans quoi
+          // l'operateur croit que rien ne se passe pendant une minute.
+          toast(T('swb.bt.running'), 'ok');
+          st.backtest = { rule_uuid: b.dataset.id, loading: true };
+          paint();
+          try {
+            st.backtest = await api(`/backtest/${encodeURIComponent(b.dataset.id)}?window=7d`);
+          } catch (e) {
+            st.backtest = { rule_uuid: b.dataset.id, error: e.message };
+          }
+          await openRule(b.dataset.id);
+          return;
+        }
         if (act === 'simulate') {
           const r = await api(`/simulate?kind=${encodeURIComponent(b.dataset.kind)}`
             + `&id=${encodeURIComponent(b.dataset.id)}&action=${encodeURIComponent(b.dataset.to)}`);

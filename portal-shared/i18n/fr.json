@@ -2316,6 +2316,13 @@
     "inv": {
       "manual": "manuelle",
       "remediate": "Remédier"
+    },
+    "bt": {
+      "run": "Rejouer sur 7 jours",
+      "running": "Rejeu en cours — un job de recherche Sekoia est lancé…",
+      "title": "Rejeu sur les données réelles",
+      "events": "événements correspondants",
+      "not_replayable": "Motif non rejouable"
     }
   },
   "swbtx": {

@@ -2316,6 +2316,13 @@
     "inv": {
       "manual": "manual",
       "remediate": "Remediate"
+    },
+    "bt": {
+      "run": "Replay over 7 days",
+      "running": "Replay running — a Sekoia search job has been started…",
+      "title": "Replay on real data",
+      "events": "matching events",
+      "not_replayable": "Pattern cannot be replayed"
     }
   },
   "swbtx": {

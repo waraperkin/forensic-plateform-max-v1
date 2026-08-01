@@ -39,14 +39,19 @@ elle donnerait un chiffre faux avec l'apparence d'un fait.
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from typing import Any, Optional
 
-from fastapi import Depends, Query
+from fastapi import Depends, Query, Request
 
 import app as cp
 
 MAX_WINDOW_DAYS = 30
+# Plafond de rejeu par lot. Chaque rejeu est un job de recherche prélevé sur le
+# quota du tenant : sans plafond, une sélection de 300 règles saturerait l'API
+# pour tout le monde.
+MAX_BATCH = int(os.environ.get("SEKOIA_MAX_BACKTEST_BATCH", "25"))
 # Modificateurs traduisibles en recherche plein texte, et leur forme.
 WILDCARD = {
     "contains": "*{v}*",
@@ -313,8 +318,80 @@ async def backtest(rule: dict, window: str = "7d") -> dict:
     }
 
 
+async def backtest_many(rules: list, window: str = "7d",
+                        concurrency: int = 3) -> dict:
+    """Rejeu d'un LOT de règles, avant de les activer ensemble.
+
+    C'est la suite logique du rejeu unitaire : personne n'active une règle à la
+    fois. Activer quarante règles sans savoir ce qu'elles produisent est
+    exactement le geste qui noie une file d'alertes pour un mois.
+
+    La concurrence est BASSE et volontairement : chaque rejeu est un job de
+    recherche Sekoia, prélevé sur le quota partagé avec les analystes. Aller
+    plus vite ici, c'est ralentir quelqu'un d'autre — et cette session a déjà
+    déclenché une limitation de débit (HTTP 429) en l'oubliant.
+    """
+    sem = asyncio.Semaphore(max(1, min(concurrency, 5)))
+
+    async def one(rule):
+        async with sem:
+            return await backtest(rule, window=window)
+
+    results = await asyncio.gather(*(one(r) for r in rules))
+    replayed = [r for r in results if r.get("translatable") and "matches" in r]
+    refused = [r for r in results if not r.get("translatable")]
+    failed = [r for r in results if r.get("translatable") and "matches" not in r]
+
+    total = sum(r["matches"] for r in replayed)
+    heavy = [r for r in replayed if (r.get("verdict") or {}).get("level") == "ingérable"]
+    silent = [r for r in replayed
+              if (r.get("verdict") or {}).get("level") == "silencieuse"]
+    days = {"1d": 1, "24h": 1, "7d": 7, "14d": 14, "30d": 30}.get(window, 7)
+
+    return {
+        "window": window, "rules_requested": len(rules),
+        "replayed": len(replayed), "refused": len(refused), "failed": len(failed),
+        "events_total": total,
+        "events_per_day": round(total / days, 1) if days else total,
+        "rules_ingerables": len(heavy),
+        "rules_silencieuses": len(silent),
+        "headline": (f"{len(heavy)} règle(s) de la sélection produiraient à elles "
+                     "seules un volume ingérable.")
+        if heavy else
+        (f"La sélection aurait produit {total} événement(s) correspondants sur "
+         f"{days} jour(s), soit environ {round(total / days, 1)} par jour."
+         if replayed else
+         "Aucune règle de la sélection n'est rejouable : leurs motifs ne se "
+         "traduisent pas en recherche sans approximation."),
+        "caution": "Ce sont des ÉVÉNEMENTS, pas des alertes : une règle de "
+                   "corrélation regroupe et déduplique, donc elle en produira "
+                   "moins. Lisez ce total comme une borne haute.",
+        "top": sorted(replayed, key=lambda r: -r["matches"])[:20],
+        "refused_examples": [{"rule_name": r.get("rule_name"),
+                              "reason": r.get("reason")} for r in refused[:10]],
+    }
+
+
 def register(bt_app) -> None:
     dep = [Depends(cp.require_internal_token)]
+
+    @bt_app.post("/control/sekoia/backtest-batch", dependencies=dep)
+    async def batch(request: Request, window: str = Query(default="7d")):
+        body = await request.json()
+        ids = {str(x) for x in (body.get("ids") or [])}
+        if not ids:
+            return {"error": "Aucune règle sélectionnée."}
+        if len(ids) > MAX_BATCH:
+            return {"error": f"Rejeu limité à {MAX_BATCH} règles par lot : "
+                             "chaque rejeu consomme du quota de recherche Sekoia, "
+                             "partagé avec les analystes.",
+                    "requested": len(ids), "max": MAX_BATCH}
+        full = await cp.get_full()
+        rules = [r for r in (full.get("rules") or [])
+                 if str(r.get("rule_uuid")) in ids]
+        if not rules:
+            return {"error": "Aucune règle connue dans la sélection."}
+        return await backtest_many(rules, window=window)
 
     @bt_app.get("/control/sekoia/backtest/{rule_uuid}", dependencies=dep)
     async def run(rule_uuid: str, window: str = Query(default="7d")):

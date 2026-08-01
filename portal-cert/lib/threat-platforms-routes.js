@@ -301,7 +301,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   // Sekoia Extended Platform (volumétrie, alerting configurable, opérations en
   // lot) : sans elles ici, l'UI ne peut pas les atteindre malgré leur présence
   // dans le control-plane.
-  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|schema-drift)(\/|$)/;
+  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
     if (!mapped || !ALLOWED_PROXY_RE.test(req.path)) {
@@ -316,7 +316,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     const url = `${mapped.base}${mapped.target}`;
     // Timeouts adaptés : la collecte d'événements (jobs Sekoia) peut dépasser
     // 60 s ; les inventaires volumineux (1000+ règles) aussi au 1er refresh.
-    const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting|telemetry|intake|graph|simulate|hosts|valuation|satisfiability|field-inventory|backtest|backtest-coverage|schema-drift)(\/|$)/.test(req.path);
+    const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting|telemetry|intake|graph|simulate|hosts|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift)(\/|$)/.test(req.path);
     const timeout = heavy
       ? Number(process.env.SEKOIA_PROXY_TIMEOUT_HEAVY_MS || 240000)
       : Number(process.env.SEKOIA_PROXY_TIMEOUT_MS || 120000);

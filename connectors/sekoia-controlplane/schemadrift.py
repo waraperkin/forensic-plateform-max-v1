@@ -278,6 +278,86 @@ async def analyse(window: str = "24h", sample: int = 1500, hours: int = 336,
     return out
 
 
+async def emit_alerts(result: dict, dry_run: bool = False) -> dict:
+    """Verse les dérives détectées dans le FLUX D'ALERTES commun.
+
+    Un module qui détecte sans alerter suppose que quelqu'un ouvre l'écran. La
+    mort silencieuse d'une règle est précisément ce que personne ne va chercher :
+    elle doit venir à l'opérateur, dans le même flux et avec la même
+    déduplication que les autres incidents.
+    """
+    if not result.get("available"):
+        return {"ok": False, "reason": result.get("reason"), "alerts_new": 0}
+
+    cooldown = 86400          # une disparition de champ ne se re-signale pas à l'heure
+    recent = await alerting._open_fingerprints(cooldown)
+    ts = _now()
+    candidates = []
+
+    for d in result.get("disappeared") or []:
+        fp = alerting._fingerprint("schema_field_lost",
+                                   f"{d['dialect_uuid']}:{d['field']}")
+        if fp in recent:
+            continue
+        candidates.append({
+            "@timestamp": ts, "fingerprint": fp,
+            "rule_id": "schema_field_lost", "rule": "Champ disparu du schéma",
+            "rule_type": "schema_field_lost",
+            # Une disparition qui tue des règles activées est critique ; sans
+            # règle derrière, c'est une information, pas une urgence.
+            "severity": "critical" if d["rules_enabled_impacted"] else "medium",
+            "status": "open", "target_type": "schema",
+            "field": d["field"], "dialect_uuid": d["dialect_uuid"],
+            "intake_format_name": d.get("dialect_name"),
+            "rules_impacted": d["rules_enabled_impacted"],
+            "message": d["message"], "source": "sekoia-extended-platform",
+        })
+
+    for d in result.get("degraded") or []:
+        fp = alerting._fingerprint("schema_field_degraded",
+                                   f"{d['dialect_uuid']}:{d['field']}")
+        if fp in recent:
+            continue
+        candidates.append({
+            "@timestamp": ts, "fingerprint": fp,
+            "rule_id": "schema_field_degraded",
+            "rule": "Chute de couverture d'un champ",
+            "rule_type": "schema_field_degraded",
+            "severity": "high" if d["rules_enabled_impacted"] else "low",
+            "status": "open", "target_type": "schema",
+            "field": d["field"], "dialect_uuid": d["dialect_uuid"],
+            "intake_format_name": d.get("dialect_name"),
+            "rules_impacted": d["rules_enabled_impacted"],
+            "message": d["message"], "source": "sekoia-extended-platform",
+        })
+
+    # Regroupement par FORMAT : une mise à jour de parseur fait disparaître
+    # plusieurs champs d'un coup. C'est un incident, pas dix.
+    groups: dict[tuple, list] = {}
+    for a in candidates:
+        groups.setdefault((a["rule_type"], a["dialect_uuid"]), []).append(a)
+    grouped = []
+    for (rtype, dialect), members in groups.items():
+        if len(members) < 2:
+            grouped.append({**members[0], "group_size": 1, "group_id": None})
+            continue
+        gid = alerting._fingerprint(f"schema:{rtype}:{dialect}",
+                                    ",".join(sorted(m["field"] for m in members)))
+        label = members[0].get("intake_format_name") or dialect
+        for m in members:
+            grouped.append({**m, "group_id": gid, "group_size": len(members),
+                            "group_label": f"{len(members)} champs — {label}"})
+
+    written, err = (0, None) if dry_run else await alerting._os_bulk(
+        [(f"{alerting.ALERTS_INDEX_PREFIX}-{datetime.now(timezone.utc):%Y.%m}", a)
+         for a in grouped])
+    if not dry_run and grouped:
+        await alerting._notify(grouped)
+    return {"ok": True, "dry_run": dry_run, "error": err,
+            "alerts_new": len(grouped), "alerts_written": written,
+            "deduplicated": len(recent), "alerts": grouped[:50]}
+
+
 def register(sd_app) -> None:
     dep = [Depends(cp.require_internal_token)]
 
@@ -288,3 +368,14 @@ def register(sd_app) -> None:
                     persist: int = Query(default=1)):
         return await analyse(window=window, sample=sample, hours=hours,
                              persist=bool(persist))
+
+    @sd_app.post("/control/sekoia/schema-drift/evaluate", dependencies=dep)
+    async def evaluate(window: str = Query(default="24h"),
+                       sample: int = Query(default=1500, ge=300, le=5000),
+                       hours: int = Query(default=336, ge=1, le=2160),
+                       dry_run: int = Query(default=0)):
+        """Relève le schéma, compare, et verse les dérives dans le flux d'alertes."""
+        result = await analyse(window=window, sample=sample, hours=hours,
+                               persist=not dry_run)
+        emitted = await emit_alerts(result, dry_run=bool(dry_run))
+        return {**result, "alerting": emitted}

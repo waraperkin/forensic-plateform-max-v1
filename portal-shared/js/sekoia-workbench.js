@@ -248,6 +248,25 @@
             <td class="swb-hint">${esc(JSON.stringify(r.before || {}))} → ${esc(JSON.stringify(r.would_apply || {}))}</td>
           </tr>`).join('')}</tbody></table></div></div>` : '';
 
+    const bb = st.batch;
+    const batchBlock = !bb ? '' : (bb.error
+      ? `<div class="swb-panel" style="margin:.5rem 0 0"><p class="swb-hint" style="margin:0">${esc(bb.error)}</p></div>`
+      : `<div class="swb-panel" style="margin:.5rem 0 0;border-left:3px solid ${
+          bb.rules_ingerables ? 'var(--swb-danger)' : 'var(--swb-ok)'}">
+          <div class="swb-panel-head"><h3 class="swb-panel-title">${esc(bb.headline)}</h3>
+            <span class="swb-pill swb-pill-flat">${nf(bb.replayed)}/${nf(bb.rules_requested)} ${T('swb.bt.replayed')}</span></div>
+          <p class="swb-hint" style="margin:.3rem 0 0">${esc(bb.caution)}</p>
+          ${bb.refused ? `<p class="swb-hint" style="margin:.2rem 0 0">${
+            T('swb.bt.refused', { n: nf(bb.refused) })}</p>` : ''}
+          <div class="swb-tablewrap" style="max-height:26vh;margin-top:.5rem">
+            <table class="swb-table"><thead><tr><th>${T('swb.col.rule')}</th>
+              <th class="swb-num">${T('swb.v.events')}</th><th>${T('swb.v.verdict')}</th>
+            </tr></thead><tbody>${(bb.top || []).map((r) => `<tr>
+              <td class="swb-truncate">${esc(r.rule_name)}</td>
+              <td class="swb-num">${nf(r.matches)}</td>
+              <td class="swb-hint swb-truncate">${esc((r.verdict || {}).text || '')}</td>
+            </tr>`).join('')}</tbody></table></div></div>`);
+
     return `<div class="swb-panel" style="border-left:3px solid var(--swb-accent)">
       <div class="swb-filters" style="align-items:center">
         <strong>${T('swb.sel.count', { n: nf(ids.length) })}</strong>
@@ -256,8 +275,10 @@
         <input class="swb-input" id="swb-seltags" style="max-width:14rem" placeholder="${T('swb.sel.tags_ph')}">
         <button type="button" class="fp-btn fp-btn-sm" data-swb-act="sel-do" data-op="tag_add">${T('swb.sel.tag_add')}</button>
         <button type="button" class="fp-btn fp-btn-sm" data-swb-act="sel-do" data-op="tag_remove">${T('swb.sel.tag_remove')}</button>
+        ${target === 'rules' ? `<button type="button" class="fp-btn fp-btn-sm"
+          data-swb-act="sel-backtest">${T('swb.bt.batch')}</button>` : ''}
         <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="sel-clear">${T('swb.sel.clear')}</button>
-      </div>${preview}</div>`;
+      </div>${batchBlock}${preview}</div>`;
   }
 
   function selHead() {
@@ -1810,7 +1831,20 @@
       const act = b.dataset.swbAct;
       try {
         if (act === 'reload') { load(); return; }
-        if (act === 'sel-clear') { st.sel = {}; st.act = null; paint(); return; }
+        if (act === 'sel-clear') { st.sel = {}; st.act = null; st.batch = null; paint(); return; }
+        if (act === 'sel-backtest') {
+          const ids = selIds();
+          if (!ids.length) return;
+          // Chaque rejeu est un job de recherche : on previent, sinon
+          // l'operateur croit que rien ne se passe pendant une minute.
+          toast(T('swb.bt.batch_running', { n: nf(ids.length) }), 'ok');
+          st.batch = null; paint();
+          try {
+            st.batch = await api('/backtest-batch?window=7d',
+              { method: 'POST', body: { ids } });
+          } catch (e) { st.batch = { error: e.message }; }
+          paint(); return;
+        }
         if (act === 'arule-new') {
           const name = (document.getElementById('swb-arname') || {}).value || '';
           if (!name.trim()) { toast(T('swb.al.need_name'), 'err'); return; }

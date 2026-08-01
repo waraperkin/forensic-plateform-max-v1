@@ -130,3 +130,55 @@ def test_une_regle_ingerable_deja_activee_est_signalee_comme_telle():
 def test_le_debit_quotidien_est_normalise_sur_la_fenetre():
     assert bt.verdict(70, 7, False)["per_day"] == 10.0
     assert bt.verdict(70, 1, False)["per_day"] == 70.0
+
+
+# ── Rejeu en lot ─────────────────────────────────────────────────────────────
+def _replayed(name, matches, level):
+    return {"rule_name": name, "translatable": True, "matches": matches,
+            "verdict": {"level": level, "text": "t", "per_day": matches / 7}}
+
+
+def test_le_lot_totalise_et_normalise_par_jour(monkeypatch):
+    import asyncio
+    async def fake(rule, window="7d"):
+        return _replayed(rule["rule_name"], 70, "exploitable")
+    monkeypatch.setattr(bt, "backtest", fake)
+    r = asyncio.run(
+        bt.backtest_many([{"rule_name": "A"}, {"rule_name": "B"}], window="7d"))
+    assert r["replayed"] == 2
+    assert r["events_total"] == 140
+    assert r["events_per_day"] == 20.0
+
+
+def test_le_lot_met_en_avant_les_regles_ingerables(monkeypatch):
+    import asyncio
+    async def fake(rule, window="7d"):
+        return _replayed(rule["rule_name"], 70000, "ingérable")
+    monkeypatch.setattr(bt, "backtest", fake)
+    r = asyncio.run(
+        bt.backtest_many([{"rule_name": "A"}], window="7d"))
+    assert r["rules_ingerables"] == 1
+    assert "ingérable" in r["headline"]
+
+
+def test_les_regles_non_traduisibles_sont_comptees_a_part(monkeypatch):
+    import asyncio
+    async def fake(rule, window="7d"):
+        return {"rule_name": rule["rule_name"], "translatable": False,
+                "reason": "regex"}
+    monkeypatch.setattr(bt, "backtest", fake)
+    r = asyncio.run(
+        bt.backtest_many([{"rule_name": "A"}], window="7d"))
+    assert r["refused"] == 1 and r["replayed"] == 0
+    assert "ne se traduisent pas" in r["headline"]
+    assert r["refused_examples"][0]["reason"] == "regex"
+
+
+def test_la_mise_en_garde_borne_haute_accompagne_le_lot(monkeypatch):
+    import asyncio
+    async def fake(rule, window="7d"):
+        return _replayed("A", 10, "exploitable")
+    monkeypatch.setattr(bt, "backtest", fake)
+    r = asyncio.run(
+        bt.backtest_many([{"rule_name": "A"}], window="7d"))
+    assert "ÉVÉNEMENTS, pas des alertes" in r["caution"]

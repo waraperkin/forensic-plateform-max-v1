@@ -459,3 +459,48 @@ La détection de dérive est prouvée par **15 tests unitaires** couvrant
 disparition, dégradation, apparition et construction de la ligne de base. La
 démonstration de bout en bout sur données vivantes a été **reportée** faute de
 quota disponible — je préfère le dire que de la présenter comme faite.
+
+## Suites logiques : alerting de dérive et rejeu en lot
+
+### La dérive alerte, et se relève seule
+Un module qui détecte sans alerter suppose que quelqu'un ouvre l'écran. Or la
+mort silencieuse d'une règle est précisément ce que personne ne va chercher :
+elle doit venir à l'opérateur.
+
+Les dérives sont désormais versées dans le **flux d'alertes commun**, avec la
+même déduplication et le même regroupement que les autres incidents :
+
+- une disparition de champ qui tue des règles activées est **critique** ; sans
+  règle derrière, c'est une information — pas une urgence ;
+- plusieurs champs disparus sur un même format forment **un incident**, pas dix
+  notifications : une mise à jour de parseur en fait tomber plusieurs d'un coup ;
+- le cooldown est de 24 h, une disparition de champ n'ayant pas à se re-signaler
+  toutes les heures.
+
+Le poller relève le schéma **toutes les heures** — c'est ce cycle, et non
+l'ouverture d'un écran, qui construit la ligne de base. Cadence lente et
+délibérée : chaque relevé consomme du quota de recherche partagé avec les
+analystes. Vérifié en production : 533 → 661 documents de schéma après un cycle.
+
+### Rejeu en lot, avant d'activer ensemble
+Personne n'active une règle à la fois. Activer quarante règles sans savoir ce
+qu'elles produisent est exactement le geste qui noie une file d'alertes pour un
+mois.
+
+Le rejeu s'applique désormais à une **sélection**, depuis la même barre
+d'actions que l'activation — on rejoue, on lit, puis on active. Le résultat
+donne le total, le débit quotidien, et surtout **les règles ingérables prises
+isolément** : une seule suffit à condamner un lot.
+
+Mesuré sur le tenant : 4 règles rejouées → 1 231 événements, 175,9 par jour,
+**dont une règle à elle seule ingérable**.
+
+Deux bornes assumées :
+- **25 règles par lot** au maximum ; sans plafond, une sélection de 300 règles
+  saturerait l'API pour tout le monde ;
+- **concurrence de 3**, volontairement basse. Aller plus vite ici, c'est
+  ralentir un analyste — et cette session a déjà déclenché une limitation de
+  débit en l'oubliant.
+
+Les règles non traduisibles sont comptées à part avec leur motif de refus,
+plutôt que noyées dans un total qui les ignorerait.

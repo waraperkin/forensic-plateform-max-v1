@@ -2322,7 +2322,11 @@
       "running": "Replay running — a Sekoia search job has been started…",
       "title": "Replay on real data",
       "events": "matching events",
-      "not_replayable": "Pattern cannot be replayed"
+      "not_replayable": "Pattern cannot be replayed",
+      "batch": "Replay selection",
+      "batch_running": "Replaying {n} rule(s) — each replay starts a Sekoia search job…",
+      "replayed": "replayed",
+      "refused": "{n} rule(s) cannot be replayed: their pattern does not translate without approximation."
     },
     "sd": {
       "title": "Schema drift — silent rule death",

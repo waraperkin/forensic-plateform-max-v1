@@ -62,6 +62,11 @@ HOST_SAMPLE = int(os.environ.get("HOST_SAMPLE", "1500"))
 # l'interface, elle expire avant d'obtenir une réponse. C'est donc le poller qui
 # le construit, en arrière-plan, et l'écran trouve toujours un cache chaud.
 SAT_INTERVAL_S = int(os.environ.get("SAT_INTERVAL_S", "1500"))
+# Relevé de schéma. C'est ce cycle, et non l'ouverture d'un écran, qui construit
+# la ligne de base sans laquelle aucune disparition de champ n'est detectable.
+# Cadence lente et deliberee : chaque releve consomme du quota de recherche
+# Sekoia, partage avec les analystes.
+SCHEMA_INTERVAL_S = int(os.environ.get("SCHEMA_INTERVAL_S", "3600"))
 
 
 class _Skip(Exception):
@@ -646,6 +651,26 @@ async def alerter_loop():
                                  sres.get("rules_enabled_inert"), sres.get("conclusive_pct"))
                     except Exception as exc:
                         log.warning("rules/satisfiability: %s", _exc_msg(exc))
+
+                if (time.time() - STATE.get("_schema_last", 0)) >= SCHEMA_INTERVAL_S:
+                    STATE["_schema_last"] = time.time()
+                    try:
+                        rd = await client.post(
+                            f"{CP_URL}/control/sekoia/schema-drift/evaluate",
+                            params={"window": "24h", "sample": 1500},
+                            headers=_cp_headers(), timeout=400)
+                        rd.raise_for_status()
+                        dres = rd.json()
+                        dead = dres.get("rules_silently_dead") or 0
+                        STATE["schema_fields_tracked"] = dres.get("fields_profiled")
+                        STATE["schema_rules_dead"] = dead
+                        if dead:
+                            log.warning("derive de schema: %s regle(s) activee(s) "
+                                        "ne peuvent plus se declencher", dead)
+                        elif dres.get("reason"):
+                            log.info("schema: %s", str(dres["reason"])[:110])
+                    except Exception as exc:
+                        log.warning("schema-drift/evaluate: %s", _exc_msg(exc))
 
                 STATE["alerts_open"] = count
                 STATE["alert_incidents"] = result.get("incidents")

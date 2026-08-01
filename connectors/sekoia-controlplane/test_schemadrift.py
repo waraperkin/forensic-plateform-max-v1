@@ -118,3 +118,55 @@ def test_index_rattache_chaque_champ_a_ses_regles():
         "rule_payload": "detection:\n  s:\n    a.b: 1\n    c.d: 2\n  condition: s\n"}])
     assert set(idx) == {"a.b", "c.d"}
     assert idx["a.b"][0]["enabled"] is True
+
+
+# ── Versement dans le flux d'alertes ─────────────────────────────────────────
+def _res(**over):
+    return {"available": True, "disappeared": [], "degraded": [], **over}
+
+
+def test_disparition_tuant_des_regles_est_critique():
+    import asyncio
+    r = asyncio.run(sd.emit_alerts(_res(
+        disappeared=[{"dialect_uuid": "d1", "field": "a.b", "dialect_name": "F",
+                      "rules_enabled_impacted": 12, "message": "m"}]), dry_run=True))
+    assert r["alerts_new"] == 1
+    assert r["alerts"][0]["severity"] == "critical"
+    assert r["alerts"][0]["rule_type"] == "schema_field_lost"
+
+
+def test_disparition_sans_regle_derriere_n_est_pas_une_urgence():
+    import asyncio
+    r = asyncio.run(sd.emit_alerts(_res(
+        disappeared=[{"dialect_uuid": "d1", "field": "a.b", "dialect_name": "F",
+                      "rules_enabled_impacted": 0, "message": "m"}]), dry_run=True))
+    assert r["alerts"][0]["severity"] == "medium"
+
+
+def test_plusieurs_champs_du_meme_format_forment_un_incident():
+    """Une mise a jour de parseur fait disparaitre plusieurs champs d'un coup :
+    c'est un incident, pas dix notifications."""
+    import asyncio
+    d = [{"dialect_uuid": "d1", "field": f, "dialect_name": "F",
+          "rules_enabled_impacted": 3, "message": "m"} for f in ("a.b", "c.d", "e.f")]
+    r = asyncio.run(
+        sd.emit_alerts(_res(disappeared=d), dry_run=True))
+    assert len({a["group_id"] for a in r["alerts"]}) == 1
+    assert all(a["group_size"] == 3 for a in r["alerts"])
+
+
+def test_champs_de_formats_differents_restent_separes():
+    import asyncio
+    d = [{"dialect_uuid": f"d{n}", "field": "a.b", "dialect_name": "F",
+          "rules_enabled_impacted": 1, "message": "m"} for n in (1, 2)]
+    r = asyncio.run(
+        sd.emit_alerts(_res(disappeared=d), dry_run=True))
+    assert all(a["group_id"] is None for a in r["alerts"])
+
+
+def test_aucune_alerte_si_l_analyse_n_a_pas_abouti():
+    import asyncio
+    r = asyncio.run(
+        sd.emit_alerts({"available": False, "reason": "429"}, dry_run=True))
+    assert r["alerts_new"] == 0
+    assert r["ok"] is False

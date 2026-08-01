@@ -2322,7 +2322,11 @@
       "running": "Rejeu en cours — un job de recherche Sekoia est lancé…",
       "title": "Rejeu sur les données réelles",
       "events": "événements correspondants",
-      "not_replayable": "Motif non rejouable"
+      "not_replayable": "Motif non rejouable",
+      "batch": "Rejouer la sélection",
+      "batch_running": "Rejeu de {n} règle(s) — chaque rejeu lance un job de recherche Sekoia…",
+      "replayed": "rejouées",
+      "refused": "{n} règle(s) non rejouables : leur motif ne se traduit pas sans approximation."
     },
     "sd": {
       "title": "Dérive de schéma — mort silencieuse des règles",

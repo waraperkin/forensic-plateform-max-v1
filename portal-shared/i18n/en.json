@@ -2204,7 +2204,8 @@
       "operations": "Operations",
       "apikeys": "API keys",
       "audit": "Audit",
-      "config": "Configuration"
+      "config": "Configuration",
+      "value": "Value"
     },
     "act": {
       "refresh": "Refresh",
@@ -2254,7 +2255,51 @@
       "unknown": "not in inventory"
     },
     "v": {
+      "value_down": "Satisfiability and value engines unreachable.",
+      "sat_title": "Rule satisfiability",
+      "sat_sub": "An enabled rule whose fields no source produces is imaginary protection. The SIEM never makes this connection.",
+      "k_inert": "Enabled and inert",
+      "k_inert_h": "cannot fire",
+      "k_ok": "Satisfiable",
+      "k_ok_h": "all fields are produced",
+      "k_noingest": "Format not collected",
+      "k_noingest_h": "no active intake",
+      "k_conclusive": "Firm verdicts",
+      "fields": "fields observed",
+      "spots": "Blind spots — what to collect first",
+      "spots_sub": "Fields required by the largest number of enabled rules and never produced by this tenant. Collecting the first one reactivates all its rules at once.",
+      "field": "Field",
+      "blocked": "Rules blocked",
+      "blocked_on": "of which enabled",
+      "examples": "Examples",
+      "inert_rules": "Rules that cannot fire",
+      "verdict": "Verdict",
+      "why": "Why",
+      "none_inert": "No rule proven inert on the analysed sample.",
+      "val_title": "Volume versus value",
+      "val_sub": "What each ingested source actually returns in detections. A SIEM counts events and alerts, it never connects them.",
+      "k_mute": "Sources with no alert",
+      "of_volume": "of volume",
+      "k_fired": "Rules that fired",
+      "enabled": "enabled",
+      "k_silent": "Silent rules",
+      "k_conc": "Top-5 concentration",
+      "k_conc_h": "share of the 5 noisiest rules",
+      "per_source": "Yield per source",
+      "events": "Events",
+      "alerts": "Alerts",
+      "per_alert": "Events per alert",
+      "no_alert": "no alert",
+      "contributes": "contributes",
+      "noisy": "Noisiest rules",
       "ingest_sub": "Volume measured source by source. Granularity {interval}."
+    },
+    "verdict": {
+      "satisfiable": "satisfiable",
+      "jamais_satisfiable": "never satisfiable",
+      "non_ingere": "format not collected",
+      "improbable": "unlikely",
+      "indeterminable": "undetermined"
     }
   },
   "swbtx": {

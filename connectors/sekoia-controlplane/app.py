@@ -1618,6 +1618,12 @@ hostwatch.register(app)
 import hostprofile  # noqa: E402
 hostprofile.register(app)
 
+import satisfiability  # noqa: E402
+satisfiability.register(app)
+
+import valuation  # noqa: E402
+valuation.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

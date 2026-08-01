@@ -30,6 +30,7 @@
     { id: 'inventory', key: 'i', group: 1 },
     { id: 'telemetry', key: 't', group: 1 },
     { id: 'hosts', key: 'h', group: 1 },
+    { id: 'value', key: 'v', group: 1 },
     { id: 'alerting', key: 'a', group: 2 },
     { id: 'operations', key: 'p', group: 2 },
     { id: 'apikeys', key: 'k', group: 3 },
@@ -1176,6 +1177,108 @@
       </tr></thead><tbody>${rows || '<tr><td colspan="6"><p class="swb-hint" style="padding:1rem">Aucune machine.</p></td></tr>'}</tbody></table></div></div>`;
   }
 
+
+  // ── Satisfiabilité et valeur ──────────────────────────────────────────────
+  function viewValue() {
+    const sat = st.data.sat; const val = st.data.val;
+    if (!sat && !val) return degraded(T('swb.v.value_down'));
+
+    let satBlock = '';
+    if (sat && sat.available) {
+      const v = sat.by_verdict || {};
+      const inert = sat.rules_enabled_inert || 0;
+      const spots = (sat.blind_spots || []).filter((b) => b.rules_enabled_blocked > 0);
+      satBlock = `<div class="swb-head"><div>
+          <h2 class="swb-title">${T('swb.v.sat_title')}</h2>
+          <p class="swb-sub">${T('swb.v.sat_sub')}</p></div></div>
+        <div class="swb-panel" style="border-left:3px solid ${inert ? 'var(--swb-danger)' : 'var(--swb-ok)'}">
+          <h3 class="swb-panel-title">${esc(sat.headline)}</h3>
+          <p class="swb-hint" style="margin:.4rem 0 0">${esc(sat.method_note)}</p></div>
+        <div class="swb-kpis">
+          ${kpi(T('swb.v.k_inert'), nf(inert), inert ? 'danger' : 'ok', T('swb.v.k_inert_h'))}
+          ${kpi(T('swb.v.k_ok'), nf(v.satisfiable || 0), 'ok', T('swb.v.k_ok_h'))}
+          ${kpi(T('swb.v.k_noingest'), nf(v.non_ingere || 0), (v.non_ingere ? 'warn' : 'ok'), T('swb.v.k_noingest_h'))}
+          ${kpi(T('swb.v.k_conclusive'), `${esc(sat.conclusive_pct)} %`, 'ok',
+            `${nf(sat.events_sampled)} · ${nf(sat.fields_observed)} ${T('swb.v.fields')}`)}
+        </div>
+        ${spots.length ? `<div class="swb-panel" style="padding:0">
+          <div class="swb-panel-head" style="padding:.8rem .9rem 0">
+            <h3 class="swb-panel-title">${T('swb.v.spots')}</h3></div>
+          <p class="swb-hint" style="padding:0 .9rem">${T('swb.v.spots_sub')}</p>
+          <div class="swb-tablewrap" style="max-height:32vh"><table class="swb-table"><thead><tr>
+            <th>${T('swb.v.field')}</th><th class="swb-num">${T('swb.v.blocked')}</th>
+            <th class="swb-num">${T('swb.v.blocked_on')}</th><th class="swb-num">${T('swb.col.severity')}</th>
+            <th>${T('swb.v.examples')}</th></tr></thead><tbody>
+            ${spots.slice(0, 25).map((b) => `<tr>
+              <td><span class="swb-mono">${esc(b.field)}</span></td>
+              <td class="swb-num">${nf(b.rules_blocked)}</td>
+              <td class="swb-num"><strong>${nf(b.rules_enabled_blocked)}</strong></td>
+              <td class="swb-num">${pill(String(b.max_severity), b.max_severity >= 80 ? 'danger' : 'warn', true)}</td>
+              <td class="swb-truncate swb-hint">${esc((b.examples || []).slice(0, 2).join(' · '))}</td>
+            </tr>`).join('')}</tbody></table></div></div>` : ''}
+        <div class="swb-panel" style="padding:0">
+          <div class="swb-panel-head" style="padding:.8rem .9rem 0">
+            <h3 class="swb-panel-title">${T('swb.v.inert_rules')}</h3></div>
+          <div class="swb-tablewrap" style="max-height:34vh"><table class="swb-table"><thead><tr>
+            <th>${T('swb.col.state')}</th><th>${T('swb.col.rule')}</th>
+            <th>${T('swb.v.verdict')}</th><th>${T('swb.v.why')}</th></tr></thead><tbody>
+            ${(sat.items || []).filter((i) => i.verdict === 'jamais_satisfiable' || i.verdict === 'non_ingere')
+              .slice(0, 60).map((i) => `<tr>
+              <td>${i.enabled ? pill(T('swb.pill.active'), 'danger') : pill(T('swb.pill.inactive'), 'mute')}</td>
+              <td class="swb-truncate" title="${esc(i.rule_name)}">${esc(i.rule_name)}</td>
+              <td>${pill(T('swb.verdict.' + i.verdict), i.verdict === 'jamais_satisfiable' ? 'danger' : 'warn', true)}</td>
+              <td class="swb-truncate swb-hint" title="${esc(i.reason)}">${esc(i.reason)}</td>
+            </tr>`).join('') || `<tr><td colspan="4"><p class="swb-hint" style="padding:1rem">${T('swb.v.none_inert')}</p></td></tr>`}
+          </tbody></table></div></div>`;
+    } else if (sat) {
+      satBlock = degraded(sat.reason || sat.error || '');
+    }
+
+    let valBlock = '';
+    if (val && val.available) {
+      const r = val.rules || {};
+      valBlock = `<div class="swb-head" style="margin-top:1rem"><div>
+          <h2 class="swb-title">${T('swb.v.val_title')}</h2>
+          <p class="swb-sub">${T('swb.v.val_sub')}</p></div></div>
+        <div class="swb-panel" style="border-left:3px solid ${val.sources_without_alert ? 'var(--swb-warn)' : 'var(--swb-ok)'}">
+          <h3 class="swb-panel-title">${esc(val.headline)}</h3>
+          <p class="swb-hint" style="margin:.4rem 0 0">${esc(val.caution)}</p>
+          ${val.alerts_truncated ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(val.truncation_note)}</p>` : ''}</div>
+        <div class="swb-kpis">
+          ${kpi(T('swb.v.k_mute'), nf(val.sources_without_alert), val.sources_without_alert ? 'warn' : 'ok',
+            `${esc(val.events_without_alert_pct)} % ${T('swb.v.of_volume')}`)}
+          ${kpi(T('swb.v.k_fired'), nf(r.rules_fired), 'ok', `${nf(r.rules_enabled)} ${T('swb.v.enabled')}`)}
+          ${kpi(T('swb.v.k_silent'), nf(r.rules_silent), r.rules_silent ? 'warn' : 'ok')}
+          ${kpi(T('swb.v.k_conc'), `${esc(r.concentration_top5_pct)} %`,
+            r.concentration_top5_pct >= 60 ? 'danger' : 'ok', T('swb.v.k_conc_h'))}
+        </div>
+        <div class="swb-panel"><p class="swb-hint" style="margin:0">${esc(r.concentration_note)}</p></div>
+        <div class="swb-panel" style="padding:0">
+          <div class="swb-panel-head" style="padding:.8rem .9rem 0">
+            <h3 class="swb-panel-title">${T('swb.v.per_source')}</h3></div>
+          <div class="swb-tablewrap" style="max-height:34vh"><table class="swb-table"><thead><tr>
+            <th>${T('swb.col.source')}</th><th class="swb-num">${T('swb.v.events')}</th>
+            <th class="swb-num">${T('swb.v.alerts')}</th><th class="swb-num">${T('swb.v.per_alert')}</th>
+            <th>${T('swb.col.state')}</th></tr></thead><tbody>
+            ${(val.items || []).slice(0, 60).map((i) => `<tr>
+              <td class="swb-truncate">${esc(i.intake_name)}</td>
+              <td class="swb-num">${nf(i.events_period)}</td>
+              <td class="swb-num">${nf(i.alerts)}</td>
+              <td class="swb-num">${i.events_per_alert === null ? '<span class="swb-hint">—</span>' : nf(i.events_per_alert)}</td>
+              <td>${i.silent_value ? pill(T('swb.v.no_alert'), 'warn') : pill(T('swb.v.contributes'), 'ok')}</td>
+            </tr>`).join('')}</tbody></table></div></div>
+        ${(r.top_noisy || []).length ? `<div class="swb-panel" style="padding:0">
+          <div class="swb-panel-head" style="padding:.8rem .9rem 0">
+            <h3 class="swb-panel-title">${T('swb.v.noisy')}</h3></div>
+          <div class="swb-tablewrap" style="max-height:24vh"><table class="swb-table"><tbody>
+            ${r.top_noisy.slice(0, 12).map((n) => `<tr><td class="swb-truncate">${esc(n.rule_name)}</td>
+              <td class="swb-num">${nf(n.alerts)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
+    } else if (val) {
+      valBlock = degraded(val.reason || val.error || '');
+    }
+    return satBlock + valBlock;
+  }
+
   // ── Opérations en lot ─────────────────────────────────────────────────────
   function viewOperations() {
     const t = st.data.targets; const hist = st.data.history; const prev = st.data.preview;
@@ -1339,6 +1442,7 @@
     else if (st.view === 'inventory') body = viewInventory();
     else if (st.view === 'telemetry') body = viewTelemetry();
     else if (st.view === 'hosts') body = viewHosts();
+    else if (st.view === 'value') body = viewValue();
     else if (st.view === 'alerting') body = viewAlerting();
     else if (st.view === 'operations') body = viewOperations();
     else if (st.view === 'apikeys') body = viewApiKeys();
@@ -1425,6 +1529,17 @@
         st.data.hostProf = r[2]; st.data.hostCorr = r[3];
         const n = (r[1] && r[1].alerts_new) || 0;
         if (n) st.badges.hosts = { text: String(n), tone: 'danger' };
+      } else if (st.view === 'value') {
+        // Deux moteurs lourds : la satisfiabilité prélève des événements, la
+        // valorisation pagine les alertes. On les lance en parallèle et on
+        // tolère l'échec de l'un sans perdre l'autre.
+        const r = await Promise.all([
+          api('/satisfiability?window=24h&sample=1500').catch(() => null),
+          api('/valuation?hours=24').catch(() => null),
+        ]);
+        st.data.sat = r[0]; st.data.val = r[1];
+        const inert = (r[0] && r[0].rules_enabled_inert) || 0;
+        if (inert) st.badges.value = { text: String(inert), tone: 'danger' };
       } else if (st.view === 'operations') {
         const r = await Promise.all([api('/bulk/targets'), api('/bulk/history').catch(() => null)]);
         st.data.targets = r[0]; st.data.history = r[1];

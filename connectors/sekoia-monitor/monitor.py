@@ -57,6 +57,11 @@ ALERT_INTERVAL_S = int(os.environ.get("ALERT_INTERVAL_S", "60"))
 HOST_INTERVAL_S = int(os.environ.get("HOST_INTERVAL_S", "900"))
 HOST_WINDOW = os.environ.get("HOST_WINDOW", "1h")
 HOST_SAMPLE = int(os.environ.get("HOST_SAMPLE", "1500"))
+# Préchauffage de l'inventaire de champs du moteur de satisfiabilité. Le
+# construire coûte une centaine de secondes : si le premier à le demander est
+# l'interface, elle expire avant d'obtenir une réponse. C'est donc le poller qui
+# le construit, en arrière-plan, et l'écran trouve toujours un cache chaud.
+SAT_INTERVAL_S = int(os.environ.get("SAT_INTERVAL_S", "1500"))
 
 
 class _Skip(Exception):
@@ -624,6 +629,23 @@ async def alerter_loop():
                     pass
                 except Exception as exc:
                     log.warning("hosts/evaluate: %s", _exc_msg(exc))
+
+                if (time.time() - STATE.get("_sat_last", 0)) >= SAT_INTERVAL_S:
+                    STATE["_sat_last"] = time.time()
+                    try:
+                        rs = await client.get(
+                            f"{CP_URL}/control/sekoia/satisfiability",
+                            params={"window": "24h", "sample": 1500},
+                            headers=_cp_headers(), timeout=400)
+                        rs.raise_for_status()
+                        sres = rs.json()
+                        STATE["rules_inert"] = sres.get("rules_enabled_inert")
+                        STATE["rules_conclusive_pct"] = sres.get("conclusive_pct")
+                        log.info("satisfiabilite: %s regle(s) activee(s) inerte(s), "
+                                 "%s%% de verdicts fermes",
+                                 sres.get("rules_enabled_inert"), sres.get("conclusive_pct"))
+                    except Exception as exc:
+                        log.warning("rules/satisfiability: %s", _exc_msg(exc))
 
                 STATE["alerts_open"] = count
                 STATE["alert_incidents"] = result.get("incidents")

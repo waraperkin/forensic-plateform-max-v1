@@ -2204,7 +2204,8 @@
       "operations": "Opérations",
       "apikeys": "Clés API",
       "audit": "Audit",
-      "config": "Configuration"
+      "config": "Configuration",
+      "value": "Valeur"
     },
     "act": {
       "refresh": "Rafraîchir",
@@ -2254,7 +2255,51 @@
       "unknown": "hors inventaire"
     },
     "v": {
+      "value_down": "Moteurs de satisfiabilité et de valeur injoignables.",
+      "sat_title": "Satisfiabilité des règles",
+      "sat_sub": "Une règle activée dont les champs ne sont produits par aucune source est une protection imaginaire. Le SIEM ne fait jamais ce rapprochement.",
+      "k_inert": "Activées et inertes",
+      "k_inert_h": "ne peuvent pas se déclencher",
+      "k_ok": "Satisfiables",
+      "k_ok_h": "tous les champs sont produits",
+      "k_noingest": "Format non collecté",
+      "k_noingest_h": "aucun intake actif",
+      "k_conclusive": "Verdicts fermes",
+      "fields": "champs observés",
+      "spots": "Angles morts — que collecter en priorité",
+      "spots_sub": "Champs exigés par le plus grand nombre de règles activées et que le tenant ne produit jamais. Collecter le premier réactive toutes ses règles d'un coup.",
+      "field": "Champ",
+      "blocked": "Règles bloquées",
+      "blocked_on": "dont activées",
+      "examples": "Exemples",
+      "inert_rules": "Règles qui ne peuvent pas se déclencher",
+      "verdict": "Verdict",
+      "why": "Pourquoi",
+      "none_inert": "Aucune règle démontrée inerte sur l'échantillon analysé.",
+      "val_title": "Volume contre valeur",
+      "val_sub": "Ce que chaque source ingérée rapporte réellement en détections. Un SIEM compte les événements et les alertes, il ne les rapproche jamais.",
+      "k_mute": "Sources sans alerte",
+      "of_volume": "du volume",
+      "k_fired": "Règles ayant tiré",
+      "enabled": "activées",
+      "k_silent": "Règles silencieuses",
+      "k_conc": "Concentration top 5",
+      "k_conc_h": "part des 5 règles les plus bruyantes",
+      "per_source": "Rendement par source",
+      "events": "Événements",
+      "alerts": "Alertes",
+      "per_alert": "Événements par alerte",
+      "no_alert": "aucune alerte",
+      "contributes": "contribue",
+      "noisy": "Règles les plus bruyantes",
       "ingest_sub": "Volumétrie mesurée source par source. Granularité {interval}."
+    },
+    "verdict": {
+      "satisfiable": "satisfiable",
+      "jamais_satisfiable": "jamais satisfiable",
+      "non_ingere": "format non collecté",
+      "improbable": "improbable",
+      "indeterminable": "indéterminable"
     }
   },
   "swbtx": {

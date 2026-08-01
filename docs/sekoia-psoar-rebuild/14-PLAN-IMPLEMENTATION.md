@@ -45,7 +45,7 @@ Les lots 1 à 3 débloquent les suivants. Ne pas les inverser.
 | Lot | Titre | Dépend de | Effort |
 |---|---|---|---|
 | **1** | Boucle de retour analyste | — | **[FAIT]** |
-| **2** | Détection-as-Code | mémoire de config (faite) | L |
+| **2** | Détection-as-Code | mémoire de config (faite) | **[FAIT]** |
 | **3** | Solveur de conflits et doublons | — | **[FAIT]** |
 | **4** | Efficacité réelle des règles | 1 | M |
 | **5** | Couverture pilotée par l'adversaire | — | L |
@@ -111,7 +111,7 @@ Wilson correct sur petit échantillon · refus de publier sous le seuil ·
 
 ---
 
-## LOT 2 — Détection-as-Code
+## LOT 2 — Détection-as-Code **[FAIT]**
 
 ### Le manque
 La configuration n'est ni versionnée, ni revue, ni reproductible. « Qui a activé
@@ -484,6 +484,26 @@ couverture affichée · « indéterminé » présenté comme choix légitime · 
 présents · **verdict sans auteur refusé avec son motif** · troncature annoncée ·
 refus de fusion visible · aucun objet brut · 0 erreur console.
 
+### Lot 2 **[FAIT]** — `dac.py` + vue « Code »
+
+Export **déterministe** — clés triées, objets triés, aucun horodatage, aucun
+champ dérivé. Deux appels sur le même état produisent exactement les mêmes
+octets, et un test le verrouille. Sans cela, un diff affiche du bruit à chaque
+relevé et la revue devient impossible.
+
+Diff **sémantique** : « rule_enabled : false → true », jamais « ligne 412
+modifiée ».
+
+Plan d'alignement qui **n'écrit rien**. L'application exige une attribution (I9)
+et passe par le moteur de lot existant, avec journalisation.
+
+**Deux refus** : créer un objet (l'export ne porte pas les champs nécessaires —
+un identifiant inconnu est signalé, jamais créé) et appliquer sans décision
+humaine (L4).
+
+11 tests dédiés. Front : vue « Code » avec export, empreinte, aperçu, et plan
+objet par objet.
+
 ### Reste à faire
-Lots 2, 4, 5, 6, 7, 8, 9, 10. Le lot 4 est maintenant débloqué par le lot 1,
+Lots 4, 5, 6, 7, 8, 9, 10. Le lot 4 est maintenant débloqué par le lot 1,
 mais reste sans valeur tant que la couverture de qualification est nulle.

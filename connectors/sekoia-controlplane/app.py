@@ -1642,6 +1642,9 @@ feedback.register(app)
 import conflicts  # noqa: E402
 conflicts.register(app)
 
+import dac  # noqa: E402
+dac.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

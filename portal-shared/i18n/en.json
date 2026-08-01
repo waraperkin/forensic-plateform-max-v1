@@ -2509,7 +2509,27 @@
       "cf_none": "No conflict under this filter.",
       "cf_no_merge": "No automatic merge:",
       "cf_unreadable": "Rules set aside",
-      "cf_unreadable_sub": "{n} rule(s) whose pattern could not be read. They are set aside with their reason, never matched “as best we can”."
+      "cf_unreadable_sub": "{n} rule(s) whose pattern could not be read. They are set aside with their reason, never matched “as best we can”.",
+      "v_code": "Code",
+      "dac_export": "Configuration export",
+      "dac_export_sub": "Deterministic export: two calls on the same state produce exactly the same bytes. Without this, a diff shows noise on every run and becomes unreadable.",
+      "dac_do_export": "Export",
+      "dac_objects": "Objects",
+      "dac_size": "Size",
+      "dac_fingerprint": "Fingerprint",
+      "dac_fingerprint_h": "identifies the exported state",
+      "dac_plan": "Alignment plan",
+      "dac_do_plan": "Compute plan",
+      "dac_plan_sub": "Paste a target export. SAGF computes what would change — and writes nothing. Applying requires attribution and goes through the bulk engine.",
+      "dac_paste": "entity: rules\nitems:\n- rule_uuid: …",
+      "dac_need": "Paste an export to compare.",
+      "dac_changes": "Differences",
+      "dac_unchanged": "Matching",
+      "dac_unknown": "Unknown",
+      "dac_unknown_h": "reported, never created",
+      "dac_unknown_note": "Unknown identifiers are reported, never created: the export does not carry the fields required for a complete creation.",
+      "dac_before": "Before",
+      "dac_after": "After"
     }
   },
   "swbtx": {

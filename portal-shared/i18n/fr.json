@@ -2509,7 +2509,27 @@
       "cf_none": "Aucun conflit sur ce filtre.",
       "cf_no_merge": "Aucune fusion automatique :",
       "cf_unreadable": "Règles écartées",
-      "cf_unreadable_sub": "{n} règle(s) dont le motif n'a pas pu être lu. Elles sont écartées avec leur raison, jamais rapprochées « au mieux »."
+      "cf_unreadable_sub": "{n} règle(s) dont le motif n'a pas pu être lu. Elles sont écartées avec leur raison, jamais rapprochées « au mieux ».",
+      "v_code": "Code",
+      "dac_export": "Export de configuration",
+      "dac_export_sub": "Export déterministe : deux appels sur le même état produisent exactement les mêmes octets. Sans cela, un diff affiche du bruit à chaque relevé et devient illisible.",
+      "dac_do_export": "Exporter",
+      "dac_objects": "Objets",
+      "dac_size": "Taille",
+      "dac_fingerprint": "Empreinte",
+      "dac_fingerprint_h": "identifie l'état exporté",
+      "dac_plan": "Plan d'alignement",
+      "dac_do_plan": "Calculer le plan",
+      "dac_plan_sub": "Collez un export cible. SAGF calcule ce qui changerait — et n'écrit rien. L'application exige une attribution et passe par le moteur de lot.",
+      "dac_paste": "entity: rules\nitems:\n- rule_uuid: …",
+      "dac_need": "Collez un export à comparer.",
+      "dac_changes": "Écarts",
+      "dac_unchanged": "Conformes",
+      "dac_unknown": "Inconnus",
+      "dac_unknown_h": "signalés, jamais créés",
+      "dac_unknown_note": "Les identifiants inconnus sont signalés, jamais créés : l'export ne porte pas les champs nécessaires à une création complète.",
+      "dac_before": "Avant",
+      "dac_after": "Après"
     }
   },
   "swbtx": {

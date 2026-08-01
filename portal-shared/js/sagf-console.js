@@ -26,6 +26,7 @@
     ['debt', 'sg.v_debt'],
     ['feedback', 'sg.v_feedback'],
     ['conflicts', 'sg.v_conflicts'],
+    ['code', 'sg.v_code'],
     ['journal', 'sg.v_journal'],
     ['mirror', 'sg.v_mirror'],
   ];
@@ -526,6 +527,59 @@
         </tbody></table></div>`) : ''}`;
   }
 
+
+  // ── Vue : détection-as-code (LOT 2) ───────────────────────────────────────
+  function viewCode() {
+    const e = st.data.dacExport;
+    const p = st.data.dacPlan;
+    return `${panel(T('sg.dac_export'), `
+        <p class="swb-hint" style="margin:0 0 .6rem">${T('sg.dac_export_sub')}</p>
+        <div class="swb-filters">
+          <select class="swb-select" id="dac-entity">
+            <option value="rules">rules</option><option value="intakes">intakes</option>
+          </select>
+          <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-sagf-act="dac-export">${T('sg.dac_do_export')}</button>
+        </div>
+        ${e ? `<div class="swb-kpis" style="margin-top:.6rem">
+            ${kpi(T('sg.dac_objects'), nf(e.objects), 'ok')}
+            ${kpi(T('sg.dac_size'), `${nf(Math.round((e.bytes || 0) / 1024))} Ko`, 'ok')}
+            ${kpi(T('sg.dac_fingerprint'), `<span class="swb-mono" style="font-size:.8em">${esc((e.fingerprint || '').slice(0, 12))}…</span>`, 'ok', T('sg.dac_fingerprint_h'))}
+          </div>
+          <p class="swb-hint" style="margin:.4rem 0 0">${esc(e.note || '')}</p>
+          <div class="swb-tablewrap" style="max-height:26vh;margin-top:.5rem">
+            <pre class="swb-mono swb-hint" style="margin:0;white-space:pre-wrap;font-size:.78em">${
+              esc((e.content || '').slice(0, 4000))}</pre></div>` : ''}`)}
+      ${panel(T('sg.dac_plan'), `
+        <p class="swb-hint" style="margin:0 0 .6rem">${T('sg.dac_plan_sub')}</p>
+        <textarea class="swb-input" id="dac-target" rows="6" style="width:100%;font-family:monospace;font-size:.8em"
+          placeholder="${T('sg.dac_paste')}"></textarea>
+        <div class="swb-filters" style="margin-top:.5rem">
+          <button type="button" class="fp-btn fp-btn-sm" data-sagf-act="dac-plan">${T('sg.dac_do_plan')}</button>
+        </div>`)}
+      ${!p ? '' : (p.ok === false
+        ? `<div class="swb-panel" style="border-left:3px solid var(--swb-danger)">
+            <p style="margin:0"><strong>${T('sg.refused')}</strong> ${esc(p.error)}</p></div>`
+        : `<div class="swb-panel" style="border-left:3px solid var(--swb-accent)">
+            <div class="swb-kpis">
+              ${kpi(T('sg.dac_changes'), nf(p.changes), p.changes ? 'warn' : 'ok')}
+              ${kpi(T('sg.dac_unchanged'), nf(p.unchanged), 'ok')}
+              ${kpi(T('sg.dac_unknown'), nf(p.unknown), p.unknown ? 'warn' : 'ok', T('sg.dac_unknown_h'))}
+            </div>
+            <p class="swb-hint" style="margin:.4rem 0 0">${esc(p.note || '')}</p>
+            <p class="swb-hint" style="margin:.3rem 0 0"><strong>${T('sg.refutation')} :</strong> ${esc(p.refutation || '')}</p>
+            ${(p.items || []).length ? `<div class="swb-tablewrap" style="max-height:26vh;margin-top:.5rem">
+              <table class="swb-table"><thead><tr><th>${T('sg.name')}</th>
+                <th>${T('sg.dac_before')}</th><th>${T('sg.dac_after')}</th></tr></thead><tbody>
+              ${p.items.slice(0, 60).map((it) => `<tr>
+                <td class="swb-truncate">${esc(it.name || it.id)}</td>
+                <td class="swb-hint swb-mono">${esc(JSON.stringify(it.before || {}))}</td>
+                <td class="swb-mono">${esc(JSON.stringify(it.patch || {}))}</td>
+              </tr>`).join('')}</tbody></table></div>` : ''}
+            ${(p.unknown_items || []).length ? `<p class="swb-hint" style="margin:.4rem 0 0">
+              ${T('sg.dac_unknown_note')}</p>` : ''}
+          </div>`)}`;
+  }
+
   // ── Rendu ─────────────────────────────────────────────────────────────────
   function nav() {
     return `<nav class="swb-nav">${VIEWS.map(([id, key]) => `<button type="button"
@@ -550,6 +604,7 @@
     else if (st.view === 'debt') body = viewDebt();
     else if (st.view === 'feedback') body = viewFeedback();
     else if (st.view === 'conflicts') body = viewConflicts();
+    else if (st.view === 'code') body = viewCode();
     else if (st.view === 'journal') body = viewJournal();
     else body = viewMirror();
 
@@ -642,6 +697,21 @@
           st.data.conflicts = await api(
             `/conflicts${st.cfRel ? `?relation=${encodeURIComponent(st.cfRel)}` : ''}`)
             .catch((e) => ({ headline: e.message, by_relation: {}, items: [] }));
+          st.loading = false; paint(); return;
+        }
+        if (act === 'dac-export') {
+          st.loading = true; paint();
+          st.data.dacExport = await api(
+            `/dac/export?entity=${encodeURIComponent(val('dac-entity') || 'rules')}`);
+          st.loading = false; paint(); return;
+        }
+        if (act === 'dac-plan') {
+          const body = val('dac-target');
+          if (!body.trim()) { st.data.dacPlan = { ok: false, error: T('sg.dac_need') }; paint(); return; }
+          st.loading = true; paint();
+          const r = await fetch(API + `/dac/plan?entity=${encodeURIComponent(val('dac-entity') || 'rules')}`,
+            { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'text/plain' }, body });
+          st.data.dacPlan = await r.json().catch(() => ({ ok: false, error: 'réponse illisible' }));
           st.loading = false; paint(); return;
         }
         if (act === 'journal-add') {

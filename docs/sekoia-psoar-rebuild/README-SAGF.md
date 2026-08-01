@@ -444,3 +444,7 @@ SIEM, ce que **L8** interdit.
 complets, limites visibles, **chaque vue rendue sans objet brut**, coût annoncé
 avant exécution, **ambiguïté refusée par M-16 avec ses lectures possibles**,
 0 erreur console.
+
+---
+
+> **Suite** — [14-PLAN-IMPLEMENTATION](14-PLAN-IMPLEMENTATION.md) détaille dix lots de capacités que le SIEM ne peut pas porter, avec pour chacun sa loi, sa condition de réfutation, ses refus et ses tests.

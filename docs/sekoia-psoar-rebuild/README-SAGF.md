@@ -364,3 +364,7 @@ Un test verrouille cette garantie.
 ## Tests
 
 **349 tests Python** (dont 111 SAGF), 44 tests JS — 0 FAIL, santé 16/16.
+
+---
+
+> **Document destiné à l'éditeur** — [13-SPEC-EDITEUR-SAGF](13-SPEC-EDITEUR-SAGF.md) présente SAGF à Sekoia : partage de souveraineté, lois, mécanismes, refus explicites, limites permanentes, et les trois capacités dont la fourniture retirerait la moitié de l'extension.

@@ -1645,6 +1645,9 @@ conflicts.register(app)
 import dac  # noqa: E402
 dac.register(app)
 
+import economics  # noqa: E402
+economics.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

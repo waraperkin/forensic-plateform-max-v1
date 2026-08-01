@@ -27,6 +27,7 @@
     ['feedback', 'sg.v_feedback'],
     ['conflicts', 'sg.v_conflicts'],
     ['code', 'sg.v_code'],
+    ['economics', 'sg.v_eco'],
     ['journal', 'sg.v_journal'],
     ['mirror', 'sg.v_mirror'],
   ];
@@ -580,6 +581,84 @@
           </div>`)}`;
   }
 
+
+  // ── Vue : économie (LOT 9) ────────────────────────────────────────────────
+  function viewEconomics() {
+    const e = st.data.eco;
+    if (!e) {
+      return panel('', `<p class="swb-hint" style="margin:0">${T('sg.eco_idle')}</p>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" style="margin-top:.5rem"
+          data-sagf-act="eco-run">${T('sg.compute')}</button>`);
+    }
+    if (e.available === false) {
+      return panel('', `<p class="swb-hint" style="margin:0">${esc(e.reason || '')}</p>`);
+    }
+    const f = e.forecast || {};
+    const a = e.arbitration;
+
+    // La mise en garde sur l'unité passe AVANT les chiffres : un coût pris
+    // pour une facture ferait décider sur une monnaie qui n'existe pas.
+    return `${panel('', `<p style="margin:0"><strong>${T('sg.eco_caution')}</strong></p>
+        <p class="swb-hint" style="margin:.3rem 0 0">${esc(e.caution || '')}</p>
+        <p class="swb-hint" style="margin:.3rem 0 0">${T('sg.eco_unit')} ${esc(e.cost_unit || '')}</p>`, 'warn')}
+      <div class="swb-kpis">
+        ${kpi(T('sg.eco_total'), nf(e.collection_cost_total), 'ok', T('sg.eco_total_h'))}
+        ${kpi(T('sg.eco_mute'), nf(e.mute_cost), e.mute_share_pct > 30 ? 'danger' : 'warn',
+          `${esc(e.mute_share_pct)} % ${T('sg.eco_of_cost')}`)}
+        ${kpi(T('sg.eco_hours'), nf(e.handling_hours_total), 'ok', T('sg.eco_hours_h'))}
+        ${kpi(T('sg.eco_sources'), nf(e.sources), 'ok')}
+      </div>
+      ${panel(T('sg.eco_forecast'), `
+        <p class="swb-hint" style="margin:0 0 .5rem">${esc(f.note || '')} · ${esc(f.basis || '')}</p>
+        <div class="swb-tablewrap"><table class="swb-table"><thead><tr>
+          <th>${T('sg.eco_horizon')}</th><th class="swb-num">${T('sg.eco_point')}</th>
+          <th class="swb-num">${T('sg.eco_range')}</th></tr></thead><tbody>
+          ${['30d', '90d'].map((k) => {
+            const p = f[k] || {};
+            return `<tr><td>${esc(k)}</td>
+              <td class="swb-num">${p.value === null ? '<span class="swb-hint">—</span>' : nf(p.value)}</td>
+              <td class="swb-num swb-hint">${p.low === null || p.low === undefined ? esc(p.reason || '—')
+                : `${nf(p.low)} – ${nf(p.high)}`}</td></tr>`;
+          }).join('')}</tbody></table></div>`)}
+      ${panel(T('sg.eco_arbitrate'), `
+        <div class="swb-filters">
+          <input class="swb-input" id="eco-budget" style="max-width:9rem"
+            placeholder="${T('sg.eco_budget')}" value="${esc(st.ecoBudget || '')}">
+          <button type="button" class="fp-btn fp-btn-sm" data-sagf-act="eco-arbitrate">${T('sg.eco_do')}</button>
+        </div>
+        ${!a ? `<p class="swb-hint" style="margin:.4rem 0 0">${T('sg.eco_arbitrate_sub')}</p>` : `
+          <div class="swb-kpis" style="margin-top:.6rem">
+            ${kpi(T('sg.eco_kept'), nf(a.kept), 'ok')}
+            ${kpi(T('sg.eco_dropped'), nf(a.dropped), a.dropped ? 'warn' : 'ok')}
+            ${kpi(T('sg.eco_used'), nf(a.total_noise_per_day), 'ok', `/ ${nf(a.budget)}`)}
+          </div>
+          <p class="swb-hint" style="margin:.4rem 0 0"><strong>${T('sg.caution')} :</strong> ${esc(a.warning)}</p>
+          <p class="swb-hint" style="margin:.3rem 0 0">${esc(a.optimality)}</p>
+          ${(a.dropped_items || []).length ? `<div class="swb-tablewrap" style="max-height:22vh;margin-top:.5rem">
+            <table class="swb-table"><tbody>${a.dropped_items.map((d) => `<tr>
+              <td class="swb-truncate">${esc(d.name)}</td>
+              <td class="swb-num swb-hint">${T('sg.eco_gain')} ${nf(d.gain)}</td></tr>`).join('')}
+            </tbody></table></div>` : ''}`}`)}
+      <div class="swb-panel" style="padding:0">
+        <div class="swb-panel-head" style="padding:.8rem .9rem 0">
+          <h3 class="swb-panel-title">${T('sg.eco_per_source')}</h3></div>
+        <div class="swb-tablewrap" style="max-height:34vh"><table class="swb-table"><thead><tr>
+          <th>${T('sg.col_source')}</th><th class="swb-num">${T('sg.eco_events')}</th>
+          <th class="swb-num">${T('sg.eco_cost')}</th><th class="swb-num">${T('sg.eco_alerts')}</th>
+          <th class="swb-num">${T('sg.eco_per_alert')}</th><th>${T('sg.eco_lose')}</th>
+        </tr></thead><tbody>${(e.items || []).slice(0, 60).map((r) => `<tr>
+          <td class="swb-truncate">${esc(r.intake_name)}</td>
+          <td class="swb-num">${nf(r.events_period)}</td>
+          <td class="swb-num">${nf(r.collection_cost)}</td>
+          <td class="swb-num">${nf(r.alerts)}</td>
+          <td class="swb-num">${r.cost_per_alert === null ? '<span class="swb-hint">—</span>' : nf(r.cost_per_alert)}</td>
+          <td class="swb-hint swb-truncate" title="${esc((r.would_lose || {}).note || '')}">${
+            (r.would_lose || {}).techniques ? pill(`${nf(r.would_lose.techniques)} ${T('sg.eco_tech')}`, 'warn', true)
+              : `<span class="swb-hint">${T('sg.eco_none_known')}</span>`}</td>
+        </tr>`).join('')}</tbody></table></div></div>
+      ${panel('', `<p class="swb-hint" style="margin:0"><strong>${T('sg.refutation')} :</strong> ${esc(e.refutation || '')}</p>`, 'accent')}`;
+  }
+
   // ── Rendu ─────────────────────────────────────────────────────────────────
   function nav() {
     return `<nav class="swb-nav">${VIEWS.map(([id, key]) => `<button type="button"
@@ -605,6 +684,7 @@
     else if (st.view === 'feedback') body = viewFeedback();
     else if (st.view === 'conflicts') body = viewConflicts();
     else if (st.view === 'code') body = viewCode();
+    else if (st.view === 'economics') body = viewEconomics();
     else if (st.view === 'journal') body = viewJournal();
     else body = viewMirror();
 
@@ -712,6 +792,14 @@
           const r = await fetch(API + `/dac/plan?entity=${encodeURIComponent(val('dac-entity') || 'rules')}`,
             { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'text/plain' }, body });
           st.data.dacPlan = await r.json().catch(() => ({ ok: false, error: 'réponse illisible' }));
+          st.loading = false; paint(); return;
+        }
+        if (act === 'eco-run' || act === 'eco-arbitrate') {
+          if (act === 'eco-arbitrate') st.ecoBudget = val('eco-budget');
+          st.loading = true; paint();
+          const q = st.ecoBudget ? `?budget=${encodeURIComponent(st.ecoBudget)}` : '';
+          st.data.eco = await api(`/economics${q}`)
+            .catch((err) => ({ available: false, reason: err.message }));
           st.loading = false; paint(); return;
         }
         if (act === 'journal-add') {

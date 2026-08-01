@@ -52,7 +52,7 @@ Les lots 1 à 3 débloquent les suivants. Ne pas les inverser.
 | **6** | Jumeau numérique de la collecte | graphe (fait) | L |
 | **7** | Harnais de non-régression de parseur | schemadrift (fait) | M |
 | **8** | SAGQL complet | — | L |
-| **9** | Économie et prévision | valuation (faite) | M |
+| **9** | Économie et prévision | valuation (faite) | **[FAIT]** |
 | **10** | Assurance de couverture | 5, 6 | M |
 
 ---
@@ -348,7 +348,7 @@ existantes**.
 
 ---
 
-## LOT 9 — Économie et prévision
+## LOT 9 — Économie et prévision **[FAIT]**
 
 ### À construire — `economics.py`
 
@@ -504,6 +504,25 @@ humaine (L4).
 11 tests dédiés. Front : vue « Code » avec export, empreinte, aperçu, et plan
 objet par objet.
 
+### Lot 9 **[FAIT]** — `economics.py` + vue « Économie »
+
+Coût de collecte par source · coût de traitement **en heures d'analyste**, jamais
+converti en monnaie (le taux horaire d'une équipe n'est pas une donnée de cette
+plateforme) · prévision à 30 et 90 jours dont **l'intervalle s'élargit avec
+l'horizon** · arbitrage sous contrainte réutilisant M-20 avec sa déclaration
+d'optimalité non prouvée.
+
+**Deux refus tenus** : jamais un coût présenté comme une facture — les unités
+sont déclarées arbitraires et servent à *comparer*, pas à facturer ; et jamais
+une économie sans **ce qu'on perdrait** affiché à côté. Une économie chiffrée
+face à une perte non chiffrée n'est pas un arbitrage, c'est une incitation.
+
+Nuance conservée : « aucune perte identifiée » ne veut pas dire « aucune
+perte » — une source peut servir à l'investigation sans jamais déclencher de
+règle.
+
+15 tests dédiés.
+
 ### Reste à faire
-Lots 4, 5, 6, 7, 8, 9, 10. Le lot 4 est maintenant débloqué par le lot 1,
+Lots 4, 5, 6, 7, 8, 10. Le lot 4 est maintenant débloqué par le lot 1,
 mais reste sans valeur tant que la couverture de qualification est nulle.

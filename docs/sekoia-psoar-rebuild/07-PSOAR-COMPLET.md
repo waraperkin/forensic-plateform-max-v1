@@ -139,3 +139,50 @@ La démonstration reste modeste faute de corpus : sa valeur croîtra avec le
 nombre d'incidents traités. La logique, elle, est vérifiée par 18 tests
 unitaires portant autant sur ce que le moteur doit trouver que sur ce qu'il doit
 refuser.
+
+## PSOAR ne bloque rien — garantie explicite
+
+### Correction d'une affirmation erronée
+J'ai écrit précédemment que « PSOAR peut aujourd'hui bloquer une IP sans qu'un
+humain valide ». **C'était faux.** Vérification faite sur l'intégralité du
+catalogue d'actions et des intégrations : aucune action de blocage, d'isolation,
+de mise en quarantaine ni de règle pare-feu n'existe, et n'a jamais existé.
+
+Le mot « containment » présent dans le code ne désigne qu'une **phase de tâche**
+— une catégorie de to-do pour l'analyste — et non une action exécutable.
+
+Les seules intégrations sortantes sont : CTI et OpenSearch (lecture), Sekoia
+(lecture), TheHive (création de case), webhook (notification).
+
+### D'une absence à une règle
+Constater l'absence ne suffit pas : une absence se comble par inadvertance au
+prochain ajout de connecteur. Elle est donc devenue une **règle refusante**.
+
+Un SOAR qui coupe un flux de production sur la foi d'une corrélation cause
+l'incident qu'il était censé traiter. L'autorisation d'agir sur le réseau reste
+une décision humaine, prise **hors de cet outil**.
+
+Le garde-fou opère à **trois endroits**, pour qu'aucun chemin détourné ne
+subsiste :
+
+| Moment | Comportement |
+|---|---|
+| chargement du module | le portail **refuse de démarrer** si une action de confinement est déclarée au catalogue |
+| validation d'un playbook | l'étape est refusée avec un motif explicite |
+| exécution d'une étape | refus au dernier moment, sans effet — y compris pour un playbook enregistré avant cette règle |
+
+Échouer bruyamment au démarrage vaut mieux qu'acquérir en silence un pouvoir que
+personne n'a autorisé.
+
+### Formulations reconnues
+Le motif couvre l'anglais et le français : `block`, `bloc` (donc *blocage* et
+*bloquer*), `isolat`, `quarantin`, `firewall`, `pare-feu`, `deny`, `shutdown`,
+`kill`, `contain`, `confin`, `sinkhole`, `blackhole`, `revoke_session`,
+`lock_account`, `disable_user`.
+
+Un défaut trouvé en testant : la première version couvrait « bloquer » mais pas
+« blocage ». Un garde-fou qui rate une formulation ne garde rien.
+
+Six tests verrouillent la propriété, dont deux qui vérifient l'**absence de faux
+positif** : les actions légitimes (`ioc.enrich`, `notify.webhook`, `incident.tag`)
+ne doivent pas être prises pour du confinement.

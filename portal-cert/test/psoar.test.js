@@ -182,3 +182,43 @@ test('la retention ne touche pas les incidents ni les artefacts', () => {
   assert.ok(!cibles.includes('forensic-case-artefacts'));
   assert.ok(cibles.includes('forensic-playbook-runs'));
 });
+
+// ── Interdiction de confinement ─────────────────────────────────────────────
+// PSOAR ne bloque RIEN. C'etait une absence, c'est desormais une regle : une
+// absence se comble par inadvertance au prochain connecteur, une regle refuse.
+const { isContainment } = require('../routes/playbook-routes');
+
+test('le catalogue d actions ne contient aucune action de confinement', () => {
+  for (const name of Object.keys(ACTIONS)) {
+    assert.strictEqual(isContainment(name), false,
+      `action de confinement exposee : ${name}`);
+  }
+});
+
+test('les actions de confinement sont reconnues quel que soit le libelle', () => {
+  for (const nom of ['firewall.block_ip', 'edr.isolate_host', 'net.quarantine',
+                     'proxy.deny', 'host.shutdown', 'ad.disable_user',
+                     'dns.sinkhole', 'session.revoke_session', 'blocage.ip']) {
+    assert.strictEqual(isContainment(nom), true, `non reconnue : ${nom}`);
+  }
+});
+
+test('les actions legitimes ne sont pas prises pour du confinement', () => {
+  for (const nom of ['incident.note', 'ioc.enrich', 'ioc.scan', 'thehive.case',
+                     'notify.webhook', 'sekoia.volumetry', 'incident.tag']) {
+    assert.strictEqual(isContainment(nom), false, `faux positif : ${nom}`);
+  }
+});
+
+test('une etape de confinement est refusee a la validation', () => {
+  const out = sanitizePlaybook({
+    name: 'Test', steps: [{ id: 's1', type: 'action', action: 'firewall.block_ip' }] });
+  assert.ok(out.error, 'le playbook aurait du etre refuse');
+  assert.match(out.error, /confinement/i);
+});
+
+test('le refus explique pourquoi et ou se prend la decision', () => {
+  const out = sanitizePlaybook({
+    name: 'Test', steps: [{ id: 's1', type: 'action', action: 'edr.isolate_host' }] });
+  assert.match(out.error, /humaine/i);
+});

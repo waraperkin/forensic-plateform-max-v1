@@ -50,6 +50,35 @@ const WORKER_CONCURRENCY = Number(process.env.PSOAR_WORKER_CONCURRENCY || 2);
  * Catalogue d'actions. Chaque action déclare si elle produit un effet de bord
  * et si elle exige une intégration : c'est ce qui permet le mode sandbox.
  */
+/**
+ * INTERDICTION DE CONFINEMENT — garantie explicite, pas un simple constat.
+ *
+ * PSOAR n'exécute AUCUNE action de blocage : ni blocage d'IP ou de domaine, ni
+ * isolation de machine, ni règle pare-feu ou proxy, ni arrêt de service. Le
+ * catalogue d'actions ci-dessous ne contient que de la lecture, de
+ * l'enrichissement, de la traçabilité et de la notification.
+ *
+ * C'était jusqu'ici une absence — c'est désormais une RÈGLE. La différence
+ * compte : une absence se comble par inadvertance au prochain ajout de
+ * connecteur, une règle refuse. Un SOAR qui coupe un flux de production sur la
+ * foi d'une corrélation cause l'incident qu'il était censé traiter, et
+ * l'autorisation d'agir sur le réseau doit rester une décision humaine, prise
+ * hors de cet outil.
+ *
+ * Le garde-fou opère à TROIS endroits : au chargement du module (le catalogue
+ * lui-même est vérifié), à la validation d'une étape, et à l'exécution — pour
+ * qu'aucun chemin détourné ne subsiste.
+ */
+const CONTAINMENT_RE = new RegExp(
+  ['block', 'bloc', 'isolat', 'isole', 'quarantin', 'firewall', 'pare-feu',
+   'proxy\\.deny', 'deny', 'shutdown', 'poweroff', 'kill', 'disable_host',
+   'contain', 'confin', 'remediat\\.block', 'netblock', 'blackhole',
+   'sinkhole', 'revoke_session', 'lock_account', 'disable_user'].join('|'), 'i');
+
+function isContainment(action) {
+  return CONTAINMENT_RE.test(String(action || ''));
+}
+
 const ACTIONS = {
   'incident.note': { label: 'Ajouter une note à l\'incident', mutates: true, integration: null },
   'incident.status': { label: 'Changer le statut de l\'incident', mutates: true, integration: null },
@@ -61,6 +90,19 @@ const ACTIONS = {
   'sekoia.volumetry': { label: 'Relever la volumétrie Sekoia', mutates: false, integration: 'sekoia' },
   'notify.webhook': { label: 'Notifier un webhook', mutates: true, integration: 'webhook' },
 };
+
+// Vérification au CHARGEMENT : si quelqu'un ajoute demain une action de
+// confinement au catalogue, le portail refuse de démarrer plutôt que de
+// l'exposer. Échouer bruyamment vaut mieux qu'acquérir en silence un pouvoir
+// que personne n'a autorisé.
+for (const name of Object.keys(ACTIONS)) {
+  if (isContainment(name)) {
+    throw new Error(
+      `PSOAR : action de confinement « ${name} » déclarée au catalogue. `
+      + 'Cet outil ne bloque rien — aucune action de blocage, isolation ou '
+      + 'règle réseau ne peut y être exposée.');
+  }
+}
 
 function nowIso() { return new Date().toISOString(); }
 function newId(p) { return `${p}_${crypto.randomBytes(6).toString('hex')}`; }
@@ -79,6 +121,12 @@ function sanitizeStep(raw, index) {
     next: raw.next ? String(raw.next).slice(0, 64) : null,
   };
   if (type === 'action') {
+    if (isContainment(raw.action)) {
+      return { error: `étape ${index} : action de confinement « ${raw.action} » `
+        + 'refusée. PSOAR n\'exécute aucun blocage, isolation ou règle réseau : '
+        + 'la décision d\'agir sur la production reste humaine et se prend hors '
+        + 'de cet outil.' };
+    }
     if (!ACTIONS[raw.action]) {
       return { error: `étape ${index} : action inconnue « ${raw.action} »` };
     }
@@ -229,6 +277,15 @@ function createPlaybookRoutes(deps) {
 
   // ── Exécution d'une action ────────────────────────────────────────────────
   async function runAction(step, ctx, dryRun) {
+    // Troisieme garde-fou, a l'EXECUTION. Une etape enregistree avant l'ajout
+    // de cette regle, ou introduite par un autre chemin, ne doit pas s'executer
+    // pour autant : on refuse au dernier moment aussi.
+    if (isContainment(step.action)) {
+      return { ok: false, refused: true,
+        reason: 'action de confinement refusée',
+        detail: "PSOAR n'exécute aucun blocage, isolation ou règle réseau. "
+          + "Cette étape a été ignorée sans effet." };
+    }
     const spec = ACTIONS[step.action];
     const params = step.params || {};
     if (dryRun) {
@@ -696,4 +753,5 @@ function createPlaybookRoutes(deps) {
   return router;
 }
 
-module.exports = { createPlaybookRoutes, sanitizePlaybook, evalCondition, ACTIONS, STEP_TYPES };
+module.exports = { createPlaybookRoutes, sanitizePlaybook, evalCondition, ACTIONS,
+  STEP_TYPES, isContainment, CONTAINMENT_RE };

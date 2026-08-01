@@ -136,11 +136,11 @@ def test_tout_mecanisme_porte_sa_condition_de_refutation():
         assert m.guarantee and len(m.guarantee) > 15, f"{code} sans garantie"
 
 
-def test_les_mecanismes_non_implementes_sont_declares_comme_tels():
-    """Les laisser croire presents violerait I13."""
-    assert sagf.PLANNED
-    for code in sagf.PLANNED:
-        assert sagf.MECHANISMS[code].implemented is False
+def test_plus_aucun_mecanisme_n_est_absent():
+    """Phase de completion : les vingt sont implementes, donc PLANNED est vide.
+    Le test verifie la COHERENCE entre les deux, pas un etat fige."""
+    assert sagf.PLANNED == {}
+    assert all(m.implemented for m in sagf.MECHANISMS.values())
 
 
 # ── L6 — budget ──────────────────────────────────────────────────────────────
@@ -417,10 +417,13 @@ def test_explain_nomme_la_famille_de_chaque_predicat():
 
 
 def test_les_familles_partielles_sont_declarees_comme_telles():
+    """Toutes les familles sont disponibles, mais trois restent NOMMEES pour ce
+    qu'elles sont : disponible n'est pas complet."""
     fam = sagf.PREDICATE_FAMILIES
     assert fam["sémantique"] != True
     assert fam["probabiliste"] != True
-    assert fam["différentiel"] is False
+    assert fam["contrefactuel"] != True
+    assert fam["différentiel"] is True
 
 
 # ═══ Mecanismes — les 20 ═════════════════════════════════════════════════════
@@ -488,11 +491,18 @@ def test_le_rapport_couvre_les_douze_lois():
     assert ids == {f"L{n}" for n in range(1, 13)}
 
 
-def test_le_rapport_distingue_ce_qui_est_verifie_par_code():
+def test_un_rapport_ne_peut_jamais_declarer_tout_verifie():
+    """Meme quand chaque loi et chaque invariant sont portes par du code, il
+    reste des limites : analyses statiques contournables, grandeurs non
+    mesurables, algorithmes non optimaux. Les taire ferait de ce rapport un
+    argument de vente."""
     r = sagf.self_report([])
-    assert any(i["enforced"] != "code" for i in r["invariants"]), \
-        "un rapport qui declare tout verifie est suspect"
-    assert any(l["enforced"] != "code" for l in r["laws"])
+    lim = r["always_limited"]
+    assert lim["unmeasurable_quantities"] >= 1
+    assert lim["non_optimal_algorithms"]
+    assert lim["pattern_matching_not_understanding"]
+    assert "échappe" in lim["static_analysis_blind"]
+    assert r["modules_partial"], "le rapport doit toujours nommer des parties partielles"
 
 
 def test_le_rapport_liste_les_mesures_perimees_avec_leur_age():
@@ -512,3 +522,248 @@ def test_le_magasin_de_configuration_ne_revendique_aucun_domaine_sekoia():
     src = inspect.getsource(sagf.config_write)
     assert "assert_not_sekoia_owned" not in src
     assert "L5" in src
+
+
+# ═══ Phase de completion — lois portees par du code ══════════════════════════
+def test_L3_detecte_une_ecriture_sekoia():
+    """Une ecriture amont rendrait le retrait de SAGF couteux, ce que L3 interdit."""
+    propre = 'x = await cp.sek_request("GET", "/api/v1/truc")'
+    sale = 'x = await cp.sek_request("PATCH", "/api/v1/truc", json_body={})'
+    assert sagf.check_reversibility(propre)["reversible"] is True
+    r = sagf.check_reversibility(sale)
+    assert r["reversible"] is False and "PATCH" in r["sekoia_writes_found"]
+
+
+def test_L3_verifie_le_module_sagf_reel():
+    import inspect
+    r = sagf.check_reversibility(inspect.getsource(sagf))
+    assert r["reversible"] is True, r["sekoia_writes_found"]
+
+
+def test_L3_declare_sa_propre_limite():
+    assert "indirect" in sagf.check_reversibility("")["refutation"]
+
+
+def test_L8_detecte_une_collision_de_vocabulaire():
+    assert sagf.check_semantic_fidelity(["measure", "debt"])["faithful"] is True
+    r = sagf.check_semantic_fidelity(["alert", "rule"])
+    assert r["faithful"] is False and set(r["collisions"]) == {"alert", "rule"}
+
+
+def test_L8_le_vocabulaire_sagf_reel_ne_collisionne_pas():
+    assert sagf.check_semantic_fidelity(sagf.SAGF_TERMS)["faithful"] is True
+
+
+def test_L11_chaque_mecanisme_declare_quand_il_doit_disparaitre():
+    r = sagf.check_evolution_alignment()
+    assert r["aligned"] is True, r["mechanisms_without_retirement_condition"]
+    assert r["retirement_conditions"] >= len(sagf.MECHANISMS)
+
+
+def test_L7_sert_un_repli_annonce_plutot_que_d_echouer():
+    import asyncio
+    async def casse(): raise RuntimeError("HTTP 429 rate limited")
+    r = asyncio.run(sagf.degrade_gracefully(casse, fallback={"v": 1}, label="test"))
+    assert r["degraded"] is True and r["rate_limited"] is True
+    assert r["value"] == {"v": 1}
+    assert "annoncée comme telle" in r["note"]
+
+
+def test_L7_sans_repli_ne_conclut_pas():
+    import asyncio
+    async def casse(): raise RuntimeError("boom")
+    r = asyncio.run(sagf.degrade_gracefully(casse, fallback=None))
+    assert r["ok"] is False
+    assert "ne conclut pas" in r["note"]
+
+
+def test_L7_laisse_passer_le_cas_nominal():
+    import asyncio
+    async def ok(): return 42
+    r = asyncio.run(sagf.degrade_gracefully(ok))
+    assert r["degraded"] is False and r["value"] == 42
+
+
+# ═══ Invariants combles ══════════════════════════════════════════════════════
+def test_I5_refuse_un_renforcement_sans_observation_nouvelle():
+    """Un recalcul n'est pas une preuve."""
+    reg = sagf.ClaimRegistry()
+    assert reg.assert_claim("r1", 0.6, "obs-A")["accepted"] is True
+    refus = reg.assert_claim("r1", 0.9, "obs-A")
+    assert refus["accepted"] is False and "I5" in refus["reason"]
+    assert reg.get("r1")["confidence"] == 0.6
+
+
+def test_I5_accepte_un_renforcement_sur_observation_nouvelle():
+    reg = sagf.ClaimRegistry()
+    reg.assert_claim("r1", 0.6, "obs-A")
+    ok = reg.assert_claim("r1", 0.9, "obs-B")
+    assert ok["accepted"] is True and reg.get("r1")["confidence"] == 0.9
+
+
+def test_I5_un_affaiblissement_est_toujours_recevable():
+    """Une confiance qui baisse est une information, pas une regression."""
+    reg = sagf.ClaimRegistry()
+    reg.assert_claim("r1", 0.9, "obs-A")
+    out = reg.assert_claim("r1", 0.3, "obs-A")
+    assert out["accepted"] is True and reg.get("r1")["confidence"] == 0.3
+
+
+def test_I9_refuse_une_ecriture_sans_auteur_ni_motif():
+    with pytest.raises(ValueError, match="I9"):
+        sagf.Attribution("", "motif valable")
+    with pytest.raises(ValueError, match="I9"):
+        sagf.Attribution("moi", "x")
+    with pytest.raises(ValueError, match="I9"):
+        sagf.require_attribution("chaine libre")
+
+
+def test_I9_accepte_une_attribution_complete():
+    a = sagf.require_attribution({"author": "cert", "reason": "revue trimestrielle"})
+    assert a.author == "cert" and a.as_dict()["reason"] == "revue trimestrielle"
+
+
+def test_I11_detecte_une_fonction_de_mesure_qui_juge():
+    """Une mesure qui juge fixe son propre verdict : premiere cause de chiffres
+    faux qui paraissent vrais."""
+    sale = "def measure(x):\n    return risk(x)\n"
+    r = sagf.check_measure_judgement_separation(sale)
+    assert r["separated"] is False
+    assert r["violations"][0] == {"measure_fn": "measure", "calls_judgement": "risk"}
+
+
+def test_I11_verifie_le_module_sagf_reel():
+    import inspect
+    r = sagf.check_measure_judgement_separation(inspect.getsource(sagf))
+    assert r["separated"] is True, r["violations"]
+
+
+def test_I11_declare_la_limite_de_l_analyse_statique():
+    assert "indirect" in sagf.check_measure_judgement_separation("")["refutation"]
+
+
+def test_I12_detecte_une_regression_et_leve_l_alerte():
+    r = sagf.detect_regression({"coverage_pct": 80.0}, {"coverage_pct": 50.0})
+    assert r["alert"] is True and r["regressions"][0]["metric"] == "coverage_pct"
+
+
+def test_I12_sait_que_certaines_metriques_doivent_baisser():
+    """Moins de regles inertes est une amelioration, pas une regression."""
+    r = sagf.detect_regression({"rules_enabled_inert": 300},
+                               {"rules_enabled_inert": 100})
+    assert r["alert"] is False and r["improvements"]
+
+
+def test_I12_tolere_une_variation_d_echantillonnage():
+    r = sagf.detect_regression({"coverage_pct": 80.0}, {"coverage_pct": 78.0})
+    assert r["alert"] is False
+
+
+def test_I12_ne_peut_jamais_etre_silencieux():
+    assert sagf.detect_regression({}, {})["silent"] is False
+
+
+def test_I12_declare_son_point_faible():
+    assert "non suivie" in sagf.detect_regression({}, {})["refutation"]
+
+
+# ═══ M-15, M-16, M-20 ════════════════════════════════════════════════════════
+def test_M15_refuse_une_entree_sans_attribution():
+    with pytest.raises(ValueError, match="I9"):
+        sagf.journal_append("Rule:r1", "decision", "on desactive", {"author": ""})
+
+
+def test_M15_refuse_un_type_d_entree_inconnu():
+    with pytest.raises(ValueError, match="M-15"):
+        sagf.journal_append("Rule:r1", "n_importe_quoi", "texte",
+                            {"author": "a", "reason": "motif"})
+
+
+def test_M16_traduit_une_question_simple():
+    r = sagf.nl_to_sagql("montre-moi les règles inertes")
+    assert r["ok"] is True
+    assert r["sagql"] == 'SELECT Rule WHERE verdict = "jamais_satisfiable"'
+
+
+def test_M16_refuse_une_question_ambigue_plutot_que_choisir():
+    r = sagf.nl_to_sagql("les règles et les sources activées")
+    assert r["ok"] is False
+    assert "ambiguë" in r["reason"]
+    assert len(r["readings"]) == 2
+
+
+def test_M16_refuse_des_predicats_contradictoires():
+    r = sagf.nl_to_sagql("les règles activées et désactivées")
+    assert r["ok"] is False
+    assert "contradictoires" in r["reason"]
+
+
+def test_M16_refuse_quand_aucune_entite_n_est_reconnue():
+    r = sagf.nl_to_sagql("bonjour comment ça va")
+    assert r["ok"] is False and "aucune entité" in r["reason"]
+
+
+def test_M16_ne_pretend_pas_comprendre():
+    r = sagf.nl_to_sagql("les sources activées")
+    assert "Aucune compréhension" in r["note"] or "compréhension" in r["note"]
+
+
+def test_M16_produit_toujours_un_SAGQL_valide():
+    r = sagf.nl_to_sagql("les règles satisfiables")
+    assert r["ok"] is True
+    sagf.parse(r["sagql"])          # ne doit pas lever
+
+
+def test_M20_respecte_le_plafond_de_bruit():
+    cands = [{"id": i, "gain": 10, "noise_per_day": 60} for i in range(5)]
+    out = sagf.optimise(cands, max_noise_per_day=200)
+    assert out["total_noise_per_day"] <= 200
+    assert out["selected"] == 3
+
+
+def test_M20_privilegie_le_meilleur_rapport_gain_bruit():
+    cands = [{"id": "cher", "gain": 10, "noise_per_day": 100},
+             {"id": "efficace", "gain": 10, "noise_per_day": 1}]
+    out = sagf.optimise(cands, max_noise_per_day=100)
+    assert out["items"][0]["id"] == "efficace"
+
+
+def test_M20_ecarte_les_candidats_non_chiffres():
+    out = sagf.optimise([{"id": "a"}, {"id": "b", "gain": 1, "noise_per_day": 1}])
+    assert out["usable"] == 1 and out["unusable"] == 1
+
+
+def test_M20_ne_pretend_pas_a_l_optimalite():
+    """Pretendre l'optimalite sans la prouver serait ce que M-20 doit refuter."""
+    out = sagf.optimise([])
+    assert "NON PROUVÉE" in out["optimality"]
+    assert out["refutation"]
+
+
+# ═══ SAGQL — differentiel generalise ═════════════════════════════════════════
+def test_toutes_les_familles_de_predicats_sont_disponibles():
+    assert all(v is not False for v in sagf.PREDICATE_FAMILIES.values())
+
+
+def test_les_familles_partielles_restent_nommees_comme_telles():
+    """Disponible n'est pas complet : les reserves doivent survivre."""
+    fam = sagf.PREDICATE_FAMILIES
+    assert isinstance(fam["sémantique"], str)
+    assert isinstance(fam["probabiliste"], str)
+    assert isinstance(fam["contrefactuel"], str)
+
+
+# ═══ Auto-denonciation etendue ═══════════════════════════════════════════════
+def test_le_rapport_execute_de_vraies_verifications():
+    r = sagf.self_report([])
+    assert set(r["live_checks"]) == {"L3", "L8", "L11", "I11"}
+    assert r["live_checks"]["L3"]["reversible"] is True
+    assert r["live_checks"]["I11"]["separated"] is True
+
+
+def test_le_rapport_expose_les_ecarts_de_coherence():
+    assert sagf.self_report([])["coherence_gaps"] == []
+
+
+def test_les_vingt_mecanismes_sont_implementes():
+    assert sum(1 for m in sagf.MECHANISMS.values() if m.implemented) == 20

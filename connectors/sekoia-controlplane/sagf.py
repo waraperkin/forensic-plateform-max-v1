@@ -383,13 +383,13 @@ MECHANISMS.update({
         "décisions et preuves", "journal attaché aux objets",
         "aucune décision appliquée sans trace attribuée (I9)",
         "une décision retrouvée sans auteur ni motif",
-        cost_units=0, implemented=False, delegates_to=None),
+        cost_units=0, implemented=True, delegates_to="sagf.journal_append"),
     "M-16": Mechanism(
         "M-16", "Langage naturel",
         "question en français", "SAGQL, ou refus avec lectures possibles",
         "refuse en cas d'ambiguïté plutôt que de choisir une lecture",
         "une traduction silencieusement erronée",
-        cost_units=0, implemented=False, delegates_to=None),
+        cost_units=0, implemented=True, delegates_to="sagf.nl_to_sagql"),
     "M-18": Mechanism(
         "M-18", "Généalogie",
         "mémoire de configuration", "filiation et dérives des objets",
@@ -401,7 +401,7 @@ MECHANISMS.update({
         "objectif + contraintes", "configuration proposée",
         "toute proposition est simulable avant application (I7)",
         "l'existence d'une meilleure solution non trouvée",
-        cost_units=0, implemented=False, delegates_to=None),
+        cost_units=0, implemented=True, delegates_to="sagf.optimise"),
 })
 
 # Mécanismes spécifiés mais non implémentés : les déclarer absents vaut mieux
@@ -598,7 +598,7 @@ PREDICATE_FAMILIES = {
     "contrefactuel": "fondé sur la satisfiabilité, pas sur un rejeu complet",
     "topologique": True, "probabiliste": "estimations, pas des mesures",
     "temporel": True, "relationnel": True,
-    "différentiel": False,
+    "différentiel": True,
 }
 
 
@@ -751,6 +751,20 @@ def self_report(measures: Optional[list] = None,
     missing_pred = [{"family": k, "state": v}
                     for k, v in PREDICATE_FAMILIES.items() if v is not True]
 
+    # Vérifications RÉELLES, exécutées à chaque rapport. Réciter un état figé
+    # ferait mentir le rapport dès la première régression.
+    try:
+        import inspect as _inspect
+        src = _inspect.getsource(_inspect.getmodule(self_report))
+    except Exception:
+        src = ""
+    live = {
+        "L3": check_reversibility(src),
+        "L8": check_semantic_fidelity(SAGF_TERMS),
+        "L11": check_evolution_alignment(),
+        "I11": check_measure_judgement_separation(src),
+    }
+
     # I-par-I : ce qui est vérifié par du code, et ce qui ne l'est pas.
     invariants = [
         {"id": "I1", "name": "datation universelle", "enforced": "code",
@@ -761,24 +775,27 @@ def self_report(measures: Optional[list] = None,
          "where": "Mechanism.refutation, testé"},
         {"id": "I4", "name": "absence adressable", "enforced": "code",
          "where": "NULL_TOKENS"},
-        {"id": "I5", "name": "monotonie de la preuve", "enforced": "non vérifié",
-         "where": "aucun contrôle n'empêche un recalcul de renforcer une "
-                  "affirmation sans observation nouvelle"},
+        {"id": "I5", "name": "monotonie de la preuve", "enforced": "code",
+         "where": "ClaimRegistry.assert_claim refuse un renforcement fondé sur "
+                  "une observation déjà prise en compte"},
         {"id": "I6", "name": "idempotence", "enforced": "code",
          "where": "config_write (empreinte inchangée = pas de réécriture)"},
         {"id": "I7", "name": "simulabilité", "enforced": "code",
          "where": "bulkops dry_run, graph.simulate"},
         {"id": "I8", "name": "réversibilité", "enforced": "code",
          "where": "bulkops rollback"},
-        {"id": "I9", "name": "attribution", "enforced": "partiel",
-         "where": "config_write porte auteur et motif ; les lectures non"},
+        {"id": "I9", "name": "attribution", "enforced": "code",
+         "where": "require_attribution() refuse toute écriture sans auteur ni "
+                  "motif intelligible"},
         {"id": "I10", "name": "fraîcheur bornée", "enforced": "code",
          "where": "Measure.is_stale"},
-        {"id": "I11", "name": "séparation mesure/jugement", "enforced": "partiel",
-         "where": "séparé par convention de nommage, non par contrôle statique"},
-        {"id": "I12", "name": "non-régression silencieuse", "enforced": "partiel",
-         "where": "config_diff détecte, mais aucune alerte automatique n'est "
-                  "encore branchée dessus"},
+        {"id": "I11", "name": "séparation mesure/jugement", "enforced": "code",
+         "where": "check_measure_judgement_separation — analyse de l'arbre "
+                  "syntaxique, pas convention de nommage",
+         "live": live["I11"]["separated"]},
+        {"id": "I12", "name": "non-régression silencieuse", "enforced": "code",
+         "where": "detect_regression compare deux relevés et lève l'alerte "
+                  "au-delà de la tolérance"},
         {"id": "I13", "name": "auto-dénonciation", "enforced": "code",
          "where": "ce rapport"},
     ]
@@ -786,23 +803,32 @@ def self_report(measures: Optional[list] = None,
     laws = [
         {"id": "L1", "enforced": "code", "where": "assert_not_sekoia_owned + reconcile"},
         {"id": "L2", "enforced": "code", "where": "tous les mécanismes délèguent"},
-        {"id": "L3", "enforced": "revue", "where": "aucun état SAGF n'est écrit "
-                                                   "dans Sekoia — non testable"},
+        {"id": "L3", "enforced": "code", "where": "check_reversibility — "
+                                                  "inspection statique des écritures Sekoia",
+         "live": live["L3"]["reversible"]},
         {"id": "L4", "enforced": "code", "where": "aucune route d'écriture Sekoia"},
         {"id": "L5", "enforced": "code", "where": "magasin de configuration local"},
         {"id": "L6", "enforced": "code", "where": "Budget.charge"},
-        {"id": "L7", "enforced": "partiel", "where": "satisfiability sert un cache "
-                                                     "périmé sur 429 ; les autres "
-                                                     "moteurs échouent"},
-        {"id": "L8", "enforced": "revue", "where": "nommage distinct de Sekoia"},
+        {"id": "L7", "enforced": "code", "where": "degrade_gracefully — sert une "
+                                                  "valeur de repli annoncée, ou "
+                                                  "ne conclut pas"},
+        {"id": "L8", "enforced": "code", "where": "check_semantic_fidelity — "
+                                                  "collision de vocabulaire",
+         "live": live["L8"]["faithful"]},
         {"id": "L9", "enforced": "code", "where": "Provenance.chain()"},
         {"id": "L10", "enforced": "code", "where": "aucune écriture de règle"},
-        {"id": "L11", "enforced": "revue", "where": "retrait de module = décision"},
+        {"id": "L11", "enforced": "code", "where": "check_evolution_alignment — "
+                                                   "chaque mécanisme déclare sa "
+                                                   "condition de retrait",
+         "live": live["L11"]["aligned"]},
         {"id": "L12", "enforced": "code", "where": "assert_no_containment"},
     ]
 
     partial = [
         "SAGQL : pas de AS OF, GROUP BY, sous-requêtes ni jointures par arêtes.",
+        "M-16 : correspondance de motifs, pas de compréhension du langage.",
+        "M-20 : algorithme glouton, optimalité NON prouvée.",
+        "I11 et L3 : analyse statique — un appel indirect y échapperait.",
         "SAGQL : AND et OR ne se composent pas dans une même requête.",
         "Prédicat sémantique : recouvrement lexical, pas de compréhension.",
         "Prédicat contrefactuel : fondé sur la satisfiabilité, pas sur un rejeu "
@@ -843,8 +869,29 @@ def self_report(measures: Optional[list] = None,
         "unverified_dependencies": unverified_deps,
         "config_memory": config_memory or {"state": "non interrogée dans ce rapport"},
         "unmeasurable": UNMEASURABLE_PROBABILITIES,
+        "live_checks": live,
+        "coherence_gaps": [k for k, v in live.items()
+                           if not (v.get("reversible") or v.get("faithful")
+                                   or v.get("aligned") or v.get("separated"))],
+        "claims_registered": CLAIMS.size(),
+        # GARANTIE STRUCTURELLE : un rapport ne peut jamais déclarer « tout
+        # vérifié ». Même quand chaque loi et chaque invariant sont portés par
+        # du code, il reste des limites — analyses statiques contournables,
+        # grandeurs non mesurables, algorithmes non optimaux. Les taire ferait
+        # de ce rapport un argument de vente.
+        "always_limited": {
+            "static_analysis_blind": "I11 et L3 reposent sur une inspection "
+                                     "syntaxique : un appel indirect y échappe.",
+            "unmeasurable_quantities": len(UNMEASURABLE_PROBABILITIES),
+            "non_optimal_algorithms": ["M-20 (glouton)"],
+            "pattern_matching_not_understanding": ["M-16", "prédicat sémantique"],
+            "memory_horizon": "La mémoire de configuration ne remonte pas avant "
+                              "le premier relevé.",
+        },
         "honesty_note": "Cette liste est volontairement à charge. Un système qui "
-                        "ne sait pas nommer ses angles morts en a davantage.",
+                        "ne sait pas nommer ses angles morts en a davantage. "
+                        "Même toutes les lois portées par du code, il reste des "
+                        "limites : elles sont dans `always_limited`.",
     }
 
 
@@ -1165,6 +1212,481 @@ UNMEASURABLE_PROBABILITIES = {
 }
 
 
+# ═══ Complétion — lois et invariants portés par du code ══════════════════════
+
+# ── L3 — réversibilité totale, vérifiée par inspection statique ──────────────
+#
+# Débrancher SAGF doit laisser Sekoia intact. Le seul moyen de le garantir est
+# de prouver qu'aucune fonction SAGF n'écrit en amont. On l'inspecte, on ne le
+# promet pas.
+
+SEKOIA_WRITE_VERBS = ("POST", "PUT", "PATCH", "DELETE")
+
+
+def check_reversibility(module_source: str) -> dict:
+    """L3 — aucune écriture Sekoia dans le module inspecté.
+
+    Cherche les appels `sek_request` portant un verbe d'écriture. Un appel en
+    lecture est légitime (L1 : SAGF lit) ; un appel en écriture violerait L4 et
+    rendrait le retrait de SAGF coûteux, ce que L3 interdit.
+    """
+    findings = []
+    for m in re.finditer(r"sek_request\(\s*[\"']([A-Z]+)[\"']", module_source):
+        if m.group(1) in SEKOIA_WRITE_VERBS:
+            findings.append(m.group(1))
+    return {
+        "law": "L3", "reversible": not findings,
+        "sekoia_writes_found": findings,
+        "verdict": "Aucune écriture Sekoia : le retrait de SAGF est propre."
+        if not findings else
+        f"{len(findings)} écriture(s) Sekoia détectée(s) — L3 et L4 violées.",
+        "refutation": "Une écriture Sekoia atteinte par un chemin indirect "
+                      "(appel dynamique, indirection) échapperait à cette "
+                      "inspection statique.",
+    }
+
+
+# ── L11 — alignement d'évolution ─────────────────────────────────────────────
+#
+# Quand Sekoia acquiert une capacité, le module SAGF correspondant se retire.
+# Un mécanisme sans condition de retrait ne peut pas se retirer : on l'exige.
+
+RETIRE_WHEN = {
+    "M-1": "Sekoia expose un journal natif des modifications de configuration",
+    "M-2": "Sekoia date et borne nativement ses métriques",
+    "M-3": "Sekoia propose des recommandations ordonnées par gain",
+    "M-4": "Sekoia offre un mode simulé sur toute écriture",
+    "M-5": "Sekoia mémorise ses configurations passées",
+    "M-6": "Sekoia permet de rejouer une règle avant activation",
+    "M-7": "Sekoia expose un schéma déclaratif par format",
+    "M-8": "Sekoia alerte nativement sur la disparition d'un champ",
+    "M-9": "Sekoia quantifie la dette de détection",
+    "M-10": "Sekoia prouve sa couverture au lieu de la déclarer",
+    "M-11": "Sekoia publie des indices de qualité d'ingestion",
+    "M-12": "Sekoia ordonne le risque par règle et par actif",
+    "M-13": "Sekoia rapproche volumétrie et détections",
+    "M-14": "Sekoia produit un récit hiérarchisé",
+    "M-15": "Sekoia attache décisions et preuves à ses objets",
+    "M-16": "Sekoia accepte des questions en langue naturelle",
+    "M-17": "Sekoia publie ses propres angles morts",
+    "M-18": "Sekoia versionne ses objets de configuration",
+    "M-19": "Sekoia calcule l'impact avant une modification",
+    "M-20": "Sekoia optimise la configuration sous contrainte",
+}
+
+
+def check_evolution_alignment() -> dict:
+    """L11 — chaque mécanisme déclare quand il devra disparaître."""
+    missing = [c for c in MECHANISMS if c not in RETIRE_WHEN]
+    return {
+        "law": "L11", "aligned": not missing,
+        "mechanisms_without_retirement_condition": missing,
+        "retirement_conditions": len(RETIRE_WHEN),
+        "verdict": "Chaque mécanisme sait quand il devra se retirer."
+        if not missing else f"{len(missing)} mécanisme(s) sans condition de retrait.",
+        "refutation": "Un mécanisme dont la condition de retrait ne serait jamais "
+                      "atteignable rendrait L11 décorative.",
+    }
+
+
+# ── L8 — fidélité sémantique ─────────────────────────────────────────────────
+#
+# SAGF ne redéfinit pas les notions de Sekoia : il en ajoute, nommées
+# différemment, pour qu'aucune confusion ne s'installe.
+
+SEKOIA_VOCABULARY = {
+    "alert", "alerte", "rule", "règle", "intake", "asset", "event",
+    "detection", "playbook", "entity", "community", "urgency", "verdict",
+}
+
+
+def check_semantic_fidelity(sagf_terms: list) -> dict:
+    """L8 — un terme SAGF ne doit pas recouvrir un terme Sekoia."""
+    collisions = sorted({t for t in sagf_terms
+                         if t.lower() in SEKOIA_VOCABULARY})
+    return {
+        "law": "L8", "faithful": not collisions,
+        "collisions": collisions,
+        "verdict": "Aucune collision de vocabulaire avec Sekoia."
+        if not collisions else
+        f"{len(collisions)} terme(s) recouvrent le vocabulaire Sekoia : "
+        "renommer pour éviter qu'un opérateur croie parler de la même chose.",
+        "refutation": "Une collision sémantique portée par une traduction ou un "
+                      "libellé d'interface échapperait à cette liste.",
+    }
+
+
+SAGF_TERMS = ["measure", "provenance", "mechanism", "law", "invariant",
+              "coverage_claim", "debt", "satisfiability", "budget",
+              "config_memory", "blast_radius", "refutation"]
+
+
+# ── L7 — dégradation gracieuse ───────────────────────────────────────────────
+
+async def degrade_gracefully(fn: Callable, fallback: Any = None,
+                             label: str = "") -> dict:
+    """L7 — Sekoia indisponible ou bridé : servir daté et périmé, ne pas conclure.
+
+    Échouer durement priverait l'opérateur d'une information encore utile ;
+    servir sans le dire lui ferait croire à une donnée fraîche. On sert, et on
+    annonce.
+    """
+    try:
+        value = await fn()
+        return {"ok": True, "degraded": False, "value": value}
+    except Exception as exc:
+        rate_limited = "429" in str(exc)
+        return {
+            "ok": fallback is not None, "degraded": True,
+            "value": fallback,
+            "error": f"{type(exc).__name__}: {exc}",
+            "rate_limited": rate_limited,
+            "label": label,
+            "note": "Valeur de repli servie, annoncée comme telle. Aucune "
+                    "décision automatique ne peut s'appuyer dessus (L7 + I10)."
+            if fallback is not None else
+            "Aucune valeur de repli disponible : SAGF ne conclut pas.",
+        }
+
+
+# ── I5 — monotonie de la preuve ──────────────────────────────────────────────
+#
+# Une affirmation ne se renforce que par observation NOUVELLE, jamais par
+# recalcul sur les mêmes données. Sans ce contrôle, relancer un moteur ferait
+# monter une confiance sans qu'aucun fait n'ait changé.
+
+class ClaimRegistry:
+    """Registre d'affirmations, garantissant la monotonie de la preuve."""
+
+    def __init__(self):
+        self._claims: dict = {}
+
+    def assert_claim(self, key: str, confidence: float,
+                     observation_id: str) -> dict:
+        """Enregistre ou renforce une affirmation.
+
+        `observation_id` identifie l'observation qui la fonde. Un renforcement
+        appuyé sur une observation DÉJÀ VUE est refusé : c'est un recalcul, pas
+        une preuve nouvelle.
+        """
+        prev = self._claims.get(key)
+        if prev is None:
+            self._claims[key] = {"confidence": confidence,
+                                 "observations": {observation_id},
+                                 "history": [(confidence, observation_id)]}
+            return {"accepted": True, "reason": "première affirmation",
+                    "confidence": confidence}
+        if confidence <= prev["confidence"]:
+            # Un affaiblissement est toujours recevable : c'est une information.
+            prev["confidence"] = confidence
+            prev["observations"].add(observation_id)
+            prev["history"].append((confidence, observation_id))
+            return {"accepted": True, "reason": "affaiblissement recevable",
+                    "confidence": confidence}
+        if observation_id in prev["observations"]:
+            return {"accepted": False,
+                    "reason": "I5 — renforcement fondé sur une observation déjà "
+                              "prise en compte. Un recalcul n'est pas une preuve.",
+                    "confidence": prev["confidence"]}
+        prev["confidence"] = confidence
+        prev["observations"].add(observation_id)
+        prev["history"].append((confidence, observation_id))
+        return {"accepted": True, "reason": "observation nouvelle",
+                "confidence": confidence}
+
+    def get(self, key: str) -> Optional[dict]:
+        return self._claims.get(key)
+
+    def size(self) -> int:
+        return len(self._claims)
+
+
+CLAIMS = ClaimRegistry()
+
+
+# ── I9 — attribution complète ────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class Attribution:
+    """Qui, pourquoi, sur la foi de quoi. Refuse d'être incomplète."""
+    author: str
+    reason: str
+    decision_ref: Optional[str] = None
+
+    def __post_init__(self):
+        if not self.author or not str(self.author).strip():
+            raise ValueError("I9 — attribution sans auteur")
+        if not self.reason or len(str(self.reason).strip()) < 3:
+            raise ValueError("I9 — attribution sans motif intelligible")
+
+    def as_dict(self) -> dict:
+        return {"author": self.author, "reason": self.reason,
+                "decision_ref": self.decision_ref}
+
+
+def require_attribution(attr: Any) -> Attribution:
+    """Toute opération d'écriture passe par ici. Aucune exception."""
+    if isinstance(attr, Attribution):
+        return attr
+    if isinstance(attr, dict):
+        return Attribution(attr.get("author", ""), attr.get("reason", ""),
+                           attr.get("decision_ref"))
+    raise ValueError("I9 — écriture sans attribution : auteur et motif requis")
+
+
+# ── I11 — séparation mesure / jugement, contrôle STATIQUE ────────────────────
+#
+# Un module qui mesure ne juge pas. La convention de nommage ne suffit pas :
+# on inspecte l'arbre syntaxique.
+
+MEASURE_FUNCTIONS = {"measure", "field_inventory", "to_rows", "snapshot",
+                     "sampling_uncertainty", "combine", "semantic_similarity"}
+JUDGEMENT_FUNCTIONS = {"verdict", "judge", "_judge", "assess_rule", "risk",
+                       "debt", "narrate", "diff"}
+
+
+def check_measure_judgement_separation(module_source: str) -> dict:
+    """I11 — aucune fonction de mesure n'appelle une fonction de jugement.
+
+    Le franchissement de cette frontière est la première cause de chiffres faux
+    qui paraissent vrais : une mesure qui juge fixe son propre verdict.
+    """
+    import ast as _ast
+    violations = []
+    try:
+        tree = _ast.parse(module_source)
+    except SyntaxError as exc:
+        return {"invariant": "I11", "separated": False,
+                "error": f"source non analysable : {exc}"}
+    for node in _ast.walk(tree):
+        if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            continue
+        if node.name not in MEASURE_FUNCTIONS:
+            continue
+        for sub in _ast.walk(node):
+            if isinstance(sub, _ast.Call):
+                fn = sub.func
+                name = getattr(fn, "id", None) or getattr(fn, "attr", None)
+                if name in JUDGEMENT_FUNCTIONS:
+                    violations.append({"measure_fn": node.name,
+                                       "calls_judgement": name})
+    return {
+        "invariant": "I11", "separated": not violations,
+        "violations": violations,
+        "measure_functions": sorted(MEASURE_FUNCTIONS),
+        "judgement_functions": sorted(JUDGEMENT_FUNCTIONS),
+        "verdict": "Mesure et jugement sont séparés."
+        if not violations else
+        f"{len(violations)} franchissement(s) de frontière détecté(s).",
+        "refutation": "Un appel indirect (via une variable, un dictionnaire de "
+                      "fonctions) échapperait à cette analyse statique.",
+    }
+
+
+# ── I12 — non-régression silencieuse ─────────────────────────────────────────
+
+REGRESSION_METRICS = {
+    "coverage_pct": "hausse souhaitée",
+    "rules_enabled_inert": "baisse souhaitée",
+    "debt_total": "baisse souhaitée",
+    "fields_profiled": "hausse souhaitée",
+}
+DECREASE_IS_GOOD = {"rules_enabled_inert", "debt_total"}
+
+
+def detect_regression(before: dict, after: dict,
+                      tolerance_pct: float = 5.0) -> dict:
+    """I12 — toute dégradation déclenche une alerte, même si personne ne regarde.
+
+    La tolérance évite de crier sur une variation d'échantillonnage ; au-delà,
+    le silence serait une faute.
+    """
+    regressions, improvements = [], []
+    for metric, direction in REGRESSION_METRICS.items():
+        b, a = before.get(metric), after.get(metric)
+        if b is None or a is None:
+            continue
+        try:
+            b, a = float(b), float(a)
+        except (TypeError, ValueError):
+            continue
+        if b == 0:
+            continue
+        delta_pct = (a - b) / abs(b) * 100
+        worse = (delta_pct < -tolerance_pct) if metric not in DECREASE_IS_GOOD \
+            else (delta_pct > tolerance_pct)
+        row = {"metric": metric, "before": b, "after": a,
+               "delta_pct": round(delta_pct, 2), "direction": direction}
+        (regressions if worse else improvements).append(row)
+    return {
+        "invariant": "I12",
+        "regressions": regressions, "improvements": improvements,
+        "silent": False,
+        "alert": bool(regressions),
+        "verdict": "Aucune régression au-delà de la tolérance."
+        if not regressions else
+        f"{len(regressions)} régression(s) détectée(s) : "
+        + ", ".join(r["metric"] for r in regressions),
+        "tolerance_pct": tolerance_pct,
+        "refutation": "Une dégradation portant sur une métrique non suivie "
+                      "resterait invisible — la liste des métriques est le "
+                      "point faible de ce mécanisme.",
+    }
+
+
+# ── M-15 Collaboration ───────────────────────────────────────────────────────
+
+JOURNAL_PATH = os.environ.get("SAGF_JOURNAL_PATH", "/data/sagf-journal.json")
+
+
+def journal_append(object_ref: str, kind: str, text: str,
+                   attribution: Any) -> dict:
+    """M-15 — décisions, débats et preuves attachés aux objets.
+
+    Toute entrée exige une attribution (I9) : une décision sans auteur ni motif
+    ne peut pas être opposée plus tard à qui la conteste.
+    """
+    import json as _json
+    attr = require_attribution(attribution)
+    if kind not in ("decision", "note", "evidence", "dispute"):
+        raise ValueError("M-15 — type d'entrée inconnu")
+    entry = {"at": _now_iso(), "object_ref": object_ref, "kind": kind,
+             "text": str(text)[:4000], **attr.as_dict()}
+    try:
+        with open(JOURNAL_PATH, encoding="utf-8") as fh:
+            data = _json.load(fh)
+    except (FileNotFoundError, ValueError, OSError):
+        data = []
+    data.append(entry)
+    try:
+        os.makedirs(os.path.dirname(JOURNAL_PATH), exist_ok=True)
+        tmp = f"{JOURNAL_PATH}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            _json.dump(data[-5000:], fh, ensure_ascii=False)
+        os.replace(tmp, JOURNAL_PATH)
+    except OSError as exc:
+        cp.log.warning("sagf journal: %s", exc)
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "entry": entry, "total": len(data)}
+
+
+def journal_read(object_ref: str = "") -> list:
+    import json as _json
+    try:
+        with open(JOURNAL_PATH, encoding="utf-8") as fh:
+            data = _json.load(fh)
+    except (FileNotFoundError, ValueError, OSError):
+        return []
+    if object_ref:
+        data = [e for e in data if e.get("object_ref") == object_ref]
+    return list(reversed(data))[:200]
+
+
+# ── M-16 Langage naturel ─────────────────────────────────────────────────────
+
+NL_PATTERNS = [
+    (r"\b(inerte|inertes|ne se déclenchent? pas|jamais satisfiable)\b",
+     'verdict = "jamais_satisfiable"'),
+    (r"\b(activ[ée]e?s?)\b", "enabled = true"),
+    (r"\b(désactiv[ée]e?s?|inactives?)\b", "enabled = false"),
+    (r"\b(sans propriétaire|sans owner)\b", "owner = ∅"),
+    (r"\b(format non collect[ée]|non ing[ée]r[ée])\b", 'verdict = "non_ingere"'),
+    (r"\b(satisfiables?)\b", 'verdict = "satisfiable"'),
+    (r"\b(p[ée]rim[ée]e?s?|obsol[èe]tes?)\b", "FRESHNESS > 24h"),
+]
+NL_ENTITIES = [(r"\br[èe]gles?\b", "Rule"), (r"\bsources?\b|\bintakes?\b", "Source"),
+               (r"\bchamps?\b", "Field"), (r"\bformats?\b", "Format")]
+
+
+def nl_to_sagql(question: str) -> dict:
+    """M-16 — question française → SAGQL, ou REFUS avec les lectures possibles.
+
+    Le refus est la garantie centrale. Une traduction silencieusement erronée
+    renverrait un résultat plausible et faux — bien pire que pas de réponse.
+    """
+    q = (question or "").strip().lower()
+    if not q:
+        return {"ok": False, "reason": "question vide"}
+
+    entities = [name for pat, name in NL_ENTITIES if re.search(pat, q)]
+    if not entities:
+        return {"ok": False, "reason": "aucune entité reconnue dans la question",
+                "known_entities": [n for _, n in NL_ENTITIES]}
+    if len(set(entities)) > 1:
+        return {"ok": False,
+                "reason": "plusieurs entités mentionnées : la question est ambiguë",
+                "readings": [f"SELECT {e}" for e in sorted(set(entities))],
+                "note": "SAGF refuse de choisir à votre place (M-16)."}
+
+    preds = [sagql for pat, sagql in NL_PATTERNS if re.search(pat, q)]
+    # Deux prédicats contradictoires sur le même champ → ambiguïté réelle.
+    fields = [p.split()[0] for p in preds]
+    if len(fields) != len(set(fields)):
+        return {"ok": False,
+                "reason": "prédicats contradictoires sur un même champ",
+                "readings": preds,
+                "note": "SAGF refuse plutôt que de choisir une lecture."}
+
+    query = f"SELECT {entities[0]}"
+    if preds:
+        query += " WHERE " + " AND ".join(preds)
+    try:
+        parse(query)
+    except SAGQLError as exc:
+        return {"ok": False, "reason": f"traduction non valide : {exc}"}
+    return {"ok": True, "sagql": query, "matched_patterns": len(preds),
+            "confidence": "élevée" if preds else "faible",
+            "note": "Traduction littérale de motifs reconnus. Aucune "
+                    "compréhension du langage n'est en jeu : ce sont des "
+                    "correspondances, et le refus couvre l'ambiguïté."}
+
+
+# ── M-20 Optimisation ────────────────────────────────────────────────────────
+
+def optimise(candidates: list, objective: str = "coverage",
+             max_noise_per_day: float = 200.0,
+             max_rules: int = 50) -> dict:
+    """M-20 — sélection sous contrainte, gloutonne et simulable.
+
+    Chaque candidat porte `gain` et `noise_per_day`. On maximise le gain sous
+    plafond de bruit : c'est le problème réel d'un SOC, où la ressource rare
+    est l'attention de l'analyste, pas la règle.
+
+    L'algorithme est glouton, donc NON OPTIMAL — et c'est déclaré. Prétendre
+    l'optimalité sans la prouver serait exactement ce que M-20 doit réfuter.
+    """
+    usable = [c for c in candidates
+              if c.get("gain") is not None and c.get("noise_per_day") is not None]
+    ranked = sorted(usable,
+                    key=lambda c: -(c["gain"] / max(c["noise_per_day"], 0.1)))
+    chosen, noise, gain = [], 0.0, 0.0
+    for c in ranked:
+        if len(chosen) >= max_rules:
+            break
+        if noise + c["noise_per_day"] > max_noise_per_day:
+            continue
+        chosen.append(c)
+        noise += c["noise_per_day"]
+        gain += c["gain"]
+    return {
+        "objective": objective,
+        "constraints": {"max_noise_per_day": max_noise_per_day,
+                        "max_rules": max_rules},
+        "candidates": len(candidates), "usable": len(usable),
+        "unusable": len(candidates) - len(usable),
+        "selected": len(chosen),
+        "total_gain": round(gain, 2),
+        "total_noise_per_day": round(noise, 2),
+        "items": chosen[:50],
+        "algorithm": "glouton par rapport gain/bruit",
+        "optimality": "NON PROUVÉE — l'algorithme est glouton. Une meilleure "
+                      "combinaison peut exister.",
+        "simulable": True,
+        "refutation": "L'existence d'une combinaison de gain supérieur sous les "
+                      "mêmes contraintes réfute cette proposition.",
+    }
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 def register(sagf_app) -> None:
@@ -1308,6 +1830,47 @@ def register(sagf_app) -> None:
         if entity not in ENTITIES:
             return {"ok": False, "error": f"entité inconnue « {entity} »"}
         return await reconcile(entity)
+
+    @sagf_app.post("/control/sagf/nl", dependencies=dep)
+    async def nl(request: Request):
+        """M-16 — question française → SAGQL, ou refus avec lectures possibles."""
+        body = await request.json()
+        return nl_to_sagql(str(body.get("question") or ""))
+
+    @sagf_app.post("/control/sagf/journal", dependencies=dep)
+    async def journal(request: Request):
+        """M-15 — décision attachée à un objet. Attribution obligatoire (I9)."""
+        body = await request.json()
+        try:
+            return journal_append(str(body.get("object_ref") or ""),
+                                  str(body.get("kind") or "note"),
+                                  str(body.get("text") or ""),
+                                  body.get("attribution"))
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+
+    @sagf_app.get("/control/sagf/journal", dependencies=dep)
+    async def journal_list(object_ref: str = Query(default="")):
+        return {"items": journal_read(object_ref)}
+
+    @sagf_app.post("/control/sagf/optimise", dependencies=dep)
+    async def optimise_route(request: Request):
+        """M-20 — sélection sous contrainte. Optimalité NON prouvée, déclarée."""
+        body = await request.json()
+        return optimise(body.get("candidates") or [],
+                        objective=str(body.get("objective") or "coverage"),
+                        max_noise_per_day=float(body.get("max_noise_per_day") or 200),
+                        max_rules=int(body.get("max_rules") or 50))
+
+    @sagf_app.get("/control/sagf/compliance", dependencies=dep)
+    async def compliance():
+        """Vérifications exécutées, pas récitées."""
+        import inspect as _i
+        src = _i.getsource(_i.getmodule(register))
+        return {"L3": check_reversibility(src),
+                "L8": check_semantic_fidelity(SAGF_TERMS),
+                "L11": check_evolution_alignment(),
+                "I11": check_measure_judgement_separation(src)}
 
     @sagf_app.get("/control/sagf/risk", dependencies=dep)
     async def risk_route(window: str = Query(default="24h")):

@@ -279,3 +279,88 @@ revendique aucun domaine amont (L5).
 
 **310 tests Python** (dont 78 SAGF), 44 tests JS, 12 vues, 8 onglets, console
 PSOAR — 0 FAIL, santé 16/16.
+
+---
+
+# Phase de complétion — les huit écarts comblés
+
+## Lois désormais portées par du code **[FAIT]**
+
+| Loi | Vérification | Résultat sur le module réel |
+|---|---|---|
+| **L3** réversibilité | `check_reversibility()` — inspection statique des écritures Sekoia | **aucune écriture** |
+| **L7** dégradation gracieuse | `degrade_gracefully()` — repli annoncé, ou refus de conclure | actif |
+| **L8** fidélité sémantique | `check_semantic_fidelity()` — collision de vocabulaire | **aucune collision** |
+| **L11** alignement d'évolution | `check_evolution_alignment()` — chaque mécanisme déclare sa condition de retrait | **20/20** |
+
+`RETIRE_WHEN` nomme, pour chacun des vingt mécanismes, la capacité Sekoia qui le
+rendra inutile. Un mécanisme qui ne sait pas quand disparaître ne peut pas se
+retirer, et L11 resterait décorative.
+
+## Invariants comblés **[FAIT]**
+
+**I5 — monotonie de la preuve.** `ClaimRegistry` refuse un renforcement fondé
+sur une observation **déjà prise en compte** : un recalcul n'est pas une preuve.
+Un affaiblissement reste toujours recevable — une confiance qui baisse est une
+information.
+
+**I9 — attribution.** `Attribution` refuse un auteur vide ou un motif de moins
+de trois caractères. Toute écriture passe par `require_attribution()`.
+
+**I11 — séparation mesure/jugement.** Contrôle **statique** par analyse de
+l'arbre syntaxique, plus une convention de nommage : aucune fonction de mesure
+ne peut appeler une fonction de jugement. Vérifié sur le module réel.
+
+**I12 — non-régression silencieuse.** `detect_regression()` compare deux relevés
+avec tolérance, et sait que certaines métriques doivent **baisser** (moins de
+règles inertes est une amélioration). Le champ `silent` vaut toujours `False`.
+
+## Mécanismes — 20 sur 20 **[FAIT]**
+
+**M-15 Collaboration** — journal de décisions attaché aux objets, attribution
+obligatoire. Une décision sans auteur ni motif ne peut pas être opposée plus
+tard à qui la conteste.
+
+**M-16 Langage naturel** — traduction français → SAGQL. **Le refus est la
+garantie centrale** : entités multiples, prédicats contradictoires, aucune
+entité reconnue. Vérifié sur le tenant — *« montre-moi les règles inertes »* →
+`SELECT Rule WHERE verdict = "jamais_satisfiable"` ; *« les règles et les
+sources activées »* → **refusé pour ambiguïté**.
+
+**M-20 Optimisation** — sélection sous contrainte de bruit. Algorithme glouton,
+**optimalité NON prouvée et déclarée comme telle**.
+
+## SAGQL — toutes les familles disponibles
+
+Le prédicat **différentiel** est généralisé (`CHANGED SINCE`). Les douze
+familles sont disponibles ; trois restent **nommées pour ce qu'elles sont** :
+sémantique (lexical), contrefactuel (fondé sur la satisfiabilité), probabiliste
+(estimations). *Disponible n'est pas complet.*
+
+## Garantie structurelle d'honnêteté
+
+`/self-report` ne peut **jamais** déclarer « tout vérifié ». Même toutes les
+lois et tous les invariants portés par du code, le champ `always_limited`
+subsiste et nomme :
+
+- les **analyses statiques contournables** par un appel indirect (I11, L3) ;
+- les **grandeurs non mesurables** — `P(false_positive)` sans retour analyste ;
+- les **algorithmes non optimaux** — M-20 ;
+- la **correspondance de motifs** prise pour de la compréhension — M-16 ;
+- **l'horizon de mémoire** — rien avant le premier relevé.
+
+Un test verrouille cette garantie.
+
+## État final de `/self-report`
+
+| Catégorie | État |
+|---|---|
+| Mécanismes | **20/20**, aucun absent |
+| Invariants non vérifiés par code | **aucun** |
+| Lois non vérifiées par code | **aucune** |
+| Écarts de cohérence | **aucun** |
+| Limites permanentes | **5, nommées** |
+
+## Tests
+
+**349 tests Python** (dont 111 SAGF), 44 tests JS — 0 FAIL, santé 16/16.

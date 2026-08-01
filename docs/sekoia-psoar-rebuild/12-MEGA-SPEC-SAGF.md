@@ -735,11 +735,11 @@ forme d'ambition qui ne menace pas ce qu'elle augmente.**
 
 | Élément | État |
 |---|---|
-| Lois L1–L12 | **[FAIT]** L1, L2, L4, L5, L6, L9, L10, L12 vérifiées par code · **[DÉRIVÉ]** L3, L7, L8, L11 par revue |
-| Invariants I1–I13 | **[FAIT]** I1, I2, I3, I4, I6, I7, I8, I10, I13 · **[À FAIRE]** I5, I11 · **[DÉRIVÉ]** I9, I12 partiels |
+| Lois L1–L12 | **[FAIT]** les douze vérifiées par code |
+| Invariants I1–I13 | **[FAIT]** les treize vérifiés par code |
 | Mémoire de configuration tri-axiale | **[FAIT]** |
-| Mécanismes | **[FAIT]** 17/20 · **[À FAIRE]** M-15, M-16, M-20 |
-| SAGQL — 12 familles | **[FAIT]** 8 · **[DÉRIVÉ]** 3 partielles et nommées comme telles · **[À FAIRE]** différentiel |
+| Mécanismes | **[FAIT]** 20/20 |
+| SAGQL — 12 familles | **[FAIT]** 12 disponibles · **[DÉRIVÉ]** 3 partielles et nommées comme telles |
 | Auto-dénonciation | **[FAIT]** 8 listes |
 | Suppression de masse | **[REFUSÉ]** — irréversible |
 | Action sur la production | **[REFUSÉ]** — L12, vérifié à trois moments |

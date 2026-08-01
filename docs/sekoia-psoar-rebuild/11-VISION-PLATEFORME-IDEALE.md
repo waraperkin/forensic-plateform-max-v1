@@ -763,3 +763,9 @@ Les trois capacités qui manquent le plus, et dont tout le reste découle :
 
 Ces trois capacités sont ce qu'il faut demander à l'éditeur. Le reste de ce
 document en découle presque mécaniquement.
+
+---
+
+> **État d'implémentation** — les 35 modules de cette vision sont couverts à ce
+> jour par 20 mécanismes contractuels. Voir [README-SAGF](README-SAGF.md) pour
+> ce qui est porté par du code et ce qui reste une limite permanente.

@@ -179,6 +179,10 @@ Activer une règle, c'est parier : personne ne sait combien d'alertes elle
 produira. Le module traduit le motif Sigma en requête de recherche et le rejoue
 sur les données réelles — **840 règles sur 1 180 (71,2 %) sont traduisibles**.
 
+Le rejeu s'applique aussi à une **sélection** de règles, depuis la même barre
+d'actions que l'activation : on rejoue, on lit, puis on active. Une seule règle
+ingérable suffit à condamner un lot.
+
 Le chiffre compte des **événements**, pas des alertes : c'est une borne haute, et
 chaque réponse le déclare. Le traducteur **refuse** plutôt que d'approximer
 (regex, agrégations, seuils) — un chiffre faux avec l'apparence d'un fait serait
@@ -191,6 +195,10 @@ s'éteignent. Le module relève le schéma réel de chaque format, compare, et
 **nomme les règles mortes**.
 
 Sur ce tenant, `process.command_line` est exigé par **84 règles activées**.
+
+Les dérives rejoignent le **flux d'alertes commun** — plusieurs champs perdus
+sur un même format forment un incident, pas dix notifications — et le poller
+relève le schéma toutes les heures pour construire la ligne de base.
 
 ### Surveillance par hôte
 
@@ -257,7 +265,7 @@ absentes de l'inventaire d'actifs · TheHive et Cortex rejettent leurs clés API
 ```bash
 ./scripts/validate-sekoia.sh                       # services, routes API, télémétrie, CTI
 
-# 218 tests unitaires du control-plane (dans le conteneur — dépendances requises)
+# 227 tests unitaires du control-plane (dans le conteneur — dépendances requises)
 docker exec -u root forensic-sekoia-controlplane pip install -q pytest pytest-asyncio
 for f in connectors/sekoia-controlplane/test_*.py; do docker cp "$f" forensic-sekoia-controlplane:/tmp/; done
 docker exec -u root -w /app forensic-sekoia-controlplane sh -c 'python -m pytest /tmp/test_*.py -q'
@@ -693,7 +701,7 @@ Projets disponibles : `ui`, `playwright`, `ui-integration` (voir `tests/package.
 ### Couche Sekoia (SEP + PSOAR)
 
 ```bash
-# 218 tests unitaires du control-plane — logique pure, sans réseau
+# 227 tests unitaires du control-plane — logique pure, sans réseau
 docker exec -u root forensic-sekoia-controlplane pip install -q pytest pytest-asyncio
 for f in connectors/sekoia-controlplane/test_*.py; do docker cp "$f" forensic-sekoia-controlplane:/tmp/; done
 docker exec -u root -w /app forensic-sekoia-controlplane sh -c 'python -m pytest /tmp/test_*.py -q'

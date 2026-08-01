@@ -368,3 +368,44 @@ Un test verrouille cette garantie.
 ---
 
 > **Document destiné à l'éditeur** — [13-SPEC-EDITEUR-SAGF](13-SPEC-EDITEUR-SAGF.md) présente SAGF à Sekoia : partage de souveraineté, lois, mécanismes, refus explicites, limites permanentes, et les trois capacités dont la fourniture retirerait la moitié de l'extension.
+
+---
+
+# Interface SAGF **[FAIT]**
+
+## Deux défauts corrigés
+
+**1. Aucune interface n'existait.** SAGF disposait de 17 routes et d'aucun écran.
+
+**2. Le proxy était du code mort.** `upstreamFor()` ne mappait que `/sekoia*` et
+renvoyait `null` pour `/sagf*` ; la constante `ALLOWED_SAGF_RE` n'était jamais
+utilisée. **SAGF était donc totalement injoignable depuis le navigateur**,
+contrairement à ce que le commit précédent laissait entendre.
+
+Les deux sont corrigés : mappage `/sagf` → `/control/sagf`, allowlist dédiée, et
+timeout long sur les routes coûteuses.
+
+## L'onglet
+
+Un préfixe d'API **distinct** (`/api/threat/sagf`) : confondre SAGF avec
+`/sekoia` ferait croire qu'il fait partie du SIEM, ce que L8 interdit.
+
+| Bloc | Contenu |
+|---|---|
+| Indicateurs | 20/20 mécanismes · 12/12 lois · 13/13 invariants · budget restant |
+| **Conformité** | L3, L8, L11, I11 **exécutées sur le code réel à chaque consultation** |
+| **Limites permanentes** | affichées **avant** les mécanismes |
+| Console SAGQL | `EXPLAIN` annonce le coût, `Exécuter` lance |
+| Souveraineté | les 8 domaines de chacun, côte à côte |
+| Mécanismes | les 20, avec leur délégation et leur condition de réfutation |
+
+**Choix d'affichage** : les limites permanentes sont placées avant le tableau des
+mécanismes. Un écran qui montre « 20/20 » sans elles se lit comme une promesse
+de perfection.
+
+## Vérifié dans le navigateur
+
+11 contrôles (`sagf-ui.mjs`) : indicateurs, conformité, limites, souveraineté,
+coût annoncé avant exécution, `EXPLAIN` qui n'exécute rien, requête réellement
+exécutée, **ambiguïté refusée dans l'interface**, aucun objet affiché brut,
+0 erreur console.

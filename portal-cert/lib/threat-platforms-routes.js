@@ -278,6 +278,12 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     if (reqPath.startsWith('/sekoia')) {
       return { base: SEKOIA_URL, target: `/control${reqPath}` };
     }
+    // SAGF vit dans le meme control-plane. Sans ce mappage, la constante
+    // ALLOWED_SAGF_RE plus bas restait du code mort et SAGF etait injoignable
+    // depuis le navigateur malgre ses 17 routes.
+    if (reqPath.startsWith('/sagf')) {
+      return { base: SEKOIA_URL, target: `/control${reqPath}` };
+    }
     return null;
   }
 
@@ -305,7 +311,10 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
-    if (!mapped || !ALLOWED_PROXY_RE.test(req.path)) {
+    const allowed = req.path.startsWith('/sagf')
+      ? ALLOWED_SAGF_RE.test(req.path)
+      : ALLOWED_PROXY_RE.test(req.path);
+    if (!mapped || !allowed) {
       return res.status(404).json({ error: 'Plateforme ou ressource inconnue', items: [] });
     }
     // Gestion des secrets : écriture réservée aux administrateurs
@@ -317,7 +326,8 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     const url = `${mapped.base}${mapped.target}`;
     // Timeouts adaptés : la collecte d'événements (jobs Sekoia) peut dépasser
     // 60 s ; les inventaires volumineux (1000+ règles) aussi au 1er refresh.
-    const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting|telemetry|intake|graph|simulate|hosts|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift)(\/|$)/.test(req.path);
+    const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting|telemetry|intake|graph|simulate|hosts|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift)(\/|$)/.test(req.path)
+      || /^\/sagf\/(query|debt|risk|reconcile|config)(\/|$)/.test(req.path);
     const timeout = heavy
       ? Number(process.env.SEKOIA_PROXY_TIMEOUT_HEAVY_MS || 240000)
       : Number(process.env.SEKOIA_PROXY_TIMEOUT_MS || 120000);

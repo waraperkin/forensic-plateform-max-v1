@@ -31,6 +31,7 @@
     { id: 'telemetry', key: 't', group: 1 },
     { id: 'hosts', key: 'h', group: 1 },
     { id: 'value', key: 'v', group: 1 },
+    { id: 'sagf', key: 'g', group: 2 },
     { id: 'alerting', key: 'a', group: 2 },
     { id: 'operations', key: 'p', group: 2 },
     { id: 'apikeys', key: 'k', group: 3 },
@@ -155,6 +156,20 @@
     if (!r.ok && d && d.error) throw new Error(d.error);
     return d;
   }
+  // SAGF vit sous un prefixe distinct : le confondre avec /sekoia ferait croire
+  // qu'il fait partie du SIEM, ce que l'adossement interdit (L8).
+  async function sagfApi(path, opts) {
+    const o = Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {});
+    if (o.body && typeof o.body !== 'string') {
+      o.body = JSON.stringify(o.body);
+      o.headers = Object.assign({ 'Content-Type': 'application/json' }, o.headers || {});
+    }
+    const r = await fetch('/api/threat/sagf' + path, o);
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok && d && d.error) throw new Error(d.error);
+    return d;
+  }
+
   async function portalApi(path, opts) {
     const o = Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {});
     const r = await fetch('/api/threat' + path, o);
@@ -1414,6 +1429,115 @@
     return satBlock + driftBlock + valBlock;
   }
 
+
+  // ── SAGF — gouvernance adossée ────────────────────────────────────────────
+  function viewSagf() {
+    const laws = st.data.sagfLaws; const mech = st.data.sagfMech;
+    const rep = st.data.sagfReport; const comp = st.data.sagfComp;
+    if (!laws && !rep) return degraded(T('swb.sg.down'));
+
+    // La conformité EXÉCUTÉE, pas récitée : c'est ce qui distingue une
+    // promesse d'une vérification.
+    const c = comp || {};
+    const checks = [
+      ['L3', T('swb.sg.l3'), c.L3 && c.L3.reversible],
+      ['L8', T('swb.sg.l8'), c.L8 && c.L8.faithful],
+      ['L11', T('swb.sg.l11'), c.L11 && c.L11.aligned],
+      ['I11', T('swb.sg.i11'), c.I11 && c.I11.separated],
+    ];
+    const compBlock = `<div class="swb-panel">
+      <div class="swb-panel-head"><h3 class="swb-panel-title">${T('swb.sg.compliance')}</h3></div>
+      <p class="swb-hint" style="margin:.2rem 0 .6rem">${T('swb.sg.compliance_sub')}</p>
+      <div class="swb-tablewrap"><table class="swb-table"><tbody>
+        ${checks.map(([id, label, ok]) => `<tr>
+          <td style="width:4rem"><span class="swb-mono">${esc(id)}</span></td>
+          <td>${esc(label)}</td>
+          <td style="width:8rem">${ok === undefined ? '<span class="swb-hint">—</span>'
+            : ok ? pill(T('swb.sg.verified'), 'ok') : pill(T('swb.sg.violated'), 'danger')}</td>
+        </tr>`).join('')}</tbody></table></div></div>`;
+
+    const r = rep || {};
+    const kpis = `<div class="swb-kpis">
+      ${kpi(T('swb.sg.k_mech'), `${nf(r.mechanisms_implemented)}/${nf(r.mechanisms_total)}`,
+        (r.mechanisms_missing || []).length ? 'warn' : 'ok')}
+      ${kpi(T('swb.sg.k_laws'), `${nf(12 - (r.laws_not_code_enforced || []).length)}/12`,
+        (r.laws_not_code_enforced || []).length ? 'warn' : 'ok', T('swb.sg.k_laws_h'))}
+      ${kpi(T('swb.sg.k_inv'), `${nf(13 - (r.invariants_not_fully_enforced || []).length)}/13`,
+        (r.invariants_not_fully_enforced || []).length ? 'warn' : 'ok', T('swb.sg.k_inv_h'))}
+      ${kpi(T('swb.sg.k_budget'), `${nf((r.budget || {}).remaining)}/${nf((r.budget || {}).per_hour)}`,
+        'ok', T('swb.sg.k_budget_h'))}
+    </div>`;
+
+    // Les limites permanentes sont affichées AVANT les mécanismes : un écran
+    // qui montre « 20/20 » sans elles se lit comme une promesse de perfection.
+    const lim = (r.always_limited || {});
+    const limBlock = `<div class="swb-panel" style="border-left:3px solid var(--swb-warn)">
+      <div class="swb-panel-head"><h3 class="swb-panel-title">${T('swb.sg.limits')}</h3></div>
+      <p class="swb-hint" style="margin:.2rem 0 .5rem">${T('swb.sg.limits_sub')}</p>
+      <ul style="margin:0;padding-left:1.1rem">
+        ${Object.entries(lim).map(([k, v]) => `<li class="swb-hint">
+          <span class="swb-mono">${esc(k)}</span> — ${esc(Array.isArray(v) ? v.join(', ') : v)}</li>`).join('')}
+      </ul></div>`;
+
+    const own = laws || {};
+    const ownBlock = `<div class="swb-panel">
+      <div class="swb-panel-head"><h3 class="swb-panel-title">${T('swb.sg.sovereignty')}</h3></div>
+      <div class="swb-tablewrap"><table class="swb-table"><thead><tr>
+        <th>${T('swb.sg.sekoia_owns')}</th><th>${T('swb.sg.sagf_owns')}</th>
+      </tr></thead><tbody><tr>
+        <td class="swb-hint">${(own.sekoia_owned || []).map(esc).join(' · ')}</td>
+        <td class="swb-hint">${(own.sagf_owned || []).map(esc).join(' · ')}</td>
+      </tr></tbody></table></div></div>`;
+
+    const mechBlock = `<div class="swb-panel" style="padding:0">
+      <div class="swb-panel-head" style="padding:.8rem .9rem 0">
+        <h3 class="swb-panel-title">${T('swb.sg.mechanisms')}</h3></div>
+      <p class="swb-hint" style="padding:0 .9rem">${T('swb.sg.mechanisms_sub')}</p>
+      <div class="swb-tablewrap" style="max-height:34vh"><table class="swb-table"><thead><tr>
+        <th>${T('swb.col.state')}</th><th>#</th><th>${T('swb.sg.name')}</th>
+        <th>${T('swb.sg.delegates')}</th><th>${T('swb.sg.refutation')}</th>
+      </tr></thead><tbody>${((mech || {}).implemented || []).map((m) => `<tr>
+        <td>${m.implemented ? pill(T('swb.sg.on'), 'ok') : pill(T('swb.sg.off'), 'mute')}</td>
+        <td><span class="swb-mono">${esc(m.code)}</span></td>
+        <td class="swb-truncate">${esc(m.name)}</td>
+        <td class="swb-hint swb-truncate">${esc(m.delegates_to || '—')}</td>
+        <td class="swb-hint swb-truncate" title="${esc(m.refutation)}">${esc(m.refutation)}</td>
+      </tr>`).join('')}</tbody></table></div></div>`;
+
+    // Console SAGQL : le langage est le seul point d'entrée du filtrage.
+    const q = st.data.sagfQuery;
+    const qBlock = `<div class="swb-panel">
+      <div class="swb-panel-head"><h3 class="swb-panel-title">${T('swb.sg.console')}</h3></div>
+      <div class="swb-filters">
+        <input class="swb-input swb-search" id="swb-sagql" style="flex:1"
+          placeholder="${T('swb.sg.ph')}" value="${esc(st.filters.sagql || 'SELECT Rule WHERE verdict = "jamais_satisfiable"')}">
+        <button type="button" class="fp-btn fp-btn-sm" data-swb-act="sagql-explain">${T('swb.sg.explain')}</button>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-swb-act="sagql-run">${T('swb.sg.run')}</button>
+      </div>
+      <p class="swb-hint" style="margin:.4rem 0 0">${T('swb.sg.console_sub')}</p>
+      ${!q ? '' : q.ok === false ? `<div class="swb-panel" style="margin:.5rem 0 0;border-left:3px solid var(--swb-danger)">
+          <p class="swb-hint" style="margin:0"><strong>${T('swb.sg.refused')}</strong> ${esc(q.error)}</p>
+          ${q.hint ? `<p class="swb-hint swb-mono" style="margin:.3rem 0 0">${esc(q.hint)}</p>` : ''}</div>`
+        : `<div class="swb-panel" style="margin:.5rem 0 0;border-left:3px solid var(--swb-accent)">
+          ${q.explain ? `<p class="swb-hint" style="margin:0">${T('swb.sg.cost', {
+            n: nf(q.explain.cost_units), b: nf(q.explain.budget_remaining) })}</p>` : ''}
+          ${q.executed ? `<p style="margin:.3rem 0 0"><strong>${nf(q.matched)}</strong> ${T('swb.sg.matched', { n: nf(q.scanned) })}</p>
+            <p class="swb-hint swb-mono" style="margin:.2rem 0 0">${esc((q.provenance || {}).chain ? q.provenance.chain.join(' ← ') : '')}</p>
+            <div class="swb-tablewrap" style="max-height:24vh;margin-top:.4rem"><table class="swb-table"><tbody>
+              ${(q.items || []).slice(0, 40).map((it) => `<tr>
+                <td class="swb-truncate">${esc(it.rule_name || it.intake_name || it.field || it.dialect_uuid || '—')}</td>
+                <td class="swb-hint swb-truncate">${esc(it.verdict || it.intake_status || '')}</td></tr>`).join('')}
+            </tbody></table></div>` : `<p class="swb-hint" style="margin:.3rem 0 0">${T('swb.sg.not_executed')}</p>`}
+        </div>`}</div>`;
+
+    return `<div class="swb-head">
+        <div><h2 class="swb-title">${T('swb.sg.title')}</h2>
+          <p class="swb-sub">${T('swb.sg.sub')}</p></div>
+        <div class="swb-actions">
+          <button type="button" class="fp-btn fp-btn-sm" data-swb-act="sagf-snapshot">${T('swb.sg.snapshot')}</button></div></div>
+      ${kpis}${compBlock}${limBlock}${qBlock}${ownBlock}${mechBlock}`;
+  }
+
   // ── Opérations en lot ─────────────────────────────────────────────────────
   function viewOperations() {
     const t = st.data.targets; const hist = st.data.history; const prev = st.data.preview;
@@ -1578,6 +1702,7 @@
     else if (st.view === 'telemetry') body = viewTelemetry();
     else if (st.view === 'hosts') body = viewHosts();
     else if (st.view === 'value') body = viewValue();
+    else if (st.view === 'sagf') body = viewSagf();
     else if (st.view === 'alerting') body = viewAlerting();
     else if (st.view === 'operations') body = viewOperations();
     else if (st.view === 'apikeys') body = viewApiKeys();
@@ -1679,6 +1804,17 @@
         st.data.sat = r[0]; st.data.val = r[1]; st.data.drift = r[2];
         const inert = (r[0] && r[0].rules_enabled_inert) || 0;
         if (inert) st.badges.value = { text: String(inert), tone: 'danger' };
+      } else if (st.view === 'sagf') {
+        const r = await Promise.all([
+          sagfApi('/laws').catch(() => null),
+          sagfApi('/mechanisms').catch(() => null),
+          sagfApi('/self-report').catch(() => null),
+          sagfApi('/compliance').catch(() => null),
+        ]);
+        st.data.sagfLaws = r[0]; st.data.sagfMech = r[1];
+        st.data.sagfReport = r[2]; st.data.sagfComp = r[3];
+        const miss = ((r[2] || {}).mechanisms_missing || []).length;
+        if (miss) st.badges.sagf = { text: String(miss), tone: 'warn' };
       } else if (st.view === 'operations') {
         const r = await Promise.all([api('/bulk/targets'), api('/bulk/history').catch(() => null)]);
         st.data.targets = r[0]; st.data.history = r[1];
@@ -1832,6 +1968,22 @@
       try {
         if (act === 'reload') { load(); return; }
         if (act === 'sel-clear') { st.sel = {}; st.act = null; st.batch = null; paint(); return; }
+        if (act === 'sagql-run' || act === 'sagql-explain') {
+          const raw = (document.getElementById('swb-sagql') || {}).value || '';
+          st.filters.sagql = raw;
+          const text = act === 'sagql-explain' ? `${raw} EXPLAIN` : raw;
+          try {
+            st.data.sagfQuery = await sagfApi('/query', { method: 'POST', body: { q: text } });
+          } catch (e) { st.data.sagfQuery = { ok: false, error: e.message }; }
+          paint(); return;
+        }
+        if (act === 'sagf-snapshot') {
+          const r = await sagfApi('/config/snapshot?entity=Rule&author=ui&reason=releve%20manuel',
+            { method: 'POST' }).catch((e) => ({ ok: false, error: e.message }));
+          toast(r.ok ? T('swb.sg.snapshot_done', { w: nf(r.written), u: nf(r.unchanged) })
+            : (r.error || 'échec'), r.ok ? 'ok' : 'err');
+          return;
+        }
         if (act === 'sel-backtest') {
           const ids = selIds();
           if (!ids.length) return;

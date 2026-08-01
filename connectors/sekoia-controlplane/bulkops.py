@@ -416,6 +416,137 @@ def _scalar(value: Any) -> str:
     return text
 
 
+# ── Import ───────────────────────────────────────────────────────────────────
+def _from_yaml(text: str) -> Any:
+    """Lecture d'un YAML plat, pour ne pas embarquer PyYAML.
+
+    On n'accepte que ce que `_to_yaml` produit : une liste d'objets à un niveau.
+    Tout le reste est refusé plutôt que deviné — importer une configuration mal
+    interprétée écraserait des objets de production.
+    """
+    items: list = []
+    current: Optional[dict] = None
+    for raw in text.splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        if raw.startswith("- "):
+            current = {}
+            items.append(current)
+            raw = "  " + raw[2:]
+        if current is None:
+            continue
+        if ":" not in raw:
+            raise ValueError(f"ligne non interprétable : {raw.strip()[:60]}")
+        key, _, value = raw.strip().partition(":")
+        value = value.strip()
+        if value in ("null", ""):
+            parsed: Any = None
+        elif value in ("true", "false"):
+            parsed = value == "true"
+        else:
+            try:
+                parsed = int(value)
+            except ValueError:
+                try:
+                    parsed = float(value)
+                except ValueError:
+                    parsed = value.strip('"')
+        current[key.strip()] = parsed
+    return items
+
+
+def plan_import(target: str, incoming: list, existing: list) -> dict:
+    """Compare une configuration importée à l'état courant.
+
+    L'import ne CRÉE rien : il aligne l'état d'objets qui existent déjà. Créer
+    un intake ou une règle depuis un fichier demanderait des champs que l'export
+    ne porte pas, et produirait des objets incomplets — on le refuse et on le
+    dit, plutôt que d'échouer à mi-parcours.
+    """
+    spec = TARGETS[target]
+    id_field = spec["id_field"]
+    fields = spec["restore_fields"]
+    by_id = {str(o.get(id_field)): o for o in existing}
+
+    changes, unchanged, unknown = [], [], []
+    for row in incoming:
+        oid = str(row.get(id_field) or row.get("id") or "")
+        if not oid or oid not in by_id:
+            unknown.append({"id": oid or "(absent)",
+                            "name": row.get(spec["name_field"])})
+            continue
+        current = by_id[oid]
+        patch, before = {}, {}
+        for f in fields:
+            if f not in row:
+                continue
+            now = current.get(f if f in current else _alias(spec, f))
+            if row[f] != now:
+                patch[f] = row[f]
+                before[f] = now
+        (changes if patch else unchanged).append({
+            "id": oid, "name": current.get(spec["name_field"]),
+            "patch": patch, "before": before})
+
+    return {"target": target, "incoming": len(incoming),
+            "changes": len(changes), "unchanged": len(unchanged),
+            "unknown": len(unknown),
+            "fields_considered": fields,
+            "items": changes[:200], "unknown_items": unknown[:50],
+            "note": "L'import ALIGNE des objets existants ; il n'en crée aucun. "
+                    "Un identifiant inconnu est signalé, pas créé : l'export ne "
+                    "porte pas les champs nécessaires à une création complète."}
+
+
+async def run_import(target: str, payload: Any, dry_run: bool = True) -> dict:
+    if target not in TARGETS:
+        return {"ok": False, "error": "cible inconnue"}
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except ValueError:
+            try:
+                payload = _from_yaml(payload)
+            except ValueError as exc:
+                return {"ok": False, "error": f"contenu illisible : {exc}"}
+    if isinstance(payload, dict):
+        payload = payload.get("items") or []
+    if not isinstance(payload, list) or not payload:
+        return {"ok": False, "error": "aucun objet à importer"}
+    if len(payload) > MAX_BULK:
+        return {"ok": False, "error": f"import limité à {MAX_BULK} objets par lot",
+                "incoming": len(payload)}
+
+    plan = plan_import(target, payload, await _objects(target))
+    if dry_run:
+        return {"ok": True, "dry_run": True, **plan}
+
+    spec = TARGETS[target]
+    results, previous = [], []
+    for row in plan["items"]:
+        _, err = await cp.sek_request("PATCH", spec["path"].format(id=row["id"]),
+                                      json_body=row["patch"])
+        results.append({"id": row["id"], "name": row["name"],
+                        "ok": err is None, "error": err})
+        if err is None:
+            previous.append({"id": row["id"], "name": row["name"],
+                             "before": row["before"]})
+    cp.invalidate_cache()
+
+    done = sum(1 for r in results if r["ok"])
+    batch = {"batch_id": f"b_{uuidlib.uuid4().hex[:12]}", "ts": _now(),
+             "target": target, "action": "import", "patch": {},
+             "selected": len(plan["items"]), "done": done,
+             "failed": len(results) - done, "skipped": plan["unchanged"],
+             "previous": previous, "rolled_back": False}
+    history = _load_history()
+    history.append(batch)
+    _save_history(history)
+    return {"ok": done == len(results), "dry_run": False,
+            "batch_id": batch["batch_id"], **plan, "results": results,
+            "done": done, "failed": len(results) - done}
+
+
 def register(bulk_app) -> None:
     dep = [Depends(cp.require_internal_token)]
 
@@ -446,6 +577,23 @@ def register(bulk_app) -> None:
             tags=body.get("tags") if isinstance(body.get("tags"), list) else None,
             dry_run=bool(int(body.get("dry_run", dry_run))),
         )
+
+    @bulk_app.post("/control/sekoia/bulk/import/{target}", dependencies=dep)
+    async def do_import(target: str, request: Request,
+                        dry_run: int = Query(default=1)):
+        """Import JSON ou YAML — contrepartie de l'export, avec simulation."""
+        raw = await request.body()
+        text = raw.decode("utf-8", "replace")
+        try:
+            body = json.loads(text)
+        except ValueError:
+            body = text
+        if isinstance(body, dict) and "content" in body:
+            body = body["content"]
+            dry = int(body.get("dry_run", dry_run)) if isinstance(body, dict) else dry_run
+        else:
+            dry = dry_run
+        return await run_import(target, body, dry_run=bool(dry))
 
     @bulk_app.get("/control/sekoia/bulk/history", dependencies=dep)
     async def history():

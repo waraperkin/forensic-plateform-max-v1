@@ -18,6 +18,7 @@ Ce module apporte :
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import httpx
@@ -163,7 +164,93 @@ async def forecast() -> dict:
     }
 
 
-async def retention(dry_run: bool = True) -> dict:
+# ── Palier warm / cold ───────────────────────────────────────────────────────
+ARCHIVE_BUCKET = os.environ.get("SEKOIA_ARCHIVE_BUCKET", "sekoia-archives")
+ARCHIVE_ENDPOINT = os.environ.get("MINIO_ENDPOINT", "")
+ARCHIVE_KEY = os.environ.get("MINIO_ACCESS_KEY", "")
+ARCHIVE_SECRET = os.environ.get("MINIO_SECRET_KEY", "")
+
+
+def archive_available() -> bool:
+    return bool(ARCHIVE_ENDPOINT and ARCHIVE_KEY and ARCHIVE_SECRET)
+
+
+def _s3():
+    """Client S3 vers MinIO. Importé à l'appel : l'absence de la dépendance ne
+    doit pas empêcher le module de démarrer, seulement l'archivage."""
+    import boto3
+    from botocore.client import Config
+    scheme = "https://" if ARCHIVE_ENDPOINT.startswith("https") else "http://"
+    endpoint = ARCHIVE_ENDPOINT if "://" in ARCHIVE_ENDPOINT else scheme + ARCHIVE_ENDPOINT
+    return boto3.client("s3", endpoint_url=endpoint,
+                        aws_access_key_id=ARCHIVE_KEY,
+                        aws_secret_access_key=ARCHIVE_SECRET,
+                        config=Config(signature_version="s3v4"),
+                        region_name="us-east-1")
+
+
+async def _dump_index(index: str, page: int = 2000) -> list:
+    """Contenu d'un index, page par page.
+
+    Le scroll serait plus efficace, mais un simple `search_after` sur
+    `@timestamp` suffit pour des index de mesure et évite d'ouvrir un contexte
+    de scroll qu'un incident laisserait pendant.
+    """
+    docs: list = []
+    after: Optional[list] = None
+    while True:
+        body: dict = {"size": page, "query": {"match_all": {}},
+                      "sort": [{"@timestamp": {"order": "asc",
+                                               "unmapped_type": "date"}},
+                               {"_id": {"order": "asc"}}]}
+        if after:
+            body["search_after"] = after
+        res, err = await _os_request("POST", f"/{index}/_search", body)
+        if err or not res:
+            break
+        hits = (res.get("hits") or {}).get("hits") or []
+        if not hits:
+            break
+        docs.extend(h.get("_source") for h in hits)
+        after = hits[-1].get("sort")
+        if len(hits) < page:
+            break
+    return docs
+
+
+async def archive_index(index: str) -> tuple[bool, str, int]:
+    """Dépose un index en archive compressée. Retourne (ok, clé, octets)."""
+    import gzip
+    import io
+    import json as _json
+
+    docs = await _dump_index(index)
+    if not docs:
+        # Un index vide n'a rien à archiver : écrire un objet vide donnerait
+        # l'illusion d'une sauvegarde.
+        return False, "", 0
+    buf = io.BytesIO()
+    with gzip.GzipFile(fileobj=buf, mode="wb") as fh:
+        for d in docs:
+            fh.write((_json.dumps(d, ensure_ascii=False, default=str) + "\n").encode())
+    payload = buf.getvalue()
+    key = f"{index}/{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{len(docs)}docs.ndjson.gz"
+
+    def _put():
+        cli = _s3()
+        try:
+            cli.head_bucket(Bucket=ARCHIVE_BUCKET)
+        except Exception:
+            cli.create_bucket(Bucket=ARCHIVE_BUCKET)
+        cli.put_object(Bucket=ARCHIVE_BUCKET, Key=key, Body=payload,
+                       ContentType="application/gzip")
+
+    import asyncio
+    await asyncio.get_running_loop().run_in_executor(None, _put)
+    return True, key, len(payload)
+
+
+async def retention(dry_run: bool = True, archive: bool = True) -> dict:
     """Applique la rétention par âge. Simulation par défaut, toujours.
 
     On supprime des INDEX entiers, jamais des documents : sur des index datés
@@ -175,7 +262,6 @@ async def retention(dry_run: bool = True) -> dict:
     if err:
         return {"ok": False, "error": err}
 
-    from datetime import datetime, timedelta, timezone
     now = datetime.now(timezone.utc)
     plan: list[dict] = []
     for row in (data or []):
@@ -208,15 +294,57 @@ async def retention(dry_run: bool = True) -> dict:
     result = {"ok": True, "dry_run": dry_run, "policy": RETENTION,
               "protected": NO_RETENTION,
               "candidates": len(plan), "would_free": _human(freed),
+              "archive_enabled": archive and archive_available(),
+              "archive_bucket": ARCHIVE_BUCKET if archive_available() else None,
               "items": plan}
     if dry_run or not plan:
         return result
+    if archive and not archive_available():
+        # Refus explicite plutôt que suppression silencieuse sans copie.
+        return {**result, "ok": False,
+                "error": "Aucun stockage objet configuré : la rétention supprimerait "
+                         "sans archiver. Configurez MINIO_ENDPOINT/ACCESS/SECRET, ou "
+                         "appelez avec `archive=0` pour assumer la suppression sèche."}
 
-    deleted, errors = [], []
+    # ARCHIVER AVANT DE SUPPRIMER. Une rétention qui détruit sans palier warm
+    # est une perte de données déguisée en hygiène : un index expiré reste la
+    # seule trace d'une période, et une investigation a posteriori peut en avoir
+    # besoin des mois plus tard.
+    #
+    # Si l'archivage échoue, on NE SUPPRIME PAS. Mieux vaut un disque qui se
+    # remplit qu'une donnée effacée sans copie.
+    deleted, errors, archived = [], [], []
+    want_archive = archive and archive_available()
     for p in plan:
+        if want_archive:
+            try:
+                ok, key, size = await archive_index(p["index"])
+                if ok:
+                    archived.append({"index": p["index"], "key": key,
+                                     "bytes": size, "size": _human(size)})
+                elif p["docs"]:
+                    errors.append({p["index"]: "archivage vide alors que l'index "
+                                               "porte des documents — suppression "
+                                               "annulée"})
+                    continue
+            except Exception as exc:
+                errors.append({p["index"]: f"archivage impossible ({type(exc).__name__}: "
+                                           f"{exc}) — suppression annulée"})
+                continue
         _, e = await _os_request("DELETE", f"/{p['index']}")
         (errors.append({p["index"]: e}) if e else deleted.append(p["index"]))
-    result.update({"deleted": deleted, "freed": _human(freed), "errors": errors or None})
+    result.update({"deleted": deleted, "freed": _human(freed),
+                   "archived": archived, "archive_enabled": want_archive,
+                   "archive_bucket": ARCHIVE_BUCKET if want_archive else None,
+                   "archive_note": "Chaque index est déposé en NDJSON compressé avant "
+                                   "suppression. Si l'archivage échoue, la suppression "
+                                   "est annulée : mieux vaut un disque qui se remplit "
+                                   "qu'une donnée effacée sans copie."
+                   if want_archive else
+                   "Archivage INACTIF : aucun stockage objet configuré. La rétention "
+                   "supprimerait sans copie — passez `archive=0` pour l'assumer "
+                   "explicitement.",
+                   "errors": errors or None})
     return result
 
 
@@ -232,5 +360,35 @@ def register(storage_app) -> None:
         return await forecast()
 
     @storage_app.post("/control/sekoia/storage/retention", dependencies=dep)
-    async def storage_retention(dry_run: int = Query(default=1)):
-        return await retention(dry_run=bool(dry_run))
+    async def storage_retention(dry_run: int = Query(default=1),
+                                archive: int = Query(default=1)):
+        return await retention(dry_run=bool(dry_run), archive=bool(archive))
+
+    @storage_app.get("/control/sekoia/storage/archives", dependencies=dep)
+    async def list_archives(prefix: str = Query(default="")):
+        """Inventaire du palier froid — sans lui, on archive à l'aveugle."""
+        if not archive_available():
+            return {"available": False,
+                    "reason": "Aucun stockage objet configuré."}
+
+        def _ls():
+            cli = _s3()
+            try:
+                page = cli.list_objects_v2(Bucket=ARCHIVE_BUCKET, Prefix=prefix,
+                                           MaxKeys=500)
+            except Exception as exc:
+                return None, f"{type(exc).__name__}: {exc}"
+            return page.get("Contents") or [], None
+
+        import asyncio
+        items, err = await asyncio.get_running_loop().run_in_executor(None, _ls)
+        if err:
+            return {"available": False, "error": err}
+        rows = sorted(({"key": o["Key"], "bytes": o["Size"],
+                        "size": _human(o["Size"]),
+                        "modified": str(o.get("LastModified"))} for o in items),
+                      key=lambda x: x["key"], reverse=True)
+        total = sum(r["bytes"] for r in rows)
+        return {"available": True, "bucket": ARCHIVE_BUCKET,
+                "objects": len(rows), "bytes_total": total,
+                "size_total": _human(total), "items": rows[:200]}

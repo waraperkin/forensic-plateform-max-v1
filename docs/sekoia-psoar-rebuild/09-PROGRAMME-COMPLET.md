@@ -504,3 +504,48 @@ Deux bornes assumées :
 
 Les règles non traduisibles sont comptées à part avec leur motif de refus,
 plutôt que noyées dans un total qui les ignorerait.
+
+## Confrontation à l'architecture cible — écarts comblés et restants
+
+### Palier warm / cold (3.9) — un risque, pas seulement un manque
+La rétention **supprimait sans archiver**. Ce n'était pas un module absent mais
+une perte de données déguisée en hygiène : un index expiré reste la seule trace
+d'une période, et une investigation a posteriori peut en avoir besoin des mois
+plus tard.
+
+Chaque index est désormais déposé en **NDJSON compressé sur MinIO** avant
+suppression. Vérifié en réel : `sekoia-alerts-2026.08`, 61 documents → 4,4 Ko.
+
+Deux règles de sûreté :
+- **si l'archivage échoue, la suppression est annulée** — mieux vaut un disque
+  qui se remplit qu'une donnée effacée sans copie ;
+- **sans stockage objet configuré, la rétention refuse de s'exécuter** plutôt que
+  de supprimer à sec ; il faut passer `archive=0` pour l'assumer explicitement.
+
+Un inventaire du palier froid est exposé : archiver à l'aveugle n'aurait pas
+grand sens.
+
+### Import en lot (3.6) — l'asymétrie que j'avais laissée
+J'avais livré l'export sans l'import. L'import JSON/YAML existe désormais, avec
+simulation, historique et rollback comme toute autre opération de lot.
+
+Deux refus délibérés :
+- **l'import ne crée jamais un objet** : un identifiant inconnu est signalé, pas
+  créé. L'export ne porte pas les champs nécessaires à une création complète, et
+  produire des objets incomplets serait pire que ne rien faire ;
+- **seuls les champs restaurables** sont considérés. Importer n'importe quel
+  champ permettrait d'écraser des données que l'export n'a jamais vérifiées.
+
+Le lecteur YAML **refuse ce qu'il ne comprend pas** plutôt que de deviner :
+importer une configuration mal interprétée écraserait des objets de production.
+
+### Ce qui reste en écart, et pourquoi
+| Point de l'architecture | État | Raison |
+|---|---|---|
+| API GraphQL (3.8) | absent | l'API REST couvre les mêmes besoins ; ajouter GraphQL est un chantier à part entière, pas un correctif |
+| Classification des sources — criticité, environnement (3.1) | absent | demande un modèle de données persistant et une UI dédiée |
+| Simulation de playbooks (PSOAR 3.3) | absent | l'exécution existe, la simulation reste à construire |
+| Approbation manuelle des actions critiques (PSOAR 3.4) | absent | la journalisation existe, la porte d'approbation non |
+| Export PDF/CSV des rapports (PSOAR 3.9) | partiel | le rapport Markdown existe, les autres formats non |
+
+Je les liste plutôt que de les laisser croire couverts.

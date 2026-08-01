@@ -47,13 +47,13 @@ Les lots 1 à 3 débloquent les suivants. Ne pas les inverser.
 | **1** | Boucle de retour analyste | — | **[FAIT]** |
 | **2** | Détection-as-Code | mémoire de config (faite) | **[FAIT]** |
 | **3** | Solveur de conflits et doublons | — | **[FAIT]** |
-| **4** | Efficacité réelle des règles | 1 | M |
-| **5** | Couverture pilotée par l'adversaire | — | L |
-| **6** | Jumeau numérique de la collecte | graphe (fait) | L |
-| **7** | Harnais de non-régression de parseur | schemadrift (fait) | M |
+| **4** | Efficacité réelle des règles | 1 | **[FAIT]** |
+| **5** | Couverture pilotée par l'adversaire | — | **[FAIT]** |
+| **6** | Jumeau numérique de la collecte | graphe (fait) | **[FAIT]** |
+| **7** | Harnais de non-régression de parseur | schemadrift (fait) | **[FAIT]** |
 | **8** | SAGQL complet | — | L |
 | **9** | Économie et prévision | valuation (faite) | **[FAIT]** |
-| **10** | Assurance de couverture | 5, 6 | M |
+| **10** | Assurance de couverture | 5, 6 | **[FAIT]** |
 
 ---
 
@@ -197,7 +197,7 @@ Identité détectée · subsomption dans le bon sens · contradiction sur filtre
 
 ---
 
-## LOT 4 — Efficacité réelle des règles
+## LOT 4 — Efficacité réelle des règles **[FAIT]**
 
 **Dépend du lot 1.**
 
@@ -228,7 +228,7 @@ Vue **Valeur** : nuage précision × charge, cliquable jusqu'à la règle.
 
 ---
 
-## LOT 5 — Couverture pilotée par l'adversaire
+## LOT 5 — Couverture pilotée par l'adversaire **[FAIT]**
 
 ### Le manque
 La couverture ATT&CK est mesurée **dans l'absolu**. Couvrir 92 % des techniques
@@ -265,7 +265,7 @@ pondérée. **L'écart est le sujet.**
 
 ---
 
-## LOT 6 — Jumeau numérique de la chaîne de collecte
+## LOT 6 — Jumeau numérique de la chaîne de collecte **[FAIT]**
 
 ### Le manque
 Personne ne peut répondre à « si ce collecteur tombe, que perd-on exactement ? »
@@ -295,7 +295,7 @@ Graphe interactif ; un nœud retiré d'un clic, impact chiffré immédiatement.
 
 ---
 
-## LOT 7 — Harnais de non-régression de parseur
+## LOT 7 — Harnais de non-régression de parseur **[FAIT]**
 
 ### Le manque
 Une mise à jour de parseur est découverte **après** avoir tué des règles.
@@ -368,7 +368,7 @@ techniques qui deviendraient non couvertes.
 
 ---
 
-## LOT 10 — Assurance de couverture
+## LOT 10 — Assurance de couverture **[FAIT]**
 
 **Dépend des lots 5 et 6.**
 
@@ -523,6 +523,18 @@ règle.
 
 15 tests dédiés.
 
+### Lots 4, 5, 6, 7, 10 **[FAIT]**
+
+| Lot | Module | Garde-fou principal |
+|---|---|---|
+| **4** Efficacité | `efficacy.py` | une règle sans verdicts n'est **pas placée** dans le quadrant — elle est déclarée indéterminée |
+| **5** Adversaire | `adversary.py` | ne **prédit rien** : dit ce qui est observé actif, avec sa date |
+| **6** Jumeau | `twin.py` | simule sans rien couper (L12) ; « absence de calcul n'est pas absence de perte » |
+| **7** Parseur | `harness.py` | distingue **trois causes** — parseur, équipement, échantillonnage |
+| **10** Assurance | `insurance.py` | la redondance se compte en **formats**, pas en règles |
+
+24 tests dédiés. Cinq vues ajoutées à la console SAGF, portée à **16 vues**.
+
 ### Reste à faire
-Lots 4, 5, 6, 7, 8, 10. Le lot 4 est maintenant débloqué par le lot 1,
+**Lot 8 seul** — la réécriture de SAGQL en descente récursive. C'est le plus risqué : elle touche un analyseur dont dépendent toutes les requêtes existantes, et son refus actuel de composer `AND`/`OR` doit disparaître par capacité, jamais par relâchement. Le lot 4 est maintenant débloqué par le lot 1,
 mais reste sans valeur tant que la couverture de qualification est nulle.

@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 # Tout module importé par app.py DOIT figurer ici : un COPY oublié met le
 # control-plane en crash-loop au démarrage (précédent : sol.py, commit e02b3c8).
-COPY app.py analytics.py sol.py volumetry.py alerting.py bulkops.py dashboards.py inventory.py storage.py gateway.py telemetry.py assets.py graph.py hostwatch.py hostprofile.py satisfiability.py valuation.py backtest.py schemadrift.py sagf.py feedback.py conflicts.py dac.py economics.py .
+COPY app.py analytics.py sol.py volumetry.py alerting.py bulkops.py dashboards.py inventory.py storage.py gateway.py telemetry.py assets.py graph.py hostwatch.py hostprofile.py satisfiability.py valuation.py backtest.py schemadrift.py sagf.py feedback.py conflicts.py dac.py economics.py efficacy.py harness.py insurance.py adversary.py twin.py .
 USER cp
 
 EXPOSE 8901

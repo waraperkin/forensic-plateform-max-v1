@@ -1648,6 +1648,21 @@ dac.register(app)
 import economics  # noqa: E402
 economics.register(app)
 
+import efficacy  # noqa: E402
+efficacy.register(app)
+
+import harness  # noqa: E402
+harness.register(app)
+
+import insurance  # noqa: E402
+insurance.register(app)
+
+import adversary  # noqa: E402
+adversary.register(app)
+
+import twin  # noqa: E402
+twin.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

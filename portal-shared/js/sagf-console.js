@@ -28,6 +28,11 @@
     ['conflicts', 'sg.v_conflicts'],
     ['code', 'sg.v_code'],
     ['economics', 'sg.v_eco'],
+    ['efficacy', 'sg.v_eff'],
+    ['adversary', 'sg.v_adv'],
+    ['twin', 'sg.v_twin'],
+    ['harness', 'sg.v_har'],
+    ['insurance', 'sg.v_ins'],
     ['journal', 'sg.v_journal'],
     ['mirror', 'sg.v_mirror'],
   ];
@@ -659,6 +664,154 @@
       ${panel('', `<p class="swb-hint" style="margin:0"><strong>${T('sg.refutation')} :</strong> ${esc(e.refutation || '')}</p>`, 'accent')}`;
   }
 
+
+  // ── Vues des lots 4, 5, 6, 7, 10 ──────────────────────────────────────────
+  // Toutes suivent le même contrat : verdict avant chiffre, réserve visible,
+  // condition de réfutation affichée.
+  function lazy(key, act, label) {
+    return panel('', `<p class="swb-hint" style="margin:0">${esc(label)}</p>
+      <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" style="margin-top:.5rem"
+        data-sagf-act="${act}">${T('sg.compute')}</button>`);
+  }
+  function head(d, tone) {
+    return `${panel('', `<p style="margin:0"><strong>${esc(d.headline || '')}</strong></p>
+      ${d.note ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(d.note)}</p>` : ''}
+      ${d.method_note ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(d.method_note)}</p>` : ''}
+      ${d.no_prediction ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(d.no_prediction)}</p>` : ''}
+      ${d.no_action ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(d.no_action)}</p>` : ''}
+      ${d.caveat ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(d.caveat)}</p>` : ''}
+      ${d.refutation ? `<p class="swb-hint" style="margin:.3rem 0 0"><strong>${
+        T('sg.refutation')} :</strong> ${esc(d.refutation)}</p>` : ''}`, tone || 'accent')}`;
+  }
+
+  function viewEfficacy() {
+    const d = st.data.eff;
+    if (!d) return lazy('eff', 'eff-run', T('sg.eff_idle'));
+    const by = d.by_position || {};
+    const cov = d.feedback_coverage || {};
+    return `${!cov.usable ? panel('', `<p style="margin:0"><strong>${T('sg.eff_blocked')}</strong></p>
+        <p class="swb-hint" style="margin:.3rem 0 0">${esc(cov.verdict || '')}</p>`, 'warn') : ''}
+      <div class="swb-kpis">
+        ${kpi(T('sg.eff_broyeuse'), nf(by.broyeuse || 0), by.broyeuse ? 'danger' : 'ok', T('sg.eff_broyeuse_h'))}
+        ${kpi(T('sg.eff_pilier'), nf(by.pilier || 0), 'ok')}
+        ${kpi(T('sg.eff_dormante'), nf(by.dormante || 0), by.dormante ? 'warn' : 'ok')}
+        ${kpi(T('sg.eff_indet'), nf(d.indeterminate), d.indeterminate ? 'warn' : 'ok', T('sg.eff_indet_h'))}
+      </div>${head(d)}
+      <div class="swb-panel" style="padding:0"><div class="swb-tablewrap" style="max-height:40vh">
+        <table class="swb-table"><thead><tr><th>${T('sg.eff_pos')}</th><th>${T('sg.col_rule')}</th>
+          <th class="swb-num">${T('sg.eco_alerts')}/j</th><th>${T('sg.fb_precision')}</th>
+          <th>${T('sg.eff_action')}</th><th>${T('sg.eff_why')}</th></tr></thead><tbody>
+        ${(d.items || []).slice(0, 80).map((r) => `<tr>
+          <td>${pill(esc(r.position), r.position === 'broyeuse' ? 'danger'
+            : r.position === 'pilier' ? 'ok' : 'mute')}</td>
+          <td class="swb-truncate">${esc(r.rule_name)}</td>
+          <td class="swb-num">${nf(r.alerts_per_day)}</td>
+          <td class="swb-hint">${(r.precision || {}).publishable
+            ? `${esc(r.precision.point)} %` : '—'}</td>
+          <td class="swb-hint swb-truncate">${esc(r.action)}</td>
+          <td class="swb-hint swb-truncate" title="${esc(r.reason)}">${esc(r.reason)}</td>
+        </tr>`).join('')}</tbody></table></div></div>`;
+  }
+
+  function viewAdversary() {
+    const d = st.data.adv;
+    if (!d) return lazy('adv', 'adv-run', T('sg.adv_idle'));
+    return `<div class="swb-kpis">
+        ${kpi(T('sg.adv_weighted'), `${esc(d.coverage_weighted_pct)} %`,
+          d.coverage_weighted_pct < 70 ? 'danger' : 'ok', T('sg.adv_weighted_h'))}
+        ${kpi(T('sg.adv_declared'), `${esc(d.coverage_declared_pct)} %`, 'mute', T('sg.adv_declared_h'))}
+        ${kpi(T('sg.adv_active'), nf(d.techniques_active), 'ok')}
+        ${kpi(T('sg.adv_gap'), nf(d.active_uncovered), d.active_uncovered ? 'danger' : 'ok')}
+      </div>${head(d)}
+      <div class="swb-panel" style="padding:0"><div class="swb-panel-head" style="padding:.8rem .9rem 0">
+        <h3 class="swb-panel-title">${T('sg.adv_gap_title')}</h3></div>
+        <div class="swb-tablewrap" style="max-height:34vh"><table class="swb-table"><tbody>
+        ${(d.gap || []).map((g) => `<tr><td class="swb-mono">${esc(g.technique)}</td>
+          <td class="swb-num">${nf(g.activity)} ${T('sg.adv_seen')}</td></tr>`).join('')
+          || `<tr><td><p class="swb-hint" style="padding:1rem">${T('sg.adv_none')}</p></td></tr>`}
+        </tbody></table></div></div>`;
+  }
+
+  function viewTwin() {
+    const d = st.data.twin; const o = st.data.twinOutage;
+    if (!d) return lazy('twin', 'twin-run', T('sg.twin_idle'));
+    return `<div class="swb-kpis">
+        ${kpi(T('sg.twin_single'), nf(d.single_source_formats), d.single_source_formats ? 'danger' : 'ok', T('sg.twin_single_h'))}
+        ${kpi(T('sg.twin_intakes'), nf(d.intakes), 'ok')}
+        ${kpi(T('sg.twin_formats'), nf(d.formats), 'ok')}
+      </div>${head(d)}
+      ${o ? panel(T('sg.twin_outage'), `<p style="margin:0"><strong>${esc(o.verdict || o.error || '')}</strong></p>
+        ${o.techniques_lost && o.techniques_lost.length ? `<p class="swb-hint" style="margin:.3rem 0 0">${
+          T('sg.twin_lost')} ${esc(o.techniques_lost.slice(0, 12).join(' · '))}</p>` : ''}
+        ${o.caveat ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(o.caveat)}</p>` : ''}`, 'warn') : ''}
+      <div class="swb-panel" style="padding:0"><div class="swb-tablewrap" style="max-height:36vh">
+        <table class="swb-table"><thead><tr><th>${T('sg.col_source')}</th>
+          <th class="swb-num">${T('sg.twin_risk')}</th><th></th></tr></thead><tbody>
+        ${(d.items || []).map((i) => `<tr><td class="swb-truncate">${esc(i.intake_name)}</td>
+          <td class="swb-num">${nf(i.rules_at_risk)}</td>
+          <td><button type="button" class="fp-btn fp-btn-sm fp-btn-ghost"
+            data-sagf-act="twin-out" data-id="${esc(i.intake_uuid)}">${T('sg.twin_sim')}</button></td>
+        </tr>`).join('')}</tbody></table></div></div>`;
+  }
+
+  function viewHarness() {
+    const d = st.data.har;
+    return `${panel(T('sg.har_title'), `<p class="swb-hint" style="margin:0 0 .6rem">${T('sg.har_sub')}</p>
+        <div class="swb-filters">
+          <button type="button" class="fp-btn fp-btn-sm" data-sagf-act="har-capture">${T('sg.har_capture')}</button>
+          <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-sagf-act="har-check">${T('sg.har_check')}</button>
+        </div>`)}
+      ${!d ? '' : (d.ok !== undefined
+        ? panel('', `<p style="margin:0">${T('sg.har_captured', { n: nf(d.formats) })}</p>
+          ${(d.skipped || []).length ? `<p class="swb-hint" style="margin:.3rem 0 0">${
+            T('sg.har_skipped', { n: nf(d.skipped.length) })}</p>` : ''}`, 'ok')
+        : `${head(d)}<div class="swb-kpis">
+            ${kpi(T('sg.har_reg'), nf(d.regressions), d.regressions ? 'danger' : 'ok')}
+            ${kpi(T('sg.har_conform'), nf(d.formats_conform), 'ok')}
+            ${kpi(T('sg.har_corpus'), nf(d.formats_in_corpus), 'ok')}
+          </div>
+          <div class="swb-panel" style="padding:0"><div class="swb-tablewrap" style="max-height:32vh">
+            <table class="swb-table"><thead><tr><th>${T('sg.field')}</th>
+              <th class="swb-num">${T('sg.har_before')}</th><th class="swb-num">${T('sg.har_after')}</th>
+              <th>${T('sg.har_cause')}</th></tr></thead><tbody>
+            ${(d.items || []).map((r) => `<tr><td class="swb-mono swb-truncate">${esc(r.field)}</td>
+              <td class="swb-num">${esc(r.coverage_before)} %</td>
+              <td class="swb-num">${r.coverage_after === null ? '—' : esc(r.coverage_after) + ' %'}</td>
+              <td class="swb-hint swb-truncate" title="${esc(r.text)}">${esc(r.text)}</td>
+            </tr>`).join('') || `<tr><td colspan="4"><p class="swb-hint" style="padding:1rem">${
+              T('sg.har_none')}</p></td></tr>`}</tbody></table></div></div>`)}`;
+  }
+
+  function viewInsurance() {
+    const d = st.data.ins;
+    if (!d) return lazy('ins', 'ins-run', T('sg.ins_idle'));
+    return `<div class="swb-kpis">
+        ${kpi(T('sg.ins_fragile'), nf(d.fragile), d.fragile ? 'danger' : 'ok', T('sg.ins_fragile_h'))}
+        ${kpi(T('sg.ins_uncovered'), nf(d.uncovered), d.uncovered ? 'warn' : 'ok')}
+        ${kpi(T('sg.ins_tech'), nf(d.techniques), 'ok')}
+        ${kpi(T('sg.ins_spof'), nf((d.single_points_of_failure || []).length),
+          (d.single_points_of_failure || []).length ? 'danger' : 'ok', T('sg.ins_spof_h'))}
+      </div>${head(d)}
+      ${(d.single_points_of_failure || []).length ? panel(T('sg.ins_spof_title'), `
+        <div class="swb-tablewrap" style="max-height:24vh"><table class="swb-table"><tbody>
+        ${d.single_points_of_failure.map((p) => `<tr>
+          <td class="swb-mono swb-truncate">${esc(p.format)}</td>
+          <td class="swb-num"><strong>${nf(p.techniques_lost)}</strong> ${T('sg.ins_lost')}</td>
+          <td class="swb-hint swb-truncate">${esc((p.examples || []).join(' · '))}</td>
+        </tr>`).join('')}</tbody></table></div>`) : ''}
+      <div class="swb-panel" style="padding:0"><div class="swb-tablewrap" style="max-height:32vh">
+        <table class="swb-table"><thead><tr><th>${T('sg.ins_technique')}</th>
+          <th class="swb-num">${T('sg.ins_redundancy')}</th><th class="swb-num">${T('sg.ins_rules')}</th>
+          <th>${T('sg.state')}</th></tr></thead><tbody>
+        ${(d.items || []).slice(0, 80).map((t) => `<tr>
+          <td class="swb-mono">${esc(t.technique)}</td>
+          <td class="swb-num">${nf(t.redundancy)}</td>
+          <td class="swb-num swb-hint">${nf(t.rules_live)}/${nf(t.rules_total)}</td>
+          <td>${t.uncovered ? pill(T('sg.ins_none'), 'danger')
+            : t.fragile ? pill(T('sg.ins_frag'), 'warn') : pill(T('sg.ins_ok'), 'ok')}</td>
+        </tr>`).join('')}</tbody></table></div></div>`;
+  }
+
   // ── Rendu ─────────────────────────────────────────────────────────────────
   function nav() {
     return `<nav class="swb-nav">${VIEWS.map(([id, key]) => `<button type="button"
@@ -685,6 +838,11 @@
     else if (st.view === 'conflicts') body = viewConflicts();
     else if (st.view === 'code') body = viewCode();
     else if (st.view === 'economics') body = viewEconomics();
+    else if (st.view === 'efficacy') body = viewEfficacy();
+    else if (st.view === 'adversary') body = viewAdversary();
+    else if (st.view === 'twin') body = viewTwin();
+    else if (st.view === 'harness') body = viewHarness();
+    else if (st.view === 'insurance') body = viewInsurance();
     else if (st.view === 'journal') body = viewJournal();
     else body = viewMirror();
 
@@ -800,6 +958,27 @@
           const q = st.ecoBudget ? `?budget=${encodeURIComponent(st.ecoBudget)}` : '';
           st.data.eco = await api(`/economics${q}`)
             .catch((err) => ({ available: false, reason: err.message }));
+          st.loading = false; paint(); return;
+        }
+        const lazyMap = { 'eff-run': ['eff', '/efficacy'], 'adv-run': ['adv', '/adversary'],
+          'twin-run': ['twin', '/twin'], 'ins-run': ['ins', '/insurance'] };
+        if (lazyMap[act]) {
+          const [key, path] = lazyMap[act];
+          st.loading = true; paint();
+          st.data[key] = await api(path).catch((e) => ({ headline: e.message, items: [] }));
+          st.loading = false; paint(); return;
+        }
+        if (act === 'twin-out') {
+          st.data.twinOutage = await api(`/twin/outage/${encodeURIComponent(b.dataset.id)}`)
+            .catch((e) => ({ error: e.message }));
+          paint(); return;
+        }
+        if (act === 'har-capture' || act === 'har-check') {
+          st.loading = true; paint();
+          st.data.har = await api(act === 'har-capture'
+            ? '/harness/capture' : '/harness/check',
+            act === 'har-capture' ? { method: 'POST' } : undefined)
+            .catch((e) => ({ headline: e.message, items: [] }));
           st.loading = false; paint(); return;
         }
         if (act === 'journal-add') {

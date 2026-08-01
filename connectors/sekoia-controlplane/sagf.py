@@ -341,14 +341,72 @@ MECHANISMS: dict[str, Mechanism] = {
         cost_units=0, implemented=True, delegates_to="graph.simulate"),
 }
 
+MECHANISMS.update({
+    "M-1": Mechanism(
+        "M-1", "Cohérence",
+        "index SAGF ↔ référentiel Sekoia", "écarts détectés et attribués",
+        "toute divergence est un défaut de SAGF, jamais de Sekoia (L1)",
+        "une divergence non détectée par la réconciliation périodique",
+        cost_units=0, implemented=True, delegates_to="sagf.reconcile"),
+    "M-5": Mechanism(
+        "M-5", "Contrefactuel",
+        "question + configuration passée", "verdict daté",
+        "ne répond que sur un état réellement observé et mémorisé",
+        "l'impossibilité de reconstruire l'état invoqué suspend le verdict",
+        cost_units=0, implemented=True, delegates_to="sagf.config_as_of"),
+    "M-11": Mechanism(
+        "M-11", "Qualité",
+        "parsing, latence, complétude", "indice + causes",
+        "chaque composante de l'indice est publiée séparément",
+        "une dégradation invisible aux composantes retenues",
+        cost_units=1, implemented=True, delegates_to="telemetry.combined"),
+    "M-12": Mechanism(
+        "M-12", "Risque",
+        "exposition × criticité × non-couverture", "risque ordonné",
+        "le risque n'est jamais présenté comme une probabilité mesurée",
+        "un incident majeur dans une zone jugée à faible risque",
+        cost_units=0, implemented=True, delegates_to="sagf.risk"),
+    "M-13": Mechanism(
+        "M-13", "Économie",
+        "volume × alertes", "rendement par source",
+        "« zéro alerte » n'est jamais présenté comme « inutile »",
+        "une décision d'arrêt suivie d'une perte de détection non prévue",
+        cost_units=1, implemented=True, delegates_to="valuation.analyse"),
+    "M-14": Mechanism(
+        "M-14", "Narration",
+        "état global", "trois faits ordonnés, motivés",
+        "chaque fait énoncé porte sa mesure et sa fraîcheur",
+        "un fait majeur absent du récit",
+        cost_units=0, implemented=True, delegates_to="sagf.narrate"),
+    "M-15": Mechanism(
+        "M-15", "Collaboration",
+        "décisions et preuves", "journal attaché aux objets",
+        "aucune décision appliquée sans trace attribuée (I9)",
+        "une décision retrouvée sans auteur ni motif",
+        cost_units=0, implemented=False, delegates_to=None),
+    "M-16": Mechanism(
+        "M-16", "Langage naturel",
+        "question en français", "SAGQL, ou refus avec lectures possibles",
+        "refuse en cas d'ambiguïté plutôt que de choisir une lecture",
+        "une traduction silencieusement erronée",
+        cost_units=0, implemented=False, delegates_to=None),
+    "M-18": Mechanism(
+        "M-18", "Généalogie",
+        "mémoire de configuration", "filiation et dérives des objets",
+        "ne remonte pas au-delà du premier relevé mémorisé",
+        "une filiation affirmée sans état intermédiaire observé",
+        cost_units=0, implemented=True, delegates_to="sagf.config_diff"),
+    "M-20": Mechanism(
+        "M-20", "Optimisation",
+        "objectif + contraintes", "configuration proposée",
+        "toute proposition est simulable avant application (I7)",
+        "l'existence d'une meilleure solution non trouvée",
+        cost_units=0, implemented=False, delegates_to=None),
+})
+
 # Mécanismes spécifiés mais non implémentés : les déclarer absents vaut mieux
 # que de les laisser croire présents (I13).
-PLANNED = {
-    "M-1": "Cohérence", "M-5": "Contrefactuel", "M-11": "Qualité",
-    "M-12": "Risque", "M-13": "Économie", "M-14": "Narration",
-    "M-15": "Collaboration", "M-16": "Langage naturel", "M-18": "Généalogie",
-    "M-20": "Optimisation",
-}
+PLANNED = {k: m.name for k, m in MECHANISMS.items() if not m.implemented}
 
 
 # ── SAGQL — noyau ────────────────────────────────────────────────────────────
@@ -445,7 +503,7 @@ class SAGQLError(Exception):
     """Erreur de syntaxe ou d'usage. On refuse plutôt que de deviner (M-16)."""
 
 
-def parse(query: str) -> ParsedQuery:
+def parse(query: str, ctx: Optional[dict] = None) -> ParsedQuery:
     """Analyse une requête SAGQL du sous-ensemble implémenté.
 
     Grammaire couverte :
@@ -495,6 +553,11 @@ def parse(query: str) -> ParsedQuery:
             mn = re.match(r"^NOT\s+(.+)$", chunk, re.I)
             if mn:
                 neg, chunk = True, mn.group(1).strip()
+            fp = build_function_predicate(chunk, ctx or {})
+            if fp is not None:
+                fp.negated = neg
+                predicates.append(fp)
+                continue
             pm = PREDICATE_RE.match(chunk)
             if not pm:
                 raise SAGQLError(f"prédicat non reconnu : « {chunk[:40]} »")
@@ -513,8 +576,12 @@ def explain(q: ParsedQuery) -> dict:
     return {
         "entity": q.entity,
         "source": ENTITIES[q.entity]["source"],
-        "predicates": [{"field": p.field, "op": p.op, "value": p.value,
-                        "negated": p.negated} for p in q.predicates],
+        "predicates": [
+            {"family": "attribut/dérivé/absence", "field": p.field, "op": p.op,
+             "value": p.value, "negated": p.negated}
+            if isinstance(p, Predicate) else
+            {"family": p.family, "label": p.label, "negated": p.negated}
+            for p in q.predicates],
         "combinator": q.combinator,
         "limit": q.limit,
         "cost_units": cost,
@@ -523,6 +590,16 @@ def explain(q: ParsedQuery) -> dict:
         "note": "Le coût est exprimé en jobs de recherche Sekoia, prélevés sur "
                 "un quota partagé avec les analystes (L6).",
     }
+
+
+PREDICATE_FAMILIES = {
+    "attribut": True, "dérivé": True, "absence": True, "contenance": True,
+    "fraîcheur": True, "sémantique": "lexicale seulement",
+    "contrefactuel": "fondé sur la satisfiabilité, pas sur un rejeu complet",
+    "topologique": True, "probabiliste": "estimations, pas des mesures",
+    "temporel": True, "relationnel": True,
+    "différentiel": False,
+}
 
 
 # ── Filtres nommés ───────────────────────────────────────────────────────────
@@ -595,34 +672,497 @@ def debt(sat: dict, drift: dict) -> dict:
     }
 
 
+async def reconcile(entity: str = "Rule") -> dict:
+    """M-1 — l'index SAGF est-il conforme au référentiel Sekoia ?
+
+    Toute divergence est un défaut de SAGF (L1). On la nomme comme telle plutôt
+    que de la présenter comme un désaccord entre pairs.
+    """
+    rows, prov = await _rows_for(entity)
+    spec = ENTITIES[entity]
+    ids = {str(r.get(spec["id"])) for r in rows if r.get(spec["id"])}
+    memory = await _config_latest(entity)
+    only_upstream = sorted(ids - set(memory))
+    only_memory = sorted(set(memory) - ids)
+    return {
+        "entity": entity, "upstream": len(ids), "in_memory": len(memory),
+        "only_upstream": len(only_upstream), "only_memory": len(only_memory),
+        "coherent": not only_memory,
+        "samples": {"only_upstream": only_upstream[:10],
+                    "only_memory": only_memory[:10]},
+        "verdict": "Cohérent." if not only_memory else
+                   f"{len(only_memory)} objet(s) présents en mémoire SAGF et absents "
+                   "en amont : défaut de SAGF, à réconcilier (L1).",
+        "provenance": prov.chain(),
+    }
+
+
+def risk(sat_items: list) -> dict:
+    """M-12 — risque ordonné, jamais présenté comme une probabilité mesurée."""
+    rows = []
+    for r in sat_items:
+        if not r.get("enabled"):
+            continue
+        sev = int(r.get("severity") or 0)
+        inert = r.get("verdict") in ("jamais_satisfiable", "non_ingere")
+        if not inert:
+            continue
+        rows.append({"rule_uuid": r.get("rule_uuid"),
+                     "rule_name": r.get("rule_name"),
+                     "severity": sev,
+                     "risk_score": round(sev / 100 * 1.0, 3),
+                     "reason": "règle de sévérité élevée activée mais inerte"})
+    rows.sort(key=lambda x: -x["risk_score"])
+    return {"items": rows[:50], "count": len(rows),
+            "caution": "Ce score ordonne, il ne quantifie pas une probabilité. "
+                       "Aucun retour analyste n'est collecté : le risque réel "
+                       "n'est pas mesurable en l'état.",
+            "refutation": "Un incident majeur dans une zone jugée à faible "
+                          "risque réfute ce classement."}
+
+
+def narrate(facts: list) -> dict:
+    """M-14 — trois faits ordonnés, chacun avec sa mesure et sa fraîcheur."""
+    ranked = sorted(facts, key=lambda f: -float(f.get("weight") or 0))[:3]
+    return {
+        "headline": ranked[0]["text"] if ranked else
+                    "Rien de notable depuis le dernier relevé.",
+        "facts": ranked,
+        "note": "Trois faits au plus : au-delà, un récit cesse d'être lu.",
+        "refutation": "Un fait majeur absent de cette liste réfute le mécanisme.",
+    }
+
+
 # ── Auto-observation (M-17, I13) ─────────────────────────────────────────────
 
-def self_report(measures: list) -> dict:
-    """Le système dit ce qu'il ne sait pas, avant qu'on s'appuie dessus."""
+def self_report(measures: Optional[list] = None,
+                config_memory: Optional[dict] = None) -> dict:
+    """M-17 / I13 — le système dit ce qu'il ne sait pas, avant qu'on s'appuie
+    dessus. Volontairement à charge : un système qui ne sait pas nommer ses
+    angles morts en a davantage.
+    """
+    measures = measures or []
     stale = [m for m in measures if m.is_stale()]
     unbounded = [m for m in measures
                  if not m.exact and (m.uncertainty is None
                                      or m.uncertainty == float("inf"))]
+
+    missing_mech = [{"code": k, "name": v} for k, v in PLANNED.items()]
+    missing_pred = [{"family": k, "state": v}
+                    for k, v in PREDICATE_FAMILIES.items() if v is not True]
+
+    # I-par-I : ce qui est vérifié par du code, et ce qui ne l'est pas.
+    invariants = [
+        {"id": "I1", "name": "datation universelle", "enforced": "code",
+         "where": "Measure.__post_init__"},
+        {"id": "I2", "name": "incertitude propagée", "enforced": "code",
+         "where": "combine()"},
+        {"id": "I3", "name": "réfutabilité", "enforced": "code",
+         "where": "Mechanism.refutation, testé"},
+        {"id": "I4", "name": "absence adressable", "enforced": "code",
+         "where": "NULL_TOKENS"},
+        {"id": "I5", "name": "monotonie de la preuve", "enforced": "non vérifié",
+         "where": "aucun contrôle n'empêche un recalcul de renforcer une "
+                  "affirmation sans observation nouvelle"},
+        {"id": "I6", "name": "idempotence", "enforced": "code",
+         "where": "config_write (empreinte inchangée = pas de réécriture)"},
+        {"id": "I7", "name": "simulabilité", "enforced": "code",
+         "where": "bulkops dry_run, graph.simulate"},
+        {"id": "I8", "name": "réversibilité", "enforced": "code",
+         "where": "bulkops rollback"},
+        {"id": "I9", "name": "attribution", "enforced": "partiel",
+         "where": "config_write porte auteur et motif ; les lectures non"},
+        {"id": "I10", "name": "fraîcheur bornée", "enforced": "code",
+         "where": "Measure.is_stale"},
+        {"id": "I11", "name": "séparation mesure/jugement", "enforced": "partiel",
+         "where": "séparé par convention de nommage, non par contrôle statique"},
+        {"id": "I12", "name": "non-régression silencieuse", "enforced": "partiel",
+         "where": "config_diff détecte, mais aucune alerte automatique n'est "
+                  "encore branchée dessus"},
+        {"id": "I13", "name": "auto-dénonciation", "enforced": "code",
+         "where": "ce rapport"},
+    ]
+
+    laws = [
+        {"id": "L1", "enforced": "code", "where": "assert_not_sekoia_owned + reconcile"},
+        {"id": "L2", "enforced": "code", "where": "tous les mécanismes délèguent"},
+        {"id": "L3", "enforced": "revue", "where": "aucun état SAGF n'est écrit "
+                                                   "dans Sekoia — non testable"},
+        {"id": "L4", "enforced": "code", "where": "aucune route d'écriture Sekoia"},
+        {"id": "L5", "enforced": "code", "where": "magasin de configuration local"},
+        {"id": "L6", "enforced": "code", "where": "Budget.charge"},
+        {"id": "L7", "enforced": "partiel", "where": "satisfiability sert un cache "
+                                                     "périmé sur 429 ; les autres "
+                                                     "moteurs échouent"},
+        {"id": "L8", "enforced": "revue", "where": "nommage distinct de Sekoia"},
+        {"id": "L9", "enforced": "code", "where": "Provenance.chain()"},
+        {"id": "L10", "enforced": "code", "where": "aucune écriture de règle"},
+        {"id": "L11", "enforced": "revue", "where": "retrait de module = décision"},
+        {"id": "L12", "enforced": "code", "where": "assert_no_containment"},
+    ]
+
+    partial = [
+        "SAGQL : pas de AS OF, GROUP BY, sous-requêtes ni jointures par arêtes.",
+        "SAGQL : AND et OR ne se composent pas dans une même requête.",
+        "Prédicat sémantique : recouvrement lexical, pas de compréhension.",
+        "Prédicat contrefactuel : fondé sur la satisfiabilité, pas sur un rejeu "
+        "complet de l'état passé.",
+        "Prédicat probabiliste : estimations dérivées de signaux, jamais des "
+        "probabilités mesurées.",
+        "Mémoire de configuration : ne remonte pas avant le premier relevé.",
+        "Field et CoverageClaim : entités de requête, pas objets persistants.",
+    ]
+
+    unverified_deps = [
+        {"dep": "OpenSearch", "why": "aucun contrôle de version ni de schéma "
+                                     "d'index au démarrage"},
+        {"dep": "API Sekoia", "why": "aucune vérification de compatibilité de "
+                                     "version ; un changement de contrat serait "
+                                     "découvert à l'exécution"},
+        {"dep": "MinIO", "why": "présence testée à l'usage, pas au démarrage"},
+    ]
+
     return {
         "measures_total": len(measures),
         "measures_stale": len(stale),
         "measures_unbounded": len(unbounded),
-        "budget_per_hour": BUDGET.per_hour,
-        "budget_spent": BUDGET.spent(),
-        "budget_remaining": BUDGET.remaining(),
-        "budget_by_module": BUDGET.by_module(),
+        "stale_samples": [m.as_dict() for m in stale[:5]],
+        "budget": {"per_hour": BUDGET.per_hour, "spent": BUDGET.spent(),
+                   "remaining": BUDGET.remaining(),
+                   "by_module": BUDGET.by_module()},
         "mechanisms_implemented": sum(1 for m in MECHANISMS.values() if m.implemented),
-        "mechanisms_planned": len(PLANNED),
-        "blind_spots": [
-            f"{len(PLANNED)} mécanisme(s) spécifiés et non implémentés : "
-            + ", ".join(f"{k} {v}" for k, v in list(PLANNED.items())[:5]) + "…",
-            "SAGQL ne compose pas encore AND et OR dans une même requête.",
-            "Les familles contrefactuelle, topologique, probabiliste et "
-            "sémantique du langage ne sont pas implémentées.",
-        ],
+        "mechanisms_total": len(MECHANISMS),
+        "mechanisms_missing": missing_mech,
+        "predicates_missing_or_partial": missing_pred,
+        "modules_partial": partial,
+        "invariants": invariants,
+        "invariants_not_fully_enforced": [i for i in invariants
+                                          if i["enforced"] != "code"],
+        "laws": laws,
+        "laws_not_code_enforced": [l for l in laws if l["enforced"] != "code"],
+        "unverified_dependencies": unverified_deps,
+        "config_memory": config_memory or {"state": "non interrogée dans ce rapport"},
+        "unmeasurable": UNMEASURABLE_PROBABILITIES,
         "honesty_note": "Cette liste est volontairement à charge. Un système qui "
                         "ne sait pas nommer ses angles morts en a davantage.",
     }
+
+
+# ── Magasin temporel — mémoire de configuration (§4.4) ───────────────────────
+#
+# Brique critique : sans elle, ni contrefactuel (M-5), ni généalogie (M-18), ni
+# détection de régression (I12). Sekoia n'a aucune mémoire de sa configuration ;
+# c'est un domaine SAGF (L5 — l'état de gouvernance ne va jamais dans Sekoia).
+
+CONFIG_INDEX_PREFIX = "sagf-config"
+
+
+@dataclass(frozen=True)
+class TriAxial:
+    """Les trois axes temporels, jamais confondus (§4.4).
+
+    `t_event` — quand le fait s'est produit.
+    `t_observation` — quand SAGF l'a su.
+    `t_configuration` — quel était l'état du système à cet instant.
+
+    Les confondre rend impossible la question « cette attaque du 3 mars
+    aurait-elle été détectée avec la configuration d'aujourd'hui ? ».
+    """
+    t_event: Optional[str]
+    t_observation: str
+    t_configuration: str
+
+    def as_dict(self) -> dict:
+        return {"t_event": self.t_event, "t_observation": self.t_observation,
+                "t_configuration": self.t_configuration}
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def snapshot_fingerprint(entity: str, obj: dict) -> str:
+    """Empreinte de l'état gouverné d'un objet.
+
+    Ne porte QUE les attributs qui décrivent la configuration, jamais des
+    mesures : sinon toute variation de volumétrie ferait croire à un changement
+    de configuration, et I12 crierait à la régression en permanence.
+    """
+    import hashlib
+    import json as _json
+    keys = CONFIG_KEYS.get(entity, ())
+    payload = {k: obj.get(k) for k in keys}
+    return hashlib.sha256(
+        _json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()[:24]
+
+
+CONFIG_KEYS = {
+    "Rule": ("rule_uuid", "rule_name", "rule_enabled", "rule_severity",
+             "rule_tags", "rule_format_uuid", "rule_payload"),
+    "Source": ("intake_uuid", "intake_name", "intake_status", "entity_name",
+               "connector_name", "intake_format_uuid"),
+}
+
+
+async def config_write(entity: str, objects: list,
+                       author: str = "sagf.poller",
+                       reason: str = "relevé périodique") -> dict:
+    """Enregistre l'état de configuration observé (I9 — attribution).
+
+    Idempotent (I6) : un objet dont l'empreinte n'a pas changé depuis le dernier
+    relevé n'est pas réécrit. Sans cela, la mémoire grossirait sans porter
+    d'information, et toute généalogie deviendrait illisible.
+    """
+    # L5 — l'état de gouvernance reste chez SAGF. On n'écrit rien dans Sekoia :
+    # c'est ce qui rend le retrait propre (L3). Aucune revendication d'autorité
+    # sur un domaine amont n'a lieu ici.
+    ts = _now_iso()
+    previous = await _config_latest(entity)
+    docs, unchanged = [], 0
+    spec = ENTITIES.get(entity) or {}
+    idf = spec.get("id", "uuid")
+    for o in objects:
+        oid = str(o.get(idf) or "")
+        if not oid:
+            continue
+        fp = snapshot_fingerprint(entity, o)
+        if previous.get(oid) == fp:
+            unchanged += 1
+            continue
+        docs.append((f"{CONFIG_INDEX_PREFIX}-{datetime.now(timezone.utc):%Y.%m}", {
+            "@timestamp": ts, "t_observation": ts, "t_configuration": ts,
+            "entity": entity, "object_id": oid, "fingerprint": fp,
+            "author": author, "reason": reason,
+            "state": {k: o.get(k) for k in CONFIG_KEYS.get(entity, ())},
+        }))
+    written = 0
+    if docs:
+        import alerting
+        written, _ = await alerting._os_bulk(docs)
+    return {"entity": entity, "seen": len(objects), "written": written,
+            "unchanged": unchanged, "at": ts,
+            "idempotent_note": "Un objet dont l'empreinte n'a pas changé n'est "
+                               "pas réécrit (I6)."}
+
+
+async def _config_latest(entity: str) -> dict:
+    """Dernière empreinte connue par objet."""
+    res, err = await cp.os_search(f"{CONFIG_INDEX_PREFIX}-*", {
+        "size": 5000, "query": {"term": {"entity.keyword": entity}},
+        "sort": [{"@timestamp": {"order": "desc"}}]})
+    out: dict = {}
+    if err or not res:
+        return out
+    for hit in res.get("hits", {}).get("hits", []):
+        src = hit.get("_source", {})
+        oid = src.get("object_id")
+        if oid and oid not in out:
+            out[oid] = src.get("fingerprint")
+    return out
+
+
+async def config_as_of(entity: str, when: str) -> dict:
+    """État de configuration TEL QU'IL ÉTAIT à l'instant demandé.
+
+    C'est la primitive dont dépendent M-5, M-18 et I12. Un objet absent de la
+    mémoire à cette date est absent du résultat — on ne l'invente pas.
+    """
+    res, err = await cp.os_search(f"{CONFIG_INDEX_PREFIX}-*", {
+        "size": 5000,
+        "query": {"bool": {"must": [
+            {"term": {"entity.keyword": entity}},
+            {"range": {"@timestamp": {"lte": when}}}]}},
+        "sort": [{"@timestamp": {"order": "desc"}}]})
+    if err:
+        return {"available": False, "error": err}
+    states: dict = {}
+    for hit in (res or {}).get("hits", {}).get("hits", []):
+        src = hit.get("_source", {})
+        oid = src.get("object_id")
+        if oid and oid not in states:
+            states[oid] = {**(src.get("state") or {}),
+                           "_fingerprint": src.get("fingerprint"),
+                           "_at": src.get("@timestamp")}
+    return {"available": True, "entity": entity, "as_of": when,
+            "objects": len(states), "states": states,
+            "note": "Un objet absent de la mémoire à cette date est absent du "
+                    "résultat : SAGF n'invente pas un passé qu'il n'a pas observé."}
+
+
+async def config_diff(entity: str, since: str, until: Optional[str] = None) -> dict:
+    """Différence de configuration entre deux instants (I12).
+
+    C'est ce qui rend une régression détectable : sans comparaison d'états, une
+    dégradation est indiscernable d'une variation normale.
+    """
+    a = await config_as_of(entity, since)
+    b = await config_as_of(entity, until or _now_iso())
+    if not a.get("available") or not b.get("available"):
+        return {"available": False, "reason": "mémoire de configuration indisponible"}
+    sa, sb = a["states"], b["states"]
+    added = sorted(set(sb) - set(sa))
+    removed = sorted(set(sa) - set(sb))
+    changed = []
+    for oid in sorted(set(sa) & set(sb)):
+        if sa[oid].get("_fingerprint") != sb[oid].get("_fingerprint"):
+            deltas = {k: {"before": sa[oid].get(k), "after": sb[oid].get(k)}
+                      for k in CONFIG_KEYS.get(entity, ())
+                      if sa[oid].get(k) != sb[oid].get(k)}
+            changed.append({"object_id": oid, "changes": deltas})
+    return {"available": True, "entity": entity, "since": since,
+            "until": until or "maintenant",
+            "added": len(added), "removed": len(removed), "changed": len(changed),
+            "items": {"added": added[:50], "removed": removed[:50],
+                      "changed": changed[:50]},
+            "silent_note": "Toute différence non expliquée par un changement "
+                           "attribué est une modification hors procédure (I12)."}
+
+
+# ── SAGQL — familles de prédicats étendues (§5.2) ────────────────────────────
+
+@dataclass
+class FunctionPredicate:
+    """Prédicat porté par une fonction, pour les familles non scalaires.
+
+    Les familles contrefactuelle, topologique, probabiliste, sémantique et
+    temporelle ne se réduisent pas à `champ op valeur` : elles ont besoin d'un
+    contexte. On les traite donc à part plutôt que de tordre la grammaire.
+    """
+    family: str
+    fn: Callable
+    label: str
+    negated: bool = False
+
+    def test(self, row: dict) -> bool:
+        r = bool(self.fn(row))
+        return not r if self.negated else r
+
+
+def _tokens(text: str) -> set:
+    return {w for w in re.split(r"[^a-z0-9]+", str(text or "").lower())
+            if len(w) >= 4}
+
+
+def semantic_similarity(a: str, b: str) -> float:
+    """Similarité lexicale de Jaccard.
+
+    Ce n'est PAS de la compréhension sémantique : c'est un recouvrement de
+    termes. On le nomme pour ce qu'il est — annoncer « sémantique » pour un
+    calcul lexical serait mentir sur la nature du résultat.
+    """
+    ta, tb = _tokens(a), _tokens(b)
+    if not ta or not tb:
+        return 0.0
+    return round(len(ta & tb) / len(ta | tb), 3)
+
+
+FRESHNESS_RE = re.compile(r"^\s*FRESHNESS\s*(>=|<=|>|<)\s*(\d+)([smhd])\s*$", re.I)
+SIMILAR_RE = re.compile(r'^\s*SIMILAR\s+TO\s+"([^"]+)"\s*(?:>\s*([\d.]+))?\s*$', re.I)
+WOULD_RE = re.compile(r"^\s*WOULD\s+(fire|detect)\s*(?:=\s*(true|false))?\s*$", re.I)
+HOPS_RE = re.compile(r"^\s*WITHIN\s+(\d+)\s+HOPS?\s+OF\s+(\S+)\s*$", re.I)
+PROB_RE = re.compile(r"^\s*P\(([a-z_]+)\)\s*(>=|<=|>|<)\s*([\d.]+)\s*$", re.I)
+CHANGED_RE = re.compile(r"^\s*CHANGED\s+SINCE\s+\"([^\"]+)\"\s*$", re.I)
+UNIT_S = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
+def build_function_predicate(chunk: str, ctx: dict) -> Optional[FunctionPredicate]:
+    """Reconnaît les familles non scalaires. Retourne None si non concerné."""
+    m = FRESHNESS_RE.match(chunk)
+    if m:
+        op, n, unit = m.group(1), int(m.group(2)), m.group(3).lower()
+        limit = n * UNIT_S[unit]
+        cmp = OPERATORS[op]
+        return FunctionPredicate(
+            "fraîcheur", lambda r: cmp(r.get("_age_s", float("inf")), limit),
+            f"fraîcheur {op} {n}{unit}")
+
+    m = SIMILAR_RE.match(chunk)
+    if m:
+        ref, thr = m.group(1), float(m.group(2) or 0.2)
+        return FunctionPredicate(
+            "sémantique (lexicale)",
+            lambda r: semantic_similarity(
+                f"{r.get('rule_name','')} {r.get('description','')} "
+                f"{r.get('intake_name','')}", ref) > thr,
+            f"recouvrement lexical avec « {ref} » > {thr}")
+
+    m = WOULD_RE.match(chunk)
+    if m:
+        want = (m.group(2) or "true").lower() == "true"
+        # Contrefactuel : s'appuie sur la satisfiabilité, seule base disponible
+        # sans exécuter le moteur de corrélation (L2 interdit de le refaire).
+        return FunctionPredicate(
+            "contrefactuel",
+            lambda r: (r.get("verdict") == "satisfiable") == want,
+            f"aurait pu se déclencher = {want}")
+
+    m = HOPS_RE.match(chunk)
+    if m:
+        hops, target = int(m.group(1)), m.group(2).strip('"\'')
+        reach = ctx.get("reachable", {})
+        return FunctionPredicate(
+            "topologique",
+            lambda r: _hop_distance(reach, target, r) <= hops,
+            f"à {hops} saut(s) de {target}")
+
+    m = PROB_RE.match(chunk)
+    if m:
+        name, op, thr = m.group(1).lower(), m.group(2), float(m.group(3))
+        cmp = OPERATORS[op]
+        return FunctionPredicate(
+            "probabiliste",
+            lambda r: cmp(_probability(name, r), thr),
+            f"P({name}) {op} {thr}")
+
+    m = CHANGED_RE.match(chunk)
+    if m:
+        since = m.group(1)
+        changed = ctx.get("changed_since", {}).get(since, set())
+        return FunctionPredicate(
+            "temporel",
+            lambda r: str(r.get(ctx.get("id_field", "rule_uuid"))) in changed,
+            f"modifié depuis {since}")
+    return None
+
+
+def _hop_distance(reachable: dict, target: str, row: dict) -> int:
+    """Distance en sauts dans le graphe de dépendances. ∞ si non joignable."""
+    ids = {str(row.get(k)) for k in ("rule_uuid", "intake_uuid", "dialect_uuid",
+                                     "field") if row.get(k)}
+    best = float("inf")
+    for oid in ids:
+        d = reachable.get(target, {}).get(oid)
+        if d is not None:
+            best = min(best, d)
+    return best
+
+
+def _probability(name: str, row: dict) -> float:
+    """Probabilités estimées, bornées et NOMMÉES comme estimations.
+
+    Aucune de ces valeurs n'est une probabilité mesurée : ce sont des
+    estimations dérivées de signaux observés. Les présenter autrement
+    tromperait sur leur nature.
+    """
+    if name in ("inert", "inerte"):
+        v = row.get("verdict")
+        return {"jamais_satisfiable": 0.95, "non_ingere": 0.9,
+                "improbable": 0.6, "indeterminable": 0.5,
+                "satisfiable": 0.05}.get(v, 0.5)
+    if name in ("noise", "bruit"):
+        lvl = ((row.get("verdict_backtest") or {}) or {}).get("level")
+        return {"ingérable": 0.9, "a_surveiller": 0.5,
+                "exploitable": 0.2, "silencieuse": 0.02}.get(lvl, 0.3)
+    if name in ("false_positive", "faux_positif"):
+        # Sans retour analyste, on ne peut pas mesurer : on le déclare.
+        return 0.0
+    return 0.0
+
+
+UNMEASURABLE_PROBABILITIES = {
+    "false_positive": "aucun retour analyste n'est collecté : cette probabilité "
+                      "ne peut pas être mesurée, seulement estimée à 0.",
+}
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -729,7 +1269,54 @@ def register(sagf_app) -> None:
 
     @sagf_app.get("/control/sagf/self-report", dependencies=dep)
     async def report():
-        return self_report([])
+        mem = {}
+        try:
+            latest = await _config_latest("Rule")
+            mem = {"entity": "Rule", "objects_remembered": len(latest),
+                   "note": "La mémoire ne remonte pas avant le premier relevé."}
+        except Exception as exc:
+            mem = {"error": f"{type(exc).__name__}: {exc}"}
+        return self_report([], config_memory=mem)
+
+    @sagf_app.post("/control/sagf/config/snapshot", dependencies=dep)
+    async def config_snapshot(entity: str = Query(default="Rule"),
+                              author: str = Query(default="sagf.manual"),
+                              reason: str = Query(default="relevé manuel")):
+        """Enregistre l'état de configuration. Idempotent (I6)."""
+        if entity not in ENTITIES:
+            return {"ok": False, "error": f"entité inconnue « {entity} »"}
+        rows, prov = await _rows_for(entity)
+        out = await config_write(entity, rows, author=author, reason=reason)
+        return {"ok": True, **out, "provenance": prov.chain()}
+
+    @sagf_app.get("/control/sagf/config/as-of", dependencies=dep)
+    async def config_at(entity: str = Query(default="Rule"),
+                        when: str = Query(...)):
+        """M-5 — état tel qu'il était. Base du contrefactuel."""
+        return await config_as_of(entity, when)
+
+    @sagf_app.get("/control/sagf/config/diff", dependencies=dep)
+    async def config_delta(entity: str = Query(default="Rule"),
+                           since: str = Query(...),
+                           until: str = Query(default="")):
+        """M-18 / I12 — généalogie et détection de régression."""
+        return await config_diff(entity, since, until or None)
+
+    @sagf_app.get("/control/sagf/reconcile", dependencies=dep)
+    async def reconcile_route(entity: str = Query(default="Rule")):
+        """M-1 — l'index SAGF est-il conforme à Sekoia ?"""
+        if entity not in ENTITIES:
+            return {"ok": False, "error": f"entité inconnue « {entity} »"}
+        return await reconcile(entity)
+
+    @sagf_app.get("/control/sagf/risk", dependencies=dep)
+    async def risk_route(window: str = Query(default="24h")):
+        """M-12 — risque ordonné, jamais une probabilité mesurée."""
+        import satisfiability as sat
+        res = await sat.analyse(window=window, sample=1200)
+        if not res.get("available"):
+            return {"available": False, "reason": res.get("reason")}
+        return {"available": True, **risk(res.get("items") or [])}
 
 
 async def _rows_for(entity: str) -> tuple:

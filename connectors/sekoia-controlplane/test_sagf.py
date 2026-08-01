@@ -139,7 +139,8 @@ def test_tout_mecanisme_porte_sa_condition_de_refutation():
 def test_les_mecanismes_non_implementes_sont_declares_comme_tels():
     """Les laisser croire presents violerait I13."""
     assert sagf.PLANNED
-    assert not (set(sagf.MECHANISMS) & set(sagf.PLANNED))
+    for code in sagf.PLANNED:
+        assert sagf.MECHANISMS[code].implemented is False
 
 
 # ── L6 — budget ──────────────────────────────────────────────────────────────
@@ -295,8 +296,8 @@ def test_le_systeme_denonce_ses_propres_mesures_perimees():
 
 def test_le_systeme_nomme_ses_angles_morts():
     r = sagf.self_report([])
-    assert r["blind_spots"]
-    assert r["mechanisms_planned"] == len(sagf.PLANNED)
+    assert r["modules_partial"]
+    assert len(r["mechanisms_missing"]) == len(sagf.PLANNED)
     assert "à charge" in r["honesty_note"]
 
 
@@ -310,3 +311,204 @@ def test_booleen_et_chaine_true_designent_la_meme_chose():
     q2 = sagf.parse("SELECT Rule WHERE enabled = false")
     assert q2.matches({"enabled": False})
     assert not q2.matches({"enabled": True})
+
+
+# ═══ Magasin temporel — memoire de configuration ═════════════════════════════
+def test_les_trois_axes_temporels_sont_distincts():
+    t = sagf.TriAxial(t_event="2026-03-03T10:00:00Z",
+                      t_observation="2026-08-01T10:00:00Z",
+                      t_configuration="2026-08-01T09:00:00Z")
+    d = t.as_dict()
+    assert len({d["t_event"], d["t_observation"], d["t_configuration"]}) == 3
+
+
+def test_l_empreinte_ne_porte_que_la_configuration_pas_les_mesures():
+    """Sinon toute variation de volumetrie ferait croire a un changement de
+    configuration, et I12 crierait a la regression en permanence."""
+    a = {"rule_uuid": "r1", "rule_enabled": True, "matches": 10}
+    b = {"rule_uuid": "r1", "rule_enabled": True, "matches": 99999}
+    assert sagf.snapshot_fingerprint("Rule", a) == sagf.snapshot_fingerprint("Rule", b)
+
+
+def test_l_empreinte_change_quand_la_configuration_change():
+    a = {"rule_uuid": "r1", "rule_enabled": True}
+    b = {"rule_uuid": "r1", "rule_enabled": False}
+    assert sagf.snapshot_fingerprint("Rule", a) != sagf.snapshot_fingerprint("Rule", b)
+
+
+def test_les_cles_de_configuration_excluent_toute_grandeur_mesuree():
+    for entity, keys in sagf.CONFIG_KEYS.items():
+        for interdit in ("matches", "events", "volume", "sampled", "verdict"):
+            assert not any(interdit in k for k in keys), f"{entity}.{interdit}"
+
+
+# ═══ SAGQL — familles etendues ═══════════════════════════════════════════════
+def test_predicat_de_fraicheur():
+    q = sagf.parse("SELECT Rule WHERE FRESHNESS > 1h")
+    assert q.predicates[0].family == "fraîcheur"
+    assert q.matches({"_age_s": 7200})
+    assert not q.matches({"_age_s": 60})
+
+
+def test_predicat_semantique_est_nomme_lexical():
+    """Annoncer « semantique » pour un calcul lexical mentirait sur la nature
+    du resultat."""
+    q = sagf.parse('SELECT Rule WHERE SIMILAR TO "exchange exploitation"')
+    assert "lexical" in q.predicates[0].family
+    assert q.matches({"rule_name": "ProxyShell Exchange Exploitation Attempt"})
+    assert not q.matches({"rule_name": "Linux Bash Reverse Shell"})
+
+
+def test_similarite_lexicale_est_symetrique_et_bornee():
+    s = sagf.semantic_similarity("exfiltration donnees sharepoint",
+                                 "sharepoint exfiltration massive")
+    assert 0.0 <= s <= 1.0
+    assert s == sagf.semantic_similarity("sharepoint exfiltration massive",
+                                         "exfiltration donnees sharepoint")
+    assert sagf.semantic_similarity("", "quoi que ce soit") == 0.0
+
+
+def test_predicat_contrefactuel():
+    q = sagf.parse("SELECT Rule WHERE WOULD fire = true")
+    assert q.predicates[0].family == "contrefactuel"
+    assert q.matches({"verdict": "satisfiable"})
+    assert not q.matches({"verdict": "jamais_satisfiable"})
+
+
+def test_predicat_topologique():
+    ctx = {"reachable": {"cible": {"r1": 1, "r2": 3}}}
+    q = sagf.parse("SELECT Rule WHERE WITHIN 2 HOPS OF cible", ctx)
+    assert q.predicates[0].family == "topologique"
+    assert q.matches({"rule_uuid": "r1"})
+    assert not q.matches({"rule_uuid": "r2"})
+    assert not q.matches({"rule_uuid": "inconnu"})
+
+
+def test_predicat_probabiliste():
+    q = sagf.parse("SELECT Rule WHERE P(inert) > 0.8")
+    assert q.predicates[0].family == "probabiliste"
+    assert q.matches({"verdict": "jamais_satisfiable"})
+    assert not q.matches({"verdict": "satisfiable"})
+
+
+def test_les_probabilites_non_mesurables_sont_declarees():
+    """Sans retour analyste, le taux de faux positifs ne peut pas etre mesure."""
+    assert sagf._probability("false_positive", {}) == 0.0
+    assert "false_positive" in sagf.UNMEASURABLE_PROBABILITIES
+
+
+def test_predicat_temporel_sur_la_memoire_de_configuration():
+    ctx = {"changed_since": {"2026-07-01": {"r1"}}, "id_field": "rule_uuid"}
+    q = sagf.parse('SELECT Rule WHERE CHANGED SINCE "2026-07-01"', ctx)
+    assert q.predicates[0].family == "temporel"
+    assert q.matches({"rule_uuid": "r1"})
+    assert not q.matches({"rule_uuid": "r2"})
+
+
+def test_la_negation_s_applique_aux_familles_non_scalaires():
+    q = sagf.parse("SELECT Rule WHERE NOT WOULD fire = true")
+    assert q.matches({"verdict": "jamais_satisfiable"})
+    assert not q.matches({"verdict": "satisfiable"})
+
+
+def test_explain_nomme_la_famille_de_chaque_predicat():
+    plan = sagf.explain(sagf.parse('SELECT Rule WHERE SIMILAR TO "test"'))
+    assert plan["predicates"][0]["family"].startswith("sémantique")
+
+
+def test_les_familles_partielles_sont_declarees_comme_telles():
+    fam = sagf.PREDICATE_FAMILIES
+    assert fam["sémantique"] != True
+    assert fam["probabiliste"] != True
+    assert fam["différentiel"] is False
+
+
+# ═══ Mecanismes — les 20 ═════════════════════════════════════════════════════
+def test_les_vingt_mecanismes_sont_declares():
+    assert len(sagf.MECHANISMS) == 20
+
+
+def test_chaque_mecanisme_des_vingt_porte_sa_refutation():
+    for code, m in sagf.MECHANISMS.items():
+        assert m.refutation and len(m.refutation) > 15, f"{code} sans réfutation"
+
+
+def test_les_mecanismes_non_implementes_apparaissent_dans_planned():
+    assert set(sagf.PLANNED) == {c for c, m in sagf.MECHANISMS.items()
+                                 if not m.implemented}
+
+
+# ═══ M-12 risque, M-14 narration ═════════════════════════════════════════════
+def test_le_risque_ne_retient_que_les_regles_activees_et_inertes():
+    out = sagf.risk([
+        {"enabled": True, "verdict": "jamais_satisfiable", "severity": 90,
+         "rule_name": "A", "rule_uuid": "a"},
+        {"enabled": False, "verdict": "jamais_satisfiable", "severity": 90,
+         "rule_name": "B", "rule_uuid": "b"},
+        {"enabled": True, "verdict": "satisfiable", "severity": 90,
+         "rule_name": "C", "rule_uuid": "c"}])
+    assert out["count"] == 1 and out["items"][0]["rule_name"] == "A"
+
+
+def test_le_risque_ne_se_presente_jamais_comme_une_probabilite():
+    out = sagf.risk([])
+    assert "ne quantifie pas une probabilité" in out["caution"]
+    assert out["refutation"]
+
+
+def test_la_narration_se_limite_a_trois_faits():
+    facts = [{"text": f"fait {i}", "weight": i} for i in range(10)]
+    out = sagf.narrate(facts)
+    assert len(out["facts"]) == 3
+    assert out["facts"][0]["weight"] == 9
+    assert "cesse d'être lu" in out["note"]
+
+
+def test_la_narration_sans_fait_ne_fabrique_rien():
+    assert "Rien de notable" in sagf.narrate([])["headline"]
+
+
+# ═══ Auto-denonciation — les 8 listes exigees ════════════════════════════════
+def test_le_rapport_expose_les_huit_listes():
+    r = sagf.self_report([])
+    for cle in ("mechanisms_missing", "predicates_missing_or_partial",
+                "modules_partial", "invariants_not_fully_enforced",
+                "laws_not_code_enforced", "stale_samples",
+                "unverified_dependencies", "unmeasurable"):
+        assert cle in r, cle
+
+
+def test_le_rapport_couvre_les_treize_invariants():
+    ids = {i["id"] for i in sagf.self_report([])["invariants"]}
+    assert ids == {f"I{n}" for n in range(1, 14)}
+
+
+def test_le_rapport_couvre_les_douze_lois():
+    ids = {l["id"] for l in sagf.self_report([])["laws"]}
+    assert ids == {f"L{n}" for n in range(1, 13)}
+
+
+def test_le_rapport_distingue_ce_qui_est_verifie_par_code():
+    r = sagf.self_report([])
+    assert any(i["enforced"] != "code" for i in r["invariants"]), \
+        "un rapport qui declare tout verifie est suspect"
+    assert any(l["enforced"] != "code" for l in r["laws"])
+
+
+def test_le_rapport_liste_les_mesures_perimees_avec_leur_age():
+    vieille = sagf.Measure(1, "2020-01-01T00:00:00.000Z", PROV,
+                           uncertainty=1.0, ttl_s=1)
+    r = sagf.self_report([vieille])
+    assert r["measures_stale"] == 1
+    assert r["stale_samples"][0]["stale"] is True
+    assert r["stale_samples"][0]["age_s"] > 0
+
+
+def test_le_magasin_de_configuration_ne_revendique_aucun_domaine_sekoia():
+    """L5 — l'etat de gouvernance reste chez SAGF, sans revendiquer d'autorite
+    amont. Une premiere version appelait a tort assert_not_sekoia_owned et
+    s'auto-bloquait : le garde-fou avait raison, l'usage etait faux."""
+    import inspect
+    src = inspect.getsource(sagf.config_write)
+    assert "assert_not_sekoia_owned" not in src
+    assert "L5" in src

@@ -727,3 +727,21 @@ forme d'ambition qui ne menace pas ce qu'elle augmente.**
 > l'état livrable aujourd'hui, marque par marque. Le noyau SAGF effectivement
 > construit est documenté dans [README-SAGF](README-SAGF.md), avec la liste
 > franche de ce qui reste partiel.
+
+
+---
+
+## 17. État d'implémentation au 1er août 2026
+
+| Élément | État |
+|---|---|
+| Lois L1–L12 | **[FAIT]** L1, L2, L4, L5, L6, L9, L10, L12 vérifiées par code · **[DÉRIVÉ]** L3, L7, L8, L11 par revue |
+| Invariants I1–I13 | **[FAIT]** I1, I2, I3, I4, I6, I7, I8, I10, I13 · **[À FAIRE]** I5, I11 · **[DÉRIVÉ]** I9, I12 partiels |
+| Mémoire de configuration tri-axiale | **[FAIT]** |
+| Mécanismes | **[FAIT]** 17/20 · **[À FAIRE]** M-15, M-16, M-20 |
+| SAGQL — 12 familles | **[FAIT]** 8 · **[DÉRIVÉ]** 3 partielles et nommées comme telles · **[À FAIRE]** différentiel |
+| Auto-dénonciation | **[FAIT]** 8 listes |
+| Suppression de masse | **[REFUSÉ]** — irréversible |
+| Action sur la production | **[REFUSÉ]** — L12, vérifié à trois moments |
+
+Détail et réserves : [README-SAGF](README-SAGF.md).

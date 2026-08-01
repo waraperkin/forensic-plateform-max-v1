@@ -26,6 +26,10 @@ COPY portal-cert/routes/alert-intake-routes.js ./routes/alert-intake-routes.js
 COPY portal-cert/routes/incident-core-routes.js ./routes/incident-core-routes.js
 COPY portal-cert/routes/ioc-enrich-routes.js ./routes/ioc-enrich-routes.js
 COPY portal-cert/routes/case-routes.js ./routes/case-routes.js
+# Tout module require() par server.js DOIT figurer ici : un COPY oublie fait
+# crasher le portail au demarrage (precedent identique cote control-plane, cf.
+# commit e02b3c8 et volumetry.py).
+COPY portal-cert/routes/similarity-routes.js ./routes/similarity-routes.js
 COPY portal-cert/routes/psoar-hub-routes.js ./routes/psoar-hub-routes.js
 COPY portal-cert/lib/psoar-storage.js ./lib/psoar-storage.js
 COPY portal-cert/routes/helk-routes.js ./routes/helk-routes.js

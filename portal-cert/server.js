@@ -801,6 +801,10 @@ app.use('/api', require('./routes/psoar-hub-routes').createPsoarHubRoutes({
 
 // PSOAR — Case Management : artefacts types, chaine de possession, promotion IOC.
 app.use('/api', require('./routes/case-routes').createCaseRoutes({ os, logger, auditAction }));
+// Moteur de similarite et de recurrence PSOAR : « est-ce deja arrive, et
+// comment ca s'etait termine ? » — question a laquelle aucun outil de reponse a
+// incident ne repond spontanement.
+app.use('/api', require('./routes/similarity-routes').createSimilarityRoutes({ osClient: os, log: logger }));
 
 // PSOAR — Knowledge Base & Enrichment : verdict CTI agrege (TI local, OpenCTI,
 // MISP) et analyseurs Cortex disponibles selon le type d'observable.

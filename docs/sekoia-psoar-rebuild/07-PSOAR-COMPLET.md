@@ -79,3 +79,63 @@ avec simulation puis confirmation.
 Cinq modules de la Sekoia Extended Platform : 3.1 Data Intake, 3.3 Monitoring
 temps réel, **3.5 Inventory & versioning** (les snapshots existants sont cassés,
 diagnostic déjà posé), 3.8 API Gateway, 3.9 Storage tiers.
+
+## Moteur de similarité et de récurrence
+
+### La question à laquelle aucun outil ne répond
+Devant un incident, un analyste se demande d'abord : **« est-ce déjà arrivé ? »**
+XSOAR, TheHive et Resilient savent lier deux cas quand quelqu'un le fait à la
+main. Aucun ne dit spontanément : ce schéma s'est produit trois fois, voici
+comment il s'était terminé, et combien de temps il avait pris.
+
+### Quatre signaux, de force décroissante
+
+| Signal | Poids | Pourquoi ce rang |
+|---|---|---|
+| IOC partagé | 50 | seul signal désignant un objet du monde réel |
+| Machine partagée | 25 | même périmètre |
+| Étiquette partagée | 15 | même classification décidée par l'équipe |
+| Intitulé proche | 10 | deux titres peuvent se ressembler sans rapport |
+
+La courbe des IOC s'aplatit (logarithmique) : vingt indicateurs communs ne
+valent pas vingt fois un seul, sinon un incident écraserait tous les autres.
+
+Le rapprochement par titre exige **au moins deux termes significatifs**, après
+retrait des mots vides du domaine — sans quoi « alerte », « suspect » et
+« détection » rapprocheraient tout de tout.
+
+### Ce que le moteur refuse de faire
+Fabriquer une ressemblance. Un score n'est rendu que si un signal a **réellement
+joué**, et il est toujours accompagné de ses raisons en clair. Un pourcentage
+sans justification pousse un analyste à fermer un incident parce qu'un chiffre
+le lui a suggéré.
+
+La durée de résolution n'est calculée que sur un incident **clos** : sur un
+incident ouvert, elle mesurerait l'âge et non le temps de traitement.
+
+### Deux bugs trouvés sur le tenant réel
+1. **Faux rapprochement par machine.** Le champ `host` vaut `{}` quand aucune
+   machine n'est renseignée. Passé à `String()`, il donnait « [object Object] »
+   — et **deux incidents sans machine étaient rapprochés au motif qu'ils
+   partageaient la même**, avec un score de 25 affiché. Un faux rapprochement
+   présenté avec un score est pire que pas de rapprochement du tout. Extraction
+   corrigée pour toutes les formes du champ (chaîne, objet nommé, liste mixte).
+2. **Collision de routes.** `/api/incidents/clusters` était capté par
+   `/api/incidents/:id/...` enregistré plus tôt, qui traitait « clusters » comme
+   un identifiant d'incident. Même piège que `/rules/{id}` côté control-plane.
+   Route déplacée sur `/api/incident-clusters`.
+
+Un troisième défaut relevait du **Dockerfile** : le nouveau module n'était pas
+dans la liste des `COPY`, exactement le précédent documenté pour `volumetry.py`.
+Le garde-fou en commentaire a été ajouté au Dockerfile du portail.
+
+### Résultat sur le tenant
+Trois incidents seulement, dont deux partagent des étiquettes. Le moteur les
+rapproche avec ses raisons (« Étiquette(s) partagée(s) : auto-correlation,
+sep-ingestion » · « Intitulés proches : intake, silent, alertes ») et **refuse**
+de rapprocher le troisième, qui n'a rien en commun.
+
+La démonstration reste modeste faute de corpus : sa valeur croîtra avec le
+nombre d'incidents traités. La logique, elle, est vérifiée par 18 tests
+unitaires portant autant sur ce que le moteur doit trouver que sur ce qu'il doit
+refuser.

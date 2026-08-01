@@ -296,7 +296,7 @@
 
   // ── Dossier d'incident ────────────────────────────────────────────────────
   const WS_TABS = [['timeline', 'Timeline'], ['tasks', 'Playbook'], ['iocs', 'IOC'],
-    ['evidence', 'Evidences'], ['report', 'Rapport']];
+    ['evidence', 'Evidences'], ['similar', 'Déjà vu ?'], ['report', 'Rapport']];
 
   function stepper(inc) {
     const cur = FLOW.indexOf(inc.status);
@@ -365,6 +365,37 @@
     + (st.enrichUnavailable ? `<p class="swb-hint" style="margin-top:.5rem">Référentiels indisponibles : ${
   esc(st.enrichUnavailable.join(' · '))}. Le verdict est partiel.</p>` : '')
           : '<p class="swb-hint">Aucun IOC rattaché. Le scan compare les IOC de l\'incident et les watchlists Sekoia aux logs ingérés ; l\'enrichissement interroge le renseignement (TI local, OpenCTI, MISP).</p>');
+    } else if (st.tab === 'similar') {
+      // « Est-ce déjà arrivé ? » — la question qu'un analyste se pose en
+      // premier et à laquelle aucun outil de réponse ne répond seul.
+      const sim = st.similar;
+      if (!sim) {
+        panel = `<p class="swb-hint">Recherche des incidents comparables…</p>`;
+      } else if (sim.error) {
+        panel = `<p class="swb-hint">${esc(sim.error)}</p>`;
+      } else {
+        const rows = (sim.matches || []).map((m) => `<div class="swb-panel"
+          style="border-left:3px solid ${m.score >= 60 ? 'var(--swb-danger)'
+            : m.score >= 40 ? 'var(--swb-warn)' : 'var(--swb-accent)'}">
+          <div class="swb-panel-head">
+            <h3 class="swb-panel-title">${esc(m.title || m.incident_id)}</h3>
+            <span class="swb-pill swb-pill-flat">${esc(m.score)} / 100</span></div>
+          <p class="swb-hint" style="margin:.2rem 0">${esc(m.incident_id)} ·
+            ${esc(m.status || '—')}${m.resolution_hours !== null
+              ? ` · clos en ${esc(m.resolution_hours)} h` : ' · non clos'}</p>
+          <ul style="margin:.3rem 0 0;padding-left:1.1rem">
+            ${(m.reasons || []).map((r) => `<li class="swb-hint">${esc(r.text)}</li>`).join('')}
+          </ul>
+          <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost"
+            data-pso-act="open" data-id="${esc(m.incident_id)}"
+            style="margin-top:.5rem">Ouvrir cet incident</button></div>`).join('');
+        panel = `<div class="swb-panel" style="border-left:3px solid ${
+          sim.similar_total ? 'var(--swb-warn)' : 'var(--swb-ok)'}">
+            <h3 class="swb-panel-title">${esc(sim.verdict)}</h3>
+            <p class="swb-hint" style="margin:.4rem 0 0">${esc(sim.caution)}</p>
+            <p class="swb-hint" style="margin:.2rem 0 0">Comparé à ${esc(nf(sim.corpus))}
+              incident(s) antérieur(s). ${esc(sim.method_note)}</p></div>${rows}`;
+      }
     } else if (st.tab === 'evidence') {
       const ev = byKind('evidence');
       const ups = d.uploads || [];
@@ -444,7 +475,12 @@
     st.loading = true; paint();
     try {
       st.detail = await api('/incidents/' + encodeURIComponent(id));
-      st.tab = 'timeline'; st.report = null; st.purge = null;
+      st.tab = 'timeline'; st.report = null; st.purge = null; st.similar = null;
+      // Chargé en arrière-plan : la similarité parcourt tout le corpus et ne
+      // doit pas retarder l'ouverture de l'incident.
+      api('/incidents/' + encodeURIComponent(id) + '/similar')
+        .then((r) => { st.similar = r; if (st.tab === 'similar') paint(); })
+        .catch((e) => { st.similar = { error: e.message }; });
     } catch (e) { st.error = e.message; }
     st.loading = false; paint();
   }

@@ -720,3 +720,10 @@ l'extension aura prouvé nécessaire.
 
 **Une extension dont la disparition serait le succès ultime : c'est la seule
 forme d'ambition qui ne menace pas ce qu'elle augmente.**
+
+---
+
+> **État d'implémentation** — le document [10](10-SPEC-GOUVERNANCE.md) donne
+> l'état livrable aujourd'hui, marque par marque. Le noyau SAGF effectivement
+> construit est documenté dans [README-SAGF](README-SAGF.md), avec la liste
+> franche de ce qui reste partiel.

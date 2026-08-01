@@ -730,3 +730,9 @@ l'API ne fournit pas. Les lister évite de promettre ce qui ne peut être tenu.
 
 Les points 1, 2 et 7 sont ceux dont la levée transformerait le plus la
 plateforme, et ce sont les trois à porter en priorité auprès de l'éditeur.
+
+---
+
+> **Suite de la trilogie** — le document [12](12-MEGA-SPEC-SAGF.md) décrit la
+> machine complète (lois, invariants, flux, langage, mécanismes), et
+> [README-SAGF](README-SAGF.md) documente la première version implémentée.

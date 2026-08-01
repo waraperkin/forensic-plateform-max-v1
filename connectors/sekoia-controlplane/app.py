@@ -1630,6 +1630,11 @@ backtest.register(app)
 import schemadrift  # noqa: E402
 schemadrift.register(app)
 
+# SAGF : couche d'adossement. Montee EN DERNIER, apres tous les moteurs
+# qu'elle contractualise — elle ne recalcule rien (L2).
+import sagf  # noqa: E402
+sagf.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

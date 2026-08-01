@@ -409,3 +409,38 @@ de perfection.
 coût annoncé avant exécution, `EXPLAIN` qui n'exécute rien, requête réellement
 exécutée, **ambiguïté refusée dans l'interface**, aucun objet affiché brut,
 0 erreur console.
+
+---
+
+# Onglet SAGF autonome **[FAIT]**
+
+SAGF n'est plus une vue de la Sekoia Extended Platform : c'est un **onglet
+propre** dans la barre latérale. Les mêler faisait croire qu'il fait partie du
+SIEM, ce que **L8** interdit.
+
+## Sept vues, couvrant tout le back
+
+| Vue | Contenu | Routes |
+|---|---|---|
+| **Conformité** | L3/L8/L11/I11 exécutées · les 12 lois et 13 invariants avec leur lieu d'application · souveraineté | `/laws` `/compliance` `/self-report` |
+| **Mécanismes** | les 20 avec entrée, sortie, délégation, garantie, **réfutation** | `/mechanisms` |
+| **SAGQL** | console, `EXPLAIN` avec coût, familles de prédicats, **question en français** | `/query` `/nl` |
+| **Mémoire** | relevé idempotent, réconciliation, diff | `/config/snapshot` `/reconcile` `/config/diff` |
+| **Dette & risque** | dette décomposée avec sa mesure datée, réductible immédiatement, risque ordonné | `/debt` `/risk` |
+| **Journal** | décisions attribuées (M-15) | `/journal` |
+| **Miroir** | tout ce que la plateforme ne sait pas | `/self-report` |
+
+## Trois principes de rendu
+
+1. **Le verdict avant le chiffre** — un nombre sans lecture n'aide personne.
+2. **Fraîcheur et incertitude à côté de la valeur**, jamais en note de bas de
+   page. La dette affiche son âge et son ±.
+3. **Les limites visibles sans les chercher** — le bloc « Limites permanentes »
+   précède tout tableau flatteur.
+
+## Vérifié dans le navigateur
+
+19 contrôles (`sagf-tab.mjs`) : présence de l'onglet, 7 vues, indicateurs
+complets, limites visibles, **chaque vue rendue sans objet brut**, coût annoncé
+avant exécution, **ambiguïté refusée par M-16 avec ses lectures possibles**,
+0 erreur console.

@@ -31,7 +31,6 @@
     { id: 'telemetry', key: 't', group: 1 },
     { id: 'hosts', key: 'h', group: 1 },
     { id: 'value', key: 'v', group: 1 },
-    { id: 'sagf', key: 'g', group: 2 },
     { id: 'alerting', key: 'a', group: 2 },
     { id: 'operations', key: 'p', group: 2 },
     { id: 'apikeys', key: 'k', group: 3 },
@@ -1702,7 +1701,6 @@
     else if (st.view === 'telemetry') body = viewTelemetry();
     else if (st.view === 'hosts') body = viewHosts();
     else if (st.view === 'value') body = viewValue();
-    else if (st.view === 'sagf') body = viewSagf();
     else if (st.view === 'alerting') body = viewAlerting();
     else if (st.view === 'operations') body = viewOperations();
     else if (st.view === 'apikeys') body = viewApiKeys();

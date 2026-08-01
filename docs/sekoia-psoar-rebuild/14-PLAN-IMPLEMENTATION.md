@@ -466,6 +466,24 @@ les 900 règles agnostiques forment un seul groupe. Le résultat vaut pour les
 paires examinées, **pas pour le catalogue**, et l'en-tête le dit (`⚠ Analyse
 tronquée`).
 
+### Front des lots 1 et 3 **[FAIT]**
+
+Deux vues ajoutées à la console SAGF autonome, portée à **9 vues**.
+
+**Retour analyste** — la couverture de qualification est affichée **avant** les
+taux : une précision calculée sur 2 % des alertes décrit l'échantillon, pas la
+règle. Formulaire de saisie avec les 7 codes de la taxonomie fermée. Chaque taux
+porte son intervalle, ou le motif du refus de le publier.
+
+**Conflits** — le calcul reste **à la demande** (des dizaines de milliers de
+paires). La troncature est annoncée **avant les chiffres**, en tête de vue. Le
+refus de fusion automatique est affiché à côté du constat, pas caché.
+
+Vérifié dans le navigateur (`sagf-lots.mjs`, 13 contrôles) : réserve sur la
+couverture affichée · « indéterminé » présenté comme choix légitime · 7 codes
+présents · **verdict sans auteur refusé avec son motif** · troncature annoncée ·
+refus de fusion visible · aucun objet brut · 0 erreur console.
+
 ### Reste à faire
 Lots 2, 4, 5, 6, 7, 8, 9, 10. Le lot 4 est maintenant débloqué par le lot 1,
 mais reste sans valeur tant que la couverture de qualification est nulle.

@@ -24,6 +24,8 @@
     ['sagql', 'sg.v_sagql'],
     ['memory', 'sg.v_memory'],
     ['debt', 'sg.v_debt'],
+    ['feedback', 'sg.v_feedback'],
+    ['conflicts', 'sg.v_conflicts'],
     ['journal', 'sg.v_journal'],
     ['mirror', 'sg.v_mirror'],
   ];
@@ -394,6 +396,136 @@
         T('sg.stale_count', { n: nf(r.measures_stale), t: nf(r.measures_total) })}</p>`)}`;
   }
 
+
+  // ── Vue : retour analyste (LOT 1) ─────────────────────────────────────────
+  function viewFeedback() {
+    const cov = st.data.fbCoverage;
+    const rates = st.data.fbRates;
+    const codes = (st.data.fbCodes || {}).codes || {};
+    const err = st.data.fbErr;
+
+    // La couverture de qualification passe AVANT les taux : une précision
+    // calculée sur 2 % des alertes décrit l'échantillon, pas la règle.
+    const covBlock = !cov ? '' : `<div class="swb-panel" style="border-left:3px solid ${
+      cov.usable ? 'var(--swb-ok)' : 'var(--swb-warn)'}">
+      <div class="swb-panel-head"><h3 class="swb-panel-title">${T('sg.fb_coverage')}</h3>
+        ${pill(`${esc(cov.coverage_pct)} %`, cov.usable ? 'ok' : 'warn', true)}</div>
+      <p style="margin:.3rem 0 0">${esc(cov.verdict)}</p>
+      <p class="swb-hint" style="margin:.3rem 0 0">${T('sg.fb_coverage_sub', {
+        q: nf(cov.alerts_qualified), s: nf(cov.alerts_seen) })}</p></div>`;
+
+    const rows = ((rates || {}).items || []).map((r) => {
+      const p = r.precision || {};
+      return `<tr>
+        <td class="swb-truncate">${esc(r.rule_ref || r.rule_uuid || r.analyst || '—')}</td>
+        <td class="swb-num">${nf(r.verdicts)}</td>
+        <td class="swb-num">${nf(r.true_positive)}</td>
+        <td class="swb-num">${nf(r.false_positive)}</td>
+        <td class="swb-num swb-hint">${nf(r.neutral)}</td>
+        <td>${p.publishable
+          ? `<strong>${esc(p.point)} %</strong> <span class="swb-hint">[${esc(p.low)}–${esc(p.high)}]</span>`
+          : `<span class="swb-hint">${esc(p.reason || '—')}</span>`}</td>
+        <td class="swb-num swb-hint">${r.median_time_s === null ? '—' : nf(r.median_time_s) + ' s'}</td>
+      </tr>`;
+    }).join('');
+
+    return `${covBlock}
+      ${panel(T('sg.fb_submit'), `
+        <div class="swb-filters">
+          <input class="swb-input" id="fb-alert" style="max-width:12rem" placeholder="${T('sg.fb_alert')}">
+          <input class="swb-input" id="fb-rule" style="flex:1" placeholder="${T('sg.fb_rule')}">
+          <select class="swb-select" id="fb-code">
+            ${Object.entries(codes).map(([k, v]) =>
+              `<option value="${esc(k)}">${esc(k)} — ${esc(v)}</option>`).join('')}
+          </select>
+          <input class="swb-input" id="fb-analyst" style="max-width:9rem" placeholder="${T('sg.author')}">
+          <input class="swb-input" id="fb-time" style="max-width:7rem" placeholder="${T('sg.fb_time')}">
+          <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-sagf-act="fb-send">${T('sg.record')}</button>
+        </div>
+        <p class="swb-hint" style="margin:.4rem 0 0">${T('sg.fb_submit_sub')}</p>`)}
+      ${err ? panel('', `<p style="margin:0">${esc(err)}</p>`, 'danger') : ''}
+      ${panel('', `<p class="swb-hint" style="margin:0">${esc((rates || {}).note || '')}</p>
+        <p class="swb-hint" style="margin:.3rem 0 0"><strong>${T('sg.refutation')} :</strong> ${
+          esc((rates || {}).refutation || '')}</p>`, 'accent')}
+      <div class="swb-panel" style="padding:0">
+        <div class="swb-panel-head" style="padding:.8rem .9rem 0">
+          <h3 class="swb-panel-title">${T('sg.fb_rates')}</h3>
+          <div class="swb-filters" style="margin:0">
+            ${['rule_ref', 'rule_uuid', 'analyst'].map((b) => `<button type="button"
+              class="fp-btn fp-btn-sm${(st.fbBy || 'rule_ref') === b ? ' fp-btn-primary' : ''}"
+              data-sagf-act="fb-by" data-by="${b}">${esc(b)}</button>`).join('')}
+          </div></div>
+        <div class="swb-tablewrap" style="max-height:38vh"><table class="swb-table"><thead><tr>
+          <th>${T('sg.fb_group')}</th><th class="swb-num">${T('sg.fb_verdicts')}</th>
+          <th class="swb-num">VP</th><th class="swb-num">FP</th>
+          <th class="swb-num">${T('sg.fb_neutral')}</th>
+          <th>${T('sg.fb_precision')}</th><th class="swb-num">${T('sg.fb_median')}</th>
+        </tr></thead><tbody>${rows || `<tr><td colspan="7">
+          <p class="swb-hint" style="padding:1rem">${T('sg.fb_empty')}</p></td></tr>`}
+        </tbody></table></div></div>`;
+  }
+
+  // ── Vue : conflits (LOT 3) ────────────────────────────────────────────────
+  function viewConflicts() {
+    const c = st.data.conflicts;
+    if (!c) {
+      return panel('', `<p class="swb-hint" style="margin:0">${T('sg.cf_idle')}</p>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" style="margin-top:.5rem"
+          data-sagf-act="cf-run">${T('sg.compute')}</button>`);
+    }
+    const rel = c.by_relation || {};
+    const tone = { critique: 'danger', haute: 'danger', moyenne: 'warn', basse: 'mute' };
+
+    // La troncature est annoncée AVANT les chiffres : une analyse incomplète
+    // présentée comme complète serait trompeuse.
+    const trunc = c.truncated ? `<div class="swb-panel" style="border-left:3px solid var(--swb-danger)">
+      <p style="margin:0"><strong>${T('sg.cf_truncated')}</strong></p>
+      <p class="swb-hint" style="margin:.3rem 0 0">${esc(c.truncation_note || '')}</p></div>` : '';
+
+    const rows = (c.items || []).slice(0, 120).map((f) => `<tr>
+      <td>${pill(T('sg.cf_' + f.relation), tone[f.severity] || 'mute')}</td>
+      <td>${f.both_enabled ? pill(T('sg.cf_both_on'), 'danger', true) : '<span class="swb-hint">—</span>'}</td>
+      <td class="swb-truncate" title="${esc(f.a.rule_name)}">${esc(f.a.rule_name)}</td>
+      <td class="swb-truncate" title="${esc(f.b.rule_name)}">${esc(f.b.rule_name)}</td>
+      <td class="swb-hint swb-truncate" title="${esc(f.detail)}">${esc(f.detail)}</td>
+      <td class="swb-hint swb-mono swb-truncate">${esc((f.shared || []).slice(0, 2)
+        .map((x) => Array.isArray(x) ? x.filter(Boolean).join(':') : x).join(' · '))}</td>
+    </tr>`).join('');
+
+    return `${trunc}
+      <div class="swb-kpis">
+        ${kpi(T('sg.cf_contradiction'), nf(rel.contradiction || 0), rel.contradiction ? 'danger' : 'ok', T('sg.cf_contradiction_h'))}
+        ${kpi(T('sg.cf_identique'), nf(rel.identique || 0), rel.identique ? 'warn' : 'ok', T('sg.cf_identique_h'))}
+        ${kpi(T('sg.cf_subsomption'), nf(rel.subsomption || 0), 'mute')}
+        ${kpi(T('sg.cf_both'), nf(c.findings_both_enabled), c.findings_both_enabled ? 'warn' : 'ok', T('sg.cf_both_h'))}
+      </div>
+      ${panel('', `<p style="margin:0"><strong>${esc(c.headline)}</strong></p>
+        <p class="swb-hint" style="margin:.4rem 0 0">${esc(c.method_note)}</p>
+        <p class="swb-hint" style="margin:.3rem 0 0"><strong>${T('sg.refutation')} :</strong> ${esc(c.refutation)}</p>
+        <p class="swb-hint" style="margin:.3rem 0 0"><strong>${T('sg.cf_no_merge')}</strong> ${esc(c.no_auto_merge)}</p>`, 'accent')}
+      <div class="swb-filters">
+        ${['', 'contradiction', 'identique', 'subsomption', 'recouvrement'].map((r) => `<button
+          type="button" class="fp-btn fp-btn-sm${(st.cfRel || '') === r ? ' fp-btn-primary' : ''}"
+          data-sagf-act="cf-filter" data-rel="${r}">${r ? T('sg.cf_' + r) : T('sg.cf_all')}</button>`).join('')}
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-sagf-act="cf-run">${T('sg.recompute')}</button>
+      </div>
+      <div class="swb-panel" style="padding:0">
+        <div class="swb-tablewrap" style="max-height:40vh"><table class="swb-table"><thead><tr>
+          <th>${T('sg.cf_relation')}</th><th>${T('sg.state')}</th>
+          <th>${T('sg.cf_rule_a')}</th><th>${T('sg.cf_rule_b')}</th>
+          <th>${T('sg.cf_detail')}</th><th>${T('sg.cf_shared')}</th>
+        </tr></thead><tbody>${rows || `<tr><td colspan="6">
+          <p class="swb-hint" style="padding:1rem">${T('sg.cf_none')}</p></td></tr>`}
+        </tbody></table></div></div>
+      ${(c.unreadable || []).length ? panel(T('sg.cf_unreadable'), `
+        <p class="swb-hint" style="margin:0 0 .4rem">${T('sg.cf_unreadable_sub', { n: nf(c.rules_unreadable) })}</p>
+        <div class="swb-tablewrap" style="max-height:20vh"><table class="swb-table"><tbody>
+          ${c.unreadable.slice(0, 30).map((u) => `<tr>
+            <td class="swb-truncate">${esc(u.rule_name)}</td>
+            <td class="swb-hint swb-truncate">${esc(u.reason)}</td></tr>`).join('')}
+        </tbody></table></div>`) : ''}`;
+  }
+
   // ── Rendu ─────────────────────────────────────────────────────────────────
   function nav() {
     return `<nav class="swb-nav">${VIEWS.map(([id, key]) => `<button type="button"
@@ -416,6 +548,8 @@
     else if (st.view === 'sagql') body = viewSagql();
     else if (st.view === 'memory') body = viewMemory();
     else if (st.view === 'debt') body = viewDebt();
+    else if (st.view === 'feedback') body = viewFeedback();
+    else if (st.view === 'conflicts') body = viewConflicts();
     else if (st.view === 'journal') body = viewJournal();
     else body = viewMirror();
 
@@ -486,6 +620,30 @@
           st.data.debt = r[0]; st.data.risk = r[1];
           st.loading = false; paint(); return;
         }
+        if (act === 'fb-send') {
+          st.data.fbErr = null;
+          const r = await api('/feedback', { method: 'POST', body: {
+            alert_id: val('fb-alert'), rule_ref: val('fb-rule'),
+            reason_code: val('fb-code'), analyst: val('fb-analyst'),
+            time_spent_s: val('fb-time') || null } });
+          if (r && r.ok === false) st.data.fbErr = r.error;
+          st.data.fbRates = await api(`/feedback/rates?by=${st.fbBy || 'rule_ref'}`)
+            .catch(() => st.data.fbRates);
+          paint(); return;
+        }
+        if (act === 'fb-by') {
+          st.fbBy = b.dataset.by;
+          st.data.fbRates = await api(`/feedback/rates?by=${st.fbBy}`);
+          paint(); return;
+        }
+        if (act === 'cf-run' || act === 'cf-filter') {
+          if (act === 'cf-filter') st.cfRel = b.dataset.rel;
+          st.loading = true; paint();
+          st.data.conflicts = await api(
+            `/conflicts${st.cfRel ? `?relation=${encodeURIComponent(st.cfRel)}` : ''}`)
+            .catch((e) => ({ headline: e.message, by_relation: {}, items: [] }));
+          st.loading = false; paint(); return;
+        }
         if (act === 'journal-add') {
           st.data.journalErr = null;
           const r = await api('/journal', { method: 'POST', body: {
@@ -508,6 +666,16 @@
     load();
     api('/journal').then((j) => { st.data.journal = j; if (st.view === 'journal') paint(); })
       .catch(() => {});
+    // Le lot 1 est peu coûteux : on le charge d'emblée. Le lot 3 parcourt des
+    // dizaines de milliers de paires — il reste à la demande.
+    Promise.all([
+      api('/feedback/codes').catch(() => null),
+      api('/feedback/rates?by=rule_ref').catch(() => null),
+      api('/feedback/coverage').catch(() => null),
+    ]).then((r) => {
+      st.data.fbCodes = r[0]; st.data.fbRates = r[1]; st.data.fbCoverage = r[2];
+      if (st.view === 'feedback') paint();
+    });
   }
 
   // L'onglet est autonome : on ne s'accroche qu'à son propre bouton.

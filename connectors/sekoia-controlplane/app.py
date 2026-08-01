@@ -1635,6 +1635,13 @@ schemadrift.register(app)
 import sagf  # noqa: E402
 sagf.register(app)
 
+# LOT 1 et LOT 3 du plan 14. Montes apres SAGF : ils en suivent les lois.
+import feedback  # noqa: E402
+feedback.register(app)
+
+import conflicts  # noqa: E402
+conflicts.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

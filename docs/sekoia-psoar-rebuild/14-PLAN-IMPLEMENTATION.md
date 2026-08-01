@@ -44,9 +44,9 @@ Les lots 1 à 3 débloquent les suivants. Ne pas les inverser.
 
 | Lot | Titre | Dépend de | Effort |
 |---|---|---|---|
-| **1** | Boucle de retour analyste | — | M |
+| **1** | Boucle de retour analyste | — | **[FAIT]** |
 | **2** | Détection-as-Code | mémoire de config (faite) | L |
-| **3** | Solveur de conflits et doublons | — | M |
+| **3** | Solveur de conflits et doublons | — | **[FAIT]** |
 | **4** | Efficacité réelle des règles | 1 | M |
 | **5** | Couverture pilotée par l'adversaire | — | L |
 | **6** | Jumeau numérique de la collecte | graphe (fait) | L |
@@ -57,7 +57,7 @@ Les lots 1 à 3 débloquent les suivants. Ne pas les inverser.
 
 ---
 
-## LOT 1 — Boucle de retour analyste
+## LOT 1 — Boucle de retour analyste **[FAIT]**
 
 ### Le manque
 `P(false_positive)` retourne **0** et est déclaré non mesurable. Sans retour
@@ -154,7 +154,7 @@ plan refusant les créations · application impossible sans attribution.
 
 ---
 
-## LOT 3 — Solveur de conflits et de doublons
+## LOT 3 — Solveur de conflits et de doublons **[FAIT]**
 
 ### Le manque
 1 180 règles, et personne ne sait lesquelles se recouvrent, se doublonnent ou se
@@ -424,3 +424,48 @@ Un lot est terminé quand : tests verts · `/self-report` mentionne ses limites 
 `/compliance` reste au vert · docs 10/12/README portent les marques
 `[FAIT]` / `[À FAIRE]` / `[BLOQUÉ]` / `[REFUSÉ]` / `[DÉRIVÉ]` · une capture
 prouve le rendu · `main` est à jour.
+
+
+---
+
+## État d'avancement — 1er août 2026
+
+### Lot 1 **[FAIT]** — `feedback.py`
+Taxonomie fermée à sept codes, `indetermine` obligatoire · intervalle de Wilson,
+choisi pour rester correct sur les petits échantillons · refus de publier sous
+10 verdicts ou au-delà de 40 points d'intervalle · idempotent par
+(alerte, analyste) · verdicts neutres **exclus du dénominateur**.
+
+**Mesuré** : 0 % des 3 000 alertes de la période portent un verdict — le module
+le dit et déclare ses taux inutilisables tant que la couverture reste sous 20 %.
+C'est la vérité de départ, et elle justifie le lot.
+
+### Lot 3 **[FAIT]** — `conflicts.py`
+1 044 règles analysées, 136 illisibles écartées avec leur motif.
+
+| Relation | Trouvées |
+|---|---|
+| contradiction | **15** |
+| identique | **8** |
+| subsomption | 45 |
+| recouvrement | 983 |
+
+**Faux positif trouvé sur le tenant et corrigé.** La première version déclarait
+**50** contradictions, dont ProxyShell contre F5 BIG-IP : deux règles visant des
+produits différents, partageant seulement un code HTTP que l'une acceptait parmi
+d'autres et que l'autre excluait.
+
+Deux conditions cumulatives ont été ajoutées : les règles doivent **viser les
+mêmes événements** (recouvrement de champs ≥ 50 %), et l'exclusion doit
+**couvrir entièrement** l'exigence de l'autre sur ce champ. Résultat : 50 → 15,
+et les cas restants sont plausibles (« Csrss Child Found » contre « Csrss Wrong
+Parent »).
+
+**Troncature annoncée dans le titre.** Le plafond de 200 000 paires est atteint —
+les 900 règles agnostiques forment un seul groupe. Le résultat vaut pour les
+paires examinées, **pas pour le catalogue**, et l'en-tête le dit (`⚠ Analyse
+tronquée`).
+
+### Reste à faire
+Lots 2, 4, 5, 6, 7, 8, 9, 10. Le lot 4 est maintenant débloqué par le lot 1,
+mais reste sans valeur tant que la couverture de qualification est nulle.

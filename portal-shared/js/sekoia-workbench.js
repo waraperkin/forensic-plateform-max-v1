@@ -1313,6 +1313,41 @@
       satBlock = degraded(sat.reason || sat.error || '');
     }
 
+    // Dérive de schéma : la panne qui ne prévient jamais. Placée AVANT la
+    // valorisation car une règle morte silencieusement est plus urgente qu'un
+    // classement de rendement.
+    const dr = st.data.drift;
+    let driftBlock = '';
+    if (dr && dr.available) {
+      const dead = dr.rules_silently_dead || 0;
+      driftBlock = `<div class="swb-head" style="margin-top:1rem"><div>
+          <h2 class="swb-title">${T('swb.sd.title')}</h2>
+          <p class="swb-sub">${T('swb.sd.sub')}</p></div></div>
+        <div class="swb-panel" style="border-left:3px solid ${dead ? 'var(--swb-danger)' : 'var(--swb-ok)'}">
+          <h3 class="swb-panel-title">${esc(dr.headline)}</h3>
+          <p class="swb-hint" style="margin:.4rem 0 0">${esc(dr.reason || dr.method_note || '')}</p></div>
+        <div class="swb-kpis">
+          ${kpi(T('swb.sd.k_dead'), nf(dead), dead ? 'danger' : 'ok')}
+          ${kpi(T('swb.sd.k_lost'), nf(dr.fields_lost), dr.fields_lost ? 'danger' : 'ok')}
+          ${kpi(T('swb.sd.k_degraded'), nf(dr.fields_degraded), dr.fields_degraded ? 'warn' : 'ok')}
+          ${kpi(T('swb.sd.k_profiled'), nf(dr.fields_profiled), 'ok',
+            `${nf(dr.formats_profiled)} ${T('swb.sd.formats')} · ${nf(dr.snapshots_seen)} ${T('swb.sd.snapshots')}`)}
+        </div>
+        ${[...(dr.disappeared || []), ...(dr.degraded || [])].slice(0, 12).map((d) => `
+          <div class="swb-panel" style="border-left:3px solid ${
+            d.rules_enabled_impacted ? 'var(--swb-danger)' : 'var(--swb-warn)'}">
+            <div class="swb-panel-head">
+              <h3 class="swb-panel-title"><span class="swb-mono">${esc(d.field)}</span></h3>
+              ${d.rules_enabled_impacted ? pill(`${nf(d.rules_enabled_impacted)} ${T('swb.sd.rules')}`, 'danger', true) : ''}</div>
+            <p class="swb-hint" style="margin:.3rem 0 0">${esc(d.message)}</p>
+            ${(d.examples || []).length ? `<p class="swb-hint" style="margin:.2rem 0 0">${
+              esc(d.examples.slice(0, 3).join(' · '))}</p>` : ''}</div>`).join('')}`;
+    } else if (dr) {
+      driftBlock = `<div class="swb-panel" style="border-left:3px solid var(--swb-muted)">
+        <h3 class="swb-panel-title">${T('swb.sd.title')}</h3>
+        <p class="swb-hint" style="margin:.3rem 0 0">${esc(dr.reason || dr.error || '')}</p></div>`;
+    }
+
     let valBlock = '';
     if (val && val.available) {
       const r = val.rules || {};
@@ -1355,7 +1390,7 @@
     } else if (val) {
       valBlock = degraded(val.reason || val.error || '');
     }
-    return satBlock + valBlock;
+    return satBlock + driftBlock + valBlock;
   }
 
   // ── Opérations en lot ─────────────────────────────────────────────────────
@@ -1616,8 +1651,11 @@
         const r = await Promise.all([
           api('/satisfiability?window=24h&sample=1500').catch(() => null),
           api('/valuation?hours=24').catch(() => null),
+          // Réutilise l'inventaire déjà en cache : aucun job de recherche
+          // supplémentaire n'est lancé si la satisfiabilité vient de tourner.
+          api('/schema-drift?window=24h&sample=1200').catch(() => null),
         ]);
-        st.data.sat = r[0]; st.data.val = r[1];
+        st.data.sat = r[0]; st.data.val = r[1]; st.data.drift = r[2];
         const inert = (r[0] && r[0].rules_enabled_inert) || 0;
         if (inert) st.badges.value = { text: String(inert), tone: 'danger' };
       } else if (st.view === 'operations') {

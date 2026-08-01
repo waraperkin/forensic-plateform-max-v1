@@ -390,3 +390,72 @@ est la source la plus fiable dont on dispose à cet instant, et aucune relecture
 n'est déclenchée derrière. Le symptôme visible par l'opérateur — croire que sa
 création a échoué alors qu'elle a réussi — est supprimé. La cause reste ouverte
 et mérite d'être reprise.
+
+## Rejeu de règle et dérive de schéma
+
+### Rejeu — la peur numéro un d'un SOC
+Activer une règle, c'est parier. Personne ne sait combien d'alertes elle
+produira avant de l'avoir activée, et découvrir le lendemain qu'elle en a levé
+quatre mille est le scénario que tout le monde redoute. Résultat connu : on
+n'active plus rien, et le catalogue se fige.
+
+Le module traduit le motif Sigma en requête de recherche et le rejoue sur la
+fenêtre demandée. **840 règles sur 1 180 (71,2 %) sont traduisibles.**
+
+Le chiffre rendu compte des **événements**, pas des alertes : une règle de
+corrélation regroupe, déduplique et applique une fenêtre, donc elle produira
+moins d'alertes. C'est une **borne haute**, et chaque réponse le déclare —
+présenter « 4 000 » comme un nombre d'alertes ferait renoncer à une règle qui
+n'en aurait produit que douze.
+
+Le traducteur **refuse** plutôt que d'approximer : regex, agrégations, seuils,
+conditions non composables. Une traduction approximative silencieuse donnerait
+un chiffre faux avec l'apparence d'un fait.
+
+**Bug de mon analyseur, corrigé** : l'indentation des blocs était figée à deux
+espaces. Des règles indentent autrement, leurs blocs étaient alors lus comme des
+champs, et les « bloc de détection vide » ne venaient pas des règles mais de moi.
+
+**Croisement avec la satisfiabilité**, et la distinction compte : la
+satisfiabilité dit que les *champs* existent, le rejeu dit que les *valeurs* se
+sont réellement produites. Une règle satisfiable peut rendre zéro au rejeu — elle
+cherche `process.name: cmd.exe` sur un parc qui produit bien ce champ mais jamais
+cette valeur. Le rejeu est le test le plus fort des deux, et les deux moteurs
+concordent sur le tenant.
+
+Mécanisme validé indépendamment : requête de contrôle `event.category:*` →
+5 199 715 événements.
+
+### Dérive de schéma — la panne qui ne prévient jamais
+Une mise à jour de parseur, une option de journalisation décochée : un champ
+cesse d'être peuplé. Les événements continuent d'arriver, la volumétrie ne bouge
+pas, aucune alerte de collecte ne part — et les règles qui testaient ce champ
+cessent de se déclencher. **La surveillance s'éteint sans que rien ne s'allume.**
+
+Le module relève périodiquement le schéma réel de chaque format et compare. Quand
+un champ disparaît, il **nomme les règles qui en dépendaient**.
+
+Sur ce tenant, `process.command_line` est exigé par **84 règles activées** : sa
+disparition les tuerait toutes d'un coup, aujourd'hui sans que personne le voie.
+
+Trois garde-fous, les mêmes qu'ailleurs : aucun verdict sous 30 événements pour
+un format ; présence exigée dans **tous** les relevés antérieurs ; champ couvrant
+moins de 20 % des événements écarté. Une **baisse de couverture** est distinguée
+d'une **disparition** : un champ qui passe de 100 % à 3 % n'a pas disparu, mais
+les règles ne se déclencheront plus que trois fois sur cent.
+
+### Une limite du tenant, découverte en testant
+En validant ces moteurs, j'ai déclenché la **limitation de débit de l'API Sekoia
+(HTTP 429)**. Chaque relevé lance des jobs de recherche qui comptent dans le
+quota partagé du tenant — la même ressource que celle des analystes.
+
+Deux conséquences intégrées au produit :
+- en cas de 429, un inventaire **périmé est servi plutôt que rien**, avec son âge
+  affiché : un schéma d'il y a deux heures vaut mieux qu'une page vide ;
+- un inventaire périmé n'est **jamais persisté** comme relevé, sinon la ligne de
+  base enregistrerait deux fois le même instant et masquerait une disparition.
+
+La détection de dérive est prouvée par **15 tests unitaires** couvrant
+disparition, dégradation, apparition et construction de la ligne de base. La
+démonstration de bout en bout sur données vivantes a été **reportée** faute de
+quota disponible — je préfère le dire que de la présenter comme faite.

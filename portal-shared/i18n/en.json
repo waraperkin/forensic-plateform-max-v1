@@ -2323,6 +2323,17 @@
       "title": "Replay on real data",
       "events": "matching events",
       "not_replayable": "Pattern cannot be replayed"
+    },
+    "sd": {
+      "title": "Schema drift — silent rule death",
+      "sub": "A field stops being populated, events keep arriving, no alert fires — and the rules testing it go dark. This is the failure that never warns you.",
+      "k_dead": "Rules silently dead",
+      "k_lost": "Fields lost",
+      "k_degraded": "Fields degraded",
+      "k_profiled": "Fields tracked",
+      "formats": "formats",
+      "snapshots": "snapshots",
+      "rules": "enabled rules"
     }
   },
   "swbtx": {

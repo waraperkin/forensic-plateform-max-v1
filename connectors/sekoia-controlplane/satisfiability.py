@@ -308,7 +308,14 @@ def blind_spots(assessments: list, top: int = 40) -> list:
 
 
 async def _inventory(window: str, sample: int, refresh: bool) -> tuple:
-    """Inventaire des champs, depuis le cache si possible."""
+    """Inventaire des champs, depuis le cache si possible.
+
+    En cas de LIMITATION DE DÉBIT côté Sekoia (HTTP 429), on préfère servir un
+    inventaire périmé plutôt que rien : un schéma d'il y a deux heures reste
+    infiniment plus utile qu'une page vide, et son âge est de toute façon
+    affiché. Chaque job de recherche compte dans le quota du tenant — c'est une
+    ressource partagée avec les analystes, pas une ressource gratuite.
+    """
     fresh = (_CACHE["inv"] is not None
              and _CACHE["window"] == window
              and (time.time() - _CACHE["ts"]) < INVENTORY_TTL_S)
@@ -316,6 +323,10 @@ async def _inventory(window: str, sample: int, refresh: bool) -> tuple:
         return (_CACHE["inv"], _CACHE["ingested"], _CACHE["deep"],
                 int(time.time() - _CACHE["ts"]), None)
     inv, ingested, deep, err = await _build_inventory(window, sample)
+    if inv is None and _CACHE["inv"] is not None:
+        return (_CACHE["inv"], _CACHE["ingested"], _CACHE["deep"],
+                int(time.time() - _CACHE["ts"]),
+                f"{err} — inventaire en cache servi à la place.")
     if inv is not None:
         _CACHE.update({"inv": inv, "ingested": ingested, "deep": deep,
                        "ts": time.time(), "window": window})
@@ -379,6 +390,8 @@ async def analyse(window: str = "24h", sample: int = 3000,
         "deep_sampled_events": deep,
         "formats_ingested": len(ingested),
         "inventory_age_s": age,
+        "inventory_stale": bool(err),
+        "inventory_error": err,
         "inventory_note": "Inventaire de champs mis en cache "
                           f"{INVENTORY_TTL_S // 60} min : le construire coûte une "
                           "centaine de secondes, alors que le schéma d'un format ne "

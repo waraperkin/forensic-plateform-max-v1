@@ -2323,6 +2323,17 @@
       "title": "Rejeu sur les données réelles",
       "events": "événements correspondants",
       "not_replayable": "Motif non rejouable"
+    },
+    "sd": {
+      "title": "Dérive de schéma — mort silencieuse des règles",
+      "sub": "Un champ cesse d'être peuplé, les événements continuent d'arriver, aucune alerte ne part — et les règles qui le testaient s'éteignent. C'est la panne qui ne prévient jamais.",
+      "k_dead": "Règles mortes silencieusement",
+      "k_lost": "Champs disparus",
+      "k_degraded": "Champs dégradés",
+      "k_profiled": "Champs suivis",
+      "formats": "formats",
+      "snapshots": "relevés",
+      "rules": "règles activées"
     }
   },
   "swbtx": {

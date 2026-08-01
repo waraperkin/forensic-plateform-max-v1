@@ -36,6 +36,9 @@ RETENTION = {
     # Les relevés par hôte sont plus nombreux que ceux par intake (une ligne par
     # machine et par cycle) et ne servent qu'à établir une normale récente.
     "sekoia-hostvol-*": int(os.environ.get("SEKOIA_RETENTION_HOSTVOL_DAYS", "21")),
+    # Le schéma sert de ligne de base longue : le purger trop tôt reviendrait à
+    # perdre la référence qui permet de détecter une disparition de champ.
+    "sekoia-schema-*": int(os.environ.get("SEKOIA_RETENTION_SCHEMA_DAYS", "180")),
 }
 # `sekoia-baselines` n'a PAS de rétention : c'est un état courant réécrit en
 # place, pas une série temporelle. L'expirer reviendrait à perdre les références

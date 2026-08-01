@@ -1627,6 +1627,9 @@ valuation.register(app)
 import backtest  # noqa: E402
 backtest.register(app)
 
+import schemadrift  # noqa: E402
+schemadrift.register(app)
+
 
 if __name__ == "__main__":
     import uvicorn

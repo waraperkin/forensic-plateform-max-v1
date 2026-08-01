@@ -308,3 +308,85 @@ chantier distinct, à décider.
 
 Vérification : 8 vues contrôlées en anglais sur l'ensemble de leur chrome —
 titres, sous-titres, panneaux, KPI, en-têtes et options de filtres.
+
+## Satisfiabilité, valeur, et fin des « vitrines »
+
+### Satisfiabilité — la question qu'aucun SIEM ne traite
+La console dit quelles règles sont **activées**. Elle ne dit jamais lesquelles
+peuvent **se déclencher**. Une règle Sigma teste des champs ; si aucune source
+ingérée ne les produit, elle est verte, elle compte dans la couverture, et elle
+ne tirera jamais.
+
+Le moteur confronte les champs exigés par chaque règle aux champs réellement
+observés dans les événements — schéma que Sekoia n'expose pas et qu'on établit
+par échantillonnage.
+
+**Sur ce tenant : 305 règles sont activées et ne peuvent pas se déclencher.**
+
+La lecture inverse est plus actionnable : collecter `process.parent.name`
+réactive 72 règles activées d'un coup.
+
+| Discipline | Raison |
+|---|---|
+| ≥ 30 événements par format avant tout verdict négatif | sans volume, l'absence ne prouve rien |
+| borne de fréquence rendue (règle de trois : < 3/n) | « absent de l'échantillon » n'est pas « absent du flux » |
+| aucun verdict négatif dur sur une règle agnostique | un champ peut exister sur un format sans exister sur celui qui déclencherait la règle |
+
+**Erreur trouvée et corrigée en construisant.** La première version déclarait
+« non ingéré, confiance certaine » pour 319 règles dont les formats sont en
+réalité collectés : un échantillon global est dominé par les sources bavardes.
+Correction en deux temps — croisement avec l'inventaire des intakes, et
+échantillonnage **ciblé** des formats que le tirage global ne voit pas.
+Dialectes couverts 4 → 6, verdicts fermes 44,6 % → 52,3 %.
+
+**Performance.** L'inventaire coûte 104 s ; il est mis en cache 30 min et
+préchauffé par le poller — sans quoi le premier à le demander est l'écran, et il
+expire. Cache vérifié iso-résultat (305 inertes dans les deux cas, 0,1 s).
+
+### Volume contre valeur
+Un SIEM compte les événements et les alertes, il ne les rapproche jamais.
+
+- **2 sources ont produit 34 millions d'événements sans lever une seule
+  alerte** — 54,9 % du volume ingéré.
+- **Une seule règle produit 58 % de toutes les alertes** (concentration top 5 :
+  66,4 %).
+
+Mise en garde attachée au classement : « zéro alerte » ne veut pas dire
+« inutile ». Une source d'accès peut ne jamais déclencher de règle et rester
+indispensable à l'investigation. Le module classe, il ne recommande pas la
+suppression.
+
+### Fin des deux dernières « vitrines »
+- **Alerting** : création et suppression de règles depuis l'interface. La
+  suppression confirme en **nommant** la règle, plutôt qu'un « êtes-vous sûr ? »
+  qu'on clique sans lire.
+- **Inventaire** : chaque incohérence porte désormais une **remédiation
+  exécutable** (61 intakes sans connecteur → désactivation ; 71 règles
+  désactivées → réactivation), passant par le moteur de lot — donc simulée,
+  historisée, annulable. La réserve du module est affichée **dans le volet**, à
+  côté du bouton, pas en infobulle qu'on ne lit qu'après coup.
+
+Là où l'automatisation n'a pas de sens, elle n'est pas proposée : rattacher un
+connecteur suppose des identifiants propres à chaque source, et « activer des
+règles » pour un format suppose de choisir lesquelles.
+
+### Trois bugs de routage et de jointure
+1. `/rules/satisfiability` était capté par la route dynamique `/rules/{id}`, qui
+   partait interroger Sekoia avec l'identifiant « satisfiability ». Route
+   déplacée hors de cet espace de noms.
+2. Les alertes référencent l'uuid de l'**instance** de règle, pas celui du
+   catalogue : ne chercher que par uuid renvoyait « 0 règle ayant tiré » sur
+   3 000 alertes. Indexation par uuid **et** par nom.
+3. Le formulaire de création lisait `types` alors que l'API renvoie `items` : la
+   liste de types était vide et un type vide produisait un 400 opaque.
+
+### Une anomalie que je n'ai pas su expliquer
+Après création d'une règle, une relecture immédiate de la liste renvoie
+parfois l'état antérieur — alors que le fichier et l'API directe concordent
+(11/11 vérifié). Je n'ai pas isolé la cause dans le temps imparti.
+
+L'affichage est donc rendu **autoritatif depuis la réponse de création**, qui
+est la source la plus fiable dont on dispose à cet instant, et aucune relecture
+n'est déclenchée derrière. Le symptôme visible par l'opérateur — croire que sa
+création a échoué alors qu'elle a réussi — est supprimé. La cause reste ouverte
+et mérite d'être reprise.

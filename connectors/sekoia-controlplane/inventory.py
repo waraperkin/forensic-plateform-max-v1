@@ -61,22 +61,47 @@ def detect_inconsistencies(full: dict) -> list[dict]:
     rules = full.get("rules") or []
     out: list[dict] = []
 
-    def add(kind, severity, title, detail, items, action):
+    def add(kind, severity, title, detail, items, action, remediation=None):
+        """Un constat, et quand elle existe, la REMÉDIATION exécutable.
+
+        Nommer l'action attendue en français ne suffit pas : l'opérateur devait
+        ensuite retrouver lui-même les objets concernés dans l'onglet des
+        opérations en lot. `remediation` porte la cible, l'action et les
+        identifiants, ce qui permet de la déclencher depuis le constat — en
+        passant par le même moteur, donc avec simulation et rollback.
+        """
         if items:
-            out.append({"kind": kind, "severity": severity, "title": title,
-                        "detail": detail, "count": len(items),
-                        "items": items[:50], "action": action})
+            row = {"kind": kind, "severity": severity, "title": title,
+                   "detail": detail, "count": len(items),
+                   "items": items[:50], "action": action}
+            if remediation and remediation.get("ids"):
+                row["remediation"] = {**remediation,
+                                      "ids": remediation["ids"][:500],
+                                      "count": len(remediation["ids"])}
+            out.append(row)
 
     # Un intake actif sans connecteur ne reçoit rien : il donne l'illusion
     # d'une couverture qui n'existe pas.
-    orphans = [r.get("intake_name") for r in rows
-               if not r.get("connector_configuration_uuid")
-               and str(r.get("intake_status") or "").lower() in ("running", "enabled", "active")]
+    orphan_rows = [r for r in rows
+                   if not r.get("connector_configuration_uuid")
+                   and str(r.get("intake_status") or "").lower() in ("running", "enabled", "active")]
+    orphans = [r.get("intake_name") for r in orphan_rows]
     add("intake_sans_connecteur", "high",
         "Intakes actifs sans connecteur",
         "Ces sources sont déclarées actives mais aucun connecteur ne les alimente : "
         "elles ne recevront jamais d'événement.",
-        orphans, "Rattacher un connecteur ou désactiver l'intake.")
+        orphans, "Rattacher un connecteur ou désactiver l'intake.",
+        # Rattacher un connecteur ne s'automatise pas : cela suppose des
+        # identifiants et une configuration propres à chaque source. Désactiver
+        # s'automatise, et c'est la moitié de l'action qui lève l'illusion de
+        # couverture. On ne propose donc QUE celle-là, en le disant.
+        {"target": "intakes", "action": "disable",
+         "ids": [r.get("intake_uuid") for r in orphan_rows if r.get("intake_uuid")],
+         "label": "Désactiver ces intakes",
+         "caveat": "Rattacher un connecteur demande des identifiants propres à chaque "
+                   "source et ne s'automatise pas. Désactiver lève l'illusion de "
+                   "couverture sans rien détruire : l'intake reste configuré et se "
+                   "réactive d'un clic."})
 
     # Deux intakes de même nom rendent toute corrélation ambiguë.
     seen: dict[str, int] = {}
@@ -100,11 +125,18 @@ def detect_inconsistencies(full: dict) -> list[dict]:
         no_entity, "Affecter une entité à chaque source.")
 
     # Une règle désactivée sans raison reste du travail perdu.
-    disabled = [r.get("rule_name") for r in rules if r.get("rule_enabled") is False]
+    disabled_rows = [r for r in rules if r.get("rule_enabled") is False]
+    disabled = [r.get("rule_name") for r in disabled_rows]
     add("regle_desactivee", "medium",
         "Règles de détection désactivées",
         "Ces règles existent au catalogue mais ne s'appliquent pas.",
-        disabled, "Réactiver ou retirer du catalogue pour clarifier la couverture.")
+        disabled, "Réactiver ou retirer du catalogue pour clarifier la couverture.",
+        {"target": "rules", "action": "enable",
+         "ids": [r.get("rule_uuid") for r in disabled_rows if r.get("rule_uuid")],
+         "label": "Réactiver ces règles",
+         "caveat": "Une règle a pu être désactivée volontairement parce qu'elle était "
+                   "bruyante. Croisez avec la valorisation avant de tout réactiver : "
+                   "la simulation vous montre lesquelles sont concernées."})
 
     # Un format ingéré sans règle : on collecte sans détecter.
     ingested = {r.get("intake_format_uuid") for r in rows if r.get("intake_format_uuid")}
@@ -114,12 +146,15 @@ def detect_inconsistencies(full: dict) -> list[dict]:
         for u in str(r.get("rule_dialect_uuids") or "").split(","):
             if u:
                 with_rules.add(u)
-    gaps = [fmt_names.get(u, u) for u in ingested - with_rules]
+    gap_uuids = sorted(ingested - with_rules)
+    gaps = [fmt_names.get(u, u) for u in gap_uuids]
     add("format_sans_regle", "high",
         "Formats ingérés sans aucune règle",
         "Ces formats sont collectés mais aucune règle de détection ne les exploite : "
         "la donnée entre, rien ne la surveille.",
         gaps, "Activer des règles pour ces formats ou cesser de les collecter.")
+    # Pas de remédiation automatique ici : activer « des règles » suppose de
+    # choisir lesquelles, ce qui relève de l'analyse et non du lot.
 
     order = {"high": 0, "medium": 1, "low": 2}
     return sorted(out, key=lambda x: order.get(x["severity"], 9))

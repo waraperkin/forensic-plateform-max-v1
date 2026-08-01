@@ -320,7 +320,8 @@
 
   function drawer() {
     if (!st.drawer) return '';
-    const d = st.drawer;
+    let d = st.drawer;
+    if (d.kind === 'remediation') d = remediationDrawer(d);
     return `<div class="swb-scrim" data-swb-act="close-drawer"></div>
       <aside class="swb-drawer" role="dialog" aria-label="${esc(d.title)}">
         <div class="swb-drawer-head">
@@ -330,6 +331,33 @@
         </div>
         <div class="swb-drawer-body">${d.body}</div>
       </aside>`;
+  }
+
+  // Volet de remédiation : la simulation intégrale AVANT l'écriture, et la
+  // réserve du module affichée à côté du bouton — pas dans une infobulle qu'on
+  // ne lit qu'après coup.
+  function remediationDrawer(d) {
+    const rem = (d.issue || {}).remediation || {};
+    const p = d.preview || {};
+    const rows = (p.results || []).slice(0, 200).map((r) => `<tr>
+      <td class="swb-truncate">${esc(r.name || r.id)}</td>
+      <td class="swb-hint">${esc(JSON.stringify(r.before || {}))} → ${esc(JSON.stringify(r.would_apply || {}))}</td>
+    </tr>`).join('');
+    return {
+      title: rem.label || T('swb.inv.remediate'),
+      subtitle: d.issue.title,
+      body: `${rem.caveat ? `<div class="swb-panel" style="border-left:3px solid var(--swb-warn)">
+          <p class="swb-hint" style="margin:0">${esc(rem.caveat)}</p></div>` : ''}
+        <div class="swb-panel">
+          <p class="swb-hint" style="margin:0 0 .5rem">${T('swb.sel.simulation', { n: nf(p.selected || 0) })}</p>
+          ${p.error ? `<p class="swb-hint">${esc(p.error)}</p>` : ''}
+          <button type="button" class="fp-btn fp-btn-sm fp-btn-danger"
+            data-swb-act="remediate-apply"${p.selected ? '' : ' disabled'}>
+            ${T('swb.sel.apply', { n: nf(p.changing !== undefined ? p.changing : p.selected || 0) })}</button>
+        </div>
+        <div class="swb-panel" style="padding:0"><div class="swb-tablewrap">
+          <table class="swb-table"><tbody>${rows}</tbody></table></div></div>`,
+    };
   }
 
   // ═══ VUES ═════════════════════════════════════════════════════════════════
@@ -900,7 +928,11 @@
       <td>${pill(i.severity, sevTone[i.severity] || 'mute')}</td>
       <td>${esc(i.title)}</td>
       <td class="swb-num">${esc(nf(i.count))}</td>
-      <td class="swb-hint swb-truncate" title="${esc(i.action)}">${esc(i.action)}</td></tr>`).join('');
+      <td class="swb-hint swb-truncate" title="${esc(i.action)}">${esc(i.action)}</td>
+      <td>${i.remediation ? `<button type="button" class="fp-btn fp-btn-sm fp-btn-ghost"
+        data-swb-act="remediate" data-kind="${esc(i.kind)}"
+        title="${esc(i.remediation.caveat || '')}">${esc(i.remediation.label)}</button>`
+        : `<span class="swb-hint">${T('swb.inv.manual')}</span>`}</td></tr>`).join('');
 
     const drift = (!d || !d.available)
       ? stateBox('Dérive non mesurable', (d && d.reason)
@@ -949,7 +981,7 @@
       <div class="swb-panel" style="padding:0"><div class="swb-panel-head" style="padding:.8rem .9rem 0">
           <h3 class="swb-panel-title">Incohérences de configuration</h3></div>
         <div class="swb-tablewrap" style="max-height:36vh"><table class="swb-table"><thead><tr>
-          <th>Gravité</th><th>Constat</th><th class="swb-num">Objets</th><th>Action attendue</th>
+          <th>Gravité</th><th>Constat</th><th class="swb-num">Objets</th><th>Action attendue</th><th></th>
         </tr></thead><tbody>${issues || '<tr><td colspan="4"><p class="swb-hint" style="padding:1rem">Aucune incohérence détectée.</p></td></tr>'}</tbody></table></div></div>
       <h3 class="swb-panel-title" style="margin-top:.5rem">Dérive de configuration</h3>
       ${drift}
@@ -1019,7 +1051,9 @@
       <td class="swb-hint swb-truncate">${esc(JSON.stringify(r.params || {}))}</td>
       <td class="swb-num">${esc(r.cooldown_s)} s</td>
       <td><button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="toggle-rule"
-        data-id="${esc(r.id)}" data-enabled="${r.enabled}">${r.enabled ? 'Désactiver' : 'Activer'}</button></td>
+        data-id="${esc(r.id)}" data-enabled="${r.enabled}">${r.enabled ? T('swb.sel.disable') : T('swb.sel.enable')}</button>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="arule-del"
+        data-id="${esc(r.id)}" data-name="${esc(r.name)}">${T('swb.al.delete')}</button></td>
     </tr>`).join('');
 
     let aRows = (alerts && alerts.items) || [];
@@ -1043,6 +1077,21 @@
         ${kpi('Élevées', nf(bySev.high || 0), bySev.high ? 'warn' : 'ok')}
         ${kpi('Règles actives', nf(rules.enabled || 0), 'ok', `${nf(rules.count)} définies`)}
       </div>
+      <div class="swb-panel">
+        <div class="swb-panel-head"><h3 class="swb-panel-title">${T('swb.al.new')}</h3></div>
+        <div class="swb-filters">
+          <input class="swb-input" id="swb-arname" style="max-width:16rem" placeholder="${T('swb.al.name_ph')}">
+          <select class="swb-select" id="swb-artype" aria-label="${T('swb.col.type')}">
+            ${((st.data.artypes && st.data.artypes.items) || []).map((v) =>
+              `<option value="${esc(v.type)}">${esc(v.label || v.type)}</option>`).join('')}
+          </select>
+          <select class="swb-select" id="swb-arsev" aria-label="${T('swb.col.severity')}">
+            ${(((st.data.artypes && st.data.artypes.severities) || ['critical', 'high', 'medium', 'low', 'info'])).map((x) =>
+              `<option value="${esc(x)}">${esc(x)}</option>`).join('')}
+          </select>
+          <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-swb-act="arule-new">${T('swb.al.create')}</button>
+        </div>
+        <p class="swb-hint" style="margin:.4rem 0 0">${T('swb.al.new_hint')}</p></div>
       <div class="swb-panel" style="padding:0"><div class="swb-panel-head" style="padding:.8rem .9rem 0">
           <h3 class="swb-panel-title">Règles</h3></div>
         <div class="swb-tablewrap" style="max-height:34vh"><table class="swb-table"><thead><tr>
@@ -1515,6 +1564,7 @@
           api('/alerting/rules'), api('/alerting/alerts?hours=24').catch(() => null),
         ]);
         st.data.arules = r[0]; st.data.alerts = r[1];
+        st.data.artypes = await api('/alerting/rule-types').catch(() => null);
         if (r[1] && r[1].total) st.badges.alerting = { text: String(r[1].total), tone: 'danger' };
       } else if (st.view === 'hosts') {
         // Le relevé est persisté à chaque consultation : c'est ce qui construit
@@ -1693,6 +1743,80 @@
       try {
         if (act === 'reload') { load(); return; }
         if (act === 'sel-clear') { st.sel = {}; st.act = null; paint(); return; }
+        if (act === 'arule-new') {
+          const name = (document.getElementById('swb-arname') || {}).value || '';
+          if (!name.trim()) { toast(T('swb.al.need_name'), 'err'); return; }
+          const type = (document.getElementById('swb-artype') || {}).value;
+          // Envoyer un type vide produit un 400 opaque cote serveur. On le dit
+          // ici, ou le catalogue de types n'a pas pu etre charge.
+          if (!type) { toast(T('swb.al.no_types'), 'err'); return; }
+          const body = {
+            name: name.trim(),
+            type,
+            severity: (document.getElementById('swb-arsev') || {}).value,
+            enabled: true,
+          };
+          const r = await api('/alerting/rules', { method: 'POST', body });
+          if (r && r.error) { toast(r.error, 'err'); return; }
+          // La regle creee est prise depuis la REPONSE, qui fait autorite, et non
+          // depuis une relecture de la liste. J'ai observe que la relecture
+          // immediate pouvait renvoyer un etat anterieur d'un cran, sans avoir pu
+          // en isoler la cause : le fichier et l'API directe concordent pourtant.
+          // Afficher ce que le serveur vient de confirmer evite de faire croire a
+          // l'operateur que sa creation a echoue alors qu'elle a reussi.
+          if (r && r.rule && st.data.arules) {
+            const items = (st.data.arules.items || []).filter((x) => x.id !== r.rule.id);
+            items.push(r.rule);
+            st.data.arules = { ...st.data.arules, items, count: items.length,
+              enabled: items.filter((x) => x.enabled).length };
+          }
+          toast(T('swb.al.created', { name: body.name }), 'ok');
+          // On ne recharge PAS derriere : la relecture immediate renvoie un etat
+          // anterieur et ecraserait la ligne qu'on vient de confirmer. L'etat
+          // affiche vient de la reponse du serveur, qui fait autorite ; le
+          // prochain rafraichissement volontaire reconcilie le reste.
+          paint(); return;
+        }
+        if (act === 'arule-del') {
+          // Suppression definitive : on demande confirmation en NOMMANT la
+          // regle, plutot qu'un « etes-vous sur ? » qu'on clique sans lire.
+          if (!window.confirm(T('swb.al.confirm_del', { name: b.dataset.name }))) return;
+          await api(`/alerting/rules/${encodeURIComponent(b.dataset.id)}`, { method: 'DELETE' });
+          // Meme raison qu'a la creation : on retire la ligne tout de suite.
+          if (st.data.arules) {
+            const items = (st.data.arules.items || []).filter((x) => x.id !== b.dataset.id);
+            st.data.arules = { ...st.data.arules, items, count: items.length,
+              enabled: items.filter((x) => x.enabled).length };
+          }
+          toast(T('swb.al.deleted'), 'ok');
+          paint(); return;
+        }
+        if (act === 'remediate') {
+          // La remediation passe par le moteur de lot, en SIMULATION d'abord.
+          // Un constat d'inventaire ne doit pas etre un raccourci vers une
+          // ecriture non simulee.
+          const issue = ((st.data.consistency || {}).issues || [])
+            .find((x) => x.kind === b.dataset.kind);
+          if (!issue || !issue.remediation) return;
+          const rem = issue.remediation;
+          const r = await api(`/bulk/${encodeURIComponent(rem.target)}`, {
+            method: 'POST', body: { action: rem.action, ids: rem.ids, dry_run: 1 },
+          });
+          st.drawer = { kind: 'remediation', issue, preview: r };
+          paint(); return;
+        }
+        if (act === 'remediate-apply') {
+          const d = st.drawer || {};
+          const rem = (d.issue || {}).remediation || {};
+          const r = await api(`/bulk/${encodeURIComponent(rem.target)}`, {
+            method: 'POST', body: { action: rem.action, ids: rem.ids, dry_run: 0 },
+          });
+          st.drawer = null;
+          toast(T('swb.sel.done', { done: nf(r.done || 0), total: nf(r.selected || 0),
+            skipped: r.skipped ? T('swb.sel.skipped', { n: nf(r.skipped) }) : '' }),
+            r.failed ? 'err' : 'ok');
+          load(); return;
+        }
         if (act === 'sel-do') { await selRun(b.dataset.op, true); return; }
         if (act === 'sel-apply') { await selRun(st.act && st.act.op, false); return; }
         if (act === 'close-drawer') { st.drawer = null; paint(); return; }

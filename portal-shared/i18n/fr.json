@@ -2300,6 +2300,22 @@
       "non_ingere": "format non collecté",
       "improbable": "improbable",
       "indeterminable": "indéterminable"
+    },
+    "al": {
+      "new": "Nouvelle règle d'alerting",
+      "name_ph": "Nom de la règle",
+      "create": "Créer",
+      "new_hint": "La règle est créée activée, avec les paramètres par défaut de son type. Ajustez-les ensuite dans le tableau.",
+      "need_name": "Donnez un nom à la règle.",
+      "created": "Règle « {name} » créée.",
+      "delete": "Supprimer",
+      "deleted": "Règle supprimée.",
+      "confirm_del": "Supprimer définitivement la règle « {name} » ?",
+      "no_types": "Catalogue des types de règles indisponible : impossible de créer sans type."
+    },
+    "inv": {
+      "manual": "manuelle",
+      "remediate": "Remédier"
     }
   },
   "swbtx": {

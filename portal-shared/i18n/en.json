@@ -2300,6 +2300,22 @@
       "non_ingere": "format not collected",
       "improbable": "unlikely",
       "indeterminable": "undetermined"
+    },
+    "al": {
+      "new": "New alerting rule",
+      "name_ph": "Rule name",
+      "create": "Create",
+      "new_hint": "The rule is created enabled, with its type's default parameters. Adjust them afterwards in the table.",
+      "need_name": "Give the rule a name.",
+      "created": "Rule “{name}” created.",
+      "delete": "Delete",
+      "deleted": "Rule deleted.",
+      "confirm_del": "Permanently delete rule “{name}”?",
+      "no_types": "Rule-type catalogue unavailable: cannot create without a type."
+    },
+    "inv": {
+      "manual": "manual",
+      "remediate": "Remediate"
     }
   },
   "swbtx": {

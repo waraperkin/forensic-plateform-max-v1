@@ -2708,7 +2708,10 @@
       "k_proven": "PROVEN",
       "k_declared": "DECLARED",
       "k_blind": "BLIND SPOTS",
-      "k_trends": "Trends"
+      "k_trends": "Trends",
+      "g_visibility": "Visibility",
+      "g_scope": "Scope",
+      "g_detection": "Detection"
     }
   },
   "swbtx": {

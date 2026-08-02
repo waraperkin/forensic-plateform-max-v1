@@ -12,22 +12,33 @@
   'use strict';
   const API = '/api/threat/analyst';
 
-  const VIEWS = [
-    ['sources', 'an.v_sources'],
-    ['rules', 'an.v_rules'],
-    ['assets', 'an.v_assets'],
-    ['intakes', 'an.v_intakes'],
-    ['hostnames', 'an.v_hosts'],
-    ['coverage', 'an.v_cov'],
-    ['anomalies', 'an.v_anom'],
-    ['quality', 'an.v_quality'],
-    ['loss', 'an.v_loss'],
-    ['fields', 'an.v_fields'],
-    ['mitre', 'an.v_mitre'],
-    ['taxonomies', 'an.v_taxo'],
-    ['inventory', 'an.v_inv'],
-    ['tags', 'an.v_tags'],
+  /* Les vues sont regroupees selon les memes categories que la navigation
+   * principale : visibilite, perimetre, detection. Une liste plate de 14
+   * onglets oblige l'analyste a se rappeler OU se trouve chaque chose ; un
+   * regroupement lui rappelle POURQUOI il y va. */
+  const GROUPS = [
+    ['g_visibility', [
+      ['sources', 'an.v_sources'],
+      ['intakes', 'an.v_intakes'],
+      ['hostnames', 'an.v_hosts'],
+      ['loss', 'an.v_loss'],
+      ['anomalies', 'an.v_anom'],
+      ['quality', 'an.v_quality'],
+    ]],
+    ['g_scope', [
+      ['assets', 'an.v_assets'],
+      ['fields', 'an.v_fields'],
+      ['inventory', 'an.v_inv'],
+    ]],
+    ['g_detection', [
+      ['rules', 'an.v_rules'],
+      ['coverage', 'an.v_cov'],
+      ['mitre', 'an.v_mitre'],
+      ['taxonomies', 'an.v_taxo'],
+      ['tags', 'an.v_tags'],
+    ]],
   ];
+  const VIEWS = GROUPS.flatMap(([, v]) => v);
 
   const st = { view: 'sources', data: {}, loading: false, error: null,
                entity: 'intakes',
@@ -292,9 +303,11 @@
   }
 
   function nav() {
-    return `<nav class="swb-nav">${VIEWS.map(([id, key]) => `<button type="button"
-      class="swb-tab" aria-selected="${st.view === id}" data-an-view="${id}">${
-      T(key)}</button>`).join('')}</nav>`;
+    return GROUPS.map(([g, views]) => `<nav class="swb-nav">
+      <span class="swb-nav-label">${T('an.' + g)}</span>
+      ${views.map(([id, key]) => `<button type="button"
+        class="swb-tab" aria-selected="${st.view === id}" data-an-view="${id}">${
+        T(key)}</button>`).join('')}</nav>`).join('');
   }
 
   function paint() {

@@ -23,7 +23,13 @@
   ];
 
   const st = { view: 'sources', data: {}, loading: false, error: null,
-               entity: 'intakes' };
+               entity: 'intakes',
+               /* Paramètres d'échantillonnage, choisis par l'analyste. Les
+                * élargir coûte du quota de recherche Sekoia : c'est un
+                * arbitrage qui lui appartient, pas une valeur imposée. */
+               window: '1h', sample: 2000, hours: 24,
+               intake: '', relaysOnly: true };
+  const WINDOWS = ['15m', '1h', '6h', '24h', '7d'];
 
   function T(key, vars) {
     if (window.i18n && typeof i18n.t === 'function') {
@@ -94,7 +100,9 @@
     const head = `<p style="margin:0"><strong>${esc(p.headline || '')}</strong></p>
       <p style="margin:.3rem 0 0">${freshness(p)}</p>
       ${p.method ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(p.method)}</p>` : ''}
-      ${p.why ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(p.why)}</p>` : ''}`;
+      ${p.why ? `<p class="swb-hint" style="margin:.3rem 0 0">${esc(p.why)}</p>` : ''}
+      ${p.sampling_note ? `<p class="swb-hint" style="margin:.3rem 0 0">${
+        esc(p.sampling_note)}</p>` : ''}`;
     /* Le tableau de bord des règles renvoie quatre familles nommées plutôt
      * qu'une liste plate : on les rend chacune avec son intitulé. */
     const families = ['inert', 'never_triggered', 'noisy', 'obsolete'];
@@ -123,18 +131,44 @@
     return panel('', head + verdictTable(items), 'accent');
   }
 
+  /* Réglages d'échantillonnage. Présents AVANT le calcul comme après, pour que
+   * l'analyste puisse élargir sa fenêtre sans repartir de zéro. */
+  function controls(name) {
+    const hostView = (name === 'hostnames' || name === 'fortigate');
+    const timeView = (name === 'sources' || name === 'intakes' || name === 'rules');
+    return `<div class="swb-filters" style="margin-top:.5rem">
+      ${!timeView ? `<label class="swb-hint">${T('an.f_window')}
+        <select class="swb-input" id="an-window">${WINDOWS.map((w) =>
+          `<option value="${w}"${w === st.window ? ' selected' : ''}>${w}</option>`
+          ).join('')}</select></label>
+        <label class="swb-hint">${T('an.f_sample')}
+          <input class="swb-input" id="an-sample" type="number" min="200" max="10000"
+            step="200" value="${st.sample}" style="width:7rem"></label>` : ''}
+      ${timeView ? `<label class="swb-hint">${T('an.f_hours')}
+        <input class="swb-input" id="an-hours" type="number" min="1" max="720"
+          value="${st.hours}" style="width:6rem"></label>` : ''}
+      ${hostView ? `<label class="swb-hint">${T('an.f_intake')}
+          <input class="swb-input" id="an-intake" value="${esc(st.intake)}"
+            placeholder="${T('an.f_intake_ph')}" style="width:14rem"></label>
+        <label class="swb-hint"><input type="checkbox" id="an-relays"${
+          st.relaysOnly ? ' checked' : ''}> ${T('an.f_relays')}</label>` : ''}
+      <button type="button" class="fp-btn fp-btn-sm fp-btn-primary"
+        data-an-act="dash:${name}">${T('an.compute')}</button>
+    </div>`;
+  }
+
   function viewDashboard(name) {
     const d = st.data['dash_' + name];
     if (!d) {
       return panel('', `<p class="swb-hint" style="margin:0">${T('an.idle')}</p>
-        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary"
-          style="margin-top:.5rem" data-an-act="dash:${name}">${T('an.compute')}</button>`);
+        ${controls(name)}`);
     }
     if (d.ok === false) {
       return panel('', `<p style="margin:0">${esc(d.error)}</p>`, 'danger');
     }
     return `${panel('', `<p style="margin:0"><strong>${esc(d.headline || '')}</strong></p>
         <p style="margin:.3rem 0 0">${freshness(d)}</p>
+        ${controls(name)}
         ${(d.actions || []).length ? `<p class="swb-hint" style="margin:.4rem 0 0">${
           T('an.actions')} ${d.actions.map((a) => `<span class="swb-pill swb-pill-mute
             swb-pill-flat">${esc(a)}</span>`).join(' ')}</p>
@@ -225,14 +259,25 @@
       const b = ev.target.closest('[data-an-act]');
       if (!b) return;
       const act = b.dataset.anAct;
+      const g = (id) => document.getElementById(id);
+      if (g('an-window')) st.window = g('an-window').value;
+      if (g('an-sample')) st.sample = Math.max(200, Math.min(10000,
+        parseInt(g('an-sample').value, 10) || 2000));
+      if (g('an-hours')) st.hours = Math.max(1, Math.min(720,
+        parseInt(g('an-hours').value, 10) || 24));
+      if (g('an-intake')) st.intake = g('an-intake').value.trim();
+      if (g('an-relays')) st.relaysOnly = g('an-relays').checked;
+      if (g('an-entity')) st.entity = g('an-entity').value;
       st.loading = true; st.error = null; paint();
       try {
         if (act.startsWith('dash:')) {
           const n = act.slice(5);
-          st.data['dash_' + n] = await api('/dashboard/' + n);
+          const q = new URLSearchParams({
+            window: st.window, sample: String(st.sample), hours: String(st.hours),
+            relays_only: String(st.relaysOnly) });
+          if (st.intake) q.set('intake', st.intake);
+          st.data['dash_' + n] = await api(`/dashboard/${n}?${q}`);
         } else if (act === 'inv' || act === 'inv-refresh') {
-          const sel = document.getElementById('an-entity');
-          if (sel) st.entity = sel.value;
           if (act === 'inv-refresh') {
             await api('/inventory/' + st.entity + '/refresh', { method: 'POST' });
           }

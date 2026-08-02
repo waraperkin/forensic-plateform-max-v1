@@ -308,6 +308,24 @@ def test_un_horodatage_illisible_ne_fait_pas_planter():
     assert analyst._human_age(None) == "âge inconnu"
 
 
+def test_une_fenetre_inconnue_est_refusee_pas_remplacee():
+    """Substituer la valeur par defaut afficherait une periode AUTRE que celle
+    demandee, sans le dire : l'analyste conclurait sur la mauvaise fenetre."""
+    assert "3h" not in analyst.WINDOWS
+    assert set(analyst.WINDOWS) == {"15m", "1h", "6h", "24h", "7d"}
+
+
+def test_les_bornes_d_echantillon_sont_declarees():
+    assert analyst.SAMPLE_MIN == 200 and analyst.SAMPLE_MAX == 10000
+
+
+def test_la_note_d_echantillonnage_dit_ce_qu_elle_ne_permet_pas():
+    n = analyst.sampling_note("1h", 2000, 33)
+    assert "1h" in n and "2000" in n and "33" in n
+    assert "n'est PAS un silence" in n
+    assert "Élargissez" in n
+
+
 def test_les_tableaux_de_bord_sont_nommes():
     """« fortigate » survit comme ALIAS filtrant : Fortinet reste un cas
     particulier de source multi-hotes, et un signet ne doit pas casser."""

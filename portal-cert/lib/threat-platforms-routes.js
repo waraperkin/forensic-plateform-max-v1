@@ -342,9 +342,16 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
       // chargement, ce qui se lit comme « rien à afficher » et non comme une
       // coupure. C'est le pire des deux échecs.
       || /^\/sagf\/(query|debt|risk|reconcile|config|efficacy|adversary|twin|insurance|economics|conflicts|harness)(\/|$)/.test(req.path);
-    const timeout = heavy
-      ? Number(process.env.SEKOIA_PROXY_TIMEOUT_HEAVY_MS || 240000)
-      : Number(process.env.SEKOIA_PROXY_TIMEOUT_MS || 120000);
+    // Les tableaux de bord analystes ENCHAINENT plusieurs analyses lourdes
+    // (silence + volumetrie + schema pour « sources ») : chacune tient dans les
+    // 240 s, leur somme non. Un depassement ici n'affiche aucune erreur — la vue
+    // reste en chargement, ce qui se lit comme « rien a afficher ».
+    const chained = /^\/analyst\/dashboard\//.test(req.path);
+    const timeout = chained
+      ? Number(process.env.ANALYST_PROXY_TIMEOUT_MS || 900000)
+      : heavy
+        ? Number(process.env.SEKOIA_PROXY_TIMEOUT_HEAVY_MS || 240000)
+        : Number(process.env.SEKOIA_PROXY_TIMEOUT_MS || 120000);
     try {
       const r = await axios.request({
         method: req.method,

@@ -149,6 +149,32 @@ Ils sont **calculés à la demande** : ils lancent des jobs de recherche Sekoia 
 consomment du quota partagé avec les analystes. Les dépenser au simple affichage
 d'un onglet serait le prendre à ceux qui en ont besoin pour enquêter.
 
+## 7 bis. Réglages d'échantillonnage
+
+La fenêtre et la taille d'échantillon sont **choisies par l'analyste** depuis
+l'interface — fenêtre parmi `15m`, `1h`, `6h`, `24h`, `7d`, échantillon entre
+200 et 10 000, filtre par source, bascule « relais seulement ».
+
+Les élargir coûte du **quota de recherche Sekoia** : c'est un arbitrage qui
+appartient à l'analyste, pas une valeur imposée. Et cela change ce qu'on voit —
+mesuré sur le tenant :
+
+| Réglage | Relais trouvés | Hôtes observés |
+|---|---|---|
+| 1 h / 2 000 | 2 | 29 |
+| 6 h / 4 000 | **3** | **32** |
+
+Chaque tableau affiche ensuite **la fenêtre et l'échantillon réellement
+employés**, et ce qu'ils ne permettent pas :
+
+> *« Fenêtre 6h, échantillon de 4000 événements (32 hôtes tirés). L'échantillon
+> est dominé par les sources les plus bavardes : une machine discrète peut
+> n'être jamais tirée, et son absence ici n'est PAS un silence. »*
+
+Une **fenêtre non reconnue est refusée**, jamais remplacée par la valeur par
+défaut : la substituer silencieusement afficherait une période autre que celle
+demandée, et l'analyste conclurait sur la mauvaise.
+
 ## 8. Filtres
 
 `GET /analyst/filters` liste les deux familles.
@@ -189,7 +215,7 @@ refus des critères inconnus.
 Validation navigateur : onglet dédié, 7 vues, cinq tableaux de bord rendus avec
 des données réelles du tenant, fraîcheur affichée partout, aucune erreur console.
 
-## 11. Trois défauts trouvés pendant l'intégration
+## 11. Défauts trouvés pendant l'intégration
 
 Ils méritent d'être écrits, parce qu'ils partagent une propriété : **aucun ne
 lève d'erreur**.
@@ -203,6 +229,18 @@ lève d'erreur**.
    `app` avant que l'environnement de test ne soit posé.** Cinquante tests des
    autres suites recevaient alors des 401 — un échec massif dont la cause
    n'était pas dans le code testé.
+
+4. **Les réglages étaient lus APRÈS le repaint.** `paint()` remplace le HTML par
+   le message de chargement ; après lui, le champ de fenêtre n'existe plus et
+   chaque valeur retombait sur son défaut. L'analyste demandait 6 h / 4 000 et
+   obtenait 1 h / 2 000, **sans qu'aucune erreur ne le signale**.
+5. **Un test s'accrochait à une anomalie qui peut légitimement manquer.** Le
+   motif attendu n'apparaît que s'il existe une source muette — il n'y en a
+   aucune sur ce tenant. Un test doit viser ce que la vue affiche **toujours**.
+6. **Le tableau « sources » enchaîne trois analyses lourdes** et dépassait le
+   délai du mandataire. Chacune tient dans les 240 s, leur somme non. Là encore
+   aucune erreur : la vue restait en chargement, ce qui se lit comme « rien à
+   afficher ».
 
 La leçon commune : une intégration qui lit une clé inexistante **ne casse pas**,
 elle se tait. C'est pourquoi chaque détecteur a été confronté aux valeurs

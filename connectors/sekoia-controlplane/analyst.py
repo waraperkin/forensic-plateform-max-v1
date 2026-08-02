@@ -879,45 +879,77 @@ def apply_filters(entity: str, criteria: dict, limit: int = 200) -> dict:
 
 # ── Tableaux de bord ─────────────────────────────────────────────────────────
 
-async def dashboard(name: str) -> dict:
+# Fenêtres proposées. Élargir la fenêtre et l'échantillon coûte du quota de
+# recherche Sekoia : le choix appartient à l'analyste, il n'est pas imposé.
+WINDOWS = ("15m", "1h", "6h", "24h", "7d")
+SAMPLE_MIN, SAMPLE_MAX = 200, 10000
+
+
+def sampling_note(window: str, sample: int, observed: int) -> str:
+    """Ce que l'échantillon permet — et ce qu'il ne permet pas.
+
+    Une machine discrète derrière un gros relais peut n'être jamais tirée.
+    Élargir la fenêtre y remédie en partie ; le dire est indispensable, car
+    l'absence dans l'échantillon se lit spontanément comme une absence dans le
+    flux, et les deux ne se corrigent pas de la même façon.
+    """
+    return (f"Fenêtre {window}, échantillon de {sample} événements "
+            f"({observed} hôte(s) tirés). L'échantillon est dominé par les "
+            "sources les plus bavardes : une machine discrète peut n'être "
+            "jamais tirée, et son absence ici n'est PAS un silence. Élargissez "
+            "la fenêtre ou l'échantillon pour la voir — au prix de quota de "
+            "recherche Sekoia.")
+
+
+async def dashboard(name: str, window: str = "1h", sample: int = 2000,
+                    hours: int = 24, intake: Optional[str] = None,
+                    relays_only: bool = True) -> dict:
     ts = _now()
+    params = {"window": window, "sample": sample, "hours": hours,
+              "intake": intake, "relays_only": relays_only,
+              "windows_available": list(WINDOWS),
+              "sample_bounds": [SAMPLE_MIN, SAMPLE_MAX]}
     if name == "sources":
-        sil = await source_silence_detector()
-        vol = await source_volumetry_monitor()
-        sch = await source_schema_monitor()
-        return {"dashboard": "sources", "measured_at": ts,
+        sil = await source_silence_detector(hours=hours)
+        vol = await source_volumetry_monitor(hours=hours)
+        sch = await source_schema_monitor(window=window, sample=sample)
+        return {"dashboard": "sources", "measured_at": ts, "params": params,
                 "headline": sil["headline"],
                 "panels": [sil, vol, sch],
                 "actions": ["étiqueter les sources muettes",
                             "ouvrir un ticket au propriétaire",
                             "vérifier le connecteur côté équipement"]}
     if name == "rules":
-        r = await rule_detectors()
-        return {"dashboard": "rules", "measured_at": ts,
+        r = await rule_detectors(hours=max(hours, 24))
+        return {"dashboard": "rules", "measured_at": ts, "params": params,
                 "headline": r["headline"], "panels": [r],
                 "actions": ["revoir les règles inertes AVANT de les désactiver",
                             "restreindre le périmètre des règles bavardes",
                             "qualifier les alertes pour mesurer la précision"]}
     if name == "assets":
-        a = await asset_detectors()
-        return {"dashboard": "assets", "measured_at": ts,
+        a = await asset_detectors(window=window, sample=sample)
+        return {"dashboard": "assets", "measured_at": ts, "params": params,
                 "headline": a["headline"], "panels": [a],
                 "actions": ["inventorier les machines orphelines",
                             "rattacher les sources manquantes"]}
     if name == "intakes":
-        sil = await source_silence_detector()
-        vol = await source_volumetry_monitor(hours=24)
-        return {"dashboard": "intakes", "measured_at": ts,
+        sil = await source_silence_detector(hours=hours)
+        vol = await source_volumetry_monitor(hours=hours)
+        return {"dashboard": "intakes", "measured_at": ts, "params": params,
                 "headline": vol["headline"], "panels": [vol, sil],
                 "actions": ["comparer à l'attendu déclaré", "remonter l'intake"]}
     if name in ("hostnames", "fortigate"):
         # « fortigate » reste un alias FILTRANT : il ne regarde que les sources
-        # Fortinet. « hostnames » couvre toutes les sources multi-hotes, ce qui
-        # est le cas general — un intake nomme « Siaka envoie les logs ICI STP »
+        # Fortinet. « hostnames » couvre toutes les sources multi-hôtes, ce qui
+        # est le cas général — un intake nommé « Siaka envoie les logs ICI STP »
         # fronte tout autant de machines.
         f = await source_hostname_monitor(
-            intake="forti" if name == "fortigate" else None)
-        return {"dashboard": name, "measured_at": ts,
+            window=window, sample=sample, relays_only=relays_only,
+            intake="forti" if name == "fortigate" else intake)
+        if f.get("available"):
+            f["sampling_note"] = sampling_note(
+                window, sample, f.get("hosts_sampled_total") or 0)
+        return {"dashboard": name, "measured_at": ts, "params": params,
                 "headline": f.get("headline", "Aucune donnée."),
                 "panels": [f],
                 "actions": ["vérifier les machines sans observation suffisante",
@@ -981,8 +1013,22 @@ def register(an_app) -> None:
         return await asset_detectors(window, sample)
 
     @an_app.get(f"{P}/dashboard/{{name}}", dependencies=dep)
-    async def get_dash(name: str):
-        return await dashboard(name)
+    async def get_dash(name: str,
+                       window: str = Query(default="1h"),
+                       sample: int = Query(default=2000, ge=SAMPLE_MIN,
+                                           le=SAMPLE_MAX),
+                       hours: int = Query(default=24, ge=1, le=720),
+                       intake: str = Query(default=None),
+                       relays_only: bool = Query(default=True)):
+        if window not in WINDOWS:
+            return {"ok": False,
+                    "error": f"fenêtre inconnue « {window} »",
+                    "known": list(WINDOWS),
+                    "why": "Une fenêtre non reconnue serait silencieusement "
+                           "remplacée par la valeur par défaut, et le tableau "
+                           "afficherait une période autre que celle demandée."}
+        return await dashboard(name, window=window, sample=sample, hours=hours,
+                               intake=intake or None, relays_only=relays_only)
 
     @an_app.get(f"{P}/tags", dependencies=dep)
     async def get_tags(entity: str = None, tag: str = None):

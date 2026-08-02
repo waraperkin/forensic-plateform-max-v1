@@ -51,7 +51,7 @@ ok(await wait(/schema-manquant/), 'étiquettes — catalogue rendu');
 for (const [v, re, lbl] of [
   ['rules', /règle\(s\) inertes/i, 'règles'],
   ['assets', /couverture d'inventaire/i, 'actifs'],
-  ['sources', /aucun événement sur \d+ h/i, 'sources'],
+  ['sources', /actives sans aucun événement/i, 'sources'],
   ['intakes', /s'écartent de leur référence/i, 'intakes'],
   ['hostnames', /portent plusieurs machines|Aucune source multi-hôtes observée/i, 'sources multi-hôtes'],
 ]) {
@@ -64,6 +64,22 @@ for (const [v, re, lbl] of [
   ok(!/\[object/i.test(txt), `tableau ${lbl} — aucun objet brut`);
   ok(/mesuré/.test(txt), `tableau ${lbl} — fraîcheur affichée`);
 }
+
+// Réglages d'échantillonnage : élargir la fenêtre depuis l'interface.
+await p.locator('[data-an-view="hostnames"]').first().click();
+await p.locator('#an-window').waitFor({ timeout: 20000 });
+await p.waitForTimeout(600);
+ok(await p.locator('#an-sample').count() === 1, 'réglages — échantillon présent');
+ok(await p.locator('#an-relays').count() === 1, 'réglages — filtre relais présent');
+await p.locator('#an-window').selectOption('6h');
+await p.locator('#an-sample').fill('4000');
+await p.locator('[data-an-act="dash:hostnames"]').first().click();
+ok(await wait(/portent plusieurs machines|Aucune source multi-hôtes observée/),
+   'réglages — recalcul sur 6h rendu');
+ok(await wait(/Fenêtre 6h, échantillon de 4000/),
+   'réglages — la note dit la fenêtre et l\'échantillon réellement employés');
+ok(await wait(/n'est PAS un silence/),
+   'réglages — la limite de l\'échantillon est dite');
 
 await p.screenshot({ path: '/opt/forensic-sekoia-psoar-rebuild/screenshots/extension-analystes.png' });
 ok(errs.length === 0, `console — ${errs.length} erreur(s)${errs.length ? ': ' + errs[0] : ''}`);

@@ -2670,7 +2670,13 @@
       "v_hosts": "Multi-host sources",
       "c_intake": "Source",
       "c_hosts": "Machines",
-      "c_family": "Family"
+      "c_family": "Family",
+      "f_window": "Window",
+      "f_sample": "Sample",
+      "f_hours": "Hours",
+      "f_intake": "Source",
+      "f_intake_ph": "name or UUID (optional)",
+      "f_relays": "relays only"
     }
   },
   "swbtx": {

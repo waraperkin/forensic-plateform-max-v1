@@ -49,6 +49,22 @@
                intake: '', relaysOnly: true };
   const WINDOWS = ['15m', '1h', '6h', '24h', '7d'];
 
+  /* Repli des intitulés de groupe. La résolution i18n de ces trois clés échoue
+   * alors que les clés voisines du même niveau fonctionnent — je n'ai pas
+   * élucidé pourquoi, et afficher « an.g_visibility » à un analyste est pire
+   * que tout. Le repli garantit un libellé correct dans les deux langues ; il
+   * disparaîtra le jour où la cause sera trouvée. */
+  const GROUP_LABELS = {
+    fr: { g_visibility: 'Visibilité', g_scope: 'Périmètre', g_detection: 'Détection' },
+    en: { g_visibility: 'Visibility', g_scope: 'Scope', g_detection: 'Detection' },
+  };
+  function groupLabel(g) {
+    const out = T('an.' + g);
+    if (out && out !== 'an.' + g) return out;
+    const lang = (document.documentElement.lang || 'fr').slice(0, 2);
+    return (GROUP_LABELS[lang] || GROUP_LABELS.fr)[g] || g;
+  }
+
   function T(key, vars) {
     if (window.i18n && typeof i18n.t === 'function') {
       const out = i18n.t('swb.' + key, vars);
@@ -303,11 +319,12 @@
   }
 
   function nav() {
-    return GROUPS.map(([g, views]) => `<nav class="swb-nav">
-      <span class="swb-nav-label">${T('an.' + g)}</span>
-      ${views.map(([id, key]) => `<button type="button"
-        class="swb-tab" aria-selected="${st.view === id}" data-an-view="${id}">${
-        T(key)}</button>`).join('')}</nav>`).join('');
+    return `<nav class="swb-nav">${GROUPS.map(([g, views]) =>
+      `<span class="swb-nav-group"><span class="swb-nav-label">${esc(groupLabel(g))}</span>
+        ${views.map(([id, key]) => `<button type="button"
+          class="swb-tab" aria-selected="${st.view === id}" data-an-view="${id}">${
+          T(key)}</button>`).join('')}</span>`).join(
+      '<span class="swb-nav-sep"></span>')}</nav>`;
   }
 
   function paint() {

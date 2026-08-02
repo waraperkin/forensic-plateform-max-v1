@@ -414,3 +414,16 @@
 }
 .swb-table td:has(> .swb-selbox),
 .swb-table th:has(> .swb-selbox) { width: 2.2rem; text-align: center; }
+
+/* Intitulé de groupe dans une barre de vues : il rappelle POURQUOI l'analyste
+   ouvre cette vue, là où une liste plate ne dit que OÙ elle se trouve.
+   Nom distinct de `.swb-nav-group`, qui est déjà un conteneur flex. */
+.swb-nav-label {
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  opacity: .55;
+  padding-right: .35rem;
+  white-space: nowrap;
+}

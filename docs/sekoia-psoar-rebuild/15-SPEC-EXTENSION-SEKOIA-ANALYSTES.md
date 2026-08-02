@@ -76,20 +76,36 @@ retenu est `max(25 %, 2 × 100/√n)` : l'erreur d'échantillonnage décroît en
 n'est produite — une variation de quelques dizaines d'événements suffirait à
 afficher un pourcentage spectaculaire et vide de sens.
 
-### 4.2 FortiAnalyzer : pourquoi l'intake ne suffit pas
+### 4.2 Sources multi-hôtes : la détection ne repose sur aucun nom
 
-Un FortiAnalyzer présente **des dizaines de boîtiers derrière un seul intake**.
-Surveiller l'intake ne dit rien : il continue de parler tant qu'un seul
-équipement émet. Seule la surveillance par `log.hostname`, équipement par
-équipement, voit qu'un boîtier s'est tu.
+Une source qui fronte plusieurs machines **continue de parler tant qu'une seule
+d'entre elles émet** : la surveiller globalement ne dira jamais qu'un équipement
+s'est tu. Il faut descendre au `log.hostname`.
+
+FortiAnalyzer en est l'exemple le plus connu, mais **ce n'est qu'un cas**. La
+détection repose donc sur ce qu'on **observe** — un intake est un relais parce
+qu'on y voit plusieurs machines — et jamais sur son nom. Mesuré sur le tenant :
+
+| Source | Machines derrière elle | Famille devinable par le nom |
+|---|---|---|
+| **« Siaka envoie les logs ICI STP »** | **21** | aucune |
+| « ESXI-Lab Hubert » | 5 | aucune |
+
+Les deux plus gros relais du tenant ne portent **aucun motif lexical**
+exploitable. Un filtre par nom — `forti`, `syslog`, `collector` — serait passé à
+côté des deux. Les familles de collecteurs connues servent donc uniquement à
+**nommer** ce qui a été trouvé, jamais à décider quoi regarder.
+
+Le seuil est de **deux hôtes** : dès qu'un intake n'est plus mono-machine, le
+surveiller globalement ne dit plus rien de chaque machine.
 
 Et quand **rien n'est observable**, le module l'écrit au lieu d'afficher un zéro
 qui se lirait comme un parc sain :
 
-> *« Aucun équipement observable : sur 33 hôtes tirés, aucun ne provient du seul
-> intake Fortinet. Ce n'est PAS la preuve d'un silence — l'échantillon est
-> dominé par les sources les plus bavardes, et une source discrète peut n'être
-> jamais tirée. Élargissez la fenêtre ou l'échantillon. »*
+> *« Aucune source multi-hôtes observée sur 33 hôtes tirés. Ce n'est PAS la
+> preuve qu'il n'en existe pas : l'échantillon est dominé par les sources les
+> plus bavardes, et une machine discrète peut n'être jamais tirée. Élargissez la
+> fenêtre ou l'échantillon. »*
 
 ## 5. Monitoring des règles
 
@@ -125,7 +141,7 @@ prouve rien, et publier le calcul produirait des centaines de faux positifs.
 ## 7. Tableaux de bord
 
 Cinq, plus les inventaires et les étiquettes : `sources`, `rules`, `assets`,
-`intakes`, `fortigate`. Chacun affiche la mesure, **son incertitude**, **sa
+`intakes`, `hostnames` (sources multi-hôtes, avec `fortigate` conservé comme alias filtrant). Chacun affiche la mesure, **son incertitude**, **sa
 fraîcheur**, les anomalies et des **actions proposées** — toutes internes à
 l'extension.
 

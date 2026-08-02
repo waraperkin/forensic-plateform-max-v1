@@ -2637,7 +2637,6 @@
       "v_rules": "Rules",
       "v_assets": "Assets",
       "v_intakes": "Intakes",
-      "v_forti": "Fortigate",
       "v_inv": "Inventories",
       "v_tags": "Tags",
       "idle": "This dashboard queries the Sekoia API on demand: it consumes search quota.",
@@ -2667,7 +2666,11 @@
       "objects": "object(s)",
       "tags": "Internal tags",
       "tags_sub": "These tags live inside the extension. None is written to Sekoia.io.",
-      "tags_set": "tag(s) set"
+      "tags_set": "tag(s) set",
+      "v_hosts": "Multi-host sources",
+      "c_intake": "Source",
+      "c_hosts": "Machines",
+      "c_family": "Family"
     }
   },
   "swbtx": {

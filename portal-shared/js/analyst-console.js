@@ -1,7 +1,7 @@
 /* Extension Sekoia — console analystes.
  *
  * Cinq tableaux de bord opérationnels : sources, règles, actifs, intakes,
- * Fortigate. Chaque panneau affiche la mesure, SON INCERTITUDE et SA FRAÎCHEUR
+  * sources multi-hôtes. Chaque panneau affiche la mesure, SON INCERTITUDE et SA FRAÎCHEUR
  * — les trois ensemble, toujours. Un chiffre sans date se lit comme un état
  * actuel alors qu'il décrit peut-être la semaine dernière.
  *
@@ -17,7 +17,7 @@
     ['rules', 'an.v_rules'],
     ['assets', 'an.v_assets'],
     ['intakes', 'an.v_intakes'],
-    ['fortigate', 'an.v_forti'],
+    ['hostnames', 'an.v_hosts'],
     ['inventory', 'an.v_inv'],
     ['tags', 'an.v_tags'],
   ];
@@ -103,6 +103,16 @@
       return panel('', head + families.filter((f) => p[f] && p[f].count).map((f) =>
         `<h4 class="swb-panel-title" style="margin-top:.8rem">${T('an.f_' + f)} — ${
           nf(p[f].count)}</h4>${verdictTable(p[f].items)}`).join(''), 'accent');
+    }
+    if (p.relay_summary && p.relay_summary.length) {
+      return panel('', head + `<div class="swb-tablewrap" style="max-height:22vh;margin-top:.5rem">
+        <table class="swb-table"><thead><tr><th>${T('an.c_intake')}</th>
+          <th>${T('an.c_hosts')}</th><th>${T('an.c_family')}</th></tr></thead>
+        <tbody>${p.relay_summary.map((r) => `<tr>
+          <td class="swb-truncate">${esc(r.intake_name)}</td>
+          <td class="swb-num"><strong>${nf(r.hosts)}</strong></td>
+          <td class="swb-hint">${esc(r.family || '—')}</td></tr>`).join('')}
+        </tbody></table></div>` + verdictTable(p.items), 'accent');
     }
     const groups = ['without_logs', 'without_source', 'without_coverage'];
     if (groups.some((g) => p[g])) {

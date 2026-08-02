@@ -2637,7 +2637,6 @@
       "v_rules": "Règles",
       "v_assets": "Actifs",
       "v_intakes": "Intakes",
-      "v_forti": "Fortigate",
       "v_inv": "Inventaires",
       "v_tags": "Étiquettes",
       "idle": "Ce tableau de bord interroge l'API Sekoia à la demande : il consomme du quota de recherche.",
@@ -2667,7 +2666,11 @@
       "objects": "objet(s)",
       "tags": "Étiquettes internes",
       "tags_sub": "Ces étiquettes vivent dans l'extension. Aucune n'est écrite dans Sekoia.io.",
-      "tags_set": "étiquette(s) posée(s)"
+      "tags_set": "étiquette(s) posée(s)",
+      "v_hosts": "Sources multi-hôtes",
+      "c_intake": "Source",
+      "c_hosts": "Machines",
+      "c_family": "Famille"
     }
   },
   "swbtx": {

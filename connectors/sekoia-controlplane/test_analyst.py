@@ -182,6 +182,44 @@ def test_une_source_fortinet_est_reconnue_quel_que_soit_le_champ():
     assert not analyst.is_forti({"intake_name": "Palo Alto", "entity_name": "DC1"})
 
 
+def test_un_relais_se_detecte_par_le_NOMBRE_D_HOTES_pas_par_son_nom():
+    """Le cas qui a motive la generalisation.
+
+    Un intake nomme « Siaka envoie les logs ICI STP » fronte 21 machines sur le
+    tenant reel. Aucun motif lexical ne l'aurait devine : la detection doit
+    reposer sur ce qu'on OBSERVE, pas sur ce qui est ecrit dans le nom.
+    """
+    hosts = [{"host": f"h{i}", "intake_uuid": "u1", "sampled": 40}
+             for i in range(21)]
+    hosts += [{"host": "solo", "intake_uuid": "u2", "sampled": 900}]
+    groups = analyst.group_by_intake(
+        hosts, {"u1": "Siaka envoie les logs ICI STP", "u2": "Source simple"})
+    relais = [g for g in groups if g["is_relay"]]
+    assert len(relais) == 1
+    assert relais[0]["intake_name"] == "Siaka envoie les logs ICI STP"
+    assert relais[0]["hosts_count"] == 21
+    assert relais[0]["family"] is None, "aucun motif lexical ne la designe"
+
+
+def test_une_source_mono_machine_n_est_pas_un_relais():
+    groups = analyst.group_by_intake(
+        [{"host": "a", "intake_uuid": "u", "sampled": 100}], {"u": "Simple"})
+    assert groups[0]["is_relay"] is False
+
+
+def test_la_famille_de_collecteur_est_indicative_jamais_discriminante():
+    """Elle sert a NOMMER ce qu'on a trouve, pas a decider quoi regarder."""
+    assert analyst.collector_family("FortiAnalyzer DC1").startswith("FortiAnalyzer")
+    assert analyst.collector_family("rsyslog-01") == "concentrateur syslog"
+    assert analyst.collector_family("Siaka envoie les logs ICI STP") is None
+
+
+def test_deux_hotes_suffisent_a_faire_un_relais():
+    """Des qu'un intake n'est plus mono-machine, le surveiller globalement ne
+    dit plus rien de chaque machine."""
+    assert analyst.MIN_HOSTS_FOR_RELAY == 2
+
+
 def test_le_seuil_de_tirage_protege_du_hasard():
     """Un hôte tiré 3 fois sur 2 000 peut disparaître par pur hasard."""
     assert analyst.MIN_DRAWS >= 15
@@ -270,9 +308,11 @@ def test_un_horodatage_illisible_ne_fait_pas_planter():
     assert analyst._human_age(None) == "âge inconnu"
 
 
-def test_les_cinq_tableaux_de_bord_sont_nommes():
+def test_les_tableaux_de_bord_sont_nommes():
+    """« fortigate » survit comme ALIAS filtrant : Fortinet reste un cas
+    particulier de source multi-hotes, et un signet ne doit pas casser."""
     import asyncio
     out = asyncio.run(analyst.dashboard("inexistant"))
     assert out["ok"] is False
     assert set(out["known"]) == {"sources", "rules", "assets", "intakes",
-                                 "fortigate"}
+                                 "hostnames", "fortigate"}

@@ -416,81 +416,172 @@ async def source_drift_detector(window: str = "24h") -> dict:
             "headline": f"{len(out)} dérive(s) de schéma relevée(s) sur {window}."}
 
 
-# ── Fortigate / FortiAnalyzer ────────────────────────────────────────────────
+# ── Sources multi-hôtes (relais) ──────────────────────────────────────────────
+
+# Un intake qui porte au moins ce nombre d'hôtes distincts est un RELAIS : il
+# fronte plusieurs machines. Deux suffisent — dès qu'un intake n'est pas
+# mono-machine, le surveiller globalement ne dit plus rien de chaque machine.
+MIN_HOSTS_FOR_RELAY = 2
+
+# Familles connues de collecteurs, à titre INDICATIF seulement. Elles servent à
+# nommer, jamais à filtrer : la détection repose sur le nombre d'hôtes observés,
+# pas sur le nom de la source. Un intake baptisé « Siaka envoie les logs ICI
+# STP » fronte tout autant de machines qu'un FortiAnalyzer, et aucun motif
+# lexical ne l'aurait deviné.
+KNOWN_COLLECTORS = (
+    (re.compile(r"forti", re.I), "FortiAnalyzer / FortiGate"),
+    (re.compile(r"syslog|rsyslog|syslog-ng", re.I), "concentrateur syslog"),
+    (re.compile(r"graylog|logstash|nxlog|vector|fluent", re.I), "collecteur"),
+    (re.compile(r"wec|windows event collect", re.I), "collecteur d'événements Windows"),
+    (re.compile(r"proxy|relay|relais|collector|collecteur", re.I), "relais"),
+)
 
 FORTI_RE = re.compile(r"forti", re.I)
 
 
 def is_forti(row: dict) -> bool:
-    """Une source Fortinet, quel que soit le champ qui le dit."""
+    """Une source Fortinet, quel que soit le champ qui le dit.
+
+    Conservé pour le filtre optionnel, pas pour la détection : Fortinet n'est
+    qu'un cas particulier de source multi-hôtes.
+    """
     return bool(FORTI_RE.search(" ".join(str(row.get(k) or "") for k in (
         "intake_name", "connector_name", "intake_format_name",
         "entity_name", "intake_format_uuid"))))
 
 
-async def source_hostname_monitor(window: str = "1h", sample: int = 2000,
-                                  forti_only: bool = True) -> dict:
-    """Supervision par `log.hostname` — le cas FortiAnalyzer multi-équipements.
+def collector_family(name: str) -> Optional[str]:
+    """Nom de famille probable d'un collecteur — indicatif, jamais discriminant."""
+    for rx, label in KNOWN_COLLECTORS:
+        if rx.search(name or ""):
+            return label
+    return None
 
-    Un FortiAnalyzer présente DES DIZAINES de boîtiers derrière un seul intake.
-    Surveiller l'intake ne dit rien : il continue de parler tant qu'un seul
-    équipement émet. C'est l'hôte qu'il faut suivre, un par un.
+
+def group_by_intake(hosts: list, names: dict) -> list:
+    """Regroupe les hôtes observés par intake et isole les sources multi-hôtes.
+
+    C'est le cœur du module. Un intake qui fronte plusieurs machines continue de
+    parler tant qu'UNE SEULE d'entre elles émet : le surveiller globalement ne
+    dira jamais qu'un équipement s'est tu. Il faut descendre à l'hôte.
+    """
+    per: dict = {}
+    for h in hosts:
+        uid = h.get("intake_uuid") or "inconnu"
+        g = per.setdefault(uid, {"intake_uuid": uid,
+                                 "intake_name": names.get(uid) or uid,
+                                 "hosts": [], "sampled_total": 0})
+        g["hosts"].append(h)
+        g["sampled_total"] += h.get("sampled") or 0
+    out = []
+    for g in per.values():
+        g["hosts_count"] = len(g["hosts"])
+        g["is_relay"] = g["hosts_count"] >= MIN_HOSTS_FOR_RELAY
+        g["family"] = collector_family(g["intake_name"])
+        g["hosts"].sort(key=lambda h: -(h.get("sampled") or 0))
+        out.append(g)
+    out.sort(key=lambda g: -g["hosts_count"])
+    return out
+
+
+async def source_hostname_monitor(window: str = "1h", sample: int = 2000,
+                                  intake: Optional[str] = None,
+                                  relays_only: bool = True) -> dict:
+    """Supervision par `log.hostname`, sur TOUTE source portant plusieurs hôtes.
+
+    La détection ne repose sur aucun nom : un intake est un relais parce qu'on y
+    observe plusieurs machines, pas parce qu'il s'appelle « FortiAnalyzer ». Une
+    source nommée « Siaka envoie les logs ICI STP » fronte tout autant de
+    machines, et aucun motif lexical ne l'aurait devinée.
+
+    `intake` filtre par nom ou par UUID quand on veut regarder une source
+    précise ; sans lui, toutes les sources multi-hôtes sont couvertes.
     """
     import hostwatch
+    import telemetry
     snap = await hostwatch.snapshot(window=window, sample=sample, persist=False)
     if not snap.get("available"):
         return {"available": False, "reason": snap.get("reason"),
                 "measured_at": _now()}
     full = await cp.get_full()
-    forti_uuids = {r.get("intake_uuid")
-                   for r in ((full.get("inventory") or {}).get("main_inventory") or [])
-                   if is_forti(r)}
+    names = telemetry._intake_names(full)
     ts = snap.get("ts") or _now()
+
+    groups = group_by_intake(snap.get("items") or [], names)
+    if intake:
+        want = intake.lower()
+        groups = [g for g in groups
+                  if want in str(g["intake_name"]).lower()
+                  or want == str(g["intake_uuid"]).lower()]
+    selected = [g for g in groups if g["is_relay"]] if relays_only else groups
+
     items, weak = [], 0
-    for h in (snap.get("items") or []):
-        if forti_only and h.get("intake_uuid") not in forti_uuids:
-            continue
-        draws = h.get("sampled") or 0
-        if draws < MIN_DRAWS:
-            weak += 1
+    for g in selected:
+        for h in g["hosts"]:
+            draws = h.get("sampled") or 0
+            subject = f'{h.get("host") or "hôte"} · {g["intake_name"]}'
+            if draws < MIN_DRAWS:
+                weak += 1
+                items.append(Verdict(
+                    subject=subject,
+                    verdict="Trop peu d'observations pour conclure quoi que ce soit.",
+                    uncertainty=f"{draws} tirage(s) seulement dans un échantillon "
+                                f"de {sample}. Sous {MIN_DRAWS}, une disparition "
+                                "est indiscernable du hasard du tirage.",
+                    measured_at=ts, severity="info",
+                    evidence={"hostname": h.get("host"), "draws": draws,
+                              "intake_uuid": g["intake_uuid"],
+                              "intake_name": g["intake_name"],
+                              "hosts_behind_intake": g["hosts_count"]}).as_dict())
+                continue
             items.append(Verdict(
-                subject=str(h.get("hostname") or "hôte"),
-                verdict="Trop peu d'observations pour conclure quoi que ce soit.",
-                uncertainty=f"{draws} tirage(s) seulement dans un échantillon de "
-                            f"{sample}. Sous {MIN_DRAWS}, une disparition est "
-                            "indiscernable du hasard du tirage.",
+                subject=subject,
+                verdict=f"Actif : {draws} observations sur la fenêtre.",
+                uncertainty="Le volume par hôte est une ESTIMATION — part de "
+                            "l'hôte dans l'échantillon appliquée au total de son "
+                            "intake. Sekoia n'expose aucun compteur par machine.",
                 measured_at=ts, severity="info",
                 evidence={"hostname": h.get("host"), "draws": draws,
-                          "intake_uuid": h.get("intake_uuid")}).as_dict())
-            continue
-        items.append(Verdict(
-            subject=str(h.get("host") or "hôte"),
-            verdict=f"Actif : {draws} observations sur la fenêtre.",
-            uncertainty="Le volume par hôte est une ESTIMATION — part de l'hôte "
-                        "dans l'échantillon appliquée au total de son intake. "
-                        "Sekoia n'expose aucun compteur par machine.",
-            measured_at=ts, severity="info",
-            evidence={"hostname": h.get("host"), "draws": draws,
-                      "estimated_events": h.get("estimated_events"),
-                      "intake_uuid": h.get("intake_uuid")}).as_dict())
-    headline = (f"{len(items)} équipement(s) suivis derrière "
-                f"{len(forti_uuids)} intake(s) Fortinet ; {weak} sans "
-                "observation suffisante pour conclure.")
-    if not items:
-        headline = (
-            f"Aucun équipement observable : sur {len(snap.get('items') or [])} "
-            f"hôte(s) tirés, aucun ne provient des {len(forti_uuids)} intake(s) "
-            "Fortinet. Ce n'est PAS la preuve d'un silence — l'échantillon est "
-            "dominé par les sources les plus bavardes, et une source discrète "
-            "peut n'être jamais tirée. Élargissez la fenêtre ou l'échantillon.")
-    return {"available": True, "window": window, "sample": sample,
-            "forti_only": forti_only, "forti_intakes": len(forti_uuids),
-            "hosts_sampled_total": len(snap.get("items") or []),
-            "hosts": len(items), "indeterminate": weak, "items": items[:200],
-            "measured_at": ts, "headline": headline,
-            "why": "Un FortiAnalyzer masque des dizaines de boîtiers derrière un "
-                   "seul intake : l'intake reste bavard alors qu'un équipement "
-                   "s'est tu. Seule la surveillance par hôte le voit."}
+                          "estimated_events": h.get("estimated_events"),
+                          "intake_uuid": g["intake_uuid"],
+                          "intake_name": g["intake_name"],
+                          "hosts_behind_intake": g["hosts_count"]}).as_dict())
+
+    relays = [g for g in groups if g["is_relay"]]
+    biggest = relays[0] if relays else None
+    headline = (
+        f"{len(relays)} source(s) portent plusieurs machines "
+        f"({sum(g['hosts_count'] for g in relays)} hôtes au total)"
+        + (f" — la plus large est « {biggest['intake_name']} » avec "
+           f"{biggest['hosts_count']} machines" if biggest else "")
+        + f". {weak} hôte(s) sans observation suffisante pour conclure."
+    ) if relays else (
+        f"Aucune source multi-hôtes observée sur {len(snap.get('items') or [])} "
+        "hôte(s) tirés. Ce n'est PAS la preuve qu'il n'en existe pas : "
+        "l'échantillon est dominé par les sources les plus bavardes, et une "
+        "machine discrète peut n'être jamais tirée. Élargissez la fenêtre ou "
+        "l'échantillon.")
+
+    return {
+        "available": True, "window": window, "sample": sample,
+        "intake_filter": intake, "relays_only": relays_only,
+        "hosts_sampled_total": len(snap.get("items") or []),
+        "intakes_observed": len(groups),
+        "relays": len(relays),
+        "relay_summary": [{"intake_name": g["intake_name"],
+                           "intake_uuid": g["intake_uuid"],
+                           "hosts": g["hosts_count"],
+                           "family": g["family"],
+                           "sampled": g["sampled_total"]}
+                          for g in relays[:50]],
+        "hosts": len(items), "indeterminate": weak, "items": items[:300],
+        "measured_at": ts, "headline": headline,
+        "why": "Une source qui fronte plusieurs machines continue de parler tant "
+               "qu'une seule d'entre elles émet : la surveiller globalement ne "
+               "dira jamais qu'un équipement s'est tu. La détection ne repose "
+               "sur AUCUN nom — un intake est un relais parce qu'on y observe "
+               "plusieurs machines, pas parce qu'il s'appelle « FortiAnalyzer ».",
+    }
 
 
 # ── Détecteurs de règles ─────────────────────────────────────────────────────
@@ -819,15 +910,22 @@ async def dashboard(name: str) -> dict:
         return {"dashboard": "intakes", "measured_at": ts,
                 "headline": vol["headline"], "panels": [vol, sil],
                 "actions": ["comparer à l'attendu déclaré", "remonter l'intake"]}
-    if name == "fortigate":
-        f = await source_hostname_monitor()
-        return {"dashboard": "fortigate", "measured_at": ts,
+    if name in ("hostnames", "fortigate"):
+        # « fortigate » reste un alias FILTRANT : il ne regarde que les sources
+        # Fortinet. « hostnames » couvre toutes les sources multi-hotes, ce qui
+        # est le cas general — un intake nomme « Siaka envoie les logs ICI STP »
+        # fronte tout autant de machines.
+        f = await source_hostname_monitor(
+            intake="forti" if name == "fortigate" else None)
+        return {"dashboard": name, "measured_at": ts,
                 "headline": f.get("headline", "Aucune donnée."),
                 "panels": [f],
-                "actions": ["vérifier les boîtiers sans observation",
-                            "confirmer la remontée FortiAnalyzer"]}
+                "actions": ["vérifier les machines sans observation suffisante",
+                            "élargir la fenêtre sur les sources discrètes",
+                            "confirmer la remontée du collecteur"]}
     return {"ok": False, "error": f"tableau de bord inconnu « {name} »",
-            "known": ["sources", "rules", "assets", "intakes", "fortigate"]}
+            "known": ["sources", "rules", "assets", "intakes", "hostnames",
+                      "fortigate"]}
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -871,8 +969,8 @@ def register(an_app) -> None:
 
     @an_app.get(f"{P}/monitor/hostnames", dependencies=dep)
     async def mon_hosts(window: str = "1h", sample: int = 2000,
-                        forti_only: bool = True):
-        return await source_hostname_monitor(window, sample, forti_only)
+                        intake: str = None, relays_only: bool = True):
+        return await source_hostname_monitor(window, sample, intake, relays_only)
 
     @an_app.get(f"{P}/monitor/rules", dependencies=dep)
     async def mon_rules(hours: int = Query(default=168, ge=1, le=2160)):

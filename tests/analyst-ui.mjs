@@ -49,11 +49,11 @@ ok(await wait(/schema-manquant/), 'étiquettes — catalogue rendu');
 
 // Les cinq tableaux de bord, calculés à la demande.
 for (const [v, re, lbl] of [
-  ['rules', /inertes/i, 'règles'],
-  ['assets', /inventoriée|couverture/i, 'actifs'],
-  ['sources', /source\(s\)/i, 'sources'],
-  ['intakes', /référence|source\(s\)/i, 'intakes'],
-  ['fortigate', /Fortinet|équipement/i, 'fortigate'],
+  ['rules', /règle\(s\) inertes/i, 'règles'],
+  ['assets', /couverture d'inventaire/i, 'actifs'],
+  ['sources', /aucun événement sur \d+ h/i, 'sources'],
+  ['intakes', /s'écartent de leur référence/i, 'intakes'],
+  ['hostnames', /portent plusieurs machines|Aucune source multi-hôtes observée/i, 'sources multi-hôtes'],
 ]) {
   await p.locator(`[data-an-view="${v}"]`).first().click();
   await p.waitForTimeout(1200);

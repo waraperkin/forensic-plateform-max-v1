@@ -1635,6 +1635,11 @@ schemadrift.register(app)
 import sagf  # noqa: E402
 sagf.register(app)
 
+# Extension analystes : inventaires, monitoring, etiquettes internes. Adossee —
+# elle LIT l'API Sekoia et n'y ecrit jamais.
+import analyst  # noqa: E402
+analyst.register(app)
+
 # LOT 1 et LOT 3 du plan 14. Montes apres SAGF : ils en suivent les lois.
 import feedback  # noqa: E402
 feedback.register(app)

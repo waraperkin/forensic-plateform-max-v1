@@ -1,0 +1,278 @@
+"""Extension analystes — tests unitaires, d'intégration et de garde-fous."""
+import os
+import sys
+import tempfile
+
+import pytest
+
+# Environnement controle AVANT tout import de `app`. Ce fichier est collecte en
+# PREMIER par ordre alphabetique : importer `app` sans ces variables le figeait
+# sans jeton, et les 50 tests HTTP des autres suites recevaient alors des 401.
+os.environ["INTERNAL_API_TOKEN"] = "test-internal-token"
+os.environ["SECRETS_PATH"] = "/tmp/test-sekoia-secrets.enc"
+os.environ["SEKOIA_DATA_PATH"] = "/tmp/test-sekoia-data.enc"
+os.environ["SNAPSHOTS_PATH"] = "/tmp/test-sekoia-snapshots.json"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from cryptography.fernet import Fernet  # noqa: E402
+
+os.environ["SEKOIA_SECRETS_KEY"] = Fernet.generate_key().decode()
+
+# `app` d'abord : il monte `analyst` a l'import. Importer `analyst` en premier
+# creerait un cycle — le module serait a demi initialise quand `app` le monte.
+import app  # noqa: E402,F401
+import analyst  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def base_isolee(monkeypatch):
+    fd, path = tempfile.mkstemp(suffix=".sqlite")
+    os.close(fd)
+    monkeypatch.setattr(analyst, "DB_PATH", path)
+    yield
+    os.unlink(path)
+
+
+# ── LA propriété à ne jamais perdre ──────────────────────────────────────────
+
+def test_aucune_ecriture_vers_sekoia():
+    """Le module ne doit contenir AUCUN appel d'écriture vers l'API Sekoia.
+
+    C'est la propriété qui autorise tout le reste : étiqueter librement, poser
+    des verdicts, se tromper. Une étiquette fausse en local se corrige d'un
+    DELETE ; poussée dans le SIEM, elle engage la configuration d'un client.
+    """
+    src = open(analyst.__file__, encoding="utf-8").read()
+    for interdit in ('sek_request("POST"', "sek_request('POST'",
+                     'sek_request("PUT"', 'sek_request("PATCH"',
+                     'sek_request("DELETE"'):
+        assert interdit not in src, f"écriture Sekoia détectée : {interdit}"
+
+
+def test_les_etiquettes_hors_catalogue_sont_refusees():
+    with pytest.raises(ValueError, match="hors catalogue"):
+        analyst.Verdict(subject="x", verdict="v", uncertainty="u",
+                        measured_at=analyst._now(), tags=["inventee"])
+
+
+def test_le_catalogue_interne_est_complet():
+    for t in ("muet", "en-derive", "schema-manquant", "volumetrie-basse",
+              "volumetrie-haute", "inerte", "jamais-declenchee", "bruyante",
+              "sans-logs", "sans-source", "sans-couverture"):
+        assert t in analyst.INTERNAL_TAGS
+
+
+# ── Verdict : les trois champs obligatoires ──────────────────────────────────
+
+def test_un_verdict_sans_incertitude_est_refuse():
+    """Une estimation présentée sans réserve se lit comme une mesure."""
+    with pytest.raises(ValueError, match="incertitude"):
+        analyst.Verdict(subject="s", verdict="v", uncertainty="",
+                        measured_at=analyst._now())
+
+
+def test_un_verdict_sans_fraicheur_est_refuse():
+    """Sans date, un verdict est lu comme un état actuel."""
+    with pytest.raises(ValueError, match="fraîcheur"):
+        analyst.Verdict(subject="s", verdict="v", uncertainty="u",
+                        measured_at="")
+
+
+def test_un_verdict_sans_phrase_est_refuse():
+    with pytest.raises(ValueError, match="verdict vide"):
+        analyst.Verdict(subject="s", verdict="", uncertainty="u",
+                        measured_at=analyst._now())
+
+
+def test_le_verdict_expose_son_age_en_clair():
+    v = analyst.Verdict(subject="s", verdict="v", uncertainty="u",
+                        measured_at=analyst._now()).as_dict()
+    assert v["freshness"]["label"] == "à l'instant"
+    assert v["freshness"]["age_seconds"] < 5
+
+
+def test_un_age_ancien_est_lisible():
+    from datetime import datetime, timedelta, timezone
+    vieux = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+    v = analyst.Verdict(subject="s", verdict="v", uncertainty="u",
+                        measured_at=vieux).as_dict()
+    assert v["freshness"]["label"] == "il y a 3 j"
+
+
+# ── Magasin local ────────────────────────────────────────────────────────────
+
+def test_un_inventaire_vide_n_ecrase_pas_le_precedent():
+    """Une collecte ratée ferait croire à la disparition de tout le parc."""
+    analyst.store_inventory("rules", [{"rule_uuid": "a", "rule_name": "A"}])
+    out = analyst.store_inventory("rules", [])
+    assert out["kept_previous"] is True
+    assert analyst.read_inventory("rules")["total"] == 1
+
+
+def test_l_inventaire_relit_ce_qu_il_a_ecrit():
+    analyst.store_inventory("intakes", [
+        {"intake_uuid": "u1", "intake_name": "Forti", "intake_status": "enabled"},
+        {"intake_uuid": "u2", "intake_name": "Autre", "intake_status": "disabled"}])
+    inv = analyst.read_inventory("intakes")
+    assert inv["total"] == 2 and inv["returned"] == 2
+    assert {i["intake_name"] for i in inv["items"]} == {"Forti", "Autre"}
+
+
+def test_l_inventaire_porte_sa_fraicheur():
+    analyst.store_inventory("rules", [{"rule_uuid": "a"}])
+    assert analyst.read_inventory("rules")["freshness"]["age_seconds"] is not None
+
+
+def test_entite_inconnue_refusee_au_stockage():
+    with pytest.raises(ValueError, match="entité inconnue"):
+        analyst.store_inventory("licornes", [{"id": 1}])
+
+
+def test_les_sept_entites_sont_couvertes():
+    assert set(analyst.ENTITIES) == {"intakes", "sources", "rules", "assets",
+                                     "detections", "fields", "formats"}
+
+
+# ── Volumétrie ───────────────────────────────────────────────────────────────
+
+def test_volumetrie_refuse_de_conclure_sous_le_seuil():
+    """Sous 200 événements, un écart en pourcentage n'apprend rien."""
+    v = analyst.volumetry_verdict("petite", "u", 5, 50.0, analyst._now())
+    assert v["severity"] == "info"
+    assert "trop faible" in v["verdict"].lower()
+    assert v["tags"] == []
+
+
+def test_une_baisse_franche_est_signalee():
+    v = analyst.volumetry_verdict("grosse", "u", 2000, 10000.0, analyst._now())
+    assert v["severity"] == "alerte"
+    assert "baisse" in v["verdict"]
+    assert v["tags"] == ["volumetrie-basse"]
+
+
+def test_une_hausse_franche_est_signalee_mais_moins_grave():
+    v = analyst.volumetry_verdict("grosse", "u", 30000, 10000.0, analyst._now())
+    assert v["severity"] == "attention"
+    assert v["tags"] == ["volumetrie-haute"]
+
+
+def test_une_variation_dans_le_bruit_ne_declenche_rien():
+    assert analyst.volumetry_verdict("g", "u", 10400, 10000.0, analyst._now()) is None
+
+
+def test_le_seuil_suit_l_erreur_d_echantillonnage():
+    """Un seuil fixe crierait sur les petites sources et dormirait sur les grosses."""
+    # 1 000 evts : bruit ≈ 3,2 % → seuil plancher 25 % ; 20 % ne déclenche pas.
+    assert analyst.volumetry_verdict("a", "u", 1200, 1000.0, analyst._now()) is None
+    # 250 evts : bruit ≈ 6,3 % → seuil 25 % ; 40 % déclenche.
+    assert analyst.volumetry_verdict("b", "u", 150, 250.0, analyst._now()) is not None
+
+
+def test_pas_de_reference_pas_de_verdict():
+    assert analyst.volumetry_verdict("a", "u", 100, None, analyst._now()) is None
+    assert analyst.volumetry_verdict("a", "u", None, 100.0, analyst._now()) is None
+
+
+# ── Fortinet ─────────────────────────────────────────────────────────────────
+
+def test_une_source_fortinet_est_reconnue_quel_que_soit_le_champ():
+    assert analyst.is_forti({"intake_name": "FortiAnalyzer DC1"})
+    assert analyst.is_forti({"connector_name": "fortigate-syslog"})
+    assert analyst.is_forti({"intake_format_name": "FORTINET FortiOS"})
+    assert not analyst.is_forti({"intake_name": "Palo Alto", "entity_name": "DC1"})
+
+
+def test_le_seuil_de_tirage_protege_du_hasard():
+    """Un hôte tiré 3 fois sur 2 000 peut disparaître par pur hasard."""
+    assert analyst.MIN_DRAWS >= 15
+
+
+# ── Étiquettes ───────────────────────────────────────────────────────────────
+
+def test_les_etiquettes_sont_materialisees_en_local():
+    v = analyst.Verdict(subject="src", verdict="muette", uncertainty="u",
+                        measured_at=analyst._now(),
+                        evidence={"intake_uuid": "u1"}, tags=["muet"]).as_dict()
+    out = analyst.apply_tags("intakes", [v])
+    assert out["applied"] == 1 and out["never_written_to_sekoia"] is True
+    read = analyst.read_tags("intakes", "muet")
+    assert read["count"] == 1 and read["items"][0]["id"] == "u1"
+
+
+def test_une_etiquette_hors_catalogue_est_refusee_a_l_application():
+    with pytest.raises(ValueError, match="hors catalogue"):
+        analyst.apply_tags("intakes", [{"subject": "s", "verdict": "v",
+                                        "tags": ["fantaisie"]}])
+
+
+def test_l_etiquetage_est_idempotent():
+    v = analyst.Verdict(subject="s", verdict="v", uncertainty="u",
+                        measured_at=analyst._now(),
+                        evidence={"intake_uuid": "u1"}, tags=["muet"]).as_dict()
+    analyst.apply_tags("intakes", [v])
+    analyst.apply_tags("intakes", [v])
+    assert analyst.read_tags("intakes", "muet")["count"] == 1
+
+
+# ── Filtres ──────────────────────────────────────────────────────────────────
+
+def test_un_critere_inconnu_est_refuse_jamais_ignore():
+    """Ignorer un critère renverrait un ensemble plus large, en paraissant filtré."""
+    analyst.store_inventory("intakes", [{"intake_uuid": "u", "intake_name": "n"}])
+    out = analyst.apply_filters("intakes", {"couleur": "bleu"})
+    assert out["ok"] is False and "couleur" in out["error"]
+
+
+def test_filtre_par_attribut():
+    analyst.store_inventory("intakes", [
+        {"intake_uuid": "u1", "intake_name": "Forti", "connector_name": "fortigate"},
+        {"intake_uuid": "u2", "intake_name": "PA", "connector_name": "panw"}])
+    out = analyst.apply_filters("intakes", {"integration_type": "forti"})
+    assert out["matched"] == 1 and out["items"][0]["intake_uuid"] == "u1"
+
+
+def test_filtre_par_verdict_croise_les_etiquettes():
+    analyst.store_inventory("intakes", [
+        {"intake_uuid": "u1", "intake_name": "A"},
+        {"intake_uuid": "u2", "intake_name": "B"}])
+    v = analyst.Verdict(subject="A", verdict="muette", uncertainty="u",
+                        measured_at=analyst._now(),
+                        evidence={"intake_uuid": "u1"}, tags=["muet"]).as_dict()
+    analyst.apply_tags("intakes", [v])
+    out = analyst.apply_filters("intakes", {"muettes": True})
+    assert out["matched"] == 1 and out["items"][0]["intake_uuid"] == "u1"
+
+
+def test_filtres_combines():
+    analyst.store_inventory("intakes", [
+        {"intake_uuid": "u1", "intake_name": "Forti DC1", "connector_name": "fortigate"},
+        {"intake_uuid": "u2", "intake_name": "Forti DC2", "connector_name": "fortigate"}])
+    out = analyst.apply_filters("intakes",
+                                {"integration_type": "forti", "name": "dc1"})
+    assert out["matched"] == 0  # « name » lit le champ `name`, absent ici
+    out2 = analyst.apply_filters("intakes", {"integration_type": "fortigate"})
+    assert out2["matched"] == 2
+
+
+def test_les_dix_sept_filtres_demandes_existent():
+    tous = set(analyst.FILTERS) | set(analyst.TAG_FILTERS)
+    for f in ("integration_type", "hostname", "criticality", "environment",
+              "owner", "taxonomy", "mitre", "muettes", "en_derive",
+              "schema_manquant", "inertes", "bavardes", "sans_logs",
+              "sans_source", "sans_couverture"):
+        assert f in tous, f
+
+
+# ── Fraîcheur ────────────────────────────────────────────────────────────────
+
+def test_un_horodatage_illisible_ne_fait_pas_planter():
+    assert analyst._age_seconds("pas une date") is None
+    assert analyst._human_age(None) == "âge inconnu"
+
+
+def test_les_cinq_tableaux_de_bord_sont_nommes():
+    import asyncio
+    out = asyncio.run(analyst.dashboard("inexistant"))
+    assert out["ok"] is False
+    assert set(out["known"]) == {"sources", "rules", "assets", "intakes",
+                                 "fortigate"}

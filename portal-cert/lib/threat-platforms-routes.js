@@ -284,6 +284,12 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     if (reqPath.startsWith('/sagf')) {
       return { base: SEKOIA_URL, target: `/control${reqPath}` };
     }
+    // L'extension analystes est montee sous /control/sekoia/analyst : le
+    // navigateur l'appelle par /analyst/... et le mandataire la reecrit. Sans
+    // ce mappage, l'onglet resterait vide sans qu'aucune erreur ne le dise.
+    if (reqPath.startsWith('/analyst')) {
+      return { base: SEKOIA_URL, target: `/control/sekoia${reqPath}` };
+    }
     return null;
   }
 
@@ -308,12 +314,15 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   // lot) : sans elles ici, l'UI ne peut pas les atteindre malgré leur présence
   // dans le control-plane.
   const ALLOWED_SAGF_RE = /^\/sagf\/(laws|mechanisms|query|saved|debt|self-report|config|reconcile|risk|nl|journal|optimise|compliance|feedback|conflicts|dac|economics|efficacy|harness|insurance|adversary|twin)(\/|$)/;
+  const ALLOWED_ANALYST_RE = /^\/analyst\/(inventory|monitor|dashboard|tags|filters|filter)(\/|$)/;
   const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
     const allowed = req.path.startsWith('/sagf')
       ? ALLOWED_SAGF_RE.test(req.path)
-      : ALLOWED_PROXY_RE.test(req.path);
+      : req.path.startsWith('/analyst')
+        ? ALLOWED_ANALYST_RE.test(req.path)
+        : ALLOWED_PROXY_RE.test(req.path);
     if (!mapped || !allowed) {
       return res.status(404).json({ error: 'Plateforme ou ressource inconnue', items: [] });
     }

@@ -1,0 +1,71 @@
+// Extension analystes — validation navigateur de l'onglet et des 7 vues.
+import { chromium } from '/opt/forensic-plateform-max-v1/tests/node_modules/playwright/index.mjs';
+import fs from 'fs';
+const env = {};
+for (const l of fs.readFileSync('/opt/forensic-plateform-max-v1/.env', 'utf8').split('\n')) {
+  if (!l || l.startsWith('#') || !l.includes('=')) continue;
+  const i = l.indexOf('='); let v = l.slice(i + 1).trim();
+  if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
+  env[l.slice(0, i).trim()] = v;
+}
+const b = await chromium.launch({ headless: true, args: ['--ignore-certificate-errors', '--no-sandbox'] });
+const c = await b.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 1000 } });
+const p = await c.newPage(); const errs = [];
+p.on('console', (m) => { if (m.type() === 'error') errs.push(m.text().slice(0, 140)); });
+let fail = 0;
+const ok = (x, m) => { console.log(x ? `[PASS] ${m}` : `[FAIL] ${m}`); if (!x) fail++; };
+const wait = async (re, n = 150) => {
+  for (let i = 0; i < n; i++) {
+    await p.waitForTimeout(3000);
+    if (re.test(await p.locator('#analyst-root').innerText())) return true;
+  } return false;
+};
+
+await p.goto('https://192.168.2.67/login.html', { waitUntil: 'domcontentloaded' });
+await p.waitForTimeout(800);
+const t = p.locator('input:not([type=hidden])');
+await t.nth(0).fill(env.PORTAL_ADMIN_USER); await t.nth(1).fill(env.PORTAL_ADMIN_PASSWORD);
+await p.locator('button[type="submit"]').first().click(); await p.waitForTimeout(3000);
+
+await p.locator('[data-tab-btn="analyst"]').first().click();
+await p.locator('[data-an-view]').first().waitFor({ timeout: 60000 });
+await p.waitForTimeout(2000);
+ok(await p.locator('[data-an-view]').count() === 7, 'onglet — 7 vues');
+
+// Inventaires : lecture du magasin local, avec sa fraîcheur.
+await p.locator('[data-an-view="inventory"]').first().click();
+await p.locator('#an-entity').waitFor({ timeout: 20000 });
+await p.waitForTimeout(800);
+await p.locator('[data-an-act="inv"]').first().click();
+ok(await wait(/objet\(s\)/), 'inventaires — lecture rendue');
+ok(await wait(/mesuré/), 'inventaires — fraîcheur affichée');
+
+// Étiquettes internes : le catalogue et la promesse de non-écriture.
+await p.locator('[data-an-view="tags"]').first().click();
+await p.waitForTimeout(800);
+await p.locator('[data-an-act="tags"]').first().click();
+ok(await wait(/Aucune n'est écrite dans Sekoia/), 'étiquettes — non-écriture affichée');
+ok(await wait(/schema-manquant/), 'étiquettes — catalogue rendu');
+
+// Les cinq tableaux de bord, calculés à la demande.
+for (const [v, re, lbl] of [
+  ['rules', /inertes/i, 'règles'],
+  ['assets', /inventoriée|couverture/i, 'actifs'],
+  ['sources', /source\(s\)/i, 'sources'],
+  ['intakes', /référence|source\(s\)/i, 'intakes'],
+  ['fortigate', /Fortinet|équipement/i, 'fortigate'],
+]) {
+  await p.locator(`[data-an-view="${v}"]`).first().click();
+  await p.waitForTimeout(1200);
+  await p.locator(`[data-an-act="dash:${v}"]`).first().waitFor({ timeout: 20000 });
+  await p.locator(`[data-an-act="dash:${v}"]`).first().click();
+  ok(await wait(re), `tableau ${lbl} — rendu`);
+  const txt = await p.locator('#analyst-root').innerText();
+  ok(!/\[object/i.test(txt), `tableau ${lbl} — aucun objet brut`);
+  ok(/mesuré/.test(txt), `tableau ${lbl} — fraîcheur affichée`);
+}
+
+await p.screenshot({ path: '/opt/forensic-sekoia-psoar-rebuild/screenshots/extension-analystes.png' });
+ok(errs.length === 0, `console — ${errs.length} erreur(s)${errs.length ? ': ' + errs[0] : ''}`);
+console.log(`=== extension analystes — ${fail} FAIL ===`);
+await b.close(); process.exit(fail ? 1 : 0);

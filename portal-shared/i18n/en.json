@@ -2676,7 +2676,27 @@
       "f_hours": "Hours",
       "f_intake": "Source",
       "f_intake_ph": "name or UUID (optional)",
-      "f_relays": "relays only"
+      "f_relays": "relays only",
+      "v_quality": "Quality & latency",
+      "v_loss": "Losses",
+      "v_fields": "Fields",
+      "v_mitre": "MITRE",
+      "v_taxo": "Taxonomies",
+      "c_count": "Count",
+      "c_meaning": "What it means",
+      "k_duplicates_id": "Duplicate identifiers",
+      "k_duplicates_name": "Duplicate names",
+      "k_ghosts": "Ghosts",
+      "k_orphans": "Orphans",
+      "k_unmapped": "Unmapped",
+      "k_unused": "Unused",
+      "k_obsolete": "Obsolete",
+      "k_inert": "Inert",
+      "k_total_loss": "Total losses",
+      "k_partial_loss": "Partial losses",
+      "f_dependency_break": "Broken dependencies",
+      "g_ghosts": "Ghost assets",
+      "g_orphans": "Orphan assets"
     }
   },
   "swbtx": {

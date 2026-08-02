@@ -38,7 +38,7 @@ croyant agir sur une base sûre.
 
 ## 3. Modules d'inventaire
 
-Sept entités, un magasin local SQLite, une route par entité.
+**Douze entités**, un magasin local SQLite, une route par entité.
 
 | Entité | Source Sekoia | Volume observé sur le tenant |
 |---|---|---|
@@ -48,6 +48,36 @@ Sept entités, un magasin local SQLite, une route par entité.
 | `formats` | dialectes déduits des intakes | **31** |
 | `detections` | alertes récentes | à la demande |
 | `fields` | champs observés dans un échantillon | à la demande |
+| `taxonomies` | axes lus dans l'**usage réel** (étiquettes, catégorie d'alerte, cycle de vie) | **166** |
+| `mitre` | techniques lues dans `rule_attack_refs` | **270** |
+| `integration_types` | connecteurs employés | **5** |
+| `groups` | entités Sekoia | **3** |
+| `owners` | propriété déclarée | **aucune** — voir §3.2 |
+
+### 3.1 Huit contrôles de cohérence par inventaire
+
+Un inventaire n'est pas une liste : ce sont ses **anomalies** qui intéressent
+l'analyste. Les huit familles sont **distinctes et nommées**, parce qu'elles ne
+se corrigent pas de la même façon — les fondre dans un seul « problèmes »
+rendrait le résultat inactionnable.
+
+| Famille | Ce que cela veut dire |
+|---|---|
+| doublons d'identifiant | même identifiant deux fois : l'inventaire amont est incohérent |
+| doublons de nom | mêmes noms, identifiants distincts — deux objets qu'un analyste confondra |
+| fantômes | sans identifiant ou sans nom : ni suivable, ni corrigeable |
+| orphelins | rattachement manquant (connecteur, source, groupe) |
+| non mappés | sans classification exploitable — invisible dans toute vue MITRE ou taxonomie |
+| non utilisés | aucun usage déclaré |
+| obsolètes | désactivé ou retiré, encore présent |
+| inertes | présent mais sans effet possible |
+
+### 3.2 Un résultat, pas un échec de collecte
+
+**Sekoia ne porte aucun champ de propriété** sur les règles ni sur les intakes.
+L'inventaire `owners` ne renvoie donc qu'une ligne : `∅ sans propriétaire`. Ce
+n'est pas une collecte ratée, c'est la mesure — et tant que la propriété n'est
+déclarée nulle part, **aucune anomalie ne peut être assignée à qui que ce soit**.
 
 ```
 GET  /control/sekoia/analyst/inventory/{entity}
@@ -138,9 +168,30 @@ Le détecteur « actifs sans journaux » **se suspend** quand la liste d'hôtes
 observés atteint son plafond : au plafond, l'absence d'un actif dans la liste ne
 prouve rien, et publier le calcul produirait des centaines de faux positifs.
 
+## 6 bis. Qualité, latence, pertes et champs
+
+| Module | Ce qu'il apporte | Le piège évité |
+|---|---|---|
+| `monitor_quality_latency` | parsing et latence sur **un seul prélèvement** | deux jobs concurrents doubleraient le coût en quota, et l'un pourrait revenir vide |
+| `monitor_loss` | pertes **totales** et **partielles**, séparées | une perte totale désigne un lien coupé, une partielle un filtre ou un équipement parmi d'autres — les confondre envoie l'analyste au mauvais endroit |
+| `monitor_fields` | présence, rareté et dérive de champs | un champ rare n'est pas un champ absent : sous 1 % de présence, son absence d'un échantillon ne prouve rien |
+
+Sur la latence, une réserve est portée en toutes lettres : **une horloge décalée
+et un retard de livraison produisent le même signal**. La latence se lit, elle
+ne se conclut pas.
+
+Sur les règles, deux ajouts : les **dépendances rompues** (règle activée dont le
+format n'est porté par aucun intake actif) et les **non mappées MITRE** — sans
+technique citée, la couverture d'une règle n'est ni prouvable ni réfutable.
+
+Faux positifs et faux négatifs restent **déclarés non mesurables** : ils exigent
+des verdicts d'analystes, et les estimer produirait un chiffre rassurant et faux.
+
 ## 7. Tableaux de bord
 
-Cinq, plus les inventaires et les étiquettes : `sources`, `rules`, `assets`,
+**Vingt-trois** tableaux, dont douze adossés à un inventaire (ils montrent une
+répartition, pas une mesure de flux — leur fraîcheur est celle de la dernière
+collecte). Les principaux : `sources`, `rules`, `assets`,
 `intakes`, `hostnames` (sources multi-hôtes, avec `fortigate` conservé comme alias filtrant). Chacun affiche la mesure, **son incertitude**, **sa
 fraîcheur**, les anomalies et des **actions proposées** — toutes internes à
 l'extension.
@@ -179,14 +230,18 @@ demandée, et l'analyste conclurait sur la mauvaise.
 
 `GET /analyst/filters` liste les deux familles.
 
-**Filtres d'attribut** — `integration_type`, `hostname`, `criticality`,
-`environment`, `owner`, `taxonomy`, `mitre`, `status`, `enabled`, `format`,
-`name`.
+**Filtres d'attribut (22)** — `integration_type`, `category`, `hostname`,
+`criticality`, `environment`, `entity`, `owner`, `owner_name`, `taxonomy`,
+`mitre`, `technique`, `type`, `group`, `severity`, `dialect`, `format`,
+`status`, `enabled`, `created_by`, `uuid`, `rule_uuid`, `name`.
 
-**Filtres de verdict** — ils portent sur les étiquettes internes, jamais sur un
-champ Sekoia : `muettes`, `en_derive`, `schema_manquant`, `volumetrie_basse`,
-`volumetrie_haute`, `inertes`, `jamais_declenchees`, `bavardes`, `sans_logs`,
-`sans_source`, `sans_couverture`.
+**Filtres de verdict (23)** — ils portent sur les étiquettes internes, jamais
+sur un champ Sekoia : `muettes`, `en_derive`, `schema_manquant`,
+`volumetrie_basse`, `volumetrie_haute`, `inertes`, `jamais_declenchees`,
+`bavardes`, `sans_logs`, `sans_source`, `sans_couverture`, `anomalies`,
+`pertes`, `dette`, `non_mappees`, `non_documentees`, `non_conformes`,
+`non_testees`, `non_validees`, `non_versionnees`, `non_utilisees`, `fantomes`,
+`orphelins`.
 
 **Un critère inconnu est refusé, jamais ignoré.** L'ignorer renverrait un
 ensemble plus large que demandé avec l'apparence d'avoir filtré — et l'analyste
@@ -194,12 +249,14 @@ conclurait sur un ensemble qu'il croit restreint.
 
 ## 9. Étiquettes internes
 
-Onze étiquettes, un catalogue **fermé** : une valeur hors catalogue est refusée
+**Vingt-trois** étiquettes, un catalogue **fermé** : une valeur hors catalogue est refusée
 à la construction du verdict comme à l'application.
 
 `muet` · `en-derive` · `schema-manquant` · `volumetrie-basse` ·
 `volumetrie-haute` · `inerte` · `jamais-declenchee` · `bruyante` ·
-`sans-logs` · `sans-source` · `sans-couverture`
+`sans-logs` · `sans-source` · `sans-couverture` · `anomalie` · `perte` ·
+`dette` · `non-mappe` · `non-documente` · `non-conforme` · `non-teste` ·
+`non-valide` · `non-versionne` · `non-utilise` · `fantome` · `orphelin`
 
 Elles vivent dans la base locale. C'est **ce qui autorise à étiqueter
 librement** : une étiquette fausse ici se corrige d'un `DELETE`, alors qu'une
@@ -207,7 +264,7 @@ librement** : une étiquette fausse ici se corrige d'un `DELETE`, alors qu'une
 
 ## 10. Tests
 
-**487 tests Python, 0 échec** — dont 31 propres à l'extension : garde-fou de
+**505 tests Python, 0 échec** — dont 31 propres à l'extension : garde-fou de
 non-écriture, catalogue fermé, trois champs obligatoires du verdict, magasin
 local, seuils de volumétrie, reconnaissance Fortinet, étiquetage idempotent,
 refus des critères inconnus.

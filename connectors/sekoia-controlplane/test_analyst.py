@@ -128,9 +128,11 @@ def test_entite_inconnue_refusee_au_stockage():
         analyst.store_inventory("licornes", [{"id": 1}])
 
 
-def test_les_sept_entites_sont_couvertes():
-    assert set(analyst.ENTITIES) == {"intakes", "sources", "rules", "assets",
-                                     "detections", "fields", "formats"}
+def test_les_entites_de_base_restent_couvertes():
+    """Les sept d'origine survivent a l'ajout des cinq inventaires derives."""
+    for e in ("intakes", "sources", "rules", "assets", "detections", "fields",
+              "formats"):
+        assert e in analyst.ENTITIES
 
 
 # ── Volumétrie ───────────────────────────────────────────────────────────────
@@ -301,6 +303,102 @@ def test_les_dix_sept_filtres_demandes_existent():
         assert f in tous, f
 
 
+# ── Inventaires dérivés et cohérence ─────────────────────────────────────────
+
+def test_les_techniques_se_lisent_dans_le_champ_dedie():
+    """Chercher ATT&CK dans les etiquettes libres renvoyait ZERO sur ce tenant.
+
+    Sekoia porte `rule_attack_refs`. Un motif lexical sur du texte libre est
+    toujours le mauvais choix quand un champ structure existe.
+    """
+    r = {"rule_attack_refs": "attack-pattern--aaa,attack-pattern--bbb"}
+    assert analyst.rule_attack(r) == ["attack-pattern--aaa", "attack-pattern--bbb"]
+
+
+def test_les_references_jointes_par_virgule_sont_scindees():
+    """Sans scission, une regle couvrant six techniques en formait UNE seule,
+    illisible, et gonflait le compte de techniques distinctes."""
+    m = analyst.derive_mitre([
+        {"rule_attack_refs": "T1078,T1110", "rule_enabled": True,
+         "rule_name": "r1"},
+        {"rule_attack_refs": "T1078", "rule_enabled": False, "rule_name": "r2"}])
+    par = {x["technique"]: x for x in m}
+    assert set(par) == {"T1078", "T1110"}
+    assert par["T1078"]["rules"] == 2 and par["T1078"]["rules_enabled"] == 1
+
+
+def test_une_regle_sans_technique_est_non_mappee():
+    c = analyst.coherence("rules", [
+        {"rule_uuid": "a", "rule_name": "A", "rule_attack_refs": "T1078",
+         "rule_enabled": True, "rule_tags": ["x"]},
+        {"rule_uuid": "b", "rule_name": "B", "rule_enabled": True,
+         "rule_tags": ["x"]}])
+    assert c["unmapped"]["count"] == 1 and c["unmapped"]["items"] == ["B"]
+
+
+def test_les_huit_familles_d_incoherence_sont_distinctes():
+    """Les fondre dans un seul « problemes » rendrait le resultat inactionnable."""
+    c = analyst.coherence("intakes", [{"intake_uuid": "u", "intake_name": "n"}])
+    for f in ("duplicates_id", "duplicates_name", "ghosts", "orphans",
+              "unmapped", "unused", "obsolete", "inert"):
+        assert f in c and "meaning" in c[f], f
+
+
+def test_un_doublon_de_nom_est_distingue_d_un_doublon_d_identifiant():
+    """Deux objets de meme nom mais d'uuid distincts sont un piege pour
+    l'analyste ; deux fois le meme uuid est une incoherence de l'amont."""
+    c = analyst.coherence("intakes", [
+        {"intake_uuid": "u1", "intake_name": "Meme"},
+        {"intake_uuid": "u2", "intake_name": "Meme"}])
+    assert c["duplicates_name"]["count"] == 1
+    assert c["duplicates_id"]["count"] == 0
+
+
+def test_un_objet_sans_nom_est_un_fantome():
+    c = analyst.coherence("intakes", [{"intake_uuid": "u1", "intake_name": ""}])
+    assert c["ghosts"]["count"] == 1
+
+
+def test_l_absence_de_proprietaire_est_comptee_a_part():
+    """Agreger l'absence sous « inconnu » effacerait le chiffre a corriger."""
+    out = analyst.derive_owners([{"intake_uuid": "u"}], [{"rule_uuid": "r"}])
+    last = out[-1]
+    assert last["owner"].startswith("∅")
+    assert last["intakes"] == 1 and last["rules"] == 1
+    assert "AUCUN champ de propriété" in last["note"]
+
+
+def test_les_douze_inventaires_sont_couverts():
+    assert len(analyst.ENTITIES) == 12
+    for e in ("taxonomies", "mitre", "integration_types", "groups", "owners"):
+        assert e in analyst.ENTITIES
+
+
+def test_les_vingt_trois_etiquettes_sont_au_catalogue():
+    assert len(analyst.INTERNAL_TAGS) == 23
+    for t in ("anomalie", "perte", "dette", "non-mappe", "non-documente",
+              "non-conforme", "non-teste", "non-valide", "non-versionne",
+              "non-utilise", "fantome", "orphelin"):
+        assert t in analyst.INTERNAL_TAGS
+
+
+def test_les_tableaux_de_bord_sont_declares():
+    assert len(analyst.DASHBOARDS) >= 20
+    for d in ("quality", "loss", "fields", "mitre", "taxonomies", "groups",
+              "owners", "tenants", "environments"):
+        assert d in analyst.DASHBOARDS
+
+
+def test_les_filtres_couvrent_les_familles_demandees():
+    tous = set(analyst.FILTERS) | set(analyst.TAG_FILTERS)
+    for f in ("integration_type", "category", "hostname", "criticality",
+              "environment", "owner", "taxonomy", "mitre", "technique",
+              "group", "anomalies", "pertes", "dette", "non_mappees",
+              "fantomes", "orphelins", "non_testees", "non_versionnees"):
+        assert f in tous, f
+    assert len(tous) >= 40
+
+
 # ── Fraîcheur ────────────────────────────────────────────────────────────────
 
 def test_un_horodatage_illisible_ne_fait_pas_planter():
@@ -332,5 +430,6 @@ def test_les_tableaux_de_bord_sont_nommes():
     import asyncio
     out = asyncio.run(analyst.dashboard("inexistant"))
     assert out["ok"] is False
-    assert set(out["known"]) == {"sources", "rules", "assets", "intakes",
-                                 "hostnames", "fortigate"}
+    for d in ("sources", "rules", "assets", "intakes", "hostnames",
+              "fortigate"):
+        assert d in out["known"]

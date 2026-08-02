@@ -63,13 +63,17 @@ MIN_EVENTS = 200
 SILENCE_HOURS = 24
 
 ENTITIES = ("intakes", "sources", "rules", "assets", "detections",
-            "fields", "formats")
+            "fields", "formats", "taxonomies", "mitre", "integration_types",
+            "groups", "owners")
 
 # Étiquettes internes. Elles ne quittent JAMAIS cette base.
 INTERNAL_TAGS = (
     "muet", "en-derive", "schema-manquant", "volumetrie-basse",
     "volumetrie-haute", "inerte", "jamais-declenchee", "bruyante",
     "sans-logs", "sans-source", "sans-couverture",
+    "anomalie", "perte", "dette", "non-mappe", "non-documente",
+    "non-conforme", "non-teste", "non-valide", "non-versionne",
+    "non-utilise", "fantome", "orphelin",
 )
 
 
@@ -211,6 +215,11 @@ def read_inventory(entity: str, limit: int = 500, offset: int = 0) -> dict:
 
 
 _KEYS = {
+    "taxonomies": ("value", "value"),
+    "mitre": ("technique", "technique"),
+    "integration_types": ("type", "type"),
+    "groups": ("group", "group"),
+    "owners": ("owner", "owner"),
     "intakes": ("intake_uuid", "intake_name"),
     "sources": ("intake_uuid", "intake_name"),
     "rules": ("rule_uuid", "rule_name"),
@@ -251,6 +260,23 @@ async def collect(entity: str) -> list:
     if entity == "assets":
         import bulkops
         return await bulkops._objects("assets")
+    if entity == "taxonomies":
+        return derive_taxonomies(list(full.get("rules") or []))
+    if entity == "mitre":
+        return derive_mitre(list(full.get("rules") or []))
+    if entity == "integration_types":
+        return derive_integration_types(list(inv.get("main_inventory") or []))
+    if entity in ("groups", "owners"):
+        import bulkops
+        try:
+            assets_rows = await bulkops._objects("assets")
+        except Exception as exc:
+            cp.log.warning("analyst %s: %s", entity, exc)
+            assets_rows = []
+        intakes = list(inv.get("main_inventory") or [])
+        if entity == "groups":
+            return derive_groups(intakes, assets_rows)
+        return derive_owners(intakes, list(full.get("rules") or []))
     if entity == "detections":
         import alerting
         data, err = await cp.sek_request(
@@ -271,9 +297,254 @@ async def collect(entity: str) -> list:
     return []
 
 
+# ── Inventaires dérivés ──────────────────────────────────────────────────────
+
+TAXO_PREFIXES = ("attack.", "cve", "tlp:", "kill-chain", "category", "type")
+
+
+def derive_taxonomies(rules: list) -> list:  # noqa: C901
+    """Axes de classification tels qu'ils sont RÉELLEMENT employés.
+
+    Sekoia n'expose pas de référentiel de taxonomie : les valeurs vivent dans
+    les étiquettes des règles. On les recense donc à partir de l'usage, ce qui
+    a l'avantage de montrer les valeurs orphelines — celles qu'une seule règle
+    porte, souvent une faute de frappe.
+    """
+    counts: dict = {}
+    for r in rules:
+        tags = r.get("rule_tags") or r.get("tags") or []
+        if isinstance(tags, str):
+            tags = [tags]
+        for t in tags:
+            t = str(t).strip()
+            if not t or t.lower().startswith("attack."):
+                continue
+            c = counts.setdefault(t, {"value": t, "rules": 0, "axis": None})
+            c["rules"] += 1
+            if ":" in t:
+                c["axis"] = t.split(":", 1)[0]
+    for r in rules:
+        cat = r.get("rule_alert_category_name")
+        if cat:
+            key = f"categorie:{cat}"
+            c = counts.setdefault(key, {"value": key, "rules": 0,
+                                        "axis": "categorie",
+                                        "structured": True})
+            c["rules"] += 1
+        lc = r.get("rule_lifecycle")
+        if lc:
+            key = f"cycle:{lc}"
+            c = counts.setdefault(key, {"value": key, "rules": 0,
+                                        "axis": "cycle", "structured": True})
+            c["rules"] += 1
+    return sorted(counts.values(), key=lambda x: -x["rules"])
+
+
+ATTACK_RE = re.compile(r"\b(T\d{4}(?:\.\d{3})?)\b", re.I)
+
+
+def rule_attack(rule: dict) -> list:
+    """Techniques ATT&CK d'une règle, lues dans le champ DÉDIÉ.
+
+    Sekoia porte `rule_attack_refs` : chercher les techniques dans les
+    étiquettes libres renvoyait ZÉRO sur ce tenant, parce qu'elles n'y sont pas.
+    Un motif lexical sur du texte libre est toujours le mauvais choix quand un
+    champ structuré existe.
+    """
+    refs = rule.get("rule_attack_refs") or []
+    if isinstance(refs, str):
+        refs = [refs]
+    out = []
+    for x in refs:
+        if isinstance(x, dict):
+            x = x.get("id") or x.get("technique") or x.get("name") or ""
+        # Le champ arrive JOINT PAR VIRGULES : ne pas le scinder faisait d'une
+        # règle couvrant six techniques une « technique » unique et illisible,
+        # et gonflait le décompte de techniques distinctes avec des doublons.
+        for part in re.split(r"[,\s]+", str(x)):
+            part = part.strip()
+            if not part:
+                continue
+            m = ATTACK_RE.search(part)
+            out.append(m.group(1).upper() if m else part)
+    return sorted(set(o for o in out if o))
+
+
+def derive_mitre(rules: list) -> list:
+    """Techniques ATT&CK citées par les règles, avec ce qui les couvre."""
+    per: dict = {}
+    for r in rules:
+        for tech in rule_attack(r):
+            p = per.setdefault(tech, {"technique": tech, "rules": 0,
+                                      "rules_enabled": 0, "examples": []})
+            p["rules"] += 1
+            if str(r.get("rule_enabled")).lower() in ("true", "1"):
+                p["rules_enabled"] += 1
+            if len(p["examples"]) < 5:
+                p["examples"].append(r.get("rule_name"))
+    return sorted(per.values(), key=lambda x: -x["rules"])
+
+
+def derive_integration_types(intakes: list) -> list:
+    per: dict = {}
+    for i in intakes:
+        t = str(i.get("connector_name") or "inconnu")
+        p = per.setdefault(t, {"type": t, "intakes": 0, "enabled": 0,
+                               "entities": set()})
+        p["intakes"] += 1
+        if str(i.get("intake_status") or "").lower() in ("enabled", "active"):
+            p["enabled"] += 1
+        if i.get("entity_name"):
+            p["entities"].add(i.get("entity_name"))
+    out = []
+    for p in per.values():
+        p["entities"] = sorted(p["entities"])[:20]
+        p["entities_count"] = len(p["entities"])
+        out.append(p)
+    return sorted(out, key=lambda x: -x["intakes"])
+
+
+def derive_groups(intakes: list, assets: list) -> list:
+    """Groupes = entités Sekoia. Ce sont les seules frontières natives."""
+    per: dict = {}
+    for i in intakes:
+        g = str(i.get("entity_name") or "sans entité")
+        p = per.setdefault(g, {"group": g, "intakes": 0, "assets": 0})
+        p["intakes"] += 1
+    for a in assets:
+        g = str(a.get("entity_name") or a.get("community_uuid") or "sans entité")
+        p = per.setdefault(g, {"group": g, "intakes": 0, "assets": 0})
+        p["assets"] += 1
+    return sorted(per.values(), key=lambda x: -(x["intakes"] + x["assets"]))
+
+
+def derive_owners(intakes: list, rules: list) -> list:
+    """Propriétaires déclarés. Sekoia n'en porte pas de champ dédié : on lit ce
+    qui en tient lieu, et on compte SÉPARÉMENT ce qui n'a aucun propriétaire —
+    c'est le chiffre qui compte, et l'agréger sous « inconnu » l'effacerait.
+    """
+    per: dict = {}
+    unowned = {"intakes": 0, "rules": 0}
+    for i in intakes:
+        o = i.get("created_by") or i.get("owner")
+        if not o:
+            unowned["intakes"] += 1
+            continue
+        per.setdefault(str(o), {"owner": str(o), "intakes": 0, "rules": 0})["intakes"] += 1
+    for r in rules:
+        o = r.get("rule_created_by") or r.get("created_by") or r.get("owner")
+        if not o:
+            unowned["rules"] += 1
+            continue
+        per.setdefault(str(o), {"owner": str(o), "intakes": 0, "rules": 0})["rules"] += 1
+    out = sorted(per.values(), key=lambda x: -(x["intakes"] + x["rules"]))
+    out.append({"owner": "∅ sans propriétaire", "intakes": unowned["intakes"],
+                "rules": unowned["rules"],
+                "note": "Sekoia ne porte AUCUN champ de propriété sur les règles "
+                        "ni sur les intakes. Ce n'est pas un échec de collecte : "
+                        "c'est le résultat. Tant que la propriété n'est pas "
+                        "déclarée quelque part, aucune anomalie ne peut être "
+                        "assignée à qui que ce soit."})
+    return out
+
+
+# ── Cohérence des inventaires ────────────────────────────────────────────────
+
+def coherence(entity: str, rows: list) -> dict:
+    """Huit contrôles sur un inventaire, chacun nommé pour ce qu'il est.
+
+    Un inventaire n'est pas seulement une liste : ce sont les ANOMALIES de la
+    liste qui intéressent l'analyste. Doublons, fantômes et orphelins ne se
+    corrigent pas de la même façon, et les fondre dans un seul « problèmes »
+    rendrait le résultat inactionnable.
+    """
+    idf, namef = _KEYS.get(entity, ("id", "name"))
+    ids, names = {}, {}
+    duplicates_id, duplicates_name = [], []
+    ghosts, orphans, unmapped, unused, obsolete, inert = [], [], [], [], [], []
+
+    for r in rows:
+        rid, nm = r.get(idf), str(r.get(namef) or "").strip()
+        if rid:
+            if rid in ids:
+                duplicates_id.append(rid)
+            ids[rid] = r
+        else:
+            # Sans identifiant, l'objet ne peut ni être suivi ni corrigé.
+            ghosts.append(nm or "«sans nom»")
+        if nm:
+            if nm.lower() in names:
+                duplicates_name.append(nm)
+            names[nm.lower()] = r
+        else:
+            ghosts.append(str(rid))
+
+    if entity == "rules":
+        for r in rows:
+            tags = r.get("rule_tags") or r.get("tags") or []
+            if isinstance(tags, str):
+                tags = [tags]
+            if not rule_attack(r):
+                unmapped.append(r.get("rule_name"))
+            if not tags:
+                unused.append(r.get("rule_name"))
+            if str(r.get("rule_enabled")).lower() not in ("true", "1"):
+                inert.append(r.get("rule_name"))
+    elif entity in ("intakes", "sources"):
+        for r in rows:
+            if not (r.get("connector_name") or "").strip():
+                orphans.append(r.get("intake_name"))
+            if str(r.get("intake_status") or "").lower() in ("disabled", "inactive"):
+                obsolete.append(r.get("intake_name"))
+            if not (r.get("entity_name") or "").strip():
+                unmapped.append(r.get("intake_name"))
+    elif entity == "assets":
+        for r in rows:
+            if not (r.get("name") or "").strip():
+                ghosts.append(str(r.get("uuid")))
+            if not (r.get("category") or r.get("type")):
+                unmapped.append(r.get("name"))
+
+    def cut(x):
+        return sorted({str(v) for v in x if v})[:100]
+
+    return {
+        "rows": len(rows),
+        "duplicates_id": {"count": len(set(duplicates_id)), "items": cut(duplicates_id),
+                          "meaning": "Même identifiant vu deux fois : l'inventaire "
+                                     "amont est incohérent."},
+        "duplicates_name": {"count": len(set(duplicates_name)),
+                            "items": cut(duplicates_name),
+                            "meaning": "Même nom, identifiants distincts — deux "
+                                       "objets qu'un analyste confondra."},
+        "ghosts": {"count": len(set(ghosts)), "items": cut(ghosts),
+                   "meaning": "Sans identifiant ou sans nom : ni suivable, ni "
+                              "corrigeable."},
+        "orphans": {"count": len(set(orphans)), "items": cut(orphans),
+                    "meaning": "Rattachement manquant (connecteur, source, "
+                               "groupe)."},
+        "unmapped": {"count": len(set(unmapped)), "items": cut(unmapped),
+                     "meaning": "Sans classification exploitable — invisible dans "
+                                "toute vue par taxonomie ou par MITRE."},
+        "unused": {"count": len(set(unused)), "items": cut(unused),
+                   "meaning": "Aucun usage déclaré."},
+        "obsolete": {"count": len(set(obsolete)), "items": cut(obsolete),
+                     "meaning": "Désactivé ou retiré, encore présent."},
+        "inert": {"count": len(set(inert)), "items": cut(inert),
+                  "meaning": "Présent mais sans effet possible."},
+        "note": "Ces huit familles ne se corrigent pas de la même façon : les "
+                "fondre dans un seul « problèmes » rendrait le résultat "
+                "inactionnable.",
+    }
+
+
 async def refresh(entity: str) -> dict:
     rows = await collect(entity)
-    return {"entity": entity, "collected": len(rows), **store_inventory(entity, rows)}
+    out = {"entity": entity, "collected": len(rows),
+           **store_inventory(entity, rows)}
+    if rows:
+        out["coherence"] = coherence(entity, rows)
+    return out
 
 
 # ── Détecteurs de sources ────────────────────────────────────────────────────
@@ -584,6 +855,166 @@ async def source_hostname_monitor(window: str = "1h", sample: int = 2000,
     }
 
 
+# ── Qualité, latence, perte, champs ──────────────────────────────────────────
+
+async def monitor_quality_latency(window: str = "1h", sample: int = 2000) -> dict:
+    """Qualité de parsing ET latence sur UN SEUL prélèvement.
+
+    Deux jobs concurrents sur la même fenêtre doubleraient le coût en quota, et
+    l'un des deux pourrait revenir vide : `telemetry.combined` ne prélève qu'une
+    fois et lit deux fois.
+    """
+    import telemetry
+    d = await telemetry.combined(window, sample)
+    ts = _now()
+    if not d.get("available"):
+        return {"available": False, "reason": d.get("reason"), "measured_at": ts}
+    q, lat = d.get("quality") or {}, d.get("latency") or {}
+    items = []
+    ok_pct = q.get("parsing_ok_pct")
+    if ok_pct is not None and ok_pct < 95:
+        items.append(Verdict(
+            subject="parsing global",
+            verdict=f"{ok_pct} % des événements sont correctement analysés.",
+            uncertainty=f"Mesuré sur {d.get('sampled')} événements de la fenêtre "
+                        f"{window}, pas sur l'intégralité du trafic.",
+            measured_at=ts, severity="alerte" if ok_pct < 80 else "attention",
+            evidence={"parsing_ok_pct": ok_pct,
+                      "statuses": q.get("parsing_statuses")},
+            tags=["anomalie"]).as_dict())
+    for it in (q.get("items") or [])[:200]:
+        pct = it.get("parsing_ok_pct")
+        if pct is not None and pct < 90:
+            items.append(Verdict(
+                subject=str(it.get("intake_name") or it.get("intake_uuid")),
+                verdict=f"Parsing dégradé : {pct} % d'événements analysés.",
+                uncertainty="Part calculée sur les événements de cette source "
+                            "présents dans l'échantillon — d'autant plus "
+                            "incertaine que la source est discrète.",
+                measured_at=ts, severity="attention",
+                evidence=it, tags=["anomalie"]).as_dict())
+    for it in (lat.get("items") or [])[:200]:
+        p95 = it.get("p95")
+        if p95 is not None and p95 > 300:
+            items.append(Verdict(
+                subject=str(it.get("intake_name") or it.get("intake_uuid")),
+                verdict=f"Latence p95 de {int(p95)} s entre l'événement et son "
+                        "indexation.",
+                uncertainty="La latence dépend de l'horloge de l'équipement "
+                            "émetteur : une horloge décalée produit le même "
+                            "signal qu'un retard de livraison.",
+                measured_at=ts, severity="attention",
+                evidence=it, tags=["anomalie"]).as_dict())
+    return {"available": True, "window": window, "sample": sample,
+            "measured_at": ts, "sampled": d.get("sampled"),
+            "parsing_ok_pct": ok_pct,
+            "latency_p50": lat.get("p50"), "latency_p95": lat.get("p95"),
+            "anomalies": len(items), "items": items[:200],
+            "headline": f"Parsing global à {ok_pct} % ; {len(items)} anomalie(s) "
+                        "de qualité ou de latence.",
+            "why": "Une horloge décalée et un retard de livraison produisent le "
+                   "même signal : la latence se lit, elle ne se conclut pas."}
+
+
+async def monitor_loss(hours: int = 24, baseline_hours: int = 168) -> dict:
+    """Pertes de logs : totales, partielles, intermittentes.
+
+    Une perte TOTALE (volume nul) et une perte PARTIELLE (volume effondré mais
+    non nul) n'ont pas la même cause probable — la première désigne un lien
+    coupé, la seconde un filtre, un quota ou un équipement parmi d'autres qui
+    s'est tu. Les confondre envoie l'analyste au mauvais endroit.
+    """
+    import volumetry
+    cur = await volumetry.collect(window=f"{hours}h")
+    ref = await volumetry.collect(window=f"{baseline_hours}h")
+    refs = {i.get("intake_uuid"): i for i in (ref.get("items") or [])}
+    ratio = baseline_hours / max(hours, 1)
+    ts = _now()
+    total, partial = [], []
+    for i in (cur.get("items") or []):
+        uid = i.get("intake_uuid")
+        nm = i.get("intake_name") or uid
+        now_n = i.get("count")
+        base = (refs.get(uid) or {}).get("count")
+        if base is None or base / ratio < MIN_EVENTS:
+            continue
+        expected = base / ratio
+        if not now_n:
+            total.append(Verdict(
+                subject=nm,
+                verdict=f"Perte TOTALE : aucun événement là où {int(expected)} "
+                        "étaient attendus.",
+                uncertainty="L'attendu est déduit de la fenêtre longue, pas "
+                            "déclaré. Une source à horaires ouvrés produit le "
+                            "même signal la nuit.",
+                measured_at=ts, severity="alerte",
+                evidence={"intake_uuid": uid, "expected": int(expected),
+                          "observed": 0},
+                tags=["perte", "muet"]).as_dict())
+        elif now_n < expected * 0.5:
+            partial.append(Verdict(
+                subject=nm,
+                verdict=f"Perte PARTIELLE : {now_n} événements pour "
+                        f"{int(expected)} attendus.",
+                uncertainty="Une perte partielle désigne plutôt un filtre, un "
+                            "quota ou un équipement parmi d'autres qui s'est tu "
+                            "— pas un lien coupé.",
+                measured_at=ts, severity="attention",
+                evidence={"intake_uuid": uid, "expected": int(expected),
+                          "observed": now_n},
+                tags=["perte", "volumetrie-basse"]).as_dict())
+    return {"hours": hours, "measured_at": ts,
+            "total_loss": {"count": len(total), "items": total[:100]},
+            "partial_loss": {"count": len(partial), "items": partial[:100]},
+            "headline": f"{len(total)} perte(s) totale(s) et {len(partial)} "
+                        "perte(s) partielle(s).",
+            "why": "Perte totale et perte partielle n'ont pas la même cause "
+                   "probable : les confondre envoie l'analyste au mauvais "
+                   "endroit."}
+
+
+async def monitor_fields(window: str = "24h", sample: int = 2000) -> dict:
+    """Présence, dérive, perte et anomalie de champs — sur un seul relevé."""
+    import satisfiability
+    import schemadrift
+    import telemetry
+    events, err = await telemetry._sample(window, sample)
+    ts = _now()
+    if not events:
+        return {"available": False, "reason": err or "Aucun événement.",
+                "measured_at": ts}
+    inv = satisfiability.field_inventory(events)
+    fields = inv.get("fields") or inv
+    rows = []
+    for name, v in fields.items():
+        n = v.get("count") if isinstance(v, dict) else v
+        rows.append({"field": name, "events": n,
+                     "presence_pct": round((n or 0) / len(events) * 100, 1)})
+    rows.sort(key=lambda r: -(r["events"] or 0))
+    rare = [r for r in rows if r["presence_pct"] < 1]
+
+    drift = await schemadrift.analyse(window=window, sample=sample)
+    items = []
+    for ch in (drift.get("changes") or drift.get("items") or [])[:150]:
+        items.append(Verdict(
+            subject=str(ch.get("field") or "champ"),
+            verdict=f"Dérive de champ : {ch.get('kind') or ch.get('change') or 'modification'}.",
+            uncertainty="Deux relevés échantillonnés : un champ rare peut "
+                        "sembler apparaître ou disparaître par simple effet de "
+                        "tirage.",
+            measured_at=ts, severity="attention", evidence=ch,
+            tags=["en-derive"]).as_dict())
+    return {"available": True, "window": window, "sample": sample,
+            "measured_at": ts, "fields_total": len(rows),
+            "fields_rare": len(rare), "top_fields": rows[:60],
+            "rare_fields": rare[:60], "drifts": len(items), "items": items,
+            "headline": f"{len(rows)} champ(s) observés, dont {len(rare)} "
+                        f"présents dans moins de 1 % des événements ; "
+                        f"{len(items)} dérive(s).",
+            "why": "Un champ rare n'est pas un champ absent : sous 1 % de "
+                   "présence, son absence d'un échantillon ne prouve rien."}
+
+
 # ── Détecteurs de règles ─────────────────────────────────────────────────────
 
 async def rule_detectors(hours: int = 168) -> dict:
@@ -660,6 +1091,30 @@ async def rule_detectors(hours: int = 168) -> dict:
                 measured_at=ts, severity="info",
                 evidence={"rule_uuid": uid}, tags=[]).as_dict())
 
+    # Dependances cassees : une regle dont le format n'est porte par AUCUN
+    # intake actif ne peut plus rien voir, meme si elle reste satisfiable en
+    # theorie. C'est un lien rompu, pas un defaut de motif.
+    live_formats = {r.get("intake_format_uuid")
+                    for r in ((full.get("inventory") or {}).get("main_inventory") or [])
+                    if str(r.get("intake_status") or "").lower() in
+                    ("enabled", "active", "actif")}
+    broken = [Verdict(
+        subject=r.get("rule_name") or r.get("rule_uuid"),
+        verdict="Dépendance rompue : son format n'est porté par aucun intake actif.",
+        uncertainty="Le rattachement règle→format est lu dans le catalogue ; "
+                    "une règle multi-formats peut rester couverte par un autre.",
+        measured_at=ts, severity="alerte",
+        evidence={"rule_uuid": r.get("rule_uuid"),
+                  "format": r.get("rule_format_uuid")},
+        tags=["inerte", "perte"]).as_dict()
+        for r in rules
+        if r.get("rule_format_uuid") and r.get("rule_format_uuid") not in live_formats
+        and str(r.get("rule_enabled")).lower() in ("true", "1")]
+
+    # Non mappees / non documentees : ce qui rend une regle invisible dans toute
+    # vue par technique ou par taxonomie.
+    unmapped = [r.get("rule_name") for r in rules if not rule_attack(r)]
+
     import conflicts
     conf = conflicts.analyse(rules)
     return {
@@ -668,6 +1123,18 @@ async def rule_detectors(hours: int = 168) -> dict:
         "never_triggered": {"count": len(never), "items": never[:100]},
         "noisy": {"count": len(noisy), "items": noisy[:50]},
         "obsolete": {"count": len(obsolete), "items": obsolete[:100]},
+        "dependency_break": {"count": len(broken), "items": broken[:100]},
+        "unmapped_mitre": {"count": len(unmapped), "items": unmapped[:100],
+                           "meaning": "Sans technique citée, la règle est "
+                                      "invisible dans toute vue MITRE — sa "
+                                      "couverture n'est ni prouvable ni "
+                                      "réfutable."},
+        "quality": {
+            "qualification_note": "La précision d'une règle exige des verdicts "
+                                  "d'analystes. Sans eux, faux positifs et faux "
+                                  "négatifs ne sont pas MESURABLES : les estimer "
+                                  "produirait un chiffre rassurant et faux.",
+            "verdicts_available": False},
         "concentration_top5_pct": ract.get("concentration_top5_pct"),
         "noisy_note": "Le classement des règles bavardes est un TOP tronqué en "
                       "amont : une règle absente n'est pas nécessairement calme.",
@@ -746,8 +1213,42 @@ async def asset_detectors(window: str = "24h", sample: int = 2000) -> dict:
         evidence={"asset": a.get("name")}, tags=["sans-source"]).as_dict()
         for a in inventory if not (a.get("sources") or a.get("intake_uuid"))]
 
+    # Fantomes : inventories sans identifiant ou sans nom — ni suivables ni
+    # corrigeables. Orphelins : sans rattachement de groupe.
+    ghosts = [Verdict(
+        subject=str(a.get("uuid") or "«sans uuid»"),
+        verdict="Actif sans nom exploitable : ni suivable, ni corrigeable.",
+        uncertainty="Lu tel quel dans l'inventaire Sekoia — aucune déduction.",
+        measured_at=ts, severity="attention",
+        evidence={"uuid": a.get("uuid")}, tags=["fantome"]).as_dict()
+        for a in inventory if not str(a.get("name") or "").strip()]
+    orphans = [Verdict(
+        subject=str(a.get("name") or a.get("uuid")),
+        verdict="Actif rattaché à aucun groupe ni entité.",
+        uncertainty="Le rattachement peut exister hors Sekoia (CMDB) sans y "
+                    "être déclaré.",
+        measured_at=ts, severity="info",
+        evidence={"asset": a.get("name")}, tags=["orphelin"]).as_dict()
+        for a in inventory
+        if not (a.get("entity_name") or a.get("community_uuid"))]
+    relays_v = [Verdict(
+        subject=str(r.get("host") if isinstance(r, dict) else r),
+        verdict="Relais de collecte : un seul nom déclaré fronte plusieurs "
+                "machines distinctes.",
+        uncertainty="À connaître avant d'attribuer un événement à une machine : "
+                    "l'intake paraît être une source unique alors qu'il en "
+                    "porte plusieurs.",
+        measured_at=ts, severity="attention",
+        evidence=r if isinstance(r, dict) else {"host": r},
+        tags=["anomalie"]).as_dict()
+        for r in (obs.get("relays") or [])[:50]]
+
     return {
         "window": window, "measured_at": ts, "available": True,
+        "ghosts": {"count": len(ghosts), "items": ghosts[:100]},
+        "orphans": {"count": len(orphans), "items": orphans[:100]},
+        "relay_anomalies": {"count": len(relays_v), "items": relays_v,
+                            "note": obs.get("relay_note")},
         "assets_inventoried": len(inventory),
         "hosts_observed": obs.get("machines_total"),
         "coverage_pct": obs.get("coverage_pct"),
@@ -817,6 +1318,17 @@ def read_tags(entity: Optional[str] = None, tag: Optional[str] = None) -> dict:
 # ── Filtres ──────────────────────────────────────────────────────────────────
 
 FILTERS = {
+    "category": ("category", "contient"),
+    "entity": ("entity_name", "contient"),
+    "severity": ("rule_severity", "égal"),
+    "dialect": ("intake_format_uuid", "égal"),
+    "created_by": ("created_by", "contient"),
+    "uuid": ("intake_uuid", "égal"),
+    "rule_uuid": ("rule_uuid", "égal"),
+    "technique": ("technique", "contient"),
+    "type": ("type", "contient"),
+    "group": ("group", "contient"),
+    "owner_name": ("owner", "contient"),
     "integration_type": ("connector_name", "contient"),
     "hostname": ("hostname", "contient"),
     "criticality": ("criticality", "égal"),
@@ -832,6 +1344,12 @@ FILTERS = {
 # Filtres qui portent sur un VERDICT et non sur un attribut : ils s'appliquent
 # aux étiquettes internes, pas aux champs Sekoia.
 TAG_FILTERS = {
+    "anomalies": "anomalie", "pertes": "perte", "dette": "dette",
+    "non_mappees": "non-mappe", "non_documentees": "non-documente",
+    "non_conformes": "non-conforme", "non_testees": "non-teste",
+    "non_validees": "non-valide", "non_versionnees": "non-versionne",
+    "non_utilisees": "non-utilise", "fantomes": "fantome",
+    "orphelins": "orphelin",
     "muettes": "muet", "en_derive": "en-derive",
     "schema_manquant": "schema-manquant",
     "volumetrie_basse": "volumetrie-basse", "volumetrie_haute": "volumetrie-haute",
@@ -955,9 +1473,77 @@ async def dashboard(name: str, window: str = "1h", sample: int = 2000,
                 "actions": ["vérifier les machines sans observation suffisante",
                             "élargir la fenêtre sur les sources discrètes",
                             "confirmer la remontée du collecteur"]}
+    if name in ("quality", "latency"):
+        q = await monitor_quality_latency(window=window, sample=sample)
+        return {"dashboard": name, "measured_at": ts, "params": params,
+                "headline": q.get("headline", "Aucune donnée."), "panels": [q],
+                "actions": ["vérifier le parseur du format concerné",
+                            "contrôler l'horloge de l'équipement émetteur"]}
+    if name in ("loss", "pertes"):
+        l = await monitor_loss(hours=hours)
+        return {"dashboard": name, "measured_at": ts, "params": params,
+                "headline": l.get("headline"), "panels": [l],
+                "actions": ["distinguer perte totale et perte partielle",
+                            "vérifier le lien pour une perte totale",
+                            "chercher un filtre ou un quota pour une partielle"]}
+    if name in ("fields", "champs", "schema"):
+        f = await monitor_fields(window=window, sample=sample)
+        return {"dashboard": name, "measured_at": ts, "params": params,
+                "headline": f.get("headline", "Aucune donnée."), "panels": [f],
+                "actions": ["collecter les champs requis par des règles inertes",
+                            "confirmer une disparition sur une fenêtre plus large"]}
+    if name in ("formats", "taxonomies", "mitre", "integration_types",
+                "groups", "owners", "dependencies", "volumetry", "drift",
+                "silence", "anomalies", "tenants", "environments"):
+        return await inventory_dashboard(name, ts, params)
     return {"ok": False, "error": f"tableau de bord inconnu « {name} »",
-            "known": ["sources", "rules", "assets", "intakes", "hostnames",
-                      "fortigate"]}
+            "known": list(DASHBOARDS)}
+
+
+# Tableaux adossés à un inventaire : ils montrent la RÉPARTITION et les
+# incohérences, pas une mesure de flux. Les mélanger aux tableaux de mesure
+# ferait croire que tout est mesuré à la même fraîcheur.
+INVENTORY_DASHBOARDS = {
+    "formats": "formats", "taxonomies": "taxonomies", "mitre": "mitre",
+    "integration_types": "integration_types", "groups": "groups",
+    "owners": "owners", "tenants": "groups", "environments": "groups",
+    "dependencies": "rules", "volumetry": "intakes", "drift": "intakes",
+    "silence": "intakes", "anomalies": "intakes",
+}
+
+DASHBOARDS = ("sources", "rules", "assets", "intakes", "hostnames", "fortigate",
+              "quality", "latency", "loss", "fields", "formats", "taxonomies",
+              "mitre", "integration_types", "groups", "owners", "dependencies",
+              "volumetry", "drift", "silence", "anomalies", "tenants",
+              "environments")
+
+
+async def inventory_dashboard(name: str, ts: str, params: dict) -> dict:
+    entity = INVENTORY_DASHBOARDS[name]
+    inv = read_inventory(entity, limit=100000)
+    if not inv["items"]:
+        await refresh(entity)
+        inv = read_inventory(entity, limit=100000)
+    coh = coherence(entity, inv["items"]) if inv["items"] else {}
+    problems = sum(v.get("count", 0) for k, v in coh.items()
+                   if isinstance(v, dict) and "count" in v)
+    return {
+        "dashboard": name, "measured_at": ts, "params": params,
+        "headline": f"{inv['total']} objet(s) dans l'inventaire « {entity} » ; "
+                    f"{problems} incohérence(s) relevée(s).",
+        "panels": [{
+            "headline": f"Inventaire « {entity} »",
+            "measured_at": inv.get("captured_at") or ts,
+            "freshness": inv.get("freshness"),
+            "coherence": coh,
+            "items": [],
+            "why": "Ce tableau décrit un INVENTAIRE, pas un flux : sa fraîcheur "
+                   "est celle de la dernière collecte, et entre deux collectes "
+                   "le SIEM a pu changer.",
+            "rows": inv["items"][:200],
+        }],
+        "actions": ["recollecter l'inventaire", "corriger les doublons",
+                    "rattacher les orphelins"]}
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -974,7 +1560,11 @@ def register(an_app) -> None:
                     "known": list(ENTITIES)}
         if refresh_first:
             await refresh(entity)
-        return read_inventory(entity, limit=limit, offset=offset)
+        out = read_inventory(entity, limit=limit, offset=offset)
+        full_rows = read_inventory(entity, limit=100000)["items"]
+        if full_rows:
+            out["coherence"] = coherence(entity, full_rows)
+        return out
 
     @an_app.post(f"{P}/inventory/{{entity}}/refresh", dependencies=dep)
     async def do_refresh(entity: str):
@@ -1003,6 +1593,27 @@ def register(an_app) -> None:
     async def mon_hosts(window: str = "1h", sample: int = 2000,
                         intake: str = None, relays_only: bool = True):
         return await source_hostname_monitor(window, sample, intake, relays_only)
+
+    @an_app.get(f"{P}/monitor/quality", dependencies=dep)
+    async def mon_quality(window: str = "1h", sample: int = 2000):
+        return await monitor_quality_latency(window, sample)
+
+    @an_app.get(f"{P}/monitor/loss", dependencies=dep)
+    async def mon_loss(hours: int = Query(default=24, ge=1, le=720),
+                       baseline_hours: int = Query(default=168, ge=2, le=2160)):
+        return await monitor_loss(hours, baseline_hours)
+
+    @an_app.get(f"{P}/monitor/fields", dependencies=dep)
+    async def mon_fields(window: str = "24h", sample: int = 2000):
+        return await monitor_fields(window, sample)
+
+    @an_app.get(f"{P}/dashboards", dependencies=dep)
+    async def list_dashboards():
+        return {"count": len(DASHBOARDS), "items": list(DASHBOARDS),
+                "inventory_based": list(INVENTORY_DASHBOARDS),
+                "note": "Les tableaux adossés à un inventaire montrent une "
+                        "répartition, pas une mesure de flux : leur fraîcheur "
+                        "est celle de la dernière collecte."}
 
     @an_app.get(f"{P}/monitor/rules", dependencies=dep)
     async def mon_rules(hours: int = Query(default=168, ge=1, le=2160)):

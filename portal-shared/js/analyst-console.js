@@ -18,6 +18,11 @@
     ['assets', 'an.v_assets'],
     ['intakes', 'an.v_intakes'],
     ['hostnames', 'an.v_hosts'],
+    ['quality', 'an.v_quality'],
+    ['loss', 'an.v_loss'],
+    ['fields', 'an.v_fields'],
+    ['mitre', 'an.v_mitre'],
+    ['taxonomies', 'an.v_taxo'],
     ['inventory', 'an.v_inv'],
     ['tags', 'an.v_tags'],
   ];
@@ -105,7 +110,8 @@
         esc(p.sampling_note)}</p>` : ''}`;
     /* Le tableau de bord des règles renvoie quatre familles nommées plutôt
      * qu'une liste plate : on les rend chacune avec son intitulé. */
-    const families = ['inert', 'never_triggered', 'noisy', 'obsolete'];
+    const families = ['inert', 'never_triggered', 'noisy', 'obsolete',
+                      'dependency_break'];
     const hasFamilies = families.some((f) => p[f]);
     if (hasFamilies) {
       return panel('', head + families.filter((f) => p[f] && p[f].count).map((f) =>
@@ -122,7 +128,28 @@
           <td class="swb-hint">${esc(r.family || '—')}</td></tr>`).join('')}
         </tbody></table></div>` + verdictTable(p.items), 'accent');
     }
-    const groups = ['without_logs', 'without_source', 'without_coverage'];
+    if (p.coherence) {
+      const fams = ['duplicates_id', 'duplicates_name', 'ghosts', 'orphans',
+                    'unmapped', 'unused', 'obsolete', 'inert'];
+      return panel('', head + `<div class="swb-tablewrap" style="max-height:40vh;margin-top:.5rem">
+        <table class="swb-table"><thead><tr><th>${T('an.c_family')}</th>
+          <th>${T('an.c_count')}</th><th>${T('an.c_meaning')}</th></tr></thead>
+        <tbody>${fams.filter((f) => p.coherence[f]).map((f) => `<tr>
+          <td>${T('an.k_' + f)}</td>
+          <td class="swb-num"><strong>${nf(p.coherence[f].count)}</strong></td>
+          <td class="swb-hint">${esc(p.coherence[f].meaning || '')}</td></tr>`).join('')}
+        </tbody></table></div>
+        <p class="swb-hint" style="margin:.4rem 0 0">${esc(p.coherence.note || '')}</p>`,
+        'accent');
+    }
+    const lossFams = ['total_loss', 'partial_loss'];
+    if (lossFams.some((f) => p[f])) {
+      return panel('', head + lossFams.filter((f) => p[f] && p[f].count).map((f) =>
+        `<h4 class="swb-panel-title" style="margin-top:.8rem">${T('an.k_' + f)} — ${
+          nf(p[f].count)}</h4>${verdictTable(p[f].items)}`).join(''), 'accent');
+    }
+    const groups = ['without_logs', 'without_source', 'without_coverage',
+                    'ghosts', 'orphans'];
     if (groups.some((g) => p[g])) {
       return panel('', head + groups.filter((g) => p[g] && p[g].count).map((g) =>
         `<h4 class="swb-panel-title" style="margin-top:.8rem">${T('an.g_' + g)} — ${
@@ -180,7 +207,8 @@
   function viewInventory() {
     const d = st.data.inv;
     const sel = ['intakes', 'sources', 'rules', 'assets', 'detections',
-                 'fields', 'formats'];
+                 'fields', 'formats', 'taxonomies', 'mitre',
+                 'integration_types', 'groups', 'owners'];
     return `${panel(T('an.inv'), `
       <div class="swb-filters">
         <select class="swb-input" id="an-entity">${sel.map((e) =>

@@ -485,6 +485,17 @@ chargement, ce qui se lit comme « rien à afficher » et non comme une coupure.
 C'est le pire des deux échecs, et il n'a été trouvé qu'en validant dans le
 navigateur, pas en interrogeant les routes.
 
+## Un second défaut, dans le harnais et non dans le produit
+
+La vue SAGQL semblait ne pas afficher l'arbre analysé. Le test remplissait le
+champ de requête **1,2 s après avoir changé de vue**, parfois avant que le champ
+n'existe : la requête partait vide, était refusée à juste titre, et l'échec
+ressemblait à un défaut du lot 8. Le harnais attend désormais le **champ**, pas
+un délai, et **vérifie que la valeur a bien été posée** avant de lancer.
+
+Les seize vues sont maintenant validées dans le navigateur, lot 8 compris —
+arbre de la requête composée, regroupement, et refus `AS OF`.
+
 ## Ce qui reste ouvert — sans code à écrire
 
 99 règles sont **indéterminées** dans le quadrant d'efficacité, faute de verdicts

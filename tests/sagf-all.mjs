@@ -50,16 +50,21 @@ for (const [v, act, re, lbl] of [
 }
 // LOT 8 — la requete composee s'analyse et son ARBRE est montre.
 await p.locator('[data-sagf-view="sagql"]').first().click();
-await p.waitForTimeout(1200);
-await p.locator('#sagf-q').fill('SELECT Rule WHERE rule_enabled = true AND (rule_severity > 50 OR rule_type = ∅) LIMIT 20');
-await p.locator('[data-sagf-act="run"]').first().click();
+// Attendre le CHAMP, pas un delai : remplir avant qu'il existe laissait partir
+// une requete vide, refusee — et l'echec ressemblait alors a un defaut du lot.
+await p.locator('#sagf-q').waitFor({timeout:30000});
+await p.waitForTimeout(1500);
+const ask = async (q) => {
+  await p.locator('#sagf-q').fill(q);
+  if (await p.locator('#sagf-q').inputValue() !== q) throw new Error('champ non rempli');
+  await p.locator('[data-sagf-act="run"]').first().click();
+};
+await ask('SELECT Rule WHERE rule_enabled = true AND (rule_severity > 50 OR rule_type = ∅) LIMIT 20');
 ok(await wait(/Arbre analysé/), 'lot 8 — arbre de la requete composee affiche');
 ok(await wait(/AND \(/), 'lot 8 — la priorite AND\/OR est visible');
-await p.locator('#sagf-q').fill('SELECT Rule GROUP BY rule_severity ORDER BY count DESC');
-await p.locator('[data-sagf-act="run"]').first().click();
+await ask('SELECT Rule GROUP BY rule_type ORDER BY count DESC');
 ok(await wait(/groupe\(s\)/), 'lot 8 — regroupement rendu');
-await p.locator('#sagf-q').fill('SELECT Rule AS OF 2026-03-03');
-await p.locator('[data-sagf-act="run"]').first().click();
+await ask('SELECT Rule AS OF 2026-03-03');
 ok(await wait(/t_configuration/), 'lot 8 — AS OF refuse en nommant ce qui manque');
 
 await p.screenshot({path:'/opt/forensic-sekoia-psoar-rebuild/screenshots/SAGF-tous-lots.png'});

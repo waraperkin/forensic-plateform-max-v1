@@ -235,18 +235,27 @@ def test_entite_inconnue_refusee_avec_la_liste_des_entites_connues():
 
 
 def test_predicat_malforme_refuse_plutot_que_devine():
-    with pytest.raises(sagf.SAGQLError, match="prédicat non reconnu"):
+    with pytest.raises(sagf.SAGQLError, match="opérateur de comparaison"):
         sagf.parse("SELECT Rule WHERE ceci n est pas un predicat")
 
 
-def test_melange_and_or_refuse_car_ambigu():
-    """Interpreter « au mieux » renverrait un resultat plausible et faux."""
-    with pytest.raises(sagf.SAGQLError, match="ambigu"):
-        sagf.parse("SELECT Rule WHERE a = 1 AND b = 2 OR c = 3")
+def test_melange_and_or_desormais_compose_avec_priorite_explicite():
+    """L'ambiguite est levee par CAPACITE, pas par relachement (lot 8).
+
+    Le noyau refusait ce melange faute de savoir l'analyser. Il sait desormais,
+    avec la priorite usuelle — AND lie plus fort que OR — et il MONTRE l'arbre
+    obtenu, car une requete qui ne dit pas ce que son auteur croit reste le
+    vrai danger.
+    """
+    import sagql
+    q = sagf.parse("SELECT Rule WHERE a = 1 AND b = 2 OR c = 3")
+    assert sagql.describe(q)["tree"] == "((a = 1 AND b = 2) OR c = 3)"
 
 
 def test_clause_inconnue_refusee():
-    with pytest.raises(sagf.SAGQLError, match="clause non reconnue"):
+    # HAVING n'existe pas dans la grammaire : le refus nomme desormais la
+    # position du texte non interprete plutot que la clause entiere.
+    with pytest.raises(sagf.SAGQLError, match="non interprété"):
         sagf.parse("SELECT Rule HAVING x = 1")
 
 

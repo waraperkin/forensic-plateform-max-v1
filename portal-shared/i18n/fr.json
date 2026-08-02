@@ -2625,7 +2625,9 @@
       "ins_rules": "Règles",
       "ins_none": "non couverte",
       "ins_frag": "fragile",
-      "ins_ok": "redondée"
+      "ins_ok": "redondée",
+      "tree": "Arbre analysé :",
+      "groups": "{g} groupe(s) · {a} ligne(s) sans valeur"
     }
   },
   "swbtx": {

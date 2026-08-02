@@ -327,7 +327,12 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     // Timeouts adaptés : la collecte d'événements (jobs Sekoia) peut dépasser
     // 60 s ; les inventaires volumineux (1000+ règles) aussi au 1er refresh.
     const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting|telemetry|intake|graph|simulate|hosts|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift)(\/|$)/.test(req.path)
-      || /^\/sagf\/(query|debt|risk|reconcile|config)(\/|$)/.test(req.path);
+      // Les vues SAGF des lots 4, 5, 6 et 10 croisent satisfiabilité, couverture
+      // et détections : elles dépassent les 120 s du délai ordinaire. Les omettre
+      // ici ne produisait AUCUNE erreur visible — la vue restait simplement en
+      // chargement, ce qui se lit comme « rien à afficher » et non comme une
+      // coupure. C'est le pire des deux échecs.
+      || /^\/sagf\/(query|debt|risk|reconcile|config|efficacy|adversary|twin|insurance|economics|conflicts|harness)(\/|$)/.test(req.path);
     const timeout = heavy
       ? Number(process.env.SEKOIA_PROXY_TIMEOUT_HEAVY_MS || 240000)
       : Number(process.env.SEKOIA_PROXY_TIMEOUT_MS || 120000);

@@ -448,3 +448,45 @@ avant exécution, **ambiguïté refusée par M-16 avec ses lectures possibles**,
 ---
 
 > **Suite** — [14-PLAN-IMPLEMENTATION](14-PLAN-IMPLEMENTATION.md) détaille dix lots de capacités que le SIEM ne peut pas porter, avec pour chacun sa loi, sa condition de réfutation, ses refus et ses tests.
+
+---
+
+# Les dix lots du plan d'implémentation **[FAIT]**
+
+Le plan `14-PLAN-IMPLEMENTATION.md` listait dix lots de fonctionnalités que le
+SIEM Sekoia ne sait pas faire. **Les dix sont livrés, back et front.**
+
+| Lot | Module | Ce qu'il apporte | Le garde-fou qui le rend honnête |
+|---|---|---|---|
+| **1** Qualification | `feedback.py` | verdicts d'analystes, précision par règle | taxonomie **fermée à 7 codes** dont un `indéterminé` obligatoire ; les neutres sont **exclus du dénominateur** ; intervalle de Wilson, jamais un pourcentage nu |
+| **2** Détection-as-code | `dac.py` | export versionnable, diff **sémantique**, plan d'alignement | export **déterministe** (mêmes octets pour le même état) ; **refuse de créer** un objet ; n'applique rien sans attribution |
+| **3** Conflits | `conflicts.py` | doublons, subsomptions, contradictions entre règles | deux conditions **cumulatives** avant de crier au conflit — recouvrement de champs ≥ 50 % **et** exclusion couvrante. Sans elles, 50 faux conflits ; avec elles, 15 réels |
+| **4** Efficacité | `efficacy.py` | quadrant précision × volume | une règle **sans verdicts n'est pas placée** : la situer serait une opinion déguisée en diagnostic |
+| **5** Adversaire | `adversary.py` | couverture **pondérée par l'activité observée**, opposée à la couverture déclarée | **ne prédit rien** — dit ce qui est observé actif, avec sa date |
+| **6** Jumeau | `twin.py` | simulation de panne de collecte | ne coupe rien (L12) ; dit « absence de calcul n'est pas absence de perte » |
+| **7** Parseur | `harness.py` | non-régression de parsing sur corpus figé | distingue **trois causes** — parseur, équipement, échantillonnage (seuil 3/√n, pas un pourcentage arbitraire) |
+| **8** SAGQL complet | `sagql.py` | `AND`/`OR`/`NOT`, parenthèses, `GROUP BY`, `ORDER BY` | l'**arbre analysé est affiché** ; `AS OF` **refusé** en nommant ce qui manque ; les absents forment leur propre groupe `∅` |
+| **9** Économie | `economics.py` | coût de collecte, de traitement, prévision à 30/90 j | coûts en **unités arbitraires, jamais en euros** ; l'intervalle s'élargit en √jours ; **jamais d'économie sans la perte en face** |
+| **10** Assurance | `insurance.py` | redondance de couverture, points de défaillance unique | la redondance se compte en **formats, pas en règles** — dix règles sur un même format tombent ensemble |
+
+## Console SAGF — 16 vues
+
+Sept vues de socle plus neuf vues de lots. Les vues lourdes (efficacité,
+adversaire, jumeau, assurance, économie) sont **à la demande** : elles consomment
+du budget Sekoia (L6), et le dépenser au simple affichage d'un onglet serait le
+prendre aux analystes.
+
+## Un défaut qui ne se voyait pas
+
+Le mandataire du portail appliquait un délai de 120 s à toutes les routes SAGF.
+Les vues des lots 4, 5, 6 et 10 le dépassent — elles croisent satisfiabilité,
+couverture et détections. **Aucune erreur n'apparaissait** : la vue restait en
+chargement, ce qui se lit comme « rien à afficher » et non comme une coupure.
+C'est le pire des deux échecs, et il n'a été trouvé qu'en validant dans le
+navigateur, pas en interrogeant les routes.
+
+## Ce qui reste ouvert — sans code à écrire
+
+99 règles sont **indéterminées** dans le quadrant d'efficacité, faute de verdicts
+d'analystes. Ce n'est pas un défaut du produit : c'est la mesure qui manque, et
+le module le déclare au lieu de combler par une estimation.

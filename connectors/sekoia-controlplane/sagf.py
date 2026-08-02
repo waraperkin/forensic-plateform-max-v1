@@ -503,7 +503,18 @@ class SAGQLError(Exception):
     """Erreur de syntaxe ou d'usage. On refuse plutôt que de deviner (M-16)."""
 
 
-def parse(query: str, ctx: Optional[dict] = None) -> ParsedQuery:
+def parse(query: str, ctx: Optional[dict] = None):
+    """Analyse une requête SAGQL. Délègue à l'analyseur en descente récursive.
+
+    L'ancien découpage par expressions régulières refusait `AND` mêlé à `OR` ;
+    cette limite est levée par capacité, pas par relâchement — tout ce que la
+    grammaire ne couvre pas est toujours refusé, avec sa position exacte.
+    """
+    import sagql
+    return sagql.parse(query, ctx)
+
+
+def _parse_legacy(query: str, ctx: Optional[dict] = None) -> ParsedQuery:
     """Analyse une requête SAGQL du sous-ensemble implémenté.
 
     Grammaire couverte :
@@ -1735,7 +1746,7 @@ def register(sagf_app) -> None:
             q = parse(text)
         except SAGQLError as exc:
             return {"ok": False, "error": str(exc),
-                    "hint": "SELECT <Entité> [WHERE champ op valeur] [LIMIT n] [EXPLAIN]"}
+                    "hint": "SELECT <Entité> [WHERE <préd> {AND|OR|NOT|(...)}] [GROUP BY champ] [ORDER BY clé [ASC|DESC]] [LIMIT n] [EXPLAIN]"}
 
         plan = explain(q)
         if q.explain:
@@ -1746,8 +1757,24 @@ def register(sagf_app) -> None:
 
         rows, prov = await _rows_for(q.entity)
         BUDGET.charge(f"sagql:{q.entity}", plan["cost_units"])
-        matched = [r for r in rows if q.matches(r)][:q.limit]
+        import sagql
+        kept = [r for r in rows if q.matches(r)]
+        if getattr(q, "group_by", None):
+            agg = sagql.aggregate(kept, q.group_by, q.order_by,
+                                  q.descending, q.limit)
+            return {"ok": True, "executed": True, "explain": plan,
+                    "shape": sagql.describe(q),
+                    "entity": q.entity, "scanned": len(rows),
+                    "matched": len(kept),
+                    "provenance": {"method": prov.method, "source": prov.source,
+                                   "chain": prov.chain()},
+                    **agg}
+        if getattr(q, "order_by", None):
+            kept.sort(key=lambda r: str(r.get(q.order_by, "")),
+                      reverse=q.descending)
+        matched = kept[:q.limit]
         return {"ok": True, "executed": True, "explain": plan,
+                "shape": sagql.describe(q),
                 "entity": q.entity, "scanned": len(rows), "matched": len(matched),
                 "provenance": {"method": prov.method, "source": prov.source,
                                "chain": prov.chain()},

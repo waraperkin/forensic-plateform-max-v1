@@ -223,15 +223,26 @@
         ${(e.predicates || []).length ? `<p class="swb-hint" style="margin:.3rem 0 0">${
           e.predicates.map((p) => `<span class="swb-pill swb-pill-mute swb-pill-flat">${
             esc(p.family)}${p.field ? ' · ' + esc(p.field) : ''}</span>`).join(' ')}</p>` : ''}
+        ${q.shape ? `<p class="swb-hint swb-mono" style="margin:.4rem 0 0">${
+          T('sg.tree')} ${esc(q.shape.tree)}</p>
+          <p class="swb-hint" style="margin:.2rem 0 0">${esc(q.shape.note)}</p>` : ''}
         ${q.executed ? `<p style="margin:.5rem 0 0"><strong>${nf(q.matched)}</strong> ${
             T('sg.matched', { n: nf(q.scanned) })}</p>
           <p class="swb-hint swb-mono" style="margin:.2rem 0 0">${
             esc(((q.provenance || {}).chain || []).join(' ← '))}</p>
-          <div class="swb-tablewrap" style="max-height:34vh;margin-top:.5rem"><table class="swb-table"><tbody>
+          ${q.grouped ? `<p class="swb-hint" style="margin:.3rem 0 0">${
+              T('sg.groups', { g: nf(q.groups), a: nf(q.absent_rows) })}</p>
+            <p class="swb-hint" style="margin:.2rem 0 0">${esc(q.note || '')}</p>
+            <div class="swb-tablewrap" style="max-height:34vh;margin-top:.5rem"><table class="swb-table"><tbody>
+              ${(q.items || []).map((g) => `<tr>
+                <td class="swb-truncate swb-mono">${esc(Object.values(g.key).join(' · '))}</td>
+                <td style="text-align:right"><strong>${nf(g.count)}</strong></td>
+              </tr>`).join('')}</tbody></table></div>`
+          : `<div class="swb-tablewrap" style="max-height:34vh;margin-top:.5rem"><table class="swb-table"><tbody>
             ${(q.items || []).slice(0, 60).map((it) => `<tr>
               <td class="swb-truncate">${esc(it.rule_name || it.intake_name || it.field || it.dialect_uuid || '—')}</td>
               <td class="swb-hint swb-truncate">${esc(it.verdict || it.intake_status || it.reason || '')}</td>
-            </tr>`).join('')}</tbody></table></div>`
+            </tr>`).join('')}</tbody></table></div>`}`
           : `<p class="swb-hint" style="margin:.4rem 0 0">${T('sg.not_executed')}</p>`}</div>`;
     }
 
@@ -248,7 +259,7 @@
     return `${panel(T('sg.console'), `
         <div class="swb-filters">
           <input class="swb-input swb-search" id="sagf-q" style="flex:1"
-            placeholder="SELECT Rule WHERE …" value="${esc(st.query)}">
+            placeholder="SELECT Rule WHERE a = 1 AND (b = 2 OR c = 3) GROUP BY …" value="${esc(st.query)}">
           <button type="button" class="fp-btn fp-btn-sm" data-sagf-act="explain">${T('sg.explain')}</button>
           <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-sagf-act="run">${T('sg.run')}</button>
         </div>

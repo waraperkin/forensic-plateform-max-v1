@@ -51,7 +51,7 @@ Les lots 1 à 3 débloquent les suivants. Ne pas les inverser.
 | **5** | Couverture pilotée par l'adversaire | — | **[FAIT]** |
 | **6** | Jumeau numérique de la collecte | graphe (fait) | **[FAIT]** |
 | **7** | Harnais de non-régression de parseur | schemadrift (fait) | **[FAIT]** |
-| **8** | SAGQL complet | — | L |
+| **8** | SAGQL complet | — | **[FAIT]** |
 | **9** | Économie et prévision | valuation (faite) | **[FAIT]** |
 | **10** | Assurance de couverture | 5, 6 | **[FAIT]** |
 
@@ -321,7 +321,7 @@ pas une régression. »
 
 ---
 
-## LOT 8 — SAGQL complet
+## LOT 8 — SAGQL complet **[FAIT]**
 
 ### Ce qui manque
 `AS OF` · `GROUP BY` / `HAVING` · sous-requêtes · jointures par arêtes ·
@@ -535,6 +535,27 @@ règle.
 
 24 tests dédiés. Cinq vues ajoutées à la console SAGF, portée à **16 vues**.
 
-### Reste à faire
-**Lot 8 seul** — la réécriture de SAGQL en descente récursive. C'est le plus risqué : elle touche un analyseur dont dépendent toutes les requêtes existantes, et son refus actuel de composer `AND`/`OR` doit disparaître par capacité, jamais par relâchement. Le lot 4 est maintenant débloqué par le lot 1,
-mais reste sans valeur tant que la couverture de qualification est nulle.
+### Lot 8 **[FAIT]** — SAGQL complet
+
+`sagql.py` remplace le découpage par expressions régulières par une **descente
+récursive** sur une grammaire explicite. Le refus de composer `AND` et `OR` a
+disparu **par capacité, jamais par relâchement** : tout ce que la grammaire ne
+couvre pas est toujours refusé, désormais avec la **position exacte** dans le
+texte.
+
+| Acquis | Garde-fou |
+|---|---|
+| `a AND (b OR c)`, `NOT (…)`, parenthèses imbriquées | l'**arbre analysé** est affiché : une requête qui ne dit pas ce que son auteur croit est plus dangereuse qu'une requête refusée |
+| `GROUP BY` (multi-champs), `ORDER BY … ASC/DESC` | les valeurs absentes forment leur **propre groupe `∅`** (I4) — les fondre ailleurs effacerait une donnée réelle |
+| `AS OF <date>` reconnu | et **refusé** : aucun instantané de configuration n'existe ; filtrer l'état d'aujourd'hui en le datant d'hier serait une archive fausse. Le refus **nomme** ce qui manque (axe `t_configuration`) |
+| `ORDER BY count` sans `GROUP BY` | refusé — rien à trier |
+
+23 tests dédiés. Les 4 tests du noyau qui encodaient l'**ancienne limite** ont
+été réécrits : ils vérifient maintenant la priorité obtenue, pas le refus perdu.
+
+### Tous les lots du plan sont livrés
+
+Reste une **dépendance de terrain**, pas de code : le lot 4 (efficacité) est
+débloqué par le lot 1, mais 99 règles restent **indéterminées** faute de verdicts
+d'analystes. Le module le dit plutôt que de les situer — il n'y a rien à corriger
+dans le produit, seulement des qualifications à saisir.

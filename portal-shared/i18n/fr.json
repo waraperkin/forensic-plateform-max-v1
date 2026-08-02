@@ -11,7 +11,13 @@
     "cert_tools": "Outils CERT",
     "admin": "Administration",
     "soc": "SOC",
-    "psoar": "PSOAR"
+    "psoar": "PSOAR",
+    "sek_visibility": "SEKOIA — 1. Visibilité",
+    "sek_scope": "SEKOIA — 2. Périmètre",
+    "sek_detection": "SEKOIA — 3. Détection",
+    "sek_response": "SEKOIA — 4. Réponse",
+    "sek_governance": "SEKOIA — 5. Gouvernance",
+    "sek_admin": "SEKOIA — 6. Administration"
   },
   "units": {
     "bytes_b": "o",

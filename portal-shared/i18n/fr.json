@@ -2696,7 +2696,13 @@
       "k_partial_loss": "Pertes partielles",
       "f_dependency_break": "Dépendances rompues",
       "g_ghosts": "Actifs fantômes",
-      "g_orphans": "Actifs orphelins"
+      "g_orphans": "Actifs orphelins",
+      "v_cov": "Couverture & dette",
+      "v_anom": "Anomalies",
+      "k_proven": "PROUVÉES",
+      "k_declared": "DÉCLARÉES",
+      "k_blind": "ANGLES MORTS",
+      "k_trends": "Tendances"
     }
   },
   "swbtx": {

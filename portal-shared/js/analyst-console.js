@@ -18,6 +18,8 @@
     ['assets', 'an.v_assets'],
     ['intakes', 'an.v_intakes'],
     ['hostnames', 'an.v_hosts'],
+    ['coverage', 'an.v_cov'],
+    ['anomalies', 'an.v_anom'],
     ['quality', 'an.v_quality'],
     ['loss', 'an.v_loss'],
     ['fields', 'an.v_fields'],
@@ -126,6 +128,43 @@
           <td class="swb-truncate">${esc(r.intake_name)}</td>
           <td class="swb-num"><strong>${nf(r.hosts)}</strong></td>
           <td class="swb-hint">${esc(r.family || '—')}</td></tr>`).join('')}
+        </tbody></table></div>` + verdictTable(p.items), 'accent');
+    }
+    if (p.coverage_proven_pct !== undefined) {
+      return panel('', head + `<div class="swb-stats">
+        <div class="swb-stat"><span class="swb-stat-v">${nf(p.techniques_proven)}</span>
+          <span class="swb-stat-k">${T('an.k_proven')}</span></div>
+        <div class="swb-stat"><span class="swb-stat-v">${nf(p.techniques_declared)}</span>
+          <span class="swb-stat-k">${T('an.k_declared')}</span></div>
+        <div class="swb-stat"><span class="swb-stat-v">${nf(p.blind_spots.count)}</span>
+          <span class="swb-stat-k">${T('an.k_blind')}</span></div></div>
+        <p class="swb-hint" style="margin:.4rem 0 0">${esc(p.uncertainty || '')}</p>
+        <div class="swb-tablewrap" style="max-height:34vh;margin-top:.5rem">
+        <table class="swb-table"><tbody>${(p.items || []).slice(0, 150).map((t) =>
+          `<tr><td class="swb-truncate swb-mono">${esc(t.technique)}</td>
+           <td class="swb-num">${nf(t.rules_proven)}/${nf(t.rules_declared)}</td>
+           <td><span class="swb-pill swb-pill-${t.status === 'prouvee' ? 'ok' : 'warn'
+             } swb-pill-flat">${esc(t.status)}</span></td></tr>`).join('')}
+        </tbody></table></div>`, 'accent');
+    }
+    if (p.debt_points !== undefined) {
+      return panel('', head + `<div class="swb-tablewrap" style="margin-top:.5rem">
+        <table class="swb-table"><tbody>${(p.lines || []).map((l) =>
+          `<tr><td>${esc(l.item)}</td><td class="swb-num"><strong>${nf(l.count)}</strong></td>
+           <td class="swb-hint">×${nf(l.weight)} — ${esc(l.action)}</td></tr>`).join('')}
+        </tbody></table></div>
+        <p class="swb-hint" style="margin:.4rem 0 0">${esc(p.uncertainty || '')}</p>`,
+        'accent');
+    }
+    if (p.trends && p.trends.items) {
+      return panel('', head + `<h4 class="swb-panel-title" style="margin-top:.8rem">${
+        T('an.k_trends')} — ${nf(p.trends.count)}</h4>
+        <p class="swb-hint" style="margin:0 0 .4rem">${esc(p.trends.meaning || '')}</p>
+        <div class="swb-tablewrap" style="max-height:26vh"><table class="swb-table"><tbody>
+          ${(p.trends.items || []).map((t) => `<tr>
+            <td class="swb-truncate">${esc(t.intake_name)}</td>
+            <td><span class="swb-pill swb-pill-warn swb-pill-flat">${esc(t.trend)}</span></td>
+            <td class="swb-hint swb-truncate">${esc(t.meaning || '')}</td></tr>`).join('')}
         </tbody></table></div>` + verdictTable(p.items), 'accent');
     }
     if (p.coherence) {

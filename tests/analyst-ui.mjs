@@ -30,7 +30,7 @@ await p.locator('button[type="submit"]').first().click(); await p.waitForTimeout
 await p.locator('[data-tab-btn="analyst"]').first().click();
 await p.locator('[data-an-view]').first().waitFor({ timeout: 60000 });
 await p.waitForTimeout(2000);
-ok(await p.locator('[data-an-view]').count() === 12, 'onglet — 12 vues');
+ok(await p.locator('[data-an-view]').count() === 14, 'onglet — 14 vues');
 
 // Inventaires : lecture du magasin local, avec sa fraîcheur.
 await p.locator('[data-an-view="inventory"]').first().click();
@@ -82,9 +82,24 @@ for (const [v, re, lbl] of [
   ok(!/\[object/i.test(txt), `tableau ${lbl} — aucun objet brut`);
   ok(/mesuré/.test(txt), `tableau ${lbl} — fraîcheur affichée`);
 }
+// Couverture prouvee, dette, et anomalies agregees.
+for (const [v, re, lbl, extra] of [
+  ['coverage', /couvertes de façon PROUVÉE/i, 'couverture & dette',
+   /ANGLES MORTS|Dette de détection/i],
+  ['anomalies', /anomalie\(s\) toutes familles/i, 'anomalies', null],
+]) {
+  await p.locator(`[data-an-view="${v}"]`).first().click();
+  await p.waitForTimeout(1200);
+  await p.locator(`[data-an-act="dash:${v}"]`).first().waitFor({ timeout: 20000 });
+  await p.locator(`[data-an-act="dash:${v}"]`).first().click();
+  ok(await wait(re), `tableau ${lbl} — rendu`);
+  const txt = await p.locator('#analyst-root').innerText();
+  ok(!/\[object/i.test(txt), `tableau ${lbl} — aucun objet brut`);
+  ok(/mesuré/.test(txt), `tableau ${lbl} — fraîcheur affichée`);
+}
 // Les huit familles d'incohérence, distinctes et nommées.
 ok(await wait(/Doublons de nom/), 'cohérence — familles distinctes affichées');
-ok(await wait(/Fantômes/), 'cohérence — fantômes nommés');
+ok(await wait(/Fant\u00f4mes/), 'cohérence — fantômes nommés');
 
 // Réglages d'échantillonnage : élargir la fenêtre depuis l'interface.
 await p.locator('[data-an-view="hostnames"]').first().click();

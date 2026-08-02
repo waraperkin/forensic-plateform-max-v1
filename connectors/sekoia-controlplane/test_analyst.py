@@ -399,6 +399,74 @@ def test_les_filtres_couvrent_les_familles_demandees():
     assert len(tous) >= 40
 
 
+# ── Séries, tendances, couverture ────────────────────────────────────────────
+
+def test_une_tendance_exige_assez_de_points():
+    """Deux points definissent toujours une droite : sous le seuil, toute
+    « tendance » est un artefact."""
+    t = analyst.trend([10, 20])
+    assert t["trend"] == "indetermine" and "artefact" in t["reason"]
+
+
+def test_une_rupture_brutale_se_distingue_d_une_derive_lente():
+    """Une rupture designe un evenement DATE, une derive un glissement : on ne
+    les cherche pas au meme endroit."""
+    brutale = analyst.trend([100, 100, 100, 100, 100, 10])
+    lente = analyst.trend([100, 95, 90, 85, 80, 75])
+    assert brutale["trend"] == "rupture_brutale"
+    assert lente["trend"] == "derive_lente"
+    assert brutale["meaning"] != lente["meaning"]
+
+
+def test_une_serie_stable_ne_declenche_rien():
+    assert analyst.trend([100, 102, 99, 101, 100, 98])["trend"] == "stable"
+
+
+def test_l_intermittence_se_lit_dans_la_serie_pas_dans_un_releve():
+    """Une source qui alterne peut sembler saine a chaque releve isole."""
+    i = analyst.intermittence([100, 5, 100, 5, 100, 100], 100)
+    assert i["intermittent"] is True and i["holes"] >= 2
+
+
+def test_une_serie_courte_ne_conclut_pas_a_l_intermittence():
+    assert analyst.intermittence([100, 5], 100)["intermittent"] is False
+
+
+def test_les_mesures_et_verdicts_sont_historises():
+    analyst.record_measures("volumetry", [("u1", 100, {"name": "A"}),
+                                          ("u1", 120, None)], "events", "24h")
+    pts = analyst.series("volumetry", "u1")
+    assert len(pts) == 2 and pts[0]["value"] == 100
+
+
+def test_une_regle_lit_SES_DEUX_champs_de_format():
+    """Sekoia en porte deux. N'en lire qu'un faisait conclure « aucun format
+    collecte » pour la majorite du catalogue — donc 0 % de couverture."""
+    assert analyst.rule_formats({"rule_format_uuid": "a"}) == {"a"}
+    assert analyst.rule_formats({"rule_dialect_uuids": "b,c"}) == {"b", "c"}
+    assert analyst.rule_formats({"rule_format_uuid": "a",
+                                 "rule_dialect_uuids": "b"}) == {"a", "b"}
+
+
+def test_une_regle_sans_format_est_agnostique_pas_orpheline():
+    """La compter comme non collectee l'accuserait a tort."""
+    assert analyst.rule_formats({}) == set()
+
+
+def test_un_lien_sekoia_n_est_produit_que_si_le_chemin_est_connu():
+    """Un lien faux envoie l'analyste sur une page vide et lui fait croire que
+    l'objet n'existe plus."""
+    assert analyst.sekoia_link("rules", "abc")["url"].endswith("/rules/abc")
+    assert analyst.sekoia_link("taxonomies", "x") is None
+    assert analyst.sekoia_link("rules", None) is None
+
+
+def test_les_verdicts_portent_leur_lien_quand_l_identifiant_existe():
+    v = [{"subject": "s", "evidence": {"intake_uuid": "u1"}}]
+    out = analyst.with_links("intakes", v)
+    assert out[0]["sekoia"]["url"].endswith("/intakes/u1")
+
+
 # ── Fraîcheur ────────────────────────────────────────────────────────────────
 
 def test_un_horodatage_illisible_ne_fait_pas_planter():

@@ -164,7 +164,123 @@ def _db() -> sqlite3.Connection:
         PRIMARY KEY(entity, id, tag))""")
     c.execute("""CREATE TABLE IF NOT EXISTS captures(
         entity TEXT PRIMARY KEY, captured_at TEXT, count INTEGER)""")
+    # Historique des MESURES. Sans lui, « dérive lente », « perte
+    # intermittente » et « stabilité dans le temps » ne sont pas calculables :
+    # ce sont des propriétés d'une SÉRIE, pas d'un relevé.
+    c.execute("""CREATE TABLE IF NOT EXISTS measures(
+        kind TEXT, subject TEXT, value REAL, unit TEXT, window TEXT,
+        measured_at TEXT, meta TEXT)""")
+    c.execute("""CREATE INDEX IF NOT EXISTS ix_measures
+        ON measures(kind, subject, measured_at)""")
+    # Historique des VERDICTS, pour distinguer un incident ponctuel d'un état
+    # installé — et pour ne pas ré-alerter sur ce qui n'a pas changé.
+    c.execute("""CREATE TABLE IF NOT EXISTS verdicts(
+        kind TEXT, subject TEXT, verdict TEXT, severity TEXT,
+        uncertainty TEXT, measured_at TEXT, evidence TEXT)""")
+    c.execute("""CREATE INDEX IF NOT EXISTS ix_verdicts
+        ON verdicts(kind, subject, measured_at)""")
     return c
+
+
+# ── Historique des mesures et des verdicts ───────────────────────────────────
+
+def record_measures(kind: str, rows: list, unit: str, window: str) -> int:
+    """Enregistre une série de mesures. `rows` = [(subject, value, meta), …]."""
+    ts = _now()
+    with _db() as c:
+        c.executemany("INSERT INTO measures VALUES (?,?,?,?,?,?,?)",
+                      [(kind, str(sub), float(val), unit, window, ts,
+                        json.dumps(meta or {}, ensure_ascii=False, default=str))
+                       for sub, val, meta in rows if val is not None])
+    return len(rows)
+
+
+def record_verdicts(kind: str, verdicts: list) -> int:
+    with _db() as c:
+        c.executemany("INSERT INTO verdicts VALUES (?,?,?,?,?,?,?)",
+                      [(kind, str(v.get("subject")), v.get("verdict"),
+                        v.get("severity"), v.get("uncertainty"),
+                        v.get("measured_at"),
+                        json.dumps(v.get("evidence") or {}, ensure_ascii=False,
+                                   default=str))
+                       for v in verdicts])
+    return len(verdicts)
+
+
+def series(kind: str, subject: str, limit: int = 200) -> list:
+    with _db() as c:
+        rows = c.execute(
+            "SELECT value, measured_at, window FROM measures "
+            "WHERE kind = ? AND subject = ? ORDER BY measured_at DESC LIMIT ?",
+            (kind, subject, limit)).fetchall()
+    return [{"value": r[0], "at": r[1], "window": r[2]} for r in rows][::-1]
+
+
+# Nombre minimal de relevés avant de qualifier une tendance. En dessous, une
+# « dérive lente » n'est qu'une paire de points — et deux points définissent
+# toujours une droite.
+MIN_POINTS = 5
+
+
+def trend(values: list) -> dict:
+    """Tendance d'une série : brutale, lente, stable, ou indéterminée.
+
+    La distinction n'est pas cosmétique. Une rupture brutale désigne un
+    événement daté — une panne, un changement de configuration. Une dérive
+    lente désigne un glissement — un parc qui se réduit, une verbosité qui
+    baisse. On ne les cherche pas au même endroit.
+    """
+    if len(values) < MIN_POINTS:
+        return {"trend": "indetermine", "points": len(values),
+                "reason": f"{len(values)} relevé(s) sur {MIN_POINTS} requis. "
+                          "Deux points définissent toujours une droite : en "
+                          "dessous du seuil, toute « tendance » est un artefact."}
+    n = len(values)
+    xm = (n - 1) / 2
+    ym = sum(values) / n
+    denom = sum((i - xm) ** 2 for i in range(n))
+    slope = (sum((i - xm) * (values[i] - ym) for i in range(n)) / denom
+             if denom else 0.0)
+    # Rupture : le dernier point s'écarte fortement de la médiane des précédents.
+    prev = sorted(values[:-1])
+    med = prev[len(prev) // 2] if prev else 0
+    jump_pct = ((values[-1] - med) / med * 100) if med else 0.0
+    slope_pct = (slope / ym * 100) if ym else 0.0
+    if abs(jump_pct) >= 50:
+        kind = "rupture_brutale"
+    elif abs(slope_pct) >= 5:
+        kind = "derive_lente"
+    else:
+        kind = "stable"
+    return {"trend": kind, "points": n, "slope_per_point": round(slope, 2),
+            "slope_pct": round(slope_pct, 1), "last_vs_median_pct": round(jump_pct, 1),
+            "meaning": {
+                "rupture_brutale": "Un événement daté — panne, changement de "
+                                   "configuration. Cherchez QUAND.",
+                "derive_lente": "Un glissement — parc qui se réduit, verbosité "
+                                "qui baisse. Cherchez QUOI a changé peu à peu.",
+                "stable": "Aucune tendance décelable sur la série.",
+            }[kind]}
+
+
+def intermittence(values: list, expected: float) -> dict:
+    """Pertes INTERMITTENTES : la source revient, puis retombe.
+
+    Une source qui alterne est plus difficile à voir qu'une source morte : à
+    chaque relevé elle peut sembler saine. C'est la SÉRIE qui la trahit.
+    """
+    if len(values) < MIN_POINTS or expected <= 0:
+        return {"intermittent": False, "points": len(values),
+                "reason": "Série trop courte pour distinguer une alternance "
+                          "d'un simple creux."}
+    holes = sum(1 for v in values if v < expected * 0.25)
+    recoveries = sum(1 for i in range(1, len(values))
+                     if values[i - 1] < expected * 0.25 >= 0
+                     and values[i] >= expected * 0.5)
+    return {"intermittent": holes >= 2 and recoveries >= 1,
+            "holes": holes, "recoveries": recoveries, "points": len(values),
+            "meaning": "La source retombe puis revient : à chaque relevé isolé "
+                       "elle peut sembler saine. Seule la série la trahit."}
 
 
 def store_inventory(entity: str, rows: list) -> dict:
@@ -631,8 +747,36 @@ async def source_volumetry_monitor(hours: int = 24, baseline_hours: int = 168) -
                               (base / ratio) if base else None, ts)
         if v:
             out.append(v)
+    # Historisation : c'est elle qui rend calculables la derive lente, la
+    # rupture brutale et l'intermittence — proprietes d'une SERIE, pas d'un
+    # releve isole.
+    record_measures("volumetry", [(i.get("intake_uuid"), i.get("count"),
+                                   {"name": i.get("intake_name")})
+                                  for i in (cur.get("items") or [])],
+                    "events", f"{hours}h")
+    trends = []
+    for i in (cur.get("items") or []):
+        uid = i.get("intake_uuid")
+        vals = [p["value"] for p in series("volumetry", uid)]
+        if len(vals) < MIN_POINTS:
+            continue
+        t = trend(vals)
+        base = (refs.get(uid) or {}).get("count")
+        inter = intermittence(vals, (base / ratio) if base else 0)
+        if t["trend"] != "stable" or inter.get("intermittent"):
+            trends.append({"intake_uuid": uid,
+                           "intake_name": i.get("intake_name"),
+                           **t, "intermittence": inter,
+                           "sekoia": sekoia_link("intakes", uid)})
+    out = with_links("intakes", out)
     anomalies = [v for v in out if v["severity"] != "info"]
+    record_verdicts("volumetry", anomalies)
     return {"hours": hours, "baseline_hours": baseline_hours,
+            "trends": {"count": len(trends), "items": trends[:100],
+                       "min_points": MIN_POINTS,
+                       "meaning": "Rupture brutale = un événement daté. Dérive "
+                                  "lente = un glissement. On ne les cherche pas "
+                                  "au même endroit."},
             "analysed": len(cur.get("items") or []), "anomalies": len(anomalies),
             "items": out, "measured_at": ts,
             "headline": f"{len(anomalies)} source(s) s'écartent de leur référence.",
@@ -1015,6 +1159,159 @@ async def monitor_fields(window: str = "24h", sample: int = 2000) -> dict:
                    "présence, son absence d'un échantillon ne prouve rien."}
 
 
+# ── Liens vers Sekoia ────────────────────────────────────────────────────────
+
+SEKOIA_UI = os.environ.get("SEKOIA_UI_BASE", "https://app.sekoia.io")
+
+# Chemins d'interface Sekoia. Un lien faux est pire qu'aucun lien : il envoie
+# l'analyste sur une page vide et lui fait croire que l'objet n'existe plus.
+# On ne produit donc de lien que pour les entités dont le chemin est connu.
+LINK_PATHS = {
+    "intakes": "/operations/intakes/{id}",
+    "sources": "/operations/intakes/{id}",
+    "rules": "/operations/detection/rules-catalog/rules/{id}",
+    "assets": "/operations/assets/{id}",
+    "detections": "/operations/alerts/{id}",
+}
+
+
+def sekoia_link(entity: str, oid: Optional[str]) -> Optional[dict]:
+    path = LINK_PATHS.get(entity)
+    if not path or not oid:
+        return None
+    return {"id": str(oid), "url": SEKOIA_UI + path.format(id=oid),
+            "entity": entity}
+
+
+def with_links(entity: str, verdicts: list) -> list:
+    """Ajoute le lien Sekoia à chaque verdict, quand l'identifiant est connu."""
+    idf = _KEYS.get(entity, ("id", "name"))[0]
+    for v in verdicts:
+        ev = v.get("evidence") or {}
+        oid = ev.get(idf) or ev.get("intake_uuid") or ev.get("rule_uuid") or ev.get("uuid")
+        link = sekoia_link(entity, oid)
+        if link:
+            v["sekoia"] = link
+    return verdicts
+
+
+def rule_formats(rule: dict) -> set:
+    """Formats d'une règle, tous champs confondus.
+
+    Sekoia en porte DEUX : `rule_format_uuid` (renseigné sur 146 règles de ce
+    tenant) et `rule_dialect_uuids` (327, joint par virgules). N'en lire qu'un
+    faisait conclure « aucun format collecté » pour la majorité du catalogue —
+    et donc 0 % de couverture prouvée, un chiffre manifestement faux.
+
+    Une règle SANS aucun format déclaré est agnostique : elle peut porter sur
+    n'importe quel flux. On ne la compte donc pas comme non collectée.
+    """
+    out = set()
+    if rule.get("rule_format_uuid"):
+        out.add(str(rule["rule_format_uuid"]))
+    d = rule.get("rule_dialect_uuids") or ""
+    if isinstance(d, (list, tuple)):
+        d = ",".join(str(x) for x in d)
+    for part in re.split(r"[,\s]+", str(d)):
+        if part.strip():
+            out.add(part.strip())
+    return out
+
+
+# ── Couverture ───────────────────────────────────────────────────────────────
+
+async def coverage(window: str = "24h", sample: int = 2000) -> dict:
+    """Couverture MITRE PROUVÉE, opposée à la couverture déclarée.
+
+    Une technique n'est couverte que si une règle la vise, que cette règle est
+    activée, ET que son format est réellement collecté. Une matrice verte
+    adossée à des règles inertes est pire qu'une matrice vide : elle produit
+    une confiance que rien ne soutient.
+    """
+    full = await cp.get_full()
+    rules = list(full.get("rules") or [])
+    intakes = list((full.get("inventory") or {}).get("main_inventory") or [])
+    live_formats = {r.get("intake_format_uuid") for r in intakes
+                    if str(r.get("intake_status") or "").lower()
+                    in ("enabled", "active", "actif")}
+    ts = _now()
+
+    declared: dict = {}
+    proven: dict = {}
+    for r in rules:
+        techs = rule_attack(r)
+        if not techs:
+            continue
+        enabled = str(r.get("rule_enabled")).lower() in ("true", "1")
+        fmts = rule_formats(r)
+        # Une règle sans format déclaré est AGNOSTIQUE : elle peut porter sur
+        # n'importe quel flux. La compter comme non collectée l'accuserait à
+        # tort et effondrerait la couverture mesurée.
+        collected = (not fmts) or bool(fmts & live_formats)
+        for t in techs:
+            declared.setdefault(t, []).append(r.get("rule_name"))
+            if enabled and collected:
+                proven.setdefault(t, []).append(r.get("rule_name"))
+
+    blind = sorted(set(declared) - set(proven))
+    items = [{
+        "technique": t,
+        "rules_declared": len(declared[t]),
+        "rules_proven": len(proven.get(t) or []),
+        "status": "prouvee" if t in proven else "declaree_seulement",
+        "examples": declared[t][:5],
+    } for t in sorted(declared)]
+
+    pct = round(len(proven) / len(declared) * 100, 1) if declared else 0.0
+    return {
+        "measured_at": ts, "window": window,
+        "techniques_declared": len(declared),
+        "techniques_proven": len(proven),
+        "coverage_proven_pct": pct,
+        "blind_spots": {"count": len(blind), "items": blind[:150],
+                        "meaning": "Techniques visées par au moins une règle, "
+                                   "mais dont AUCUNE règle ne peut se "
+                                   "déclencher — règle désactivée, ou format "
+                                   "non collecté."},
+        "items": items[:300],
+        "headline": f"{len(proven)} technique(s) couvertes de façon PROUVÉE sur "
+                    f"{len(declared)} déclarées ({pct} %) ; {len(blind)} angle(s) "
+                    "mort(s).",
+        "uncertainty": "« Prouvée » signifie : une règle la vise, elle est "
+                       "activée, et son format est collecté. Cela ne prouve pas "
+                       "que la règle DÉTECTE effectivement la technique — seul "
+                       "un rejeu le montrerait.",
+        "why": "Une matrice verte adossée à des règles inertes est pire qu'une "
+               "matrice vide : elle produit une confiance que rien ne soutient.",
+    }
+
+
+async def detection_debt() -> dict:
+    """Dette de détection : ce qui manque, chiffré et priorisé."""
+    cov = await coverage()
+    full = await cp.get_full()
+    rules = list(full.get("rules") or [])
+    ts = _now()
+    unmapped = [r.get("rule_name") for r in rules if not rule_attack(r)]
+    disabled = [r for r in rules
+                if str(r.get("rule_enabled")).lower() not in ("true", "1")]
+    lines = [
+        {"item": "angles morts MITRE", "count": cov["blind_spots"]["count"],
+         "weight": 3, "action": "activer la règle ou collecter le format"},
+        {"item": "règles non mappées", "count": len(unmapped), "weight": 1,
+         "action": "mapper la technique pour rendre la couverture prouvable"},
+        {"item": "règles désactivées", "count": len(disabled), "weight": 1,
+         "action": "revoir : désactivée n'est pas inutile"},
+    ]
+    total = sum(l["count"] * l["weight"] for l in lines)
+    return {"measured_at": ts, "debt_points": total, "lines": lines,
+            "headline": f"Dette de détection : {total} point(s).",
+            "uncertainty": "Les poids sont un choix de priorisation, pas une "
+                           "mesure. Ils ordonnent les chantiers ; ils ne "
+                           "quantifient pas un risque.",
+            "tags": ["dette"]}
+
+
 # ── Détecteurs de règles ─────────────────────────────────────────────────────
 
 async def rule_detectors(hours: int = 168) -> dict:
@@ -1100,15 +1397,17 @@ async def rule_detectors(hours: int = 168) -> dict:
                     ("enabled", "active", "actif")}
     broken = [Verdict(
         subject=r.get("rule_name") or r.get("rule_uuid"),
-        verdict="Dépendance rompue : son format n'est porté par aucun intake actif.",
-        uncertainty="Le rattachement règle→format est lu dans le catalogue ; "
-                    "une règle multi-formats peut rester couverte par un autre.",
+        verdict="Dépendance rompue : aucun de ses formats n'est porté par un "
+                "intake actif.",
+        uncertainty="Les formats sont lus dans `rule_format_uuid` ET "
+                    "`rule_dialect_uuids` — n'en lire qu'un accuserait à tort "
+                    "la majorité du catalogue.",
         measured_at=ts, severity="alerte",
         evidence={"rule_uuid": r.get("rule_uuid"),
-                  "format": r.get("rule_format_uuid")},
+                  "formats": sorted(rule_formats(r))[:5]},
         tags=["inerte", "perte"]).as_dict()
         for r in rules
-        if r.get("rule_format_uuid") and r.get("rule_format_uuid") not in live_formats
+        if rule_formats(r) and not (rule_formats(r) & live_formats)
         and str(r.get("rule_enabled")).lower() in ("true", "1")]
 
     # Non mappees / non documentees : ce qui rend une regle invisible dans toute
@@ -1473,6 +1772,36 @@ async def dashboard(name: str, window: str = "1h", sample: int = 2000,
                 "actions": ["vérifier les machines sans observation suffisante",
                             "élargir la fenêtre sur les sources discrètes",
                             "confirmer la remontée du collecteur"]}
+    if name == "anomalies":
+        # Agregat de familles, pas un inventaire : une perte totale et une
+        # latence degradee ne se corrigent pas au meme endroit.
+        vol = await source_volumetry_monitor(hours=hours)
+        loss = await monitor_loss(hours=hours)
+        ql = await monitor_quality_latency(window=window, sample=sample)
+        fams = {"volumetrie": vol.get("anomalies") or 0,
+                "tendances": (vol.get("trends") or {}).get("count") or 0,
+                "pertes_totales": (loss.get("total_loss") or {}).get("count") or 0,
+                "pertes_partielles": (loss.get("partial_loss") or {}).get("count") or 0,
+                "qualite_latence": ql.get("anomalies") or 0}
+        return {"dashboard": name, "measured_at": ts, "params": params,
+                "families": fams, "total": sum(fams.values()),
+                "headline": f"{sum(fams.values())} anomalie(s) toutes familles "
+                            "confondues.",
+                "panels": [vol, loss, ql],
+                "actions": ["traiter les pertes totales en premier",
+                            "distinguer dérive lente et rupture brutale"]}
+    if name in ("coverage", "mitre_coverage"):
+        c = await coverage(window=window, sample=sample)
+        d = await detection_debt()
+        return {"dashboard": name, "measured_at": ts, "params": params,
+                "headline": c.get("headline"), "panels": [c, d],
+                "actions": ["activer la règle ou collecter le format manquant",
+                            "mapper les règles sans technique"]}
+    if name in ("debt", "dette"):
+        d = await detection_debt()
+        return {"dashboard": name, "measured_at": ts, "params": params,
+                "headline": d.get("headline"), "panels": [d],
+                "actions": ["traiter les angles morts en premier"]}
     if name in ("quality", "latency"):
         q = await monitor_quality_latency(window=window, sample=sample)
         return {"dashboard": name, "measured_at": ts, "params": params,
@@ -1508,10 +1837,11 @@ INVENTORY_DASHBOARDS = {
     "integration_types": "integration_types", "groups": "groups",
     "owners": "owners", "tenants": "groups", "environments": "groups",
     "dependencies": "rules", "volumetry": "intakes", "drift": "intakes",
-    "silence": "intakes", "anomalies": "intakes",
+    "silence": "intakes",
 }
 
 DASHBOARDS = ("sources", "rules", "assets", "intakes", "hostnames", "fortigate",
+              "coverage", "mitre_coverage", "debt",
               "quality", "latency", "loss", "fields", "formats", "taxonomies",
               "mitre", "integration_types", "groups", "owners", "dependencies",
               "volumetry", "drift", "silence", "anomalies", "tenants",
@@ -1606,6 +1936,62 @@ def register(an_app) -> None:
     @an_app.get(f"{P}/monitor/fields", dependencies=dep)
     async def mon_fields(window: str = "24h", sample: int = 2000):
         return await monitor_fields(window, sample)
+
+    @an_app.get(f"{P}/coverage", dependencies=dep)
+    async def get_coverage(window: str = "24h", sample: int = 2000):
+        return await coverage(window, sample)
+
+    @an_app.get(f"{P}/coverage/debt", dependencies=dep)
+    async def get_debt():
+        return await detection_debt()
+
+    @an_app.get(f"{P}/anomalies", dependencies=dep)
+    async def get_anomalies(hours: int = Query(default=24, ge=1, le=720),
+                            window: str = "1h", sample: int = 2000):
+        """Toutes les anomalies en une lecture, par famille."""
+        vol = await source_volumetry_monitor(hours=hours)
+        loss = await monitor_loss(hours=hours)
+        ql = await monitor_quality_latency(window=window, sample=sample)
+        fams = {
+            "volumetrie": vol.get("anomalies") or 0,
+            "tendances": (vol.get("trends") or {}).get("count") or 0,
+            "pertes_totales": (loss.get("total_loss") or {}).get("count") or 0,
+            "pertes_partielles": (loss.get("partial_loss") or {}).get("count") or 0,
+            "qualite_latence": ql.get("anomalies") or 0,
+        }
+        total = sum(fams.values())
+        return {"measured_at": _now(), "families": fams, "total": total,
+                "headline": f"{total} anomalie(s) toutes familles confondues.",
+                "panels": [vol, loss, ql],
+                "why": "Les familles sont comptées séparément : une perte "
+                       "totale et une latence dégradée ne se corrigent pas au "
+                       "même endroit."}
+
+    @an_app.get(f"{P}/series/{{kind}}/{{subject}}", dependencies=dep)
+    async def get_series(kind: str, subject: str, limit: int = 200):
+        pts = series(kind, subject, limit)
+        vals = [p["value"] for p in pts]
+        return {"kind": kind, "subject": subject, "points": len(pts),
+                "items": pts, "trend": trend(vals),
+                "sekoia": sekoia_link("intakes", subject)}
+
+    @an_app.get(f"{P}/verdicts", dependencies=dep)
+    async def get_verdicts(kind: str = None, limit: int = 200):
+        q = "SELECT kind,subject,verdict,severity,uncertainty,measured_at "\
+            "FROM verdicts WHERE 1=1"
+        p2: list = []
+        if kind:
+            q += " AND kind = ?"
+            p2.append(kind)
+        with _db() as c:
+            rows = c.execute(q + " ORDER BY measured_at DESC LIMIT ?",
+                             p2 + [limit]).fetchall()
+        return {"count": len(rows),
+                "items": [{"kind": r[0], "subject": r[1], "verdict": r[2],
+                           "severity": r[3], "uncertainty": r[4],
+                           "measured_at": r[5]} for r in rows],
+                "note": "Historique des verdicts : il distingue un incident "
+                        "ponctuel d'un état installé."}
 
     @an_app.get(f"{P}/dashboards", dependencies=dep)
     async def list_dashboards():

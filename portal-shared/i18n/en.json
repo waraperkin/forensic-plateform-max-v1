@@ -2696,7 +2696,13 @@
       "k_partial_loss": "Partial losses",
       "f_dependency_break": "Broken dependencies",
       "g_ghosts": "Ghost assets",
-      "g_orphans": "Orphan assets"
+      "g_orphans": "Orphan assets",
+      "v_cov": "Coverage & debt",
+      "v_anom": "Anomalies",
+      "k_proven": "PROVEN",
+      "k_declared": "DECLARED",
+      "k_blind": "BLIND SPOTS",
+      "k_trends": "Trends"
     }
   },
   "swbtx": {

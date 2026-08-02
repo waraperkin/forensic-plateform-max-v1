@@ -793,7 +793,165 @@ tout objet porte `version`, `updated_by`, `updated_at`.
 
 ---
 
-## 19. Conclusion
+# PARTIE VIII — USE CASES NATIFS
+
+## 19. Les trente use cases, un par un
+
+Chaque use case est un **objet livré** : une requête nommée, un seuil par
+défaut, une alerte, un panneau de dashboard et une action de remédiation. Il
+n'est pas « supporté » — il est **installé d'usine**.
+
+### 19.1 Sources
+
+| # | Use case | Détection | Donnée requise | Seuil par défaut | Action proposée |
+|---|---|---|---|---|---|
+| 1 | **Source inactive** | `last_event_at` dépasse la période attendue | `ingest-meter` | 2× l'intervalle habituel, jamais moins de 30 min | ouvrir un ticket, notifier le propriétaire, vérifier le connecteur |
+| 2 | **Source mal configurée** | parsing dégradé, champs requis absents, transport incohérent avec le type | `parse-quality`, `schema-registry` | succès de parsing < 95 % | corriger le format, réassigner le dialecte |
+| 3 | **Source en dérive** | écart soutenu à la baseline sur volume, schéma ou comportement | `drift` | écart > 2σ pendant 3 fenêtres | attribuer la cause, ajuster la baseline ou intervenir |
+| 4 | **Source non conforme** | échec d'au moins une politique active | `policy` | toute violation | régulariser ou enregistrer une dérogation datée |
+| 5 | **Source non documentée** | ni description, ni URL de documentation, ni propriétaire | modèle | champ vide | assigner un propriétaire, exiger la documentation à l'onboarding |
+| 6 | **Source sans asset** | aucun `log.hostname` observé ne correspond à un asset inventorié | `entity-graph` | > 0 hôte orphelin | créer les assets, ou rattacher les identifiants manquants |
+
+### 19.2 Assets et volumétrie
+
+| # | Use case | Détection | Seuil | Action |
+|---|---|---|---|---|
+| 7 | **Asset sans source** | asset inventorié ne produisant aucun événement | aucun événement sur 7 j | onboarder la collecte, ou marquer l'asset retiré |
+| 8 | **Volumétrie anormale** | chute, pic ou disparition d'hôtes, avec cause attribuée | chute > 40 %, ou pic > 3σ | distinguer panne / changement / saisonnalité avant d'alerter |
+
+**Précision de conception sur le cas 8.** Une chute mesurée sur un
+échantillon trop faible n'est pas une chute : c'est du bruit. Le module exige
+un effectif minimal et un seuil de significativité par hôte avant d'émettre.
+Sans cela, un parc de 1 200 hôtes génère quotidiennement des dizaines de
+fausses alertes de silence — et une alerte à laquelle on cesse de croire ne
+protège plus de rien.
+
+### 19.3 Règles — vie et mort
+
+| # | Use case | Détection | Seuil | Action |
+|---|---|---|---|---|
+| 9 | **Règle obsolète** | dépréciée, remplacée, ou portant sur un format retiré | référence morte | retirer, ou pointer le remplaçant |
+| 10 | **Règle trop bavarde** | part disproportionnée des alertes, ou précision effondrée | > 20 % des alertes, ou précision < 20 % avec n ≥ 30 | restreindre le périmètre, ajouter une exclusion datée, rétrograder |
+| 11 | **Règle jamais déclenchée** | aucun déclenchement depuis N jours | 90 j en production | vérifier la **satisfiabilité** avant de conclure à l'inutilité |
+| 12 | **Règle en conflit** | doublon strict, subsomption, ou contradiction | toute paire confirmée | fusionner, hiérarchiser, ou documenter la coexistence |
+| 13 | **Règle non testée** | aucun cas de test attaché | 0 test | exiger un test au passage en production |
+| 14 | **Règle non validée** | jamais approuvée par un relecteur | `reviewed_at` vide | soumettre à revue |
+| 15 | **Règle non versionnée** | motif modifié sans incrément de version | divergence de signature | versionner rétroactivement |
+| 16 | **Règle non conforme** | viole une politique (sévérité, périmètre, propriétaire) | toute violation | régulariser |
+| 17 | **Règle non mappée MITRE** | aucune technique associée | liste vide | mapper, ou déclarer explicitement « hors ATT&CK » |
+| 18 | **Règle non mappée taxonomie** | axes de classification vides | liste vide | classifier en masse par famille |
+
+**Précision de conception sur le cas 11.** Une règle silencieuse a **deux**
+causes possibles, et les confondre est l'erreur la plus coûteuse du domaine :
+soit la menace n'est pas survenue, soit la règle **ne peut pas** se déclencher
+(champ jamais collecté, format absent, condition impossible). Le use case
+appelle donc systématiquement l'analyse de satisfiabilité avant de proposer
+une désactivation. Désactiver une règle inerte parce qu'on la croit inutile,
+c'est supprimer la trace d'un angle mort au lieu de le combler.
+
+### 19.4 Dépendances, erreurs et manques
+
+| # | Use case | Détection | Seuil | Action |
+|---|---|---|---|---|
+| 19 | **Dépendance cassée** | règle→format, format→source, asset→source rompus | toute arête morte | réparer le chemin ou retirer l'objet |
+| 20 | **Faux positifs élevés** | verdicts « bénin » majoritaires | précision < 40 % avec n ≥ 30 | exclusion datée, restriction de périmètre |
+| 21 | **Faux négatifs suspectés** | incident confirmé sans alerte, ou technique active muette | tout incident non détecté | rejeu sur historique, création de règle |
+| 22 | **Dette de détection** | somme pondérée des manques | dépassement du budget de dette | remédiation priorisée par gain/effort |
+| 23 | **Couverture insuffisante** | techniques actives non couvertes de façon **prouvée** | couverture pondérée < objectif | collecter le format manquant, activer la règle |
+| 24 | **Champs disparus** | champ présent hier, absent aujourd'hui | disparition sur 2 fenêtres | attribuer la cause, alerter les règles dépendantes |
+
+**Précision de conception sur le cas 23.** La couverture doit être **prouvée**,
+pas déclarée. Une technique n'est couverte que si une règle la vise **et** que
+cette règle est satisfiable **et** que son format est réellement collecté. Une
+matrice ATT&CK verte adossée à des règles inertes est pire qu'une matrice vide :
+elle produit une confiance que rien ne soutient.
+
+### 19.5 Les six dérives
+
+| # | Dérive | Ce qui change | Comment on la mesure | Cause à attribuer |
+|---|---|---|---|---|
+| 25 | **Schéma** | champs, types, cardinalités | comparaison au schéma versionné | mise à jour d'équipement, changement de parseur |
+| 26 | **Volumétrie** | débit, nombre d'hôtes | écart à la baseline saisonnalisée | panne, changement de périmètre, saisonnalité |
+| 27 | **Comportementale** | profils d'activité, horaires, cardinalités | modèle de normalité par source et par hôte | changement d'usage métier, compromission |
+| 28 | **Sémantique** | même champ, sens différent | dérive des distributions de valeurs | changement de version applicative |
+| 29 | **Qualité** | parsing, complétude, doublons | séries de `parse-quality` | régression de parseur, format non déclaré |
+| 30 | **Performance** | latence, coût d'exécution | séries de `latency-tracker` | charge, règle coûteuse, indexation |
+
+**Précision de conception commune aux six.** Toute dérive détectée porte une
+**cause attribuée** parmi un ensemble fermé, ou la mention « cause
+indéterminée ». Une dérive sans cause n'est pas exploitable : elle transforme
+l'analyste en enquêteur sur son propre outil.
+
+## 20. Scénarios avancés
+
+Chacun combine plusieurs modules et constitue un parcours produit complet.
+
+### 20.1 « L'onboarding qui se prouve lui-même »
+Une nouvelle source est déclarée avec ses **attendus** (volume, hôtes, champs
+requis, latence, plage horaire). CORE+ vérifie en continu l'écart entre déclaré
+et mesuré, et l'onboarding n'est réputé **terminé** que lorsque le mesuré rejoint
+l'attendu pendant sept jours. Les règles associées ne passent en production
+qu'à ce moment. Aujourd'hui, une source est « onboardée » dès qu'elle est créée.
+
+### 20.2 « Le lundi matin en une page »
+La *météo du SOC* ouvre par une phrase : *« 3 sources muettes, 1 technique
+active devenue non couverte, 12 règles en retard de revue. »* Chaque élément est
+cliquable, chaque clic aboutit à une sélection, chaque sélection à un lot.
+
+### 20.3 « Le rayon d'explosion avant le clic »
+Avant d'activer 40 règles, l'analyste voit le nombre d'alertes quotidiennes
+attendu, les assets touchés et le coût en heures. La décision devient un
+arbitrage, plus un pari.
+
+### 20.4 « La perte d'une source, simulée »
+Le jumeau numérique coupe une source **en simulation** : quelles règles
+s'éteignent, quelles techniques perdent leur seule preuve, quels assets
+deviennent aveugles. Si un autre flux porte le même format, la réponse est
+« aucune perte » — et elle est justifiée, pas devinée.
+
+### 20.5 « La régression de parseur, attribuée »
+Un corpus de référence est figé par format. À chaque relevé, l'écart est
+comparé, et la cause tranchée entre **parseur**, **équipement** et **simple
+échantillonnage**. Sans cette distinction, chaque fluctuation deviendrait une
+fausse alerte de régression.
+
+### 20.6 « La dette qu'on peut budgéter »
+La dette est chiffrée en effort et en gain de couverture, priorisée, assignée
+à des propriétaires et suivie par trimestre — avec un budget de dette
+acceptée, explicite et voté, plutôt que subie.
+
+### 20.7 « La promotion inter-tenants »
+Un ensemble de règles validé sur un tenant pilote est promu vers vingt tenants
+clients : plan, simulation par tenant, application transactionnelle, journal,
+annulation par tenant en cas d'échec.
+
+### 20.8 « L'exclusion qui expire »
+Toute exclusion porte un auteur, un motif et une **échéance**. À l'expiration,
+elle tombe et la règle retrouve son périmètre. Aujourd'hui, les exclusions
+s'accumulent sans jamais mourir, et le périmètre réel d'une détection devient
+inconnaissable.
+
+### 20.9 « Le champ qui débloque cent règles »
+L'analyse croisée dit : *« collecter `event.code` sur ce format rendrait 104
+règles satisfiables »*. La décision de collecte cesse d'être une intuition
+d'ingénieur pour devenir un calcul de couverture.
+
+### 20.10 « L'arbitrage sous budget »
+Sous contrainte de budget d'ingestion, la plateforme propose quelles sources
+conserver — **en affichant toujours ce qu'on perdrait**. Une économie chiffrée
+à côté d'une perte non chiffrée n'est pas un arbitrage, c'est une incitation.
+
+### 20.11 « Le faux négatif qui remonte »
+Un incident confirmé sans alerte déclenche un rejeu sur l'historique : quelle
+règle aurait dû se déclencher, pourquoi elle ne l'a pas fait (champ absent,
+exclusion trop large, format non collecté), et quelle correction s'impose.
+
+### 20.12 « La revue trimestrielle automatisée »
+Toutes les règles arrivées à échéance de revue sont regroupées, présentées avec
+leurs mesures (précision, volume, conflits, couverture), et traitées en lot :
+reconduire, restreindre, déprécier, retirer.
+
+## 21. Conclusion
 
 Sekoia sait aujourd'hui **collecter et détecter**. CORE+ lui ajoute ce qui
 manque pour **gouverner** : mesurer sa propre ingestion, connaître ses angles

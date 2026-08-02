@@ -427,3 +427,43 @@
   padding-right: .35rem;
   white-space: nowrap;
 }
+
+/* ── Correctifs d'homogénéité, mesurés (audit 17) ────────────────────────────
+   Portée STRICTEMENT limitée au namespace `.swb` des consoles Sekoia : ni le
+   thème, ni la palette, ni les fondations partagées ne sont touchés. Aucune
+   couleur n'est redéfinie ici — uniquement des géométries. */
+
+/* Rayon de bordure : l'audit relève 7px sur 48 boutons et 6px sur 45 autres,
+   soit deux familles visuelles pour un même composant. On aligne sur 6px, la
+   valeur du reste du portail, plutôt que d'introduire une troisième valeur. */
+.swb .fp-btn,
+.swb button.swb-tab { border-radius: 6px; }
+
+/* Padding des cartes : cinq valeurs distinctes relevées (14/14, 12.6/14,
+   16.1/17.5, 0/0, 16.1/14). Des panneaux voisins qui ne respirent pas pareil
+   donnent une impression de désordre que rien ne justifie fonctionnellement.
+   Le panneau à 0/0 est préservé tel quel : c'est un conteneur, pas une carte. */
+.swb .swb-panel:not(.swb-panel-bare) { padding: 14px; }
+
+/* Cible de pointage : 43 éléments cliquables mesurent moins de 24px de haut.
+   En dessous, le clic devient imprécis — surtout dans un tableau dense où les
+   lignes se touchent. On garantit la hauteur SANS changer la taille du texte,
+   donc sans toucher aux fondations typographiques. */
+.swb button,
+.swb .fp-btn { min-height: 24px; }
+
+/* États : l'audit ne relève aucun bouton désactivé sans indice visuel, et 96
+   transitions sur 97 éléments. On complète le seul manquant plutôt que de
+   redéfinir l'ensemble. */
+.swb button:not([disabled]):hover { filter: brightness(1.12); }
+.swb button:not([disabled]):active { transform: translateY(1px); }
+.swb button[disabled],
+.swb .fp-btn[disabled] { opacity: .5; cursor: not-allowed; }
+.swb button { transition: filter .12s ease, transform .08s ease; }
+
+/* Respect des préférences système : une micro-animation imposée à qui demande
+   moins de mouvement est une régression d'accessibilité, pas un raffinement. */
+@media (prefers-reduced-motion: reduce) {
+  .swb button { transition: none; }
+  .swb button:not([disabled]):active { transform: none; }
+}

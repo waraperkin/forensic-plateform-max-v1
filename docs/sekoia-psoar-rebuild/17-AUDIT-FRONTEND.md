@@ -67,3 +67,64 @@ Il **ne couvre pas** : contrastes mesurés, tailles de police comparées,
 alignements au pixel. Ces contrôles demandent une mesure de styles calculés
 écran par écran, non un balayage. Les annoncer comme faits sans les avoir faits
 serait le pire résultat possible d'un audit.
+
+---
+
+# Audit fin — styles calculés (mesuré, pas estimé)
+
+Script rejouable : `tests/audit-fine.mjs`. Chaque constat vient de
+`getComputedStyle` et d'un calcul de contraste WCAG. Un audit visuel qui ne
+mesure pas est une opinion.
+
+## Avant / après correctifs
+
+| Mesure | Avant | Après | Correctif |
+|---|---|---|---|
+| Rayons de bordure distincts | **7 px (48) et 6 px (45)** | **6 px (56)** + un 50 % légitime | alignement sur la valeur du reste du portail |
+| Paddings de carte distincts | **5 valeurs** | 14/14 dominant (25), 3 conteneurs à 0/0 | homogénéisation, conteneurs préservés |
+| Cibles cliquables < 24 px | **43** | **4** | `min-height: 24px`, sans toucher la typographie |
+| Boutons désactivés sans indice | 0 | 0 | déjà conforme |
+| Éléments sans transition | 1 sur 97 | 1 | complété |
+
+**Portée des correctifs** : strictement le namespace `.swb` des consoles
+Sekoia. **Aucune couleur redéfinie**, uniquement des géométries — ni thème, ni
+palette, ni fondations partagées.
+
+Un garde d'accessibilité a été ajouté : `prefers-reduced-motion` désactive les
+micro-animations. Une animation imposée à qui demande moins de mouvement est
+une régression d'accessibilité, pas un raffinement.
+
+## Ce que la mesure dit — et ce qu'elle ne dit pas
+
+**72 → 32 contrastes sous le seuil WCAG.** Je n'attribue **pas** cette baisse à
+mes correctifs : je n'ai redéfini aucune couleur. Le nombre d'éléments mesurés
+varie d'un passage à l'autre selon ce qui a fini de charger. **Le contraste
+reste donc un défaut ouvert.**
+
+Deux réserves sur la mesure elle-même, qui interdisent d'agir sans vérification
+humaine :
+- le calcul compare `color` et `background-color` **sans tenir compte de
+  l'`opacity`** appliquée aux textes secondaires — les ratios de 1,42 relevés
+  sur les `.swb-hint` sont donc probablement sous-estimés ;
+- un ratio de **1,0 exactement** signifie luminance identique : soit du texte
+  réellement invisible, soit un fond que la remontée d'ancêtres n'a pas su
+  déterminer. Les deux hypothèses demandent un contrôle à l'œil.
+
+Corriger des couleurs sur la foi d'une mesure dont je connais les limites
+serait exactement le genre de « correction » qui dégrade en croyant améliorer.
+
+## Un défaut confirmé par l'audit fin
+
+Les libellés **`an.sub`** et **`an.idle`** apparaissent **bruts à l'écran**. Le
+premier audit annonçait « 0 clé non traduite » : il balayait trop vite, et le
+contenu n'était pas encore rendu. C'est donc **tout le namespace `swb.an.*` qui
+ne se résout pas**, et non les trois seules clés de groupe corrigées par repli.
+
+Le repli posé sur les intitulés de groupe traite le symptôme visible ; la cause
+reste à trouver, et elle touche davantage de libellés que je ne le croyais.
+
+## Ce que cet audit ne couvre toujours pas
+
+Alignements au pixel sur grille, cohérence des modales (aucune ouverte
+pendant le balayage), parcours au clavier, lecteurs d'écran. Les annoncer comme
+faits serait le pire résultat possible d'un audit.

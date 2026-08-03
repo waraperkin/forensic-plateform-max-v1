@@ -592,3 +592,60 @@ def test_deux_cles_differentes_ne_se_confondent_jamais():
     analyst._dash_cache_set(("rules", "6h", 2000, 24, None, True), {"v": "6h"})
     assert analyst._dash_cache_get(("rules", "1h", 2000, 24, None, True))["v"] == "1h"
     assert analyst._dash_cache_get(("rules", "6h", 2000, 24, None, True))["v"] == "6h"
+
+
+# ── Pagination réelle de l'inventaire ────────────────────────────────────────
+
+def test_has_more_dit_vrai_quand_il_reste_des_lignes():
+    analyst.store_inventory("rules", [{"rule_uuid": str(i), "rule_name": f"r{i}"}
+                                      for i in range(10)])
+    out = analyst.read_inventory("rules", limit=4, offset=0)
+    assert out["has_more"] is True
+    assert out["next_offset"] == 4
+
+
+def test_has_more_dit_faux_sur_la_derniere_page():
+    """Piège évité : déduire la fin de page en comparant `returned` à `limit`
+    se trompe exactement quand le total est un multiple du limit."""
+    analyst.store_inventory("rules", [{"rule_uuid": str(i), "rule_name": f"r{i}"}
+                                      for i in range(8)])
+    out = analyst.read_inventory("rules", limit=4, offset=4)
+    assert out["has_more"] is False
+    assert out["next_offset"] is None
+    assert out["returned"] == 4   # une page pleine, mais bien la derniere
+
+
+def test_offset_et_limit_sont_rendus_dans_la_reponse():
+    analyst.store_inventory("rules", [{"rule_uuid": "a"}])
+    out = analyst.read_inventory("rules", limit=10, offset=0)
+    assert out["offset"] == 0 and out["limit"] == 10
+
+
+# ── Cache de cohérence par capture ───────────────────────────────────────────
+
+def test_la_coherence_en_cache_evite_de_relire_toute_la_table():
+    """Le point corrigé : lire 20 lignes ne doit plus relire les 5000."""
+    analyst.store_inventory("assets", [{"uuid": str(i), "name": f"a{i}"}
+                                       for i in range(500)])
+    analyst._COHERENCE_CACHE.clear()
+    out = analyst.read_inventory("assets", limit=20)
+    c1 = analyst.cached_coherence("assets", out["captured_at"])
+    assert c1["rows"] == 500
+    # Un second appel avec la MEME date de capture doit servir le cache —
+    # verifie indirectement par identite d'objet (pas de recalcul).
+    c2 = analyst.cached_coherence("assets", out["captured_at"])
+    assert c1 is c2
+
+
+def test_une_nouvelle_capture_invalide_naturellement_le_cache():
+    """La cohérence ne doit PAS survivre à une recollecte : sa clé est la date
+    de capture, qui change avec chaque nouvel instantané."""
+    analyst.store_inventory("rules", [{"rule_uuid": "a", "rule_name": "A"}])
+    out1 = analyst.read_inventory("rules")
+    c1 = analyst.cached_coherence("rules", out1["captured_at"])
+    analyst.store_inventory("rules", [{"rule_uuid": "a", "rule_name": "A"},
+                                      {"rule_uuid": "b", "rule_name": "B"}])
+    out2 = analyst.read_inventory("rules")
+    assert out2["captured_at"] != out1["captured_at"]
+    c2 = analyst.cached_coherence("rules", out2["captured_at"])
+    assert c2["rows"] == 2 and c1["rows"] == 1

@@ -57,7 +57,11 @@
                // Chargement PAR ACTION (« dash:rules », « inv », « tags ») —
                // jamais un verrou de page entière, qui gèlerait la navigation
                // pendant qu'un tableau de bord calcule.
-               busy: new Set() };
+               busy: new Set(),
+               // Pagination reelle de l'inventaire brut : le backend
+               // porte offset/limit/has_more depuis ce correctif, mais
+               // rien ne les exploitait cote ecran.
+               invOffset: 0, invLimit: 200 };
   const WINDOWS = ['15m', '1h', '6h', '24h', '7d'];
 
   /* Repli des intitulés de groupe. La résolution i18n de ces trois clés échoue
@@ -406,10 +410,19 @@
       </div>
       <p class="swb-hint" style="margin:.4rem 0 0">${T('an.inv_sub')}</p>`)}
       ${!d ? '' : panel('', `<p style="margin:0"><strong>${nf(d.total)}</strong> ${
-        T('an.objects')} · ${freshness(d)}</p>
+        T('an.objects')} · ${freshness(d)}
+        ${d.total ? ` · ${T('an.inv_page', {
+          a: nf((d.offset || 0) + 1), b: nf((d.offset || 0) + (d.returned || 0))
+        })}` : ''}</p>
         <p class="swb-hint" style="margin:.3rem 0 0">${esc(d.note || '')}</p>
+        <div class="swb-filters" style="margin:.5rem 0 0">
+          <button type="button" class="fp-btn fp-btn-sm" data-an-act="inv-prev"${
+            (d.offset || 0) <= 0 ? ' disabled' : ''}>${T('an.inv_prev')}</button>
+          <button type="button" class="fp-btn fp-btn-sm" data-an-act="inv-next"${
+            d.has_more ? '' : ' disabled'}>${T('an.inv_next')}</button>
+        </div>
         <div class="swb-tablewrap" style="max-height:40vh;margin-top:.5rem">
-        <table class="swb-table"><tbody>${(d.items || []).slice(0, 200).map((i) => {
+        <table class="swb-table"><tbody>${(d.items || []).map((i) => {
           const bs = bulkSubjectFromRow(st.entity, i);
           const key = bs ? `${bs.target}:${bs.id}` : null;
           const openRow = key && st.bulkOpen === key;
@@ -543,7 +556,8 @@
       // lors d'un changement rapide, pris pour un incident reseau.
       const myGen = ++st.reqGen;
       const busyKey = act.startsWith('dash:') ? act
-        : (act === 'inv' || act === 'inv-refresh') ? 'inv' : act;
+        : (act === 'inv' || act === 'inv-refresh' || act === 'inv-prev'
+           || act === 'inv-next') ? 'inv' : act;
       st.busy.add(busyKey); st.error = null; paint();
       try {
         if (act.startsWith('dash:')) {
@@ -555,11 +569,21 @@
           const result = await api(`/dashboard/${n}?${q}`);
           if (myGen !== st.reqGen) return;   // supplantee par une action plus recente
           st.data['dash_' + n] = result;
-        } else if (act === 'inv' || act === 'inv-refresh') {
+        } else if (act === 'inv' || act === 'inv-refresh'
+                   || act === 'inv-prev' || act === 'inv-next') {
           if (act === 'inv-refresh') {
             await api('/inventory/' + st.entity + '/refresh', { method: 'POST' });
+            st.invOffset = 0;   // une recollecte repart de la premiere page
+          } else if (act === 'inv') {
+            st.invOffset = 0;   // changer d'entite ou relire repart au debut
+          } else if (act === 'inv-prev') {
+            st.invOffset = Math.max(0, st.invOffset - st.invLimit);
+          } else if (act === 'inv-next') {
+            const nxt = (st.data.inv || {}).next_offset;
+            if (nxt != null) st.invOffset = nxt;
           }
-          const result = await api('/inventory/' + st.entity + '?limit=200');
+          const result = await api('/inventory/' + st.entity
+            + `?limit=${st.invLimit}&offset=${st.invOffset}`);
           if (myGen !== st.reqGen) return;
           st.data.inv = result;
         } else if (act === 'tags') {

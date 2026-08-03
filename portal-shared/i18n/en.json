@@ -2731,7 +2731,10 @@
       "need_tags": "enter at least one tag.",
       "c_actions": "Actions",
       "write_note": "These actions REALLY write to Sekoia.io, through the audited bulk engine (simulation, log, rollback). Nothing is ever applied without a simulation shown first.",
-      "computing": "Computing…"
+      "computing": "Computing…",
+      "inv_page": "rows {a}–{b}",
+      "inv_prev": "◀ Previous",
+      "inv_next": "Next ▶"
     }
   },
   "swbtx": {

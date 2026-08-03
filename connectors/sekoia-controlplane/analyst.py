@@ -319,15 +319,46 @@ def read_inventory(entity: str, limit: int = 500, offset: int = 0) -> dict:
             (entity, limit, offset)).fetchall()
     captured_at = cap[0] if cap else None
     age = _age_seconds(captured_at)
+    total = cap[1] if cap else 0
+    # Pagination REELLEMENT exploitable : sans ces deux champs, un appelant ne
+    # peut savoir s'il reste des lignes qu'en comparant `returned` a `limit`,
+    # une deduction fragile qui se trompe exactement quand total % limit == 0.
+    next_offset = offset + len(rows)
     return {
-        "entity": entity, "total": cap[1] if cap else 0,
+        "entity": entity, "total": total,
         "returned": len(rows),
+        "offset": offset, "limit": limit,
+        "has_more": next_offset < total,
+        "next_offset": next_offset if next_offset < total else None,
         "items": [json.loads(r[0]) for r in rows],
         "captured_at": captured_at,
         "freshness": {"age_seconds": age, "label": _human_age(age)},
         "note": "Instantané local d'un état Sekoia. Il n'est pas Sekoia : "
                 "entre deux captures, le SIEM a pu changer.",
     }
+
+
+# Cache de la cohérence par (entité, date de capture) — CE QUE ÇA EVITE.
+#
+# `coherence()` relit et reanalyse la table ENTIERE (jusqu'à 5000 lignes pour
+# les actifs). L'appeler à chaque page paginée demandée par le front — 200
+# lignes à la fois — relisait donc 5000 lignes pour n'en montrer que 20 : un
+# gaspillage à chaque clic sur « page suivante ». La cohérence ne CHANGE que
+# lorsqu'un nouvel instantané est capturé (`captured_at` change) : c'est la
+# clé de cache naturelle, pas un TTL arbitraire.
+_COHERENCE_CACHE: dict = {}
+
+
+def cached_coherence(entity: str, captured_at: Optional[str]) -> dict:
+    key = (entity, captured_at)
+    if key in _COHERENCE_CACHE:
+        return _COHERENCE_CACHE[key]
+    full_rows = read_inventory(entity, limit=100000)["items"]
+    result = coherence(entity, full_rows) if full_rows else {}
+    if len(_COHERENCE_CACHE) > 50:
+        _COHERENCE_CACHE.pop(next(iter(_COHERENCE_CACHE)), None)
+    _COHERENCE_CACHE[key] = result
+    return result
 
 
 _KEYS = {
@@ -1953,9 +1984,9 @@ def register(an_app) -> None:
         if refresh_first:
             await refresh(entity)
         out = read_inventory(entity, limit=limit, offset=offset)
-        full_rows = read_inventory(entity, limit=100000)["items"]
-        if full_rows:
-            out["coherence"] = coherence(entity, full_rows)
+        coh = cached_coherence(entity, out.get("captured_at"))
+        if coh:
+            out["coherence"] = coh
         return out
 
     @an_app.post(f"{P}/inventory/{{entity}}/refresh", dependencies=dep)

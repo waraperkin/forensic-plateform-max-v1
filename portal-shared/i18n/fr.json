@@ -2731,7 +2731,10 @@
       "need_tags": "indiquez au moins une étiquette.",
       "c_actions": "Actions",
       "write_note": "Ces actions écrivent RÉELLEMENT dans Sekoia.io, via le moteur de lot audité (simulation, journal, annulation). Rien n'est jamais appliqué sans simulation affichée d'abord.",
-      "computing": "Calcul en cours…"
+      "computing": "Calcul en cours…",
+      "inv_page": "lignes {a}–{b}",
+      "inv_prev": "◀ Précédent",
+      "inv_next": "Suivant ▶"
     }
   },
   "swbtx": {

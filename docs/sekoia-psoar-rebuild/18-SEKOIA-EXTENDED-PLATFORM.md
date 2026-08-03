@@ -280,3 +280,67 @@ cache invisible est un cache dont on ne peut pas vérifier le comportement.
 523 tests Python (5 nouveaux sur le cache : fraîcheur non falsifiée, expiration
 réelle, erreurs jamais mises en cache, plafond respecté, clés distinctes non
 confondues), 44 tests JS, régression navigateur `dbgbulk.mjs` — 0 FAIL.
+
+---
+
+# Pagination réelle de l'inventaire, et cache de cohérence
+
+Point explicitement demandé (« pagination propre »). Avant ce correctif,
+`GET /inventory/{entity}` renvoyait toujours les 500 premières lignes sans
+aucun moyen d'atteindre la suite : sur `assets` (5000 lignes), 4600 lignes
+restaient invisibles depuis l'écran. Le calcul de cohérence associé relisait
+en plus la table complète (jusqu'à 5000 lignes) à **chaque** appel, y compris
+quand seules 20 lignes étaient demandées.
+
+## Le correctif
+
+`read_inventory(entity, limit, offset)` accepte désormais un `offset` et
+renvoie un contrat de pagination explicite : `offset`, `limit`, `has_more`,
+`next_offset`. `has_more` compare `offset + returned` à `total` plutôt que de
+supposer qu'une page pleine (`returned == limit`) signifie automatiquement
+qu'il en reste — ce raccourci se serait trompé exactement sur un total qui
+tombe pile sur un multiple de `limit`.
+
+Côté cohérence, `_COHERENCE_CACHE` clé par `(entity, captured_at)` : le calcul
+ne se relance que lorsqu'une nouvelle capture a réellement eu lieu, jamais à
+chaque page consultée. Invalidation naturelle liée à la donnée elle-même, pas
+à un TTL arbitraire.
+
+Côté front (`analyst-console.js`), `st.invOffset`/`st.invLimit` pilotent deux
+boutons Précédent/Suivant ; `next_offset` vient de la réponse serveur, jamais
+recalculé côté client. Le tronquage client (`.slice(0, 200)`) qui masquait
+silencieusement le problème a été supprimé — la page affiche désormais
+exactement ce que le serveur dit avoir renvoyé.
+
+## Preuve, sur le tenant réel (Playwright, `pagination-proof.mjs`)
+
+Page 1 sur `assets` (5000 lignes, offset 0) : plage « lignes 1– » affichée,
+bouton Précédent désactivé, bouton Suivant actif. Clic sur Suivant : plage
+« lignes 201–400 », bouton Précédent activé, lignes réellement différentes de
+la page 1 (comparaison stricte du contenu, pas juste du bouton). Retour en
+arrière : mêmes lignes qu'au départ. `0 FAIL`.
+
+Un premier passage du test s'est révélé faux-négatif : le test n'attendait
+qu'un délai fixe de 1 s après le clic, alors que le premier calcul complet de
+`assets` prend jusqu'à 48 s (temps réel, vérifié directement contre le
+backend hors navigateur). Corrigé en attendant l'apparition effective du
+texte « lignes 201 » plutôt qu'un délai deviné — un test qui dort au hasard
+ment aussi bien qu'un test qui ne vérifie rien.
+
+## Validation
+
+72 tests Python sur `analyst.py` (dont `has_more` sur reste-il-des-lignes et
+sur dernière-page-exacte, présence d'`offset`/`limit` dans la réponse, cache
+de cohérence qui évite une relecture complète, invalidation par nouvelle
+capture) — 0 échec. Régression navigateur : `pagination-proof.mjs` (0 FAIL),
+`dbggroups.mjs` (0 FAIL, 14 vues et 3 groupes intacts), `sagf-tab.mjs`
+(0 FAIL, console SAGF intacte).
+
+`legacy.mjs` et `dbgbulk.mjs` ont échoué de façon intermittente pendant cette
+session — cause identifiée : `server.js` du portail CERT saturé (99 % CPU
+soutenu sur plus d'une heure, `docker top`) par l'enchaînement des collectes
+`assets` répétées (48 s chacune) déclenchées par les propres essais de ce
+correctif, et non par une régression du code. `curl` direct restait à 200 sur
+`/sekoia` pendant ces échecs (5,9 s de réponse) ; seuls les délais
+d'expiration serrés de Playwright ont été dépassés. Aucun conteneur en
+redémarrage en boucle trouvé (`docker ps`), aucun signal OOM (`dmesg`).

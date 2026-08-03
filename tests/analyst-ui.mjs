@@ -25,7 +25,14 @@ await p.goto('https://192.168.2.67/login.html', { waitUntil: 'domcontentloaded' 
 await p.waitForTimeout(800);
 const t = p.locator('input:not([type=hidden])');
 await t.nth(0).fill(env.PORTAL_ADMIN_USER); await t.nth(1).fill(env.PORTAL_ADMIN_PASSWORD);
-await p.locator('button[type="submit"]').first().click(); await p.waitForTimeout(3000);
+await p.locator('button[type="submit"]').first().click();
+await p.waitForTimeout(3000);
+// Onglets relocalises dans l'outil dedie /sekoia : meme fichier, memes identifiants, seul le point d'entree change.
+for (let i = 0; i < 3; i++) {
+  try { await p.goto('https://192.168.2.67/sekoia', {waitUntil:'domcontentloaded', timeout: 25000}); break; }
+  catch (e) { if (i === 2) throw e; await p.waitForTimeout(3000); }
+}
+await p.waitForTimeout(3000);
 
 await p.locator('[data-tab-btn="analyst"]').first().click();
 await p.locator('[data-an-view]').first().waitFor({ timeout: 60000 });

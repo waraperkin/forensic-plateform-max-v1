@@ -23,6 +23,7 @@
 <link rel="stylesheet" href="shared/css/global-error.css">
 <link rel="stylesheet" href="shared/css/forensic-report.css">
 <link rel="stylesheet" href="shared/css/portal-ai.css">
+<link rel="stylesheet" href="shared/css/sekoia-tool-mode.css">
 <script src="shared/vendor/echarts.min.js" defer></script>
 </head>
 <body class="app-shell portal-v6 portal-cybercorp-stable">
@@ -69,7 +70,7 @@
           <li><button type="button" class="cc-nav-btn" data-tab-btn="it-ops" data-cc-icon="exposure"><span data-i18n="sidebar.it_ops"></span></button></li>
         </ul>
       </div>
-      <div class="cc-nav-section">
+      <div class="cc-nav-section cc-nav-section--sekoia">
         <p class="cc-nav-section-title" data-i18n="nav.sek_visibility"></p>
         <ul class="fp-sidebar-nav">
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-ingest" data-cc-icon="ingest"><span data-i18n="sidebar.sekoia_ingest"></span></button></li>
@@ -77,14 +78,14 @@
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-fetch" data-cc-icon="tools"><span data-i18n="sidebar.sekoia_fetch"></span></button></li>
         </ul>
       </div>
-      <div class="cc-nav-section">
+      <div class="cc-nav-section cc-nav-section--sekoia">
         <p class="cc-nav-section-title" data-i18n="nav.sek_scope"></p>
         <ul class="fp-sidebar-nav">
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-assets" data-cc-icon="inventory"><span data-i18n="sidebar.sekoia_assets"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="gov-assets" data-cc-icon="inventory"><span data-i18n="sidebar.gov_assets"></span></button></li>
         </ul>
       </div>
-      <div class="cc-nav-section">
+      <div class="cc-nav-section cc-nav-section--sekoia">
         <p class="cc-nav-section-title" data-i18n="nav.sek_detection"></p>
         <ul class="fp-sidebar-nav">
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-rules" data-cc-icon="connector"><span data-i18n="sidebar.sekoia_rules"></span></button></li>
@@ -93,19 +94,27 @@
         </ul>
       </div>
       <div class="cc-nav-section">
-        <p class="cc-nav-section-title" data-i18n="nav.sek_response"></p>
+        <p class="cc-nav-section-title" data-i18n="nav.response_psoar"></p>
         <ul class="fp-sidebar-nav">
           <li><button type="button" class="cc-nav-btn" data-tab-btn="psoar" data-cc-icon="incident"><span data-i18n="sidebar.psoar"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="psoar-playbooks" data-cc-icon="kb"><span data-i18n="sidebar.psoar_playbooks"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="purge" data-cc-icon="purge" data-admin-only><span data-i18n="sidebar.purge"></span></button></li>
         </ul>
       </div>
       <div class="cc-nav-section">
+        <p class="cc-nav-section-title" data-i18n="nav.sekoia_link"></p>
+        <ul class="fp-sidebar-nav">
+          <li><button type="button" class="cc-nav-btn cc-open-sekoia-btn" data-cc-open-sekoia>
+            <span data-i18n="sidebar.open_sekoia"></span><span class="cc-ext-mark">&#8599;</span></button></li>
+        </ul>
+      </div>
+      <div class="cc-nav-section cc-nav-section--sekoia">
         <p class="cc-nav-section-title" data-i18n="nav.sek_governance"></p>
         <ul class="fp-sidebar-nav">
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sagf" data-cc-icon="inventory"><span data-i18n="sidebar.sagf"></span></button></li>
         </ul>
       </div>
-      <div class="cc-nav-section">
+      <div class="cc-nav-section cc-nav-section--sekoia">
         <p class="cc-nav-section-title" data-i18n="nav.sek_admin"></p>
         <ul class="fp-sidebar-nav">
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-cc" data-cc-icon="dash"><span data-i18n="sidebar.sekoia_cc"></span></button></li>
@@ -114,7 +123,6 @@
           <li><button type="button" class="cc-nav-btn" data-tab-btn="gov-apikeys" data-cc-icon="key"><span data-i18n="sidebar.gov_apikeys"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="audit-center" data-cc-icon="log"><span data-i18n="sidebar.audit_center"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="gov-views" data-cc-icon="kb"><span data-i18n="sidebar.gov_views"></span></button></li>
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="purge" data-cc-icon="purge" data-admin-only><span data-i18n="sidebar.purge"></span></button></li>
         </ul>
       </div>
       <div class="cc-nav-section">
@@ -697,6 +705,7 @@
 <footer class="fp-footer cc-footer" data-i18n="footer.line"></footer>
 </div>
 
+<script src="shared/js/sekoia-tool-mode.js"></script>
 <script src="shared/js/portal-config.js"></script>
 <script src="shared/js/header.js"></script>
 <script src="shared/js/cybercorp-charts.js"></script>

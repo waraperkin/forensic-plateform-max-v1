@@ -501,3 +501,45 @@ def test_les_tableaux_de_bord_sont_nommes():
     for d in ("sources", "rules", "assets", "intakes", "hostnames",
               "fortigate"):
         assert d in out["known"]
+
+
+# ── Alias REST « Sekoia.IO Extended Platform » ───────────────────────────────
+
+def test_les_routes_d_extension_sont_declarees():
+    """Chaque route nommee dans le cahier des charges doit exister, exposee
+    par le meme registre que le reste du module — aucune app FastAPI separee."""
+    src = open(analyst.__file__, encoding="utf-8").read()
+    for path in ("/inventory/intakes", "/inventory/sources", "/inventory/rules",
+                 "/inventory/assets", "/inventory/detections",
+                 "/inventory/formats", "/inventory/fields",
+                 "/monitoring/intakes", "/monitoring/sources",
+                 "/monitoring/fortigate", "/analytics/rules",
+                 "/analytics/assets", "/coverage/mitre", "/coverage/taxonomy",
+                 "/coverage/gaps", "/quality/schema", "/quality/parsing",
+                 "/quality/anomalies"):
+        assert f'f"{{P}}{path}"' in src, f"route absente : {path}"
+
+
+def test_les_alias_ne_dupliquent_aucune_logique():
+    """Chaque route d'extension appelle une fonction du module deja testee —
+    zero nouvelle logique de mesure, donc zero nouveau risque de divergence."""
+    src = open(analyst.__file__, encoding="utf-8").read()
+    alias_block = src[src.index("# ── Alias REST"):]
+    for called in ("read_inventory(", "source_silence_detector(",
+                   "source_volumetry_monitor(", "source_drift_detector(",
+                   "source_schema_monitor(", "monitor_loss(",
+                   "source_hostname_monitor(", "rule_detectors(",
+                   "asset_detectors(", "coverage(", "derive_taxonomies(",
+                   "detection_debt(", "monitor_fields(",
+                   "monitor_quality_latency("):
+        assert called in alias_block, f"appel manquant dans les alias : {called}"
+
+
+def test_fortigate_reste_le_cas_multi_hotes_general():
+    """L'alias Fortigate doit passer par le detecteur GENERALISE, pas par un
+    filtre de nom isole — sinon on reintroduit le defaut deja corrige."""
+    src = open(analyst.__file__, encoding="utf-8").read()
+    fg = src[src.index("async def ext_mon_fortigate"):
+             src.index("async def ext_analytics_rules")]
+    assert "source_hostname_monitor" in fg
+    assert 'intake="forti"' in fg

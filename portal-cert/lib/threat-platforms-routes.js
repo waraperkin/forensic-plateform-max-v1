@@ -314,7 +314,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   // lot) : sans elles ici, l'UI ne peut pas les atteindre malgré leur présence
   // dans le control-plane.
   const ALLOWED_SAGF_RE = /^\/sagf\/(laws|mechanisms|query|saved|debt|self-report|config|reconcile|risk|nl|journal|optimise|compliance|feedback|conflicts|dac|economics|efficacy|harness|insurance|adversary|twin)(\/|$)/;
-  const ALLOWED_ANALYST_RE = /^\/analyst\/(inventory|monitor|dashboard|tags|filters|filter)(\/|$)/;
+  const ALLOWED_ANALYST_RE = /^\/analyst\/(inventory|monitor|monitoring|analytics|coverage|quality|dashboard|tags|filters|filter)(\/|$)/;
   const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
@@ -346,7 +346,10 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     // (silence + volumetrie + schema pour « sources ») : chacune tient dans les
     // 240 s, leur somme non. Un depassement ici n'affiche aucune erreur — la vue
     // reste en chargement, ce qui se lit comme « rien a afficher ».
-    const chained = /^\/analyst\/dashboard\//.test(req.path);
+    // Les alias « Sekoia.IO Extended Platform » enchainent eux aussi plusieurs
+    // mesures (ex. /monitoring/sources = derive + schema + pertes) : meme
+    // risque que les tableaux de bord, meme delai.
+    const chained = /^\/analyst\/(dashboard\/|monitoring\/|analytics\/|coverage\/|quality\/)/.test(req.path);
     const timeout = chained
       ? Number(process.env.ANALYST_PROXY_TIMEOUT_MS || 900000)
       : heavy

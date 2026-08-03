@@ -1,0 +1,17 @@
+/* Sekoia.IO — bascule d'affichage entre le portail CERT et l'outil dédié.
+ * Fichier nouveau, additif : aucune règle du thème existant n'est modifiée,
+ * aucune variable de palette n'est redéfinie ici. */
+
+/* Sur /sekoia : seules les catégories marquées restent visibles. */
+body.cc-mode-sekoia .cc-nav-section:not(.cc-nav-section--sekoia) { display: none; }
+body.cc-mode-sekoia [data-cc-open-sekoia] { display: none; }
+
+/* Sur le portail CERT (racine) : l'inverse — les catégories Sekoia et les
+ * quatre inventaires de gouvernance qui en sont la duplication disparaissent
+ * de la navigation ; le bouton d'ouverture apparaît à leur place. */
+body:not(.cc-mode-sekoia) .cc-nav-section--sekoia { display: none; }
+
+.cc-open-sekoia-btn {
+  display: flex; align-items: center; gap: .5rem; width: 100%;
+}
+.cc-open-sekoia-btn .cc-ext-mark { opacity: .7; font-size: .85em; }

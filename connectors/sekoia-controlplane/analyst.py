@@ -2049,3 +2049,114 @@ def register(an_app) -> None:
         except ValueError:
             return {"ok": False, "error": "critères illisibles : JSON attendu"}
         return apply_filters(entity, crit, limit)
+
+    # ── Alias REST — « Sekoia.IO Extended Platform » ────────────────────────
+    #
+    # Ces routes exposent EXACTEMENT les chemins d'une extension nommee, mais
+    # ne reimplementent rien : chacune appelle la fonction deja testee
+    # (500+ tests) qui porte la meme mesure. Aucune logique nouvelle ici —
+    # seulement des noms de route stables pour un outil qui se presente comme
+    # un produit a part entiere plutot que comme un ensemble de vues internes.
+
+    @an_app.get(f"{P}/inventory/intakes", dependencies=dep)
+    async def ext_inv_intakes(limit: int = Query(default=200, ge=1, le=2000)):
+        return read_inventory("intakes", limit=limit)
+
+    @an_app.get(f"{P}/inventory/sources", dependencies=dep)
+    async def ext_inv_sources(limit: int = Query(default=200, ge=1, le=2000)):
+        return read_inventory("sources", limit=limit)
+
+    @an_app.get(f"{P}/inventory/rules", dependencies=dep)
+    async def ext_inv_rules(limit: int = Query(default=200, ge=1, le=2000)):
+        return read_inventory("rules", limit=limit)
+
+    @an_app.get(f"{P}/inventory/assets", dependencies=dep)
+    async def ext_inv_assets(limit: int = Query(default=200, ge=1, le=2000)):
+        return read_inventory("assets", limit=limit)
+
+    @an_app.get(f"{P}/inventory/detections", dependencies=dep)
+    async def ext_inv_detections(limit: int = Query(default=200, ge=1, le=2000)):
+        return read_inventory("detections", limit=limit)
+
+    @an_app.get(f"{P}/inventory/formats", dependencies=dep)
+    async def ext_inv_formats(limit: int = Query(default=200, ge=1, le=2000)):
+        return read_inventory("formats", limit=limit)
+
+    @an_app.get(f"{P}/inventory/fields", dependencies=dep)
+    async def ext_inv_fields(limit: int = Query(default=200, ge=1, le=2000)):
+        return read_inventory("fields", limit=limit)
+
+    @an_app.get(f"{P}/monitoring/intakes", dependencies=dep)
+    async def ext_mon_intakes(hours: int = Query(default=24, ge=1, le=720)):
+        silence = await source_silence_detector(hours=hours)
+        volumetry = await source_volumetry_monitor(hours=hours)
+        return {"measured_at": _now(), "silence": silence, "volumetry": volumetry,
+                "headline": silence["headline"]}
+
+    @an_app.get(f"{P}/monitoring/sources", dependencies=dep)
+    async def ext_mon_sources(window: str = "24h", sample: int = 1500):
+        drift = await source_drift_detector(window=window)
+        schema = await source_schema_monitor(window=window, sample=sample)
+        loss = await monitor_loss()
+        return {"measured_at": _now(), "drift": drift, "schema": schema, "loss": loss,
+                "headline": drift["headline"]}
+
+    @an_app.get(f"{P}/monitoring/fortigate", dependencies=dep)
+    async def ext_mon_fortigate(window: str = "1h", sample: int = 2000):
+        # Fortinet est le cas nomme dans le cahier des charges ; le detecteur
+        # sous-jacent couvre en realite TOUTE source multi-hotes, deliberement
+        # — voir source_hostname_monitor : filtrer par nom aurait manque les
+        # plus gros relais reels de ce tenant.
+        return await source_hostname_monitor(window=window, sample=sample,
+                                             intake="forti", relays_only=True)
+
+    @an_app.get(f"{P}/analytics/rules", dependencies=dep)
+    async def ext_analytics_rules(hours: int = Query(default=168, ge=1, le=2160)):
+        return await rule_detectors(hours=hours)
+
+    @an_app.get(f"{P}/analytics/assets", dependencies=dep)
+    async def ext_analytics_assets(window: str = "24h", sample: int = 2000):
+        return await asset_detectors(window=window, sample=sample)
+
+    @an_app.get(f"{P}/coverage/mitre", dependencies=dep)
+    async def ext_coverage_mitre(window: str = "24h", sample: int = 2000):
+        return await coverage(window=window, sample=sample)
+
+    @an_app.get(f"{P}/coverage/taxonomy", dependencies=dep)
+    async def ext_coverage_taxonomy():
+        full = await cp.get_full()
+        rows = derive_taxonomies(list(full.get("rules") or []))
+        return {"measured_at": _now(), "axes": len(rows), "items": rows[:300],
+                "headline": f"{len(rows)} valeur(s) de taxonomie observée(s) "
+                            "dans l'usage réel des règles.",
+                "note": "Sekoia ne porte pas de référentiel de taxonomie : ces "
+                        "valeurs sont dérivées de l'usage, pas déclarées."}
+
+    @an_app.get(f"{P}/coverage/gaps", dependencies=dep)
+    async def ext_coverage_gaps(window: str = "24h", sample: int = 2000):
+        cov = await coverage(window=window, sample=sample)
+        debt = await detection_debt()
+        return {"measured_at": _now(), "blind_spots": cov["blind_spots"],
+                "debt": debt, "headline": cov["blind_spots"]["meaning"]}
+
+    @an_app.get(f"{P}/quality/schema", dependencies=dep)
+    async def ext_quality_schema(window: str = "24h", sample: int = 2000):
+        return await monitor_fields(window=window, sample=sample)
+
+    @an_app.get(f"{P}/quality/parsing", dependencies=dep)
+    async def ext_quality_parsing(window: str = "1h", sample: int = 2000):
+        return await monitor_quality_latency(window=window, sample=sample)
+
+    @an_app.get(f"{P}/quality/anomalies", dependencies=dep)
+    async def ext_quality_anomalies(hours: int = Query(default=24, ge=1, le=720),
+                                    window: str = "1h", sample: int = 2000):
+        vol = await source_volumetry_monitor(hours=hours)
+        loss = await monitor_loss(hours=hours)
+        ql = await monitor_quality_latency(window=window, sample=sample)
+        fams = {"volumetrie": vol.get("anomalies") or 0,
+                "tendances": (vol.get("trends") or {}).get("count") or 0,
+                "pertes_totales": (loss.get("total_loss") or {}).get("count") or 0,
+                "pertes_partielles": (loss.get("partial_loss") or {}).get("count") or 0,
+                "qualite_latence": ql.get("anomalies") or 0}
+        return {"measured_at": _now(), "families": fams, "total": sum(fams.values()),
+                "headline": f"{sum(fams.values())} anomalie(s) toutes familles confondues."}

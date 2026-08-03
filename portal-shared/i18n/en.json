@@ -16,8 +16,10 @@
     "sek_scope": "SEKOIA — 2. Scope",
     "sek_detection": "SEKOIA — 3. Detection",
     "sek_response": "SEKOIA — 4. Response",
-    "sek_governance": "SEKOIA — 5. Governance",
-    "sek_admin": "SEKOIA — 6. Administration"
+    "sek_governance": "SEKOIA — 4. Governance",
+    "sek_admin": "SEKOIA — 5. Administration",
+    "response_psoar": "Incident response (PSOAR)",
+    "sekoia_link": "Dedicated tool"
   },
   "units": {
     "bytes_b": "B",
@@ -121,7 +123,8 @@
     "purge": "Retention & archiving",
     "sekoia_extended": "Analyst workbench",
     "sagf": "SAGF — Governance",
-    "analyst": "Monitoring & blind spots"
+    "analyst": "Monitoring & blind spots",
+    "open_sekoia": "Sekoia.IO Extended Platform"
   },
   "header": {
     "brand_sub": "CERT / forensic operations center",

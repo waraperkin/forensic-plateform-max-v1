@@ -75,6 +75,14 @@ app.use('/docs', express.static(path.join(__dirname, 'public/docs'), { maxAge: '
 mountAuth(app);
 app.use(express.static(path.join(__dirname,'public')));
 
+// Sekoia.IO — outil dedie, /sekoia. MEME fichier que le portail : memes
+// scripts, memes ids, meme session. Un mode cote client (sekoia-tool-mode.js)
+// bascule l'affichage — aucune duplication de code, donc aucun risque de
+// divergence entre les deux surfaces.
+app.get('/sekoia', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 const FINGERPRINT = (() => {
   try { return fs.readFileSync('/app/ssl/fingerprint.txt','utf8').trim(); } catch { return ''; }
 })();

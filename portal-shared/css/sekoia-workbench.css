@@ -17,9 +17,16 @@
 
 .swb {
   --swb-gap: 0.75rem;
-  --swb-radius: 10px;
-  --swb-line: color-mix(in srgb, currentColor 12%, transparent);
-  --swb-surface: color-mix(in srgb, currentColor 3%, transparent);
+  /* Alignees sur les jetons du theme portail (forensic-ui.css) plutot que sur
+     une echelle propre au namespace .swb : sans cela, chaque console d'un
+     meme outil affiche un rayon, une bordure et un fond differents pour la
+     MEME carte — mesure : 3 rayons et 4 fonds distincts avant ce correctif.
+     Le theme et la palette globale restent inchanges ; .swb consomme
+     desormais les memes variables que .fp-card au lieu d'en dupliquer une
+     approximation. */
+  --swb-radius: var(--radius, 8px);
+  --swb-line: var(--border, color-mix(in srgb, currentColor 12%, transparent));
+  --swb-surface: var(--bg-elevated, color-mix(in srgb, currentColor 3%, transparent));
   --swb-surface-2: color-mix(in srgb, currentColor 6%, transparent);
   --swb-accent: #38a0ff;
   --swb-ok: #19c37d;

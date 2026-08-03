@@ -147,3 +147,44 @@ la veille. Sous les seuils d'effectif déclarés (200 événements pour la
 volumétrie, 15 tirages pour un hôte), le module répond **indéterminé** plutôt
 que de forcer une conclusion — un faux silence et un vrai silence ne se
 corrigent pas de la même façon.
+
+---
+
+# Passe de cohérence visuelle — mesurée, pas déclarée
+
+Suite au constat « pas du tout prod, premium ou ergonomique », un audit
+mesuré (`audit-visual2.mjs`, styles calculés, pas une impression) a été
+rejoué sur le portail CERT et l'outil `/sekoia`.
+
+## Ce qui a été trouvé et corrigé
+
+| Défaut mesuré | Cause | Correctif |
+|---|---|---|
+| Icône vide (carré gris) sur le bouton « Sekoia.IO Extended Platform » | `data-cc-icon` absent sur ce bouton, seul de toute la barre latérale | attribut ajouté + règle CSS `[data-cc-icon="external"]` (flèche sortante) |
+| **4 fonds de carte, 3 rayons, 3 bordures différents** sur un même écran | `.swb-panel` (consoles Sekoia) maintenait sa propre échelle de couleurs indépendante de `.fp-card` (reste du portail) | `.swb-panel` consomme désormais **les mêmes jetons de thème** (`--radius`, `--border`, `--bg-elevated`) — mesuré après correctif : 3 fonds → et convergence sur les valeurs partagées |
+
+**Portée du correctif** : trois lignes dans `sekoia-workbench.css`, une
+attribut HTML, une règle d'icône. Aucune variable de thème redéfinie — les
+deux familles de carte pointent maintenant vers la **même source**, donc tout
+changement de thème futur les affecte identiquement au lieu de les faire
+diverger.
+
+## Ce qui a été examiné et volontairement laissé tel quel
+
+**Le graphique « Ingest par portail »** semblait déséquilibré (une barre
+énorme, l'autre invisible). Vérification faite : le portail « it » affiche
+un volume proche de zéro dans les données réelles du jour — le graphique est
+**fidèle**, pas cassé. Le « corriger » aurait consisté à truquer visuellement
+une donnée réelle, exactement la faute que cette plateforme s'interdit
+depuis son premier lot.
+
+**Les panneaux « idle » des tableaux de bord** (un bouton « Calculer » dans un
+espace autrement vide) restent tels quels par choix assumé : les calculer par
+défaut à l'ouverture de chaque onglet consommerait le quota de recherche
+Sekoia à chaque visite, ce que le module documente depuis sa conception comme
+un coût prélevé sur les analystes plutôt qu'un affichage gratuit.
+
+## Validation
+
+44 tests JS, régression navigateur `dbggroups.mjs` (0 FAIL), captures avant/
+après conservées dans `screenshots/v2-*.png`.

@@ -1,0 +1,9 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cert-portal-live",
+      "url": "https://192.168.2.67"
+    }
+  ]
+}

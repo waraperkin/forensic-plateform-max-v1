@@ -46,7 +46,10 @@
                 * élargir coûte du quota de recherche Sekoia : c'est un
                 * arbitrage qui lui appartient, pas une valeur imposée. */
                window: '1h', sample: 2000, hours: 24,
-               intake: '', relaysOnly: true };
+               intake: '', relaysOnly: true,
+               // Actions manuelles : ligne dépliée et résultats de simulation,
+               // par clé « target:id ».
+               bulkOpen: null, bulkPreview: {} };
   const WINDOWS = ['15m', '1h', '6h', '24h', '7d'];
 
   /* Repli des intitulés de groupe. La résolution i18n de ces trois clés échoue
@@ -89,6 +92,48 @@
     return d;
   }
 
+  /* ── Actions manuelles réelles ────────────────────────────────────────────
+   * L'extension elle-même n'écrit jamais dans Sekoia (voir en-tête du module
+   * back). Mais le moteur de lot (`bulkops.py`) EXISTE, est audité, simule
+   * avant d'appliquer et journalise chaque écriture avec annulation possible
+   * — il n'était câblé nulle part hors d'un onglet caché. Cette section
+   * réutilise EXACTEMENT ce moteur, avec la même discipline : jamais
+   * d'application sans simulation affichée d'abord.
+   */
+  const BULK_API = '/api/threat/sekoia';
+  async function bulkApi(path, opts) {
+    const o = Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {});
+    const r = await fetch(BULK_API + path, o);
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok && d && d.error) throw new Error(d.error);
+    return d;
+  }
+
+  // Cible du moteur de lot déduite de l'evidence d'un verdict, et rien d'autre
+  // : on ne devine jamais un identifiant hors de ce que le back a fourni.
+  function bulkSubject(v) {
+    const ev = v.evidence || {};
+    if (ev.rule_uuid) return { target: 'rules', id: ev.rule_uuid, taggable: true, toggle: true };
+    if (ev.intake_uuid) return { target: 'intakes', id: ev.intake_uuid, taggable: false, toggle: true };
+    if (ev.uuid) return { target: 'assets', id: ev.uuid, taggable: true, toggle: false };
+    return null;
+  }
+
+  async function bulkDry(target, id, op, tags) {
+    return bulkApi(`/bulk/${encodeURIComponent(target)}`, {
+      method: 'POST',
+      body: JSON.stringify({ action: op, ids: [id], tags: tags || [], dry_run: 1 }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  async function bulkApply(target, id, op, tags) {
+    return bulkApi(`/bulk/${encodeURIComponent(target)}`, {
+      method: 'POST',
+      body: JSON.stringify({ action: op, ids: [id], tags: tags || [], dry_run: 0 }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   function panel(title, inner, tone) {
     return `<div class="swb-panel${tone ? ' swb-panel-' + tone : ''}"
       ${tone ? `style="border-left:3px solid var(--swb-${tone})"` : ''}>
@@ -104,9 +149,20 @@
       T('an.measured')} ${esc(label)}</span>`;
   }
 
-  function verdictRow(v) {
+  function verdictRow(v, actionable) {
     const tone = v.severity === 'alerte' ? 'danger'
       : v.severity === 'attention' ? 'warn' : 'mute';
+    const bs = actionable ? bulkSubject(v) : null;
+    const rowKey = bs ? `${bs.target}:${bs.id}` : null;
+    const open = rowKey && st.bulkOpen === rowKey;
+    const link = v.sekoia && v.sekoia.url
+      ? `<a href="${esc(v.sekoia.url)}" target="_blank" rel="noopener"
+           class="fp-btn fp-btn-sm fp-btn-ghost" title="${T('an.open_sekoia')}">↗</a>` : '';
+    const actBtn = bs ? `<button type="button" class="fp-btn fp-btn-sm"
+        data-an-act="bulk-toggle" data-key="${esc(rowKey)}"
+        data-target="${esc(bs.target)}" data-id="${esc(bs.id)}">${
+        T(open ? 'an.act_close' : 'an.act_open')}</button>` : '';
+    const panel = open ? bulkPanel(bs) : '';
     return `<tr>
       <td class="swb-truncate"><strong>${esc(v.subject)}</strong></td>
       <td>${esc(v.verdict)}</td>
@@ -115,18 +171,54 @@
       <td>${(v.tags || []).map((t) => `<span class="swb-pill swb-pill-${
         tone} swb-pill-flat">${esc(t)}</span>`).join(' ')}</td>
       <td class="swb-hint">${esc(((v.freshness) || {}).label || '')}</td>
-    </tr>`;
+      <td style="white-space:nowrap">${link} ${actBtn}</td>
+    </tr>${panel ? `<tr><td colspan="6" style="padding:0">${panel}</td></tr>` : ''}`;
   }
 
-  function verdictTable(items) {
+  // Panneau d'action réel, sous la ligne dépliée. Jamais d'application sans
+  // simulation affichée d'abord — c'est le moteur de lot qui l'impose.
+  function bulkPanel(bs) {
+    const key = `${bs.target}:${bs.id}`;
+    const pv = st.bulkPreview[key];
+    const ops = bs.toggle ? ['enable', 'disable'] : [];
+    const opLabel = { enable: T('an.op_enable'), disable: T('an.op_disable'),
+      tag_add: T('an.op_tag_add') };
+    const inner = `<div class="swb-filters" style="align-items:center">
+        ${ops.map((op) => `<button type="button" class="fp-btn fp-btn-sm"
+          data-an-act="bulk-dry" data-target="${esc(bs.target)}" data-id="${esc(bs.id)}"
+          data-op="${op}">${esc(opLabel[op])}</button>`).join('')}
+        ${bs.taggable ? `<input class="swb-input" id="an-bulk-tag-${esc(bs.id)}"
+            style="max-width:12rem" placeholder="${T('an.tag_ph')}">
+          <button type="button" class="fp-btn fp-btn-sm" data-an-act="bulk-dry"
+            data-target="${esc(bs.target)}" data-id="${esc(bs.id)}"
+            data-op="tag_add">${esc(opLabel.tag_add)}</button>` : ''}
+      </div>
+      ${!pv ? `<p class="swb-hint" style="margin:.4rem 0 0">${T('an.bulk_hint')}</p>` : ''}
+      ${pv && pv.dry && pv.result ? `<div class="swb-hint" style="margin:.5rem 0 0">
+          <strong>${T('an.simulation')}</strong> — ${
+            esc(JSON.stringify((pv.result.results || [{}])[0].before || {}))}
+          ${pv.result.selected
+            ? `<button type="button" class="fp-btn fp-btn-sm fp-btn-danger" style="margin-left:.5rem"
+                data-an-act="bulk-apply" data-target="${esc(bs.target)}"
+                data-id="${esc(bs.id)}" data-op="${esc(pv.op)}">${T('an.apply')}</button>`
+            : `<span> — ${T('an.nothing_to_apply')}</span>`}
+        </div>` : ''}
+      ${pv && !pv.dry && pv.result ? `<p class="swb-hint" style="margin:.5rem 0 0">${
+          pv.result.done ? T('an.applied') : T('an.apply_failed')}</p>` : ''}
+      ${pv && pv.error ? `<p class="swb-hint" style="margin:.5rem 0 0">${esc(pv.error)}</p>` : ''}
+      <p class="swb-hint" style="margin:.5rem 0 0">${T('an.write_note')}</p>`;
+    return panel('', inner, 'accent');
+  }
+
+  function verdictTable(items, actionable) {
     if (!items || !items.length) {
       return `<p class="swb-hint" style="margin:0">${T('an.nothing')}</p>`;
     }
     return `<div class="swb-tablewrap" style="max-height:44vh"><table class="swb-table">
       <thead><tr><th>${T('an.c_subject')}</th><th>${T('an.c_verdict')}</th>
         <th>${T('an.c_uncertainty')}</th><th>${T('an.c_tags')}</th>
-        <th>${T('an.c_fresh')}</th></tr></thead>
-      <tbody>${items.map(verdictRow).join('')}</tbody></table></div>`;
+        <th>${T('an.c_fresh')}</th><th>${actionable ? T('an.c_actions') : ''}</th></tr></thead>
+      <tbody>${items.map((v) => verdictRow(v, actionable)).join('')}</tbody></table></div>`;
   }
 
   function panelBlock(p) {
@@ -145,7 +237,7 @@
     if (hasFamilies) {
       return panel('', head + families.filter((f) => p[f] && p[f].count).map((f) =>
         `<h4 class="swb-panel-title" style="margin-top:.8rem">${T('an.f_' + f)} — ${
-          nf(p[f].count)}</h4>${verdictTable(p[f].items)}`).join(''), 'accent');
+          nf(p[f].count)}</h4>${verdictTable(p[f].items, true)}`).join(''), 'accent');
     }
     if (p.relay_summary && p.relay_summary.length) {
       return panel('', head + `<div class="swb-tablewrap" style="max-height:22vh;margin-top:.5rem">
@@ -155,7 +247,7 @@
           <td class="swb-truncate">${esc(r.intake_name)}</td>
           <td class="swb-num"><strong>${nf(r.hosts)}</strong></td>
           <td class="swb-hint">${esc(r.family || '—')}</td></tr>`).join('')}
-        </tbody></table></div>` + verdictTable(p.items), 'accent');
+        </tbody></table></div>` + verdictTable(p.items, true), 'accent');
     }
     if (p.coverage_proven_pct !== undefined) {
       return panel('', head + `<div class="swb-stats">
@@ -192,7 +284,7 @@
             <td class="swb-truncate">${esc(t.intake_name)}</td>
             <td><span class="swb-pill swb-pill-warn swb-pill-flat">${esc(t.trend)}</span></td>
             <td class="swb-hint swb-truncate">${esc(t.meaning || '')}</td></tr>`).join('')}
-        </tbody></table></div>` + verdictTable(p.items), 'accent');
+        </tbody></table></div>` + verdictTable(p.items, true), 'accent');
     }
     if (p.coherence) {
       const fams = ['duplicates_id', 'duplicates_name', 'ghosts', 'orphans',
@@ -212,16 +304,16 @@
     if (lossFams.some((f) => p[f])) {
       return panel('', head + lossFams.filter((f) => p[f] && p[f].count).map((f) =>
         `<h4 class="swb-panel-title" style="margin-top:.8rem">${T('an.k_' + f)} — ${
-          nf(p[f].count)}</h4>${verdictTable(p[f].items)}`).join(''), 'accent');
+          nf(p[f].count)}</h4>${verdictTable(p[f].items, true)}`).join(''), 'accent');
     }
     const groups = ['without_logs', 'without_source', 'without_coverage',
                     'ghosts', 'orphans'];
     if (groups.some((g) => p[g])) {
       return panel('', head + groups.filter((g) => p[g] && p[g].count).map((g) =>
         `<h4 class="swb-panel-title" style="margin-top:.8rem">${T('an.g_' + g)} — ${
-          nf(p[g].count)}</h4>${verdictTable(p[g].items)}`).join(''), 'accent');
+          nf(p[g].count)}</h4>${verdictTable(p[g].items, true)}`).join(''), 'accent');
     }
-    return panel('', head + verdictTable(items), 'accent');
+    return panel('', head + verdictTable(items, true), 'accent');
   }
 
   /* Réglages d'échantillonnage. Présents AVANT le calcul comme après, pour que
@@ -356,6 +448,41 @@
       const b = ev.target.closest('[data-an-act]');
       if (!b) return;
       const act = b.dataset.anAct;
+      // Les actions manuelles ne passent PAS par l'écran de chargement global :
+      // il remplacerait toute la console et refermerait la ligne dépliée que
+      // l'analyste est en train de regarder. Elles se traitent à part.
+      if (act === 'bulk-toggle') {
+        st.bulkOpen = st.bulkOpen === b.dataset.key ? null : b.dataset.key;
+        paint(); return;
+      }
+      if (act === 'bulk-dry' || act === 'bulk-apply') {
+        const { target, id, op } = b.dataset;
+        const key = `${target}:${id}`;
+        let tags = [];
+        if (op === 'tag_add') {
+          const raw = (document.getElementById(`an-bulk-tag-${id}`) || {}).value || '';
+          tags = raw.split(',').map((x) => x.trim()).filter(Boolean);
+          if (!tags.length) {
+            st.bulkPreview[key] = { dry: true, op, error: T('an.need_tags') };
+            paint(); return;
+          }
+        }
+        try {
+          const result = act === 'bulk-dry'
+            ? await bulkDry(target, id, op, tags)
+            : await bulkApply(target, id, op, tags);
+          st.bulkPreview[key] = { dry: act === 'bulk-dry', op, result };
+          // Une écriture reussie invalide les tableaux de bord deja calcules :
+          // les rouvrir montrerait un etat perime sans le dire.
+          if (act === 'bulk-apply' && result.done) {
+            Object.keys(st.data).filter((k) => k.startsWith('dash_'))
+              .forEach((k) => { delete st.data[k]; });
+          }
+        } catch (e) {
+          st.bulkPreview[key] = { dry: act === 'bulk-dry', op, error: e.message };
+        }
+        paint(); return;
+      }
       const g = (id) => document.getElementById(id);
       if (g('an-window')) st.window = g('an-window').value;
       if (g('an-sample')) st.sample = Math.max(200, Math.min(10000,
@@ -391,9 +518,34 @@
     const el = document.getElementById('analyst-root');
     if (!el) return;
     paint();
+    /* `i18n:language-changed` ne se declenche qu'au CHANGEMENT de langue, pas
+     * au chargement initial : la console peignait donc avant que le
+     * dictionnaire ne soit la, et affichait « an.v_sources » a l'analyste.
+     * On repeint des que le dictionnaire repond, puis on s'arrete — une
+     * scrutation qui ne se termine pas serait pire que le defaut qu'elle
+     * corrige. */
+    let tries = 0;
+    const ready = setInterval(() => {
+      tries += 1;
+      if (T('an.v_sources') !== 'an.v_sources') {
+        clearInterval(ready);
+        paint();
+      } else if (tries > 40) {          // 8 s : au-dela, le repli suffira
+        clearInterval(ready);
+      }
+    }, 200);
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
   } else { boot(); }
+
+  /* LA cause des libellés bruts. La console peignait AVANT que le dictionnaire
+   * i18n ne soit charge — `t()` renvoyait alors la cle elle-meme, et rien ne
+   * repeignait ensuite. La console SAGF ecoutait deja cet evenement ; celle-ci
+   * ne l'ecoutait pas, et affichait donc « an.v_sources » a l'analyste.
+   * Le meme abonnement couvre aussi le basculement FR/EN en cours de session. */
+  window.addEventListener('i18n:language-changed', () => {
+    if (document.getElementById('analyst-root')) paint();
+  });
   window.analystConsole = { paint, state: st };
 }());

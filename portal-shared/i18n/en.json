@@ -2711,7 +2711,23 @@
       "k_trends": "Trends",
       "g_visibility": "Visibility",
       "g_scope": "Scope",
-      "g_detection": "Detection"
+      "g_detection": "Detection",
+      "open_sekoia": "open in Sekoia",
+      "act_open": "Act",
+      "act_close": "Close",
+      "op_enable": "Enable",
+      "op_disable": "Disable",
+      "op_tag_add": "Tag (Sekoia)",
+      "tag_ph": "tag(s), comma-separated",
+      "bulk_hint": "Simulate before applying: the bulk engine shows the before/after state without writing anything.",
+      "simulation": "Simulation —",
+      "apply": "Apply",
+      "nothing_to_apply": "no change — the object is already in this state.",
+      "applied": "Written to Sekoia.io. This action appears in the change log and can be rolled back.",
+      "apply_failed": "Write failed — nothing was changed.",
+      "need_tags": "enter at least one tag.",
+      "c_actions": "Actions",
+      "write_note": "These actions REALLY write to Sekoia.io, through the audited bulk engine (simulation, log, rollback). Nothing is ever applied without a simulation shown first."
     }
   },
   "swbtx": {

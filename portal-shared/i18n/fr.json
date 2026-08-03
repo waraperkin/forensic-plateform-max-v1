@@ -2711,7 +2711,23 @@
       "k_trends": "Tendances",
       "g_visibility": "Visibilité",
       "g_scope": "Périmètre",
-      "g_detection": "Détection"
+      "g_detection": "Détection",
+      "open_sekoia": "ouvrir dans Sekoia",
+      "act_open": "Agir",
+      "act_close": "Fermer",
+      "op_enable": "Activer",
+      "op_disable": "Désactiver",
+      "op_tag_add": "Étiqueter (Sekoia)",
+      "tag_ph": "étiquette(s), séparées par des virgules",
+      "bulk_hint": "Simulez avant d'appliquer : le moteur de lot montre l'état avant/après sans rien écrire.",
+      "simulation": "Simulation —",
+      "apply": "Appliquer",
+      "nothing_to_apply": "aucun changement — l'objet est déjà dans cet état.",
+      "applied": "Écrit dans Sekoia.io. Cette action apparaît dans le journal des modifications et peut être annulée.",
+      "apply_failed": "Échec de l'écriture — rien n'a été modifié.",
+      "need_tags": "indiquez au moins une étiquette.",
+      "c_actions": "Actions",
+      "write_note": "Ces actions écrivent RÉELLEMENT dans Sekoia.io, via le moteur de lot audité (simulation, journal, annulation). Rien n'est jamais appliqué sans simulation affichée d'abord."
     }
   },
   "swbtx": {

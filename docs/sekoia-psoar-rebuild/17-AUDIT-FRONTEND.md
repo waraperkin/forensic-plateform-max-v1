@@ -128,3 +128,61 @@ reste à trouver, et elle touche davantage de libellés que je ne le croyais.
 Alignements au pixel sur grille, cohérence des modales (aucune ouverte
 pendant le balayage), parcours au clavier, lecteurs d'écran. Les annoncer comme
 faits serait le pire résultat possible d'un audit.
+
+---
+
+# Actions manuelles réelles — la console cesse d'être une vitrine
+
+Le diagnostic était net : le moteur d'écriture (`bulkops.py`) existe depuis
+plusieurs lots — simulation obligatoire avant toute application, journal,
+annulation — mais il n'était câblé que sur **deux vues cachées** dans « Poste
+de travail analyste » (`SEL_TARGET = { sources: 'intakes', detections: 'rules' }`).
+La console la plus utilisée, **Supervision**, n'avait strictement aucune
+action : chaque ligne de verdict était un constat, jamais un geste.
+
+## Ce qui a changé
+
+Chaque ligne de verdict porte désormais, quand un identifiant Sekoia réel est
+disponible dans son evidence (`rule_uuid`, `intake_uuid`, `uuid` d'actif) :
+
+- un lien direct **↗ ouvrir dans Sekoia** ;
+- un bouton **Agir** qui déplie un panneau d'action ;
+- selon la cible : **Activer / Désactiver** (règles, intakes) ou **Étiqueter**
+  (règles, actifs) ;
+- **jamais d'application sans simulation affichée d'abord** — c'est le moteur
+  de lot qui l'impose, l'interface ne fait que le montrer ;
+- après application, un bandeau confirme l'écriture et rappelle qu'elle est
+  **journalisée et annulable**.
+
+La détermination de la cible est **honnête par construction** : `bulkSubject()`
+ne propose une action que si l'evidence du verdict porte réellement un
+identifiant Sekoia. Une ligne sans identifiant (dérive de schéma, champ
+manquant) n'affiche aucun bouton — plutôt que d'en afficher un qui échouerait.
+
+## Portée
+
+Sept familles de tableaux sont concernées : règles (inertes, jamais
+déclenchées, bavardes, obsolètes, dépendances rompues), sources multi-hôtes,
+tendances de volumétrie, pertes, actifs (fantômes, orphelins, sans logs).
+
+## Ce qui n'a pas changé
+
+Aucune écriture n'est possible sans que l'analyste clique explicitement sur
+**Appliquer**, après avoir vu la simulation. Le module `analyst.py` continue de
+ne **jamais** écrire — les actions passent par le moteur `bulkops.py`, distinct,
+déjà audité, déjà utilisé en production sur les deux vues du poste de travail.
+
+## Validation
+
+Chemin complet vérifié dans le navigateur : ouverture de la ligne, simulation
+réelle contre l'API Sekoia (requête `POST /bulk/rules` confirmée, `dry_run=1`),
+diff avant/après affiché, repli de la ligne. **L'application réelle n'a pas été
+déclenchée par le test** — écrire dans un tenant de production comme effet de
+bord d'une validation automatisée serait irresponsable, quel que soit le
+rollback disponible. Le bouton « Appliquer » est vérifié présent, jamais cliqué.
+
+0 FAIL sur ce parcours. Régression complète : 44 tests JS, `legacy`,
+`sagf-tab`, `psoar-ui` verts. Sur `analyst-ui.mjs`, 47/49 assertions passent ;
+les 2 restantes sont le défaut de harnais déjà documenté plus haut dans ce
+document (§ « cohérence — familles distinctes »), inchangé par cette
+modification.

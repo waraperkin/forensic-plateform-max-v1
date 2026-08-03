@@ -543,3 +543,52 @@ def test_fortigate_reste_le_cas_multi_hotes_general():
              src.index("async def ext_analytics_rules")]
     assert "source_hostname_monitor" in fg
     assert 'intake="forti"' in fg
+
+
+# ── Cache court des tableaux de bord ─────────────────────────────────────────
+
+def test_un_hit_de_cache_ne_ment_pas_sur_la_fraicheur():
+    """Servir depuis le cache doit renvoyer le MEME measured_at, pas un
+    horodatage rafraichi — sinon un verdict resservi se lit comme un calcul
+    refait alors qu'il ne l'est pas."""
+    key = ("rules", "1h", 2000, 24, None, True)
+    payload = {"dashboard": "rules", "measured_at": "2020-01-01T00:00:00Z",
+              "headline": "figé"}
+    analyst._dash_cache_set(key, payload)
+    hit = analyst._dash_cache_get(key)
+    assert hit["measured_at"] == "2020-01-01T00:00:00Z"
+
+
+def test_le_cache_expire_reellement():
+    key = ("rules", "1h", 2000, 24, None, True)
+    analyst._dash_cache_set(key, {"headline": "perime"})
+    analyst._DASH_CACHE[key] = (analyst.time.monotonic() - 1, {"headline": "perime"})
+    assert analyst._dash_cache_get(key) is None
+    assert key not in analyst._DASH_CACHE, "une entree expiree doit etre purgee, pas laissee trainer"
+
+
+def test_une_erreur_n_est_jamais_mise_en_cache():
+    """Mettre en cache « tableau de bord inconnu » figerait l'erreur pour tous
+    les analystes suivants, meme apres correction du nom demande."""
+    import asyncio
+    out = asyncio.run(analyst.dashboard("inexistant"))
+    assert out["ok"] is False
+    key = ("inexistant", "1h", 2000, 24, None, True)
+    assert analyst._dash_cache_get(key) is None
+
+
+def test_le_cache_est_borne():
+    """Sans plafond, des combinaisons fenetre/echantillon/heures multiples
+    feraient grossir le cache indefiniment."""
+    for i in range(analyst.DASH_CACHE_MAX + 20):
+        analyst._dash_cache_set((f"k{i}",), {"i": i})
+    assert len(analyst._DASH_CACHE) <= analyst.DASH_CACHE_MAX
+
+
+def test_deux_cles_differentes_ne_se_confondent_jamais():
+    """Deux fenetres differentes sur le meme tableau sont deux mesures
+    differentes : les confondre servirait la mauvaise reponse."""
+    analyst._dash_cache_set(("rules", "1h", 2000, 24, None, True), {"v": "1h"})
+    analyst._dash_cache_set(("rules", "6h", 2000, 24, None, True), {"v": "6h"})
+    assert analyst._dash_cache_get(("rules", "1h", 2000, 24, None, True))["v"] == "1h"
+    assert analyst._dash_cache_get(("rules", "6h", 2000, 24, None, True))["v"] == "6h"

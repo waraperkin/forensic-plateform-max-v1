@@ -1718,9 +1718,71 @@ def sampling_note(window: str, sample: int, observed: int) -> str:
             "recherche Sekoia.")
 
 
+# Cache court des tableaux de bord — CE QUE CE CACHE EST, ET CE QU'IL N'EST PAS.
+#
+# Un tableau de bord enchaîne plusieurs mesures Sekoia et peut prendre
+# plusieurs dizaines de secondes. Sans cache, deux analystes qui ouvrent la
+# MÊME vue à quelques secondes d'intervalle paient deux fois le même quota de
+# recherche pour un résultat qui n'a pas eu le temps de changer.
+#
+# Ce cache ne ment jamais sur la fraîcheur : il sert le même objet Python,
+# avec le même `measured_at` qu'au premier calcul. Le front calcule l'âge par
+# rapport à CETTE date — servir une réponse en cache ne rajeunit rien, un
+# analyste qui regarde deux fois la même mesure la voit avec le même âge
+# réel. Un verdict resservi porte donc une fraîcheur honnête, jamais un
+# horodatage qui donnerait l'illusion d'un calcul refait.
+#
+# Sur un HIT, aucune mesure n'est réécrite en base (`record_measures`/
+# `record_verdicts` ne rejouent pas) : dupliquer un point identique à la même
+# valeur, au même instant, polluerait l'historique dont dépendent la
+# tendance et l'intermittence — deux points artificiels ne racontent rien de
+# plus qu'un seul.
+_DASH_CACHE: dict = {}
+DASH_CACHE_TTL_S = float(os.environ.get("ANALYST_DASH_CACHE_TTL_S", "45"))
+DASH_CACHE_MAX = 200
+
+
+def _dash_cache_get(key: tuple):
+    hit = _DASH_CACHE.get(key)
+    if not hit:
+        return None
+    expires_at, payload = hit
+    if time.monotonic() > expires_at:
+        _DASH_CACHE.pop(key, None)
+        return None
+    return payload
+
+
+def _dash_cache_set(key: tuple, payload: dict) -> None:
+    if len(_DASH_CACHE) >= DASH_CACHE_MAX:
+        oldest = min(_DASH_CACHE, key=lambda k: _DASH_CACHE[k][0])
+        _DASH_CACHE.pop(oldest, None)
+    _DASH_CACHE[key] = (time.monotonic() + DASH_CACHE_TTL_S, payload)
+
+
 async def dashboard(name: str, window: str = "1h", sample: int = 2000,
                     hours: int = 24, intake: Optional[str] = None,
                     relays_only: bool = True) -> dict:
+    """Enveloppe de cache : voir `_DASH_CACHE` ci-dessus pour ce que cache
+    signifie et ne signifie PAS ici (jamais un mensonge sur la fraîcheur)."""
+    cache_key = (name, window, sample, hours, intake, relays_only)
+    cached = _dash_cache_get(cache_key)
+    if cached is not None:
+        return {**cached, "served_from_cache": True,
+                "cache_note": f"Résultat réutilisé (calculé il y a moins de "
+                              f"{int(DASH_CACHE_TTL_S)} s) — la fraîcheur "
+                              "affichée reste celle du calcul d'origine."}
+    result = await _dashboard_compute(name, window=window, sample=sample,
+                                      hours=hours, intake=intake,
+                                      relays_only=relays_only)
+    if result.get("ok") is not False:   # ne met pas en cache une erreur
+        _dash_cache_set(cache_key, result)
+    return result
+
+
+async def _dashboard_compute(name: str, window: str = "1h", sample: int = 2000,
+                             hours: int = 24, intake: Optional[str] = None,
+                             relays_only: bool = True) -> dict:
     ts = _now()
     params = {"window": window, "sample": sample, "hours": hours,
               "intake": intake, "relays_only": relays_only,
@@ -2026,6 +2088,17 @@ def register(an_app) -> None:
                            "afficherait une période autre que celle demandée."}
         return await dashboard(name, window=window, sample=sample, hours=hours,
                                intake=intake or None, relays_only=relays_only)
+
+    @an_app.get(f"{P}/dashboard-cache/status", dependencies=dep)
+    async def dash_cache_status():
+        """Un cache invisible est un cache dont on ne peut pas vérifier le
+        comportement. Cette route existe pour ça, pas pour l'exploitation."""
+        now = time.monotonic()
+        return {"entries": len(_DASH_CACHE), "max_entries": DASH_CACHE_MAX,
+                "ttl_seconds": DASH_CACHE_TTL_S,
+                "items": [{"key": list(str(x) for x in k),
+                          "expires_in_s": round(v[0] - now, 1)}
+                         for k, v in list(_DASH_CACHE.items())[:50]]}
 
     @an_app.get(f"{P}/tags", dependencies=dep)
     async def get_tags(entity: str = None, tag: str = None):

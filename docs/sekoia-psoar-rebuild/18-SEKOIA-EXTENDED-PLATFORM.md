@@ -237,3 +237,46 @@ une fois les deux réponses arrivées. 0 FAIL.
 
 44 tests JS, `dbggroups.mjs` (0 FAIL), `sagf-tab.mjs` (0 FAIL), plus la preuve
 dédiée `stale-response.mjs`.
+
+---
+
+# Cache court des tableaux de bord — mesuré, pas déclaré
+
+Point explicitement demandé (« cache intelligent », « réduction des
+collisions de requêtes », « optimisation des endpoints »). Un tableau de bord
+enchaîne plusieurs mesures Sekoia et peut prendre plus d'une minute ; sans
+cache, deux analystes qui ouvrent la même vue à quelques secondes d'intervalle
+payaient deux fois le même quota de recherche pour un résultat qui n'avait pas
+eu le temps de changer.
+
+## Ce que ce cache est, et n'est pas
+
+**Il ne ment jamais sur la fraîcheur.** Un HIT renvoie le même objet, avec le
+même `measured_at` qu'au premier calcul — le front calcule l'âge par rapport à
+cette date réelle. Servir depuis le cache ne rajeunit rien.
+
+**Aucune mesure n'est réécrite en base sur un HIT.** `record_measures` et
+`record_verdicts` ne rejouent pas : dupliquer un point identique, à la même
+valeur, au même instant, polluerait l'historique dont dépendent la tendance et
+l'intermittence — deux points artificiels ne racontent rien de plus qu'un seul.
+
+**Une erreur n'est jamais mise en cache.** Un nom de tableau inconnu figé en
+cache resterait une erreur pour tous les analystes suivants, même après
+correction de la demande.
+
+## Preuve, sur le tenant réel
+
+| Appel | Durée | Origine |
+|---|---|---|
+| 1er (`/dashboard/coverage`) | **68,78 s** | calcul réel contre l'API Sekoia |
+| 2e, identique | **0,70 s** | servi depuis le cache — `measured_at` inchangé |
+
+TTL de 45 s, plafond de 200 entrées avec éviction de la plus ancienne. Une
+route de diagnostic (`/dashboard-cache/status`) expose l'état du cache — un
+cache invisible est un cache dont on ne peut pas vérifier le comportement.
+
+## Validation
+
+523 tests Python (5 nouveaux sur le cache : fraîcheur non falsifiée, expiration
+réelle, erreurs jamais mises en cache, plafond respecté, clés distinctes non
+confondues), 44 tests JS, régression navigateur `dbgbulk.mjs` — 0 FAIL.

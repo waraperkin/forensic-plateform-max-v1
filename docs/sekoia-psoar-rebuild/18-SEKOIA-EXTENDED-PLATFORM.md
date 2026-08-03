@@ -409,3 +409,42 @@ en parallèle. `0 FAIL`.
 
 Parité de clés FR/EN toujours 2562 = 2562 après correctif. JSON valide sur
 les deux fichiers. Image `cert-portal` reconstruite.
+
+---
+
+# Le volet de détail Sekoia était figé sur une couleur qui n'existait dans
+# aucun thème
+
+Point explicitement demandé (« cohérence visuelle CERT ↔ Sekoia »). Le
+volet de détail (`.swb-drawer`, ouvert au clic sur une règle/un asset dans
+l'outil Sekoia) déclarait `background: var(--fp-panel, #14181f)`. Aucun
+fichier CSS du dépôt ne définit jamais `--fp-panel` — la variable n'existe
+nulle part. Conséquence : le volet servait **toujours** la couleur de repli
+`#14181f`, quel que soit le thème actif (clair, sombre, cybercorp), alors
+que la modale équivalente côté CERT (`.cc-modal`) suit correctement
+`var(--bg-elevated)` et change réellement de couleur selon le thème.
+
+Le fond derrière le volet (`.swb-scrim`) divergeait aussi visiblement de
+celui de la modale CERT (`.cc-modal-overlay`) : `rgba(0,0,0,0.42)` sans flou
+contre `rgba(2,6,12,0.62)` avec `backdrop-filter: blur(2px)` — deux
+sensations différentes pour le même geste (ouvrir un panneau de détail).
+
+## Le correctif
+
+`.swb-drawer` : `var(--fp-panel, #14181f)` → `var(--bg-elevated, #14181f)`
+(même token que `.cc-modal`, fallback conservé pour ne rien casser si le
+token venait à manquer). `.swb-scrim` : aligné sur `.cc-modal-overlay`
+(`rgba(2,6,12,0.62)` + `backdrop-filter: blur(2px)`).
+
+## Preuve (`drawer-theme-proof.mjs`, sur `/sekoia` réel, thème cybercorp actif)
+
+`--bg-elevated` résolu à `#161B22` ; `.swb-drawer` rendu en
+`rgb(22, 27, 34)` — soit exactement `#161B22` converti, la valeur du thème
+réel et non plus le repli figé. `.swb-scrim` : `backdrop-filter: blur(2px)`,
+identique à `.cc-modal-overlay`. `0 FAIL`.
+
+## Validation
+
+Image `cert-portal` reconstruite. Comparaison directe des styles calculés
+entre les deux systèmes de superposition (CERT et Sekoia) — plus de valeur
+hardcodée invisible dans le volet.

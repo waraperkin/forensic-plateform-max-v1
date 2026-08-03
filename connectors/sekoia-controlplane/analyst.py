@@ -2163,32 +2163,39 @@ def register(an_app) -> None:
     # un produit a part entiere plutot que comme un ensemble de vues internes.
 
     @an_app.get(f"{P}/inventory/intakes", dependencies=dep)
-    async def ext_inv_intakes(limit: int = Query(default=200, ge=1, le=2000)):
-        return read_inventory("intakes", limit=limit)
+    async def ext_inv_intakes(limit: int = Query(default=200, ge=1, le=2000),
+                              offset: int = 0):
+        return read_inventory("intakes", limit=limit, offset=offset)
 
     @an_app.get(f"{P}/inventory/sources", dependencies=dep)
-    async def ext_inv_sources(limit: int = Query(default=200, ge=1, le=2000)):
-        return read_inventory("sources", limit=limit)
+    async def ext_inv_sources(limit: int = Query(default=200, ge=1, le=2000),
+                              offset: int = 0):
+        return read_inventory("sources", limit=limit, offset=offset)
 
     @an_app.get(f"{P}/inventory/rules", dependencies=dep)
-    async def ext_inv_rules(limit: int = Query(default=200, ge=1, le=2000)):
-        return read_inventory("rules", limit=limit)
+    async def ext_inv_rules(limit: int = Query(default=200, ge=1, le=2000),
+                            offset: int = 0):
+        return read_inventory("rules", limit=limit, offset=offset)
 
     @an_app.get(f"{P}/inventory/assets", dependencies=dep)
-    async def ext_inv_assets(limit: int = Query(default=200, ge=1, le=2000)):
-        return read_inventory("assets", limit=limit)
+    async def ext_inv_assets(limit: int = Query(default=200, ge=1, le=2000),
+                             offset: int = 0):
+        return read_inventory("assets", limit=limit, offset=offset)
 
     @an_app.get(f"{P}/inventory/detections", dependencies=dep)
-    async def ext_inv_detections(limit: int = Query(default=200, ge=1, le=2000)):
-        return read_inventory("detections", limit=limit)
+    async def ext_inv_detections(limit: int = Query(default=200, ge=1, le=2000),
+                                 offset: int = 0):
+        return read_inventory("detections", limit=limit, offset=offset)
 
     @an_app.get(f"{P}/inventory/formats", dependencies=dep)
-    async def ext_inv_formats(limit: int = Query(default=200, ge=1, le=2000)):
-        return read_inventory("formats", limit=limit)
+    async def ext_inv_formats(limit: int = Query(default=200, ge=1, le=2000),
+                              offset: int = 0):
+        return read_inventory("formats", limit=limit, offset=offset)
 
     @an_app.get(f"{P}/inventory/fields", dependencies=dep)
-    async def ext_inv_fields(limit: int = Query(default=200, ge=1, le=2000)):
-        return read_inventory("fields", limit=limit)
+    async def ext_inv_fields(limit: int = Query(default=200, ge=1, le=2000),
+                             offset: int = 0):
+        return read_inventory("fields", limit=limit, offset=offset)
 
     @an_app.get(f"{P}/monitoring/intakes", dependencies=dep)
     async def ext_mon_intakes(hours: int = Query(default=24, ge=1, le=720)):

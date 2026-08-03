@@ -535,6 +535,21 @@ def test_les_alias_ne_dupliquent_aucune_logique():
         assert called in alias_block, f"appel manquant dans les alias : {called}"
 
 
+def test_les_alias_d_inventaire_acceptent_offset():
+    """Les routes de la plateforme etendue ne doivent pas retomber dans le
+    piege deja corrige sur /inventory/{entity} : sans offset, une entite de
+    plus de 2000 lignes (limite max de l'alias) restait partiellement
+    inaccessible malgre la pagination reelle ajoutee sur la route primaire."""
+    src = open(analyst.__file__, encoding="utf-8").read()
+    alias_block = src[src.index("# ── Alias REST"):]
+    for fn in ("ext_inv_intakes", "ext_inv_sources", "ext_inv_rules",
+               "ext_inv_assets", "ext_inv_detections", "ext_inv_formats",
+               "ext_inv_fields"):
+        chunk = alias_block[alias_block.index(f"async def {fn}"):][:300]
+        assert "offset: int = 0" in chunk, f"offset manquant sur {fn}"
+        assert "offset=offset" in chunk, f"offset non transmis dans {fn}"
+
+
 def test_fortigate_reste_le_cas_multi_hotes_general():
     """L'alias Fortigate doit passer par le detecteur GENERALISE, pas par un
     filtre de nom isole — sinon on reintroduit le defaut deja corrige."""

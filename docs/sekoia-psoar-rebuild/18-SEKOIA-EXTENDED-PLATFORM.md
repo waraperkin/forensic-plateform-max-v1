@@ -344,3 +344,29 @@ correctif, et non par une régression du code. `curl` direct restait à 200 sur
 `/sekoia` pendant ces échecs (5,9 s de réponse) ; seuls les délais
 d'expiration serrés de Playwright ont été dépassés. Aucun conteneur en
 redémarrage en boucle trouvé (`docker ps`), aucun signal OOM (`dmesg`).
+
+## Incohérence trouvée en corrigeant la pagination : les alias de la
+## plateforme étendue n'en héritaient pas
+
+Les sept routes nommées `/inventory/{intakes,sources,rules,assets,
+detections,formats,fields}` — celles qui donnent son nom à la « Sekoia.IO
+Extended Platform » — appelaient `read_inventory()` sans jamais transmettre
+`offset`. Résultat : sur `assets` (5000 lignes), même en poussant `limit` à
+son maximum autorisé (2000), 3000 lignes restaient définitivement hors
+d'atteinte via la route qui se présente comme le point d'entrée du produit —
+alors que la route interne `/inventory/{entity}` juste à côté, elle,
+paginait déjà correctement. Corrigé en ajoutant `offset: int = 0` aux sept
+alias et en le transmettant à `read_inventory()`.
+
+Preuve (`ext-alias-offset.mjs`, via le proxy réel `/api/threat/analyst`,
+authentifié) : `offset=2400` — au-delà de l'ancien plafond de 2000 — renvoie
+`status 200`, `offset` correctement échoté, et des lignes **réellement**
+différentes de `offset=0` (comparaison stricte du contenu, pas seulement du
+code retour). `0 FAIL`.
+
+## Validation
+
+73 tests Python (72 + 1 nouveau : chacun des sept alias déclare bien
+`offset: int = 0` et le transmet à `read_inventory`) — 0 échec. Image
+`sekoia-controlplane` reconstruite (le service tourne sans montage bind — un
+`docker cp` à chaud aurait été perdu au prochain rebuild).

@@ -2730,7 +2730,8 @@
       "apply_failed": "Échec de l'écriture — rien n'a été modifié.",
       "need_tags": "indiquez au moins une étiquette.",
       "c_actions": "Actions",
-      "write_note": "Ces actions écrivent RÉELLEMENT dans Sekoia.io, via le moteur de lot audité (simulation, journal, annulation). Rien n'est jamais appliqué sans simulation affichée d'abord."
+      "write_note": "Ces actions écrivent RÉELLEMENT dans Sekoia.io, via le moteur de lot audité (simulation, journal, annulation). Rien n'est jamais appliqué sans simulation affichée d'abord.",
+      "computing": "Calcul en cours…"
     }
   },
   "swbtx": {

@@ -49,7 +49,15 @@
                intake: '', relaysOnly: true,
                // Actions manuelles : ligne dépliée et résultats de simulation,
                // par clé « target:id ».
-               bulkOpen: null, bulkPreview: {} };
+               bulkOpen: null, bulkPreview: {},
+               // Numéro de génération des requêtes de tableau de bord/inventaire
+               // — ignore une réponse arrivée après qu'une action plus récente
+               // a déjà été lancée.
+               reqGen: 0,
+               // Chargement PAR ACTION (« dash:rules », « inv », « tags ») —
+               // jamais un verrou de page entière, qui gèlerait la navigation
+               // pendant qu'un tableau de bord calcule.
+               busy: new Set() };
   const WINDOWS = ['15m', '1h', '6h', '24h', '7d'];
 
   /* Repli des intitulés de groupe. La résolution i18n de ces trois clés échoue
@@ -354,7 +362,8 @@
         <label class="swb-hint"><input type="checkbox" id="an-relays"${
           st.relaysOnly ? ' checked' : ''}> ${T('an.f_relays')}</label>` : ''}
       <button type="button" class="fp-btn fp-btn-sm fp-btn-primary"
-        data-an-act="dash:${name}">${T('an.compute')}</button>
+        data-an-act="dash:${name}"${st.busy.has('dash:' + name) ? ' disabled' : ''}>${
+        st.busy.has('dash:' + name) ? T('an.computing') : T('an.compute')}</button>
     </div>`;
   }
 
@@ -388,10 +397,12 @@
         <select class="swb-input" id="an-entity">${sel.map((e) =>
           `<option value="${e}"${e === st.entity ? ' selected' : ''}>${e}</option>`
           ).join('')}</select>
-        <button type="button" class="fp-btn fp-btn-sm" data-an-act="inv">${
-          T('an.read')}</button>
+        <button type="button" class="fp-btn fp-btn-sm" data-an-act="inv"${
+          st.busy.has('inv') ? ' disabled' : ''}>${
+          st.busy.has('inv') ? T('an.computing') : T('an.read')}</button>
         <button type="button" class="fp-btn fp-btn-sm fp-btn-primary"
-          data-an-act="inv-refresh">${T('an.recollect')}</button>
+          data-an-act="inv-refresh"${st.busy.has('inv') ? ' disabled' : ''}>${
+          T('an.recollect')}</button>
       </div>
       <p class="swb-hint" style="margin:.4rem 0 0">${T('an.inv_sub')}</p>`)}
       ${!d ? '' : panel('', `<p style="margin:0"><strong>${nf(d.total)}</strong> ${
@@ -422,7 +433,8 @@
     return `${panel(T('an.tags'), `<p class="swb-hint" style="margin:0 0 .5rem">${
         T('an.tags_sub')}</p>
       <button type="button" class="fp-btn fp-btn-sm fp-btn-primary"
-        data-an-act="tags">${T('an.read')}</button>`)}
+        data-an-act="tags"${st.busy.has('tags') ? ' disabled' : ''}>${
+        st.busy.has('tags') ? T('an.computing') : T('an.read')}</button>`)}
       ${!d ? '' : panel('', `<p style="margin:0"><strong>${nf(d.count)}</strong> ${
         T('an.tags_set')}</p>
         <p class="swb-hint" style="margin:.3rem 0 0">${esc(d.note || '')}</p>
@@ -450,9 +462,12 @@
     const el = document.getElementById('analyst-root');
     if (!el) return;
     let body;
-    if (st.loading) {
-      body = `<p class="swb-hint" style="padding:2rem">${T('an.loading')}</p>`;
-    } else if (st.error) {
+    // Le chargement est LOCAL a l'action (st.busy, un ensemble de cles), plus
+    // jamais un verrou de PAGE ENTIERE : un tableau de bord peut demander
+    // plusieurs dizaines de secondes, et geler toute la console pendant ce
+    // temps empechait meme de changer d'onglet. Une erreur reste affichee
+    // en plein ecran : elle interrompt reellement ce qu'on regardait.
+    if (st.error) {
       body = panel('', `<p style="margin:0">${esc(st.error)}</p>`, 'danger');
     } else if (st.view === 'inventory') body = viewInventory();
     else if (st.view === 'tags') body = viewTags();
@@ -519,7 +534,17 @@
       if (g('an-intake')) st.intake = g('an-intake').value.trim();
       if (g('an-relays')) st.relaysOnly = g('an-relays').checked;
       if (g('an-entity')) st.entity = g('an-entity').value;
-      st.loading = true; st.error = null; paint();
+      // Numero de generation : un tableau de bord prend jusqu'a plusieurs
+      // dizaines de secondes (il enchaine plusieurs mesures Sekoia). Si
+      // l'analyste clique un second tableau avant que le premier ne reponde,
+      // et que le PREMIER repond en dernier, il peindrait son contenu perime
+      // par-dessus l'ecran deja a jour — exactement le defaut observe pendant
+      // la validation de l'outil : ecrans qui semblent vides ou incoherents
+      // lors d'un changement rapide, pris pour un incident reseau.
+      const myGen = ++st.reqGen;
+      const busyKey = act.startsWith('dash:') ? act
+        : (act === 'inv' || act === 'inv-refresh') ? 'inv' : act;
+      st.busy.add(busyKey); st.error = null; paint();
       try {
         if (act.startsWith('dash:')) {
           const n = act.slice(5);
@@ -527,17 +552,25 @@
             window: st.window, sample: String(st.sample), hours: String(st.hours),
             relays_only: String(st.relaysOnly) });
           if (st.intake) q.set('intake', st.intake);
-          st.data['dash_' + n] = await api(`/dashboard/${n}?${q}`);
+          const result = await api(`/dashboard/${n}?${q}`);
+          if (myGen !== st.reqGen) return;   // supplantee par une action plus recente
+          st.data['dash_' + n] = result;
         } else if (act === 'inv' || act === 'inv-refresh') {
           if (act === 'inv-refresh') {
             await api('/inventory/' + st.entity + '/refresh', { method: 'POST' });
           }
-          st.data.inv = await api('/inventory/' + st.entity + '?limit=200');
+          const result = await api('/inventory/' + st.entity + '?limit=200');
+          if (myGen !== st.reqGen) return;
+          st.data.inv = result;
         } else if (act === 'tags') {
-          st.data.tags = await api('/tags');
+          const result = await api('/tags');
+          if (myGen !== st.reqGen) return;
+          st.data.tags = result;
         }
-      } catch (e) { st.error = e.message; }
-      st.loading = false; paint();
+      } catch (e) { if (myGen === st.reqGen) st.error = e.message; }
+      finally { st.busy.delete(busyKey); }
+      if (myGen !== st.reqGen) return;
+      paint();
     });
   }
 

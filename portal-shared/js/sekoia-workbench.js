@@ -1711,8 +1711,18 @@
     translateChrome(el);
   }
 
+  // Numéro de génération : incrémenté à chaque `load()`. Sans lui, changer
+  // d'onglet vite lance une requête, puis une seconde AVANT que la première
+  // n'ait répondu — et si la première répond APRÈS la seconde, elle peint son
+  // contenu périmé par-dessus l'écran déjà à jour. C'est exactement le défaut
+  // observé pendant la validation de l'outil Sekoia : des écrans vides ou
+  // obsolètes lors d'un changement d'onglet rapide, pris pour un défaut
+  // réseau alors qu'il venait de l'absence de cette garde.
+  let loadGen = 0;
   async function load() {
+    const myGen = ++loadGen;
     await loadTx();
+    if (myGen !== loadGen) return;   // un onglet plus récent a déjà pris le relais
     st.loading = true; st.error = null; st.drawer = null; paint();
     try {
       if (st.view === 'overview' || st.view === 'ingestion') {
@@ -1825,7 +1835,8 @@
         const r = await Promise.all([api('/config'), api('/health').catch(() => null)]);
         st.data.config = r[0]; st.data.cphealth = r[1] && r[1].sekoia ? r[1].sekoia : r[1];
       }
-    } catch (e) { st.error = e.message; }
+    } catch (e) { if (myGen === loadGen) st.error = e.message; }
+    if (myGen !== loadGen) return;   // superseded pendant les requêtes ci-dessus
     st.loading = false; paint();
   }
 

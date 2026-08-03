@@ -865,7 +865,13 @@
     bind(el);
   }
 
+  // Meme garde que le poste analyste : le bouton « Rafraichir » declenche
+  // `load()` a chaque clic, et un clic rapide avant la fin du precedent
+  // laisserait la reponse la PLUS LENTE peindre en dernier, meme si elle est
+  // la plus ancienne.
+  let loadGen = 0;
   async function load() {
+    const myGen = ++loadGen;
     st.loading = true; st.error = null; paint();
     try {
       const r = await Promise.all([
@@ -874,10 +880,11 @@
         api('/self-report').catch(() => null),
         api('/compliance').catch(() => null),
       ]);
+      if (myGen !== loadGen) return;   // supplantee par un rafraichissement plus recent
       st.data.laws = r[0]; st.data.mechanisms = r[1];
       st.data.report = r[2]; st.data.compliance = r[3];
       if (!r[2]) st.error = T('sg.down');
-    } catch (e) { st.error = e.message; }
+    } catch (e) { if (myGen === loadGen) st.error = e.message; else return; }
     st.loading = false; paint();
   }
 

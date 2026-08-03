@@ -188,3 +188,52 @@ un coût prélevé sur les analystes plutôt qu'un affichage gratuit.
 
 44 tests JS, régression navigateur `dbggroups.mjs` (0 FAIL), captures avant/
 après conservées dans `screenshots/v2-*.png`.
+
+---
+
+# Garde de génération — la course qui expliquait des symptômes déjà observés
+
+Suite à la demande de mise au point back+front, un défaut explicitement nommé
+dans le cahier des charges (« absence d'annulation de requête, absence de
+gestion des réponses périmées ») a été corrigé dans les **trois consoles**
+(`sekoia-workbench.js`, `sagf-console.js`, `analyst-console.js`).
+
+## Le défaut
+
+Sans garde, un changement d'onglet rapide déclenche une requête, puis une
+seconde avant que la première n'ait répondu. Si la première répond **après**
+la seconde (cas fréquent : les tableaux de bord enchaînent plusieurs mesures
+Sekoia et ne prennent pas tous le même temps), elle peint son contenu
+**périmé** par-dessus l'écran déjà à jour. C'est très probablement la cause
+réelle de plusieurs faux échecs de tests attribués à tort, plus tôt dans ce
+chantier, à un incident réseau externe.
+
+## Le correctif — numéro de génération
+
+Chaque console incrémente un compteur à chaque nouvelle action ; toute
+réponse dont le numéro ne correspond plus au compteur courant est **ignorée**
+plutôt que peinte.
+
+## Un second défaut découvert en écrivant le test de preuve
+
+En simulant le pire cas (retarder artificiellement la réponse la plus
+ancienne), le test a révélé que **toute la console se figeait** pendant le
+calcul d'un tableau de bord — `st.loading` était un verrou de **page entière**,
+empêchant même de changer d'onglet pendant qu'une mesure de plusieurs dizaines
+de secondes était en cours. Corrigé : le chargement est désormais **local à
+chaque action** (`st.busy`, un ensemble de clés), et la navigation reste
+possible en permanence. Chaque bouton de calcul affiche son propre état
+« Calcul en cours… » et se désactive individuellement, sans bloquer le reste
+de l'écran.
+
+## Preuve
+
+`tests/stale-response.mjs` retarde artificiellement de 6 secondes la réponse
+du **premier** tableau de bord demandé, en déclenche un **second** presque
+aussitôt, et vérifie que c'est le second — le plus récent — qui reste affiché
+une fois les deux réponses arrivées. 0 FAIL.
+
+## Validation
+
+44 tests JS, `dbggroups.mjs` (0 FAIL), `sagf-tab.mjs` (0 FAIL), plus la preuve
+dédiée `stale-response.mjs`.

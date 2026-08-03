@@ -2730,7 +2730,8 @@
       "apply_failed": "Write failed — nothing was changed.",
       "need_tags": "enter at least one tag.",
       "c_actions": "Actions",
-      "write_note": "These actions REALLY write to Sekoia.io, through the audited bulk engine (simulation, log, rollback). Nothing is ever applied without a simulation shown first."
+      "write_note": "These actions REALLY write to Sekoia.io, through the audited bulk engine (simulation, log, rollback). Nothing is ever applied without a simulation shown first.",
+      "computing": "Computing…"
     }
   },
   "swbtx": {

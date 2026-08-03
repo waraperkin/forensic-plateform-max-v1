@@ -12,30 +12,35 @@
   'use strict';
   const API = '/api/threat/analyst';
 
-  /* Les vues sont regroupees selon les memes categories que la navigation
-   * principale : visibilite, perimetre, detection. Une liste plate de 14
-   * onglets oblige l'analyste a se rappeler OU se trouve chaque chose ; un
-   * regroupement lui rappelle POURQUOI il y va. */
+  /* Les vues sont regroupees en QUATRE blocs alignes sur les cas d'usage
+   * analyste, pas sur l'architecture interne : Inventaires (qu'est-ce qui
+   * existe), Monitoring (est-ce que ca va bien), Dashboards (vue avancee par
+   * objet), Alerting & Detections (qu'est-ce qui reclame une action). Une
+   * liste plate de 15 onglets oblige l'analyste a se rappeler OU se trouve
+   * chaque chose ; ce regroupement lui rappelle POURQUOI il y va. */
   const GROUPS = [
-    ['g_visibility', [
+    ['g_inventories', [
+      ['inventory', 'an.v_inv'],
+      ['tags', 'an.v_tags'],
+    ]],
+    ['g_monitoring', [
       ['sources', 'an.v_sources'],
       ['intakes', 'an.v_intakes'],
       ['hostnames', 'an.v_hosts'],
       ['loss', 'an.v_loss'],
       ['anomalies', 'an.v_anom'],
       ['quality', 'an.v_quality'],
-    ]],
-    ['g_scope', [
-      ['assets', 'an.v_assets'],
       ['fields', 'an.v_fields'],
-      ['inventory', 'an.v_inv'],
     ]],
-    ['g_detection', [
+    ['g_dashboards', [
+      ['assets', 'an.v_assets'],
       ['rules', 'an.v_rules'],
       ['coverage', 'an.v_cov'],
       ['mitre', 'an.v_mitre'],
       ['taxonomies', 'an.v_taxo'],
-      ['tags', 'an.v_tags'],
+    ]],
+    ['g_alerting', [
+      ['alerting', 'an.v_alerting'],
     ]],
   ];
   const VIEWS = GROUPS.flatMap(([, v]) => v);
@@ -61,17 +66,19 @@
                // Pagination reelle de l'inventaire brut : le backend
                // porte offset/limit/has_more depuis ce correctif, mais
                // rien ne les exploitait cote ecran.
-               invOffset: 0, invLimit: 200 };
+               invOffset: 0, invLimit: 200,
+               // Filtre de famille pour le flux d'alerting unifié ; vide = tout.
+               alertFamily: '' };
   const WINDOWS = ['15m', '1h', '6h', '24h', '7d'];
 
-  /* Repli des intitulés de groupe. La résolution i18n de ces trois clés échoue
-   * alors que les clés voisines du même niveau fonctionnent — je n'ai pas
-   * élucidé pourquoi, et afficher « an.g_visibility » à un analyste est pire
-   * que tout. Le repli garantit un libellé correct dans les deux langues ; il
-   * disparaîtra le jour où la cause sera trouvée. */
+  /* Repli des intitulés de groupe : garantit un libellé correct dans les deux
+   * langues même si le dictionnaire i18n n'est pas encore chargé au premier
+   * rendu (course possible avec `boot()`, voir plus bas). */
   const GROUP_LABELS = {
-    fr: { g_visibility: 'Visibilité', g_scope: 'Périmètre', g_detection: 'Détection' },
-    en: { g_visibility: 'Visibility', g_scope: 'Scope', g_detection: 'Detection' },
+    fr: { g_inventories: 'Inventaires', g_monitoring: 'Monitoring',
+         g_dashboards: 'Dashboards', g_alerting: 'Alerting & Detections' },
+    en: { g_inventories: 'Inventories', g_monitoring: 'Monitoring',
+         g_dashboards: 'Dashboards', g_alerting: 'Alerting & Detections' },
   };
   function groupLabel(g) {
     const out = T('an.' + g);
@@ -394,7 +401,7 @@
   function viewInventory() {
     const d = st.data.inv;
     const sel = ['intakes', 'sources', 'rules', 'assets', 'detections',
-                 'fields', 'formats', 'taxonomies', 'mitre',
+                 'api_keys', 'fields', 'formats', 'taxonomies', 'mitre',
                  'integration_types', 'groups', 'owners'];
     return `${panel(T('an.inv'), `
       <div class="swb-filters">
@@ -462,6 +469,57 @@
         </tbody></table></div>`, 'accent')}`;
   }
 
+  /* Flux unifié d'alerting : n'invente rien — il aplatit ce que chaque
+   * détecteur (silence intake, dérive de volumétrie, hôte disparu, clé API
+   * créée/expirante…) a déjà mesuré et déjà historisé côté back. Filtrer par
+   * famille change la REQUÊTE (le back refuse une famille inconnue plutôt que
+   * de renvoyer silencieusement un flux vide), pas seulement l'affichage. */
+  function viewAlerting() {
+    const d = st.data.alerting;
+    const families = (d && d.families) || {};
+    return `${panel(T('an.alerting'), `
+      <p class="swb-hint" style="margin:0 0 .5rem">${T('an.alerting_sub')}</p>
+      <div class="swb-filters">
+        <select class="swb-input" id="an-alert-family">
+          <option value="">${T('an.alerting_all_families')}</option>
+          ${Object.entries(ALERT_FAMILIES).map(([k, label]) =>
+            `<option value="${k}"${st.alertFamily === k ? ' selected' : ''}>${esc(label)}</option>`
+            ).join('')}
+        </select>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-an-act="alerting"${
+          st.busy.has('alerting') ? ' disabled' : ''}>${
+          st.busy.has('alerting') ? T('an.computing') : T('an.read')}</button>
+      </div>`)}
+      ${!d ? '' : panel('', `
+        <p style="margin:0">${esc(d.headline || '')} ${freshness(d)}</p>
+        <p class="swb-hint" style="margin:.3rem 0 .6rem">${esc(d.why || '')}</p>
+        <p style="margin:0 0 .6rem">${Object.entries(d.counts || {}).map(([k, n]) =>
+          `<span class="swb-pill swb-pill-${n ? 'warn' : 'mute'} swb-pill-flat">${
+            esc((families[k]) || k)} : ${nf(n)}</span>`).join(' ')}</p>
+        <div class="swb-tablewrap" style="max-height:50vh">
+        <table class="swb-table"><thead><tr>
+          <th>${T('an.c_subject')}</th><th>${T('an.c_verdict')}</th>
+          <th>${T('an.c_uncertainty')}</th><th>${T('an.c_tags')}</th>
+          <th>${T('an.c_fresh')}</th><th></th>
+        </tr></thead><tbody>${(d.items || []).length
+          ? d.items.map((v) => verdictRow(v)).join('')
+          : `<tr><td colspan="6"><p class="swb-hint" style="padding:1rem">${
+              T('an.alerting_none')}</p></td></tr>`}
+        </tbody></table></div>`, 'accent')}`;
+  }
+
+  // Copie locale du registre des familles — l'unique source de vérité reste
+  // le back (GET /alerting/families) ; ce doublon n'est qu'un repli d'affichage
+  // pour peupler le filtre avant le premier chargement.
+  const ALERT_FAMILIES = {
+    intake_silence: 'Intake silencieux',
+    volumetrie_basse: 'Baisse de volumétrie (intake)',
+    hostname_silence: 'log.hostname silencieux',
+    hostname_volumetry_drop: 'Baisse de volumétrie (log.hostname)',
+    api_key_created: 'Nouvelle clé API',
+    api_key_expiry: 'Clé API — expiration proche',
+  };
+
   function nav() {
     return `<nav class="swb-nav">${GROUPS.map(([g, views]) =>
       `<span class="swb-nav-group"><span class="swb-nav-label">${esc(groupLabel(g))}</span>
@@ -484,6 +542,7 @@
       body = panel('', `<p style="margin:0">${esc(st.error)}</p>`, 'danger');
     } else if (st.view === 'inventory') body = viewInventory();
     else if (st.view === 'tags') body = viewTags();
+    else if (st.view === 'alerting') body = viewAlerting();
     else body = viewDashboard(st.view);
 
     el.className = 'swb';
@@ -547,6 +606,7 @@
       if (g('an-intake')) st.intake = g('an-intake').value.trim();
       if (g('an-relays')) st.relaysOnly = g('an-relays').checked;
       if (g('an-entity')) st.entity = g('an-entity').value;
+      if (g('an-alert-family')) st.alertFamily = g('an-alert-family').value;
       // Numero de generation : un tableau de bord prend jusqu'a plusieurs
       // dizaines de secondes (il enchaine plusieurs mesures Sekoia). Si
       // l'analyste clique un second tableau avant que le premier ne reponde,
@@ -590,6 +650,13 @@
           const result = await api('/tags');
           if (myGen !== st.reqGen) return;
           st.data.tags = result;
+        } else if (act === 'alerting') {
+          const q = new URLSearchParams({ hours: String(st.hours), window: st.window,
+            sample: String(st.sample) });
+          if (st.alertFamily) q.set('families', st.alertFamily);
+          const result = await api(`/alerting/feed?${q}`);
+          if (myGen !== st.reqGen) return;
+          st.data.alerting = result;
         }
       } catch (e) { if (myGen === st.reqGen) st.error = e.message; }
       finally { st.busy.delete(busyKey); }

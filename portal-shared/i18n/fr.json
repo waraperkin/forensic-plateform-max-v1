@@ -2712,9 +2712,6 @@
       "k_declared": "DÉCLARÉES",
       "k_blind": "ANGLES MORTS",
       "k_trends": "Tendances",
-      "g_visibility": "Visibilité",
-      "g_scope": "Périmètre",
-      "g_detection": "Détection",
       "open_sekoia": "ouvrir dans Sekoia",
       "act_open": "Agir",
       "act_close": "Fermer",
@@ -2734,7 +2731,16 @@
       "computing": "Calcul en cours…",
       "inv_page": "lignes {a}–{b}",
       "inv_prev": "◀ Précédent",
-      "inv_next": "Suivant ▶"
+      "inv_next": "Suivant ▶",
+      "g_inventories": "Inventaires",
+      "g_monitoring": "Monitoring",
+      "g_dashboards": "Dashboards",
+      "g_alerting": "Alerting & Detections",
+      "v_alerting": "Alerting & Detections",
+      "alerting": "Alerting & Detections",
+      "alerting_sub": "Flux unifié : silence et dérive des intakes, log.hostname disparus ou en baisse, clés API créées ou expirant sous 7 jours. Chaque ligne vient d'un détecteur déjà mesuré et historisé — ce flux ne fait que les assembler.",
+      "alerting_all_families": "Toutes les familles",
+      "alerting_none": "Aucune alerte active sur ce filtre."
     }
   },
   "swbtx": {

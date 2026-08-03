@@ -492,3 +492,122 @@ nouvelle légende conditionnelle y figure. `0 FAIL`.
 
 Image `cert-portal` reconstruite et servie. Logique de la légende vérifiée
 conditionnelle (`items.length > 200`), pas permanente.
+
+---
+
+# Refonte de l'extension analystes — 4 blocs, Alerting & Detections, clés API
+
+Demande : restructurer l'outil autour de quatre blocs analyste-first
+(Inventaires, Monitoring, Dashboards, Alerting & Detections) et implémenter
+les cas d'usage explicitement listés — inventaire/monitoring/dashboards pour
+intakes, `log.hostname`, clés API, actifs, règles ; alerting sur intake
+silencieux, baisse de volumétrie, `log.hostname` silencieux, baisse de
+volumétrie par hostname, création de clé API, expiration de clé API sous 7
+jours.
+
+## Ce qui existait déjà, réutilisé sans réécriture
+
+L'audit préalable (voir `19-AUDIT-COMPLET-OUTIL-SEKOIA.md`) avait établi que
+la plupart des objets métier étaient déjà couverts : intakes (inventaire,
+silence, dérive de volumétrie), `log.hostname` (supervision par instantané),
+actifs et règles (inventaire + détecteurs). Le principe suivi ici : ne
+reconstruire QUE ce qui manquait réellement, jamais dupliquer une mesure déjà
+testée.
+
+## Ce qui manquait réellement, et a été construit
+
+**Clés API — absentes de l'extension analystes.** `app.py` exposait déjà
+`GET /control/sekoia/apikeys` avec des données riches (nom, description,
+activation, dates, permissions) pour l'onglet CERT historique — mais rien
+côté extension analystes. Ajouté : `api_keys` comme 13ᵉ entité d'inventaire,
+`collect()` appelle directement `cp.apikeys()` (zéro logique Sekoia
+dupliquée), et deux nouveaux détecteurs :
+- `apikey_detectors()` — création détectée par comparaison avec le DERNIER
+  instantané local (pas l'historique complet du tenant : une clé créée PUIS
+  supprimée entre deux relevés ne serait jamais vue — limite assumée et
+  documentée dans la réponse elle-même) ; expiration signalée entre 0 et 7
+  jours, uniquement pour les clés encore activées (une clé désactivée qui
+  expire n'est pas actionnable).
+- Premier relevé : établit une référence, ne signale AUCUNE création — sans
+  ça, la totalité du parc de clés existant serait signalée comme « nouvelle »
+  au premier démarrage.
+
+**Silence et dérive PAR `log.hostname` — jamais historisés.**
+`source_hostname_monitor` ne voit qu'un instantané ; il ne peut jamais prouver
+qu'un hôte qui parlait s'est tu, ni qu'un hôte est en baisse — ce sont des
+propriétés d'une SÉRIE. Ajouté : `hostname_detectors()`, qui historise chaque
+hôte actif comme mesure (`record_measures("hostname_volumetry", …)`), calcule
+silence (hôte présent dans l'historique local mais absent du relevé courant)
+et dérive (`trend()` sur au moins `MIN_POINTS` relevés, réutilisé tel quel —
+aucun second seuil de tendance créé).
+
+**Flux d'alerting unifié — n'existait pas.** `alerting_feed()` n'implémente
+AUCUNE nouvelle mesure : il consulte ce que chaque détecteur vient de calculer
+(silence intake, dérive de volumétrie intake, silence hostname, dérive
+hostname, création de clé, expiration de clé) et les aplatit en un seul flux
+triable par sévérité puis fraîcheur, filtrable par famille — une famille
+inconnue est refusée explicitement (`ok: false`, liste des familles connues),
+jamais un flux vide silencieux qui se lirait comme « rien à signaler ».
+`alerting_history()` relit l'historique déjà enregistré sans recalculer, pour
+consulter sans redéclencher un cycle de détection coûteux.
+
+## Défaut découvert en écrivant la preuve — ordre d'enregistrement des routes
+
+`/inventory/api-keys` renvoyait systématiquement « entité inconnue «
+api-keys » » alors que le code semblait correct. Cause : FastAPI/Starlette
+matche les routes dans leur ORDRE de déclaration. La route générique
+`/inventory/{entity}` était déclarée AVANT la route littérale
+`/inventory/api-keys` (ajoutée plus loin dans le fichier) — elle interceptait
+donc la requête en premier, avec `entity="api-keys"` (trait d'union, jamais
+égal à l'entité réelle `api_keys`, tiret bas). Corrigé en déplaçant la route
+littérale avant la route générique, avec un test qui verrouille cet ordre
+dans le source (`test_l_alias_api_keys_est_declare_avant_la_route_generique`)
+pour qu'un futur ajout de route ne réintroduise pas le même piège en silence.
+
+Défaut apparenté trouvé au même moment : la route `/alerting/*` n'était
+déclarée dans AUCUN des deux allowlists du proxy CERT
+(`ALLOWED_ANALYST_RE`, `threat-platforms-routes.js`) — 404 côté proxy avant
+même d'atteindre le control-plane. Corrigée, avec `alerting/` ajouté aussi à
+la liste des routes « chaînées » (délai étendu à 900 s : `alerting/feed`
+enchaîne 4 détecteurs, chacun avec plusieurs appels Sekoia).
+
+## Frontend — restructuration en 4 blocs
+
+`analyst-console.js` : les 3 groupes précédents (Visibilité/Périmètre/
+Détection — vocabulaire d'architecture interne) remplacés par 4 groupes
+alignés sur l'usage : **Inventaires** (inventaire générique + étiquettes),
+**Monitoring** (sources, intakes, hostnames, pertes, anomalies, qualité,
+champs), **Dashboards** (actifs, règles, couverture, MITRE, taxonomies),
+**Alerting & Detections** (nouvelle vue). Aucune vue existante supprimée : les
+14 vues précédentes sont toutes conservées, seule leur regroupement change,
+plus 1 nouvelle vue (`alerting`) = 15. `api_keys` ajouté au sélecteur
+d'entité de la vue Inventaires — la table générique existante (pagination,
+tri, export) fonctionne sans modification pour cette nouvelle entité.
+
+Nouvelle vue `viewAlerting()` : réutilise `verdictRow()` (déjà utilisé
+ailleurs dans la console, zéro nouveau composant de rendu), sélecteur de
+famille, compteurs par famille, même discipline de fraîcheur/incertitude que
+le reste de l'extension.
+
+## Preuve
+
+**Backend** — `apikey-tests` (5), `hostname-tests` (3), `alerting-tests` (5),
+`route-ordering` (1) : 87 tests Python, 0 échec. `alerting-e2e-proof.mjs`
+(via le proxy réel, authentifié) : inventaire api-keys, alias nommé,
+monitoring api-keys, monitoring hostnames, alerting/feed, refus de famille
+inconnue, alerting/history — 13/13, `0 FAIL`.
+
+**Frontend** — `alerting-ui-proof.mjs` : 4 groupes présents dans la nav,
+`api_keys` sélectionnable, vue Alerting rendue sans objet brut, 0 erreur
+console — `0 FAIL`. `dbggroups.mjs` mis à jour pour les nouveaux noms de
+groupe et la 15ᵉ vue : 21/21, `0 FAIL`.
+
+## Ce qui n'a pas été fait dans cette passe
+
+Dashboards personnalisables avec sauvegarde de filtres et export CSV/JSON
+par objet : les endpoints d'inventaire exposent déjà `items` filtrables côté
+client et un export brut est possible via ces routes, mais aucune UI de
+sauvegarde de vue ni d'export en un clic n'a été construite pour cette
+itération — périmètre volontairement laissé pour une prochaine passe plutôt
+que livré à moitié. La sidebar CERT (hors extension analystes) n'a pas été
+retouchée dans cette passe.

@@ -368,9 +368,10 @@ def test_l_absence_de_proprietaire_est_comptee_a_part():
     assert "AUCUN champ de propriété" in last["note"]
 
 
-def test_les_douze_inventaires_sont_couverts():
-    assert len(analyst.ENTITIES) == 12
-    for e in ("taxonomies", "mitre", "integration_types", "groups", "owners"):
+def test_les_treize_inventaires_sont_couverts():
+    assert len(analyst.ENTITIES) == 13
+    for e in ("taxonomies", "mitre", "integration_types", "groups", "owners",
+              "api_keys"):
         assert e in analyst.ENTITIES
 
 
@@ -664,3 +665,196 @@ def test_une_nouvelle_capture_invalide_naturellement_le_cache():
     assert out2["captured_at"] != out1["captured_at"]
     c2 = analyst.cached_coherence("rules", out2["captured_at"])
     assert c2["rows"] == 2 and c1["rows"] == 1
+
+
+# ── Clés API : entité, création, expiration ──────────────────────────────────
+
+def test_api_keys_est_une_entite_reconnue():
+    assert "api_keys" in analyst.ENTITIES
+    assert analyst._KEYS["api_keys"] == ("uuid", "name")
+
+
+def test_l_alias_api_keys_est_declare_avant_la_route_generique():
+    """FastAPI/Starlette matche les routes dans leur ORDRE de déclaration : si
+    /inventory/{entity} (générique) était déclarée avant /inventory/api-keys
+    (littérale), toute requête sur cette dernière serait captée par la
+    première avec entity="api-keys" (trait d'union) — jamais égal à l'entité
+    réelle « api_keys » (tiret bas) — et rejetée comme entité inconnue. Piège
+    déjà rencontré une fois sur ce module ; ce test verrouille l'ordre."""
+    src = open(analyst.__file__, encoding="utf-8").read()
+    i_specific = src.index('@an_app.get(f"{P}/inventory/api-keys"')
+    i_generic = src.index('@an_app.get(f"{P}/inventory/{{entity}}"')
+    assert i_specific < i_generic, (
+        "la route littérale /inventory/api-keys doit être déclarée AVANT "
+        "/inventory/{entity}, sans quoi elle ne sera jamais atteinte")
+
+
+def _fake_apikeys_rows(rows):
+    async def _fake():
+        return {"items": rows}
+    return _fake
+
+
+def test_premier_releve_de_cles_ne_signale_aucune_creation(monkeypatch):
+    """Sans instantané précédent, toute clé existante serait à tort signalée
+    comme « nouvelle » — le premier relevé doit se contenter d'établir une
+    référence, pas d'inventer un pic de créations."""
+    import asyncio
+    monkeypatch.setattr(analyst.cp, "apikeys", _fake_apikeys_rows(
+        [{"uuid": "k1", "name": "prod", "enabled": True, "expires_in_days": None}]))
+    out = asyncio.run(analyst.apikey_detectors())
+    assert out["baseline_established"] is False
+    assert out["created"] == 0
+
+
+def test_une_nouvelle_cle_est_detectee_au_releve_suivant(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(analyst.cp, "apikeys", _fake_apikeys_rows(
+        [{"uuid": "k1", "name": "prod", "enabled": True, "expires_in_days": None}]))
+    asyncio.run(analyst.apikey_detectors())  # établit la référence
+    monkeypatch.setattr(analyst.cp, "apikeys", _fake_apikeys_rows(
+        [{"uuid": "k1", "name": "prod", "enabled": True, "expires_in_days": None},
+         {"uuid": "k2", "name": "nouvelle", "enabled": True, "expires_in_days": None}]))
+    out = asyncio.run(analyst.apikey_detectors())
+    assert out["baseline_established"] is True
+    assert out["created"] == 1
+    assert out["items"]["created"][0]["subject"] == "nouvelle"
+
+
+def test_une_cle_expirant_sous_7_jours_est_signalee(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(analyst.cp, "apikeys", _fake_apikeys_rows([
+        {"uuid": "k1", "name": "expire-bientot", "enabled": True, "expires_in_days": 3},
+        {"uuid": "k2", "name": "expire-loin", "enabled": True, "expires_in_days": 90},
+        {"uuid": "k3", "name": "desactivee", "enabled": False, "expires_in_days": 1},
+    ]))
+    out = asyncio.run(analyst.apikey_detectors())
+    assert out["expiring_soon"] == 1
+    assert out["items"]["expiring_soon"][0]["subject"] == "expire-bientot"
+
+
+def test_une_cle_desactivee_n_alerte_pas_sur_son_expiration(monkeypatch):
+    """Une clé déjà désactivée qui expire n'est pas un événement actionnable :
+    elle ne peut plus être utilisée, l'alerter reviendrait à faire du bruit."""
+    import asyncio
+    monkeypatch.setattr(analyst.cp, "apikeys", _fake_apikeys_rows(
+        [{"uuid": "k1", "name": "morte", "enabled": False, "expires_in_days": 2}]))
+    out = asyncio.run(analyst.apikey_detectors())
+    assert out["expiring_soon"] == 0
+
+
+# ── log.hostname : silence et dérive dans le temps ───────────────────────────
+
+def _fake_hostname_snapshot(active_subjects):
+    """Construit un instantané minimal compatible avec source_hostname_monitor,
+    avec un item actif par (subject, valeur) fourni."""
+    async def _fake(window="1h", sample=2000, relays_only=False, intake=None):
+        items = [{
+            "subject": subj, "verdict": "Actif", "severity": "info",
+            "evidence": {"hostname": subj.split(" · ")[0],
+                        "intake_name": subj.split(" · ")[-1],
+                        "estimated_events": val},
+        } for subj, val in active_subjects]
+        return {"available": True, "measured_at": analyst._now(), "items": items}
+    return _fake
+
+
+def test_un_hote_absent_du_releve_courant_est_signale_silencieux(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(analyst, "source_hostname_monitor",
+                        _fake_hostname_snapshot([("srv1 · intakeA", 100)]))
+    asyncio.run(analyst.hostname_detectors())  # premier releve : srv1 connu
+    monkeypatch.setattr(analyst, "source_hostname_monitor",
+                        _fake_hostname_snapshot([]))  # srv1 a disparu
+    out = asyncio.run(analyst.hostname_detectors())
+    assert out["silent"] == 1
+    assert out["items"]["silent"][0]["subject"] == "srv1 · intakeA"
+
+
+def test_un_hote_jamais_vu_ne_peut_pas_etre_signale_silencieux(monkeypatch):
+    """Sans historique, l'absence d'un hôte de l'échantillon ne prouve rien —
+    il peut simplement n'avoir jamais été observé."""
+    import asyncio
+    monkeypatch.setattr(analyst, "source_hostname_monitor",
+                        _fake_hostname_snapshot([]))
+    out = asyncio.run(analyst.hostname_detectors())
+    assert out["silent"] == 0
+
+
+def test_une_derive_a_la_baisse_par_hote_est_detectee_apres_assez_de_points(monkeypatch):
+    import asyncio
+    subject = "srv2 · intakeB"
+    values = [1000, 950, 800, 600, 400, 200]  # baisse nette, MIN_POINTS = 5
+    out = None
+    for v in values:
+        monkeypatch.setattr(analyst, "source_hostname_monitor",
+                            _fake_hostname_snapshot([(subject, v)]))
+        out = asyncio.run(analyst.hostname_detectors())
+    assert out["dropping"] >= 1
+    assert any(v["subject"] == subject for v in out["items"]["dropping"])
+
+
+# ── Flux unifié d'alerting ────────────────────────────────────────────────────
+
+def test_les_familles_d_alerte_sont_toutes_declarees():
+    for fam in ("intake_silence", "volumetrie_basse", "hostname_silence",
+               "hostname_volumetry_drop", "api_key_created", "api_key_expiry"):
+        assert fam in analyst.ALERT_FAMILIES
+
+
+def test_une_famille_inconnue_est_refusee_explicitement(monkeypatch):
+    """Un filtre mal orthographié ne doit jamais renvoyer silencieusement un
+    flux vide — l'analyste doit savoir que sa demande était incomprise."""
+    import asyncio
+    out = asyncio.run(analyst.alerting_feed(families="ceci_nexiste_pas"))
+    assert out["ok"] is False
+    assert "known" in out
+
+
+def test_le_flux_unifie_aplatit_les_familles_demandees(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(analyst, "source_silence_detector",
+                        lambda hours=24: _async_return(
+                            {"items": [{"subject": "intakeX", "severity": "alerte",
+                                       "measured_at": analyst._now(), "tags": []}]}))
+    monkeypatch.setattr(analyst, "source_volumetry_monitor",
+                        lambda hours=24: _async_return({"items": []}))
+    monkeypatch.setattr(analyst, "hostname_detectors",
+                        lambda window="1h", sample=2000: _async_return(
+                            {"items": {"silent": [], "dropping": []}}))
+    monkeypatch.setattr(analyst, "apikey_detectors",
+                        lambda: _async_return(
+                            {"items": {"created": [], "expiring_soon": []}}))
+    out = asyncio.run(analyst.alerting_feed(families="intake_silence"))
+    assert out["total"] == 1
+    assert out["items"][0]["family"] == "intake_silence"
+    assert "volumetrie_basse" not in out["families"]
+
+
+async def _async_return(value):
+    return value
+
+
+# ── Historique brut ───────────────────────────────────────────────────────────
+
+def test_l_historique_relit_ce_qui_a_deja_ete_enregistre_sans_recalculer():
+    analyst.record_verdicts("api_key_expiry", [
+        {"subject": "k1", "verdict": "Expire demain.", "severity": "alerte",
+         "uncertainty": "u", "measured_at": analyst._now(), "evidence": {}}])
+    import asyncio
+    out = asyncio.run(analyst.alerting_history(kind="api_key_expiry"))
+    assert out["count"] == 1
+    assert out["items"][0]["subject"] == "k1"
+    assert out["items"][0]["family_label"] == analyst.ALERT_FAMILIES["api_key_expiry"]
+
+
+def test_l_historique_filtre_par_famille():
+    analyst.record_verdicts("intake_silence", [
+        {"subject": "i1", "verdict": "v", "severity": "alerte", "uncertainty": "u",
+         "measured_at": analyst._now(), "evidence": {}}])
+    analyst.record_verdicts("api_key_created", [
+        {"subject": "k2", "verdict": "v", "severity": "attention", "uncertainty": "u",
+         "measured_at": analyst._now(), "evidence": {}}])
+    import asyncio
+    out = asyncio.run(analyst.alerting_history(kind="intake_silence"))
+    assert out["count"] == 1 and out["items"][0]["kind"] == "intake_silence"

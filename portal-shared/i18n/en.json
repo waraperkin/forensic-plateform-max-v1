@@ -2712,9 +2712,6 @@
       "k_declared": "DECLARED",
       "k_blind": "BLIND SPOTS",
       "k_trends": "Trends",
-      "g_visibility": "Visibility",
-      "g_scope": "Scope",
-      "g_detection": "Detection",
       "open_sekoia": "open in Sekoia",
       "act_open": "Act",
       "act_close": "Close",
@@ -2734,7 +2731,16 @@
       "computing": "Computing…",
       "inv_page": "rows {a}–{b}",
       "inv_prev": "◀ Previous",
-      "inv_next": "Next ▶"
+      "inv_next": "Next ▶",
+      "g_inventories": "Inventories",
+      "g_monitoring": "Monitoring",
+      "g_dashboards": "Dashboards",
+      "g_alerting": "Alerting & Detections",
+      "v_alerting": "Alerting & Detections",
+      "alerting": "Alerting & Detections",
+      "alerting_sub": "Unified feed: intake silence and drift, missing or declining log.hostname, API keys created or expiring within 7 days. Each row comes from a detector that already measured and recorded it — this feed only assembles them.",
+      "alerting_all_families": "All families",
+      "alerting_none": "No active alert for this filter."
     }
   },
   "swbtx": {

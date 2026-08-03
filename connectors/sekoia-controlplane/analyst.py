@@ -64,7 +64,7 @@ SILENCE_HOURS = 24
 
 ENTITIES = ("intakes", "sources", "rules", "assets", "detections",
             "fields", "formats", "taxonomies", "mitre", "integration_types",
-            "groups", "owners")
+            "groups", "owners", "api_keys")
 
 # Étiquettes internes. Elles ne quittent JAMAIS cette base.
 INTERNAL_TAGS = (
@@ -374,6 +374,7 @@ _KEYS = {
     "detections": ("uuid", "rule_name"),
     "fields": ("field", "field"),
     "formats": ("dialect_uuid", "dialect_name"),
+    "api_keys": ("uuid", "name"),
 }
 
 
@@ -432,6 +433,12 @@ async def collect(entity: str) -> list:
             cp.log.warning("analyst detections: %s", err)
             return []
         return list((data or {}).get("items") or [])
+    if entity == "api_keys":
+        # Réutilise app.apikeys() telle quelle : c'est déjà la lecture réelle
+        # (nom, description, activation, dates, permissions) contre l'API
+        # Sekoia — aucune logique dupliquée, aucun risque de divergence.
+        env = await cp.apikeys()
+        return list(env.get("items") or [])
     if entity == "fields":
         import satisfiability
         import telemetry
@@ -721,6 +728,7 @@ async def source_silence_detector(hours: int = SILENCE_HOURS) -> dict:
                 measured_at=ts, severity="alerte",
                 evidence={"intake_uuid": uid, "events": 0, "window_hours": hours},
                 tags=["muet"]).as_dict())
+    record_verdicts("intake_silence", out)
     return {"window_hours": hours, "silent": len(out), "items": out,
             "headline": f"{len(out)} source(s) actives sans aucun événement sur {hours} h.",
             "measured_at": ts}
@@ -1027,6 +1035,148 @@ async def source_hostname_monitor(window: str = "1h", sample: int = 2000,
                "dira jamais qu'un équipement s'est tu. La détection ne repose "
                "sur AUCUN nom — un intake est un relais parce qu'on y observe "
                "plusieurs machines, pas parce qu'il s'appelle « FortiAnalyzer ».",
+    }
+
+
+# MIN_DRAWS (seuil de tirage minimal) est déjà défini plus haut dans le
+# module — réutilisé tel quel, pas de second seuil parallèle à maintenir.
+
+
+async def hostname_detectors(window: str = "1h", sample: int = 2000) -> dict:
+    """Silence et baisse de volumétrie PAR log.hostname, dans le temps.
+
+    `source_hostname_monitor` ne voit qu'un instantané : il ne peut jamais dire
+    qu'un hôte qui parlait hier s'est tu aujourd'hui. Cette fonction historise
+    chaque hôte actif comme une série (`measures`), pour rendre calculables le
+    silence (disparu d'un relevé sur l'autre) et la dérive (tendance à la
+    baisse) — les deux propriétés qu'un instantané seul ne peut pas prouver.
+    """
+    snap = await source_hostname_monitor(window=window, sample=sample, relays_only=False)
+    ts = snap.get("measured_at") or _now()
+    if not snap.get("available"):
+        return {"available": False, "reason": snap.get("reason"), "measured_at": ts}
+
+    active = [it for it in (snap.get("items") or [])
+             if "estimated_events" in (it.get("evidence") or {})]
+    with _db() as c:
+        known = {r[0] for r in c.execute(
+            "SELECT DISTINCT subject FROM measures WHERE kind = 'hostname_volumetry'")}
+
+    current_subjects = {it["subject"] for it in active}
+    record_measures("hostname_volumetry",
+                    [(it["subject"], it["evidence"]["estimated_events"],
+                      {"hostname": it["evidence"].get("hostname"),
+                       "intake_name": it["evidence"].get("intake_name")})
+                     for it in active], "events", window)
+
+    silent, dropping = [], []
+    for subject in sorted(known - current_subjects):
+        hist = series("hostname_volumetry", subject, limit=1)
+        if not hist:
+            continue
+        silent.append(Verdict(
+            subject=subject,
+            verdict="Absent de l'échantillon courant alors qu'il avait déjà "
+                    "été observé actif.",
+            uncertainty="Fondé sur un ÉCHANTILLON, pas un comptage exhaustif : "
+                        "un hôte peu bavard peut simplement ne pas avoir été "
+                        f"tiré sur cette fenêtre de {window}. Élargir la "
+                        "fenêtre ou l'échantillon avant de conclure à une "
+                        "panne machine.",
+            measured_at=ts, severity="attention",
+            evidence={"last_seen_value": hist[-1]["value"],
+                      "last_seen_at": hist[-1]["at"], "window": window},
+            tags=["sans-logs"]).as_dict())
+
+    for it in active:
+        subject = it["subject"]
+        vals = [p["value"] for p in series("hostname_volumetry", subject)]
+        if len(vals) < MIN_POINTS:
+            continue
+        t = trend(vals)
+        if t["trend"] == "stable":
+            continue
+        if t["slope_pct"] >= 0 and t["last_vs_median_pct"] >= 0:
+            continue
+        dropping.append(Verdict(
+            subject=subject,
+            verdict=f"Volumétrie en {t['trend'].replace('_', ' ')} "
+                    f"({t['slope_pct']} %/relevé).",
+            uncertainty="Tendance calculée sur "
+                        f"{t['points']} relevés historisés localement, pas sur "
+                        "un historique Sekoia — l'extension ne mesure que "
+                        "depuis qu'elle observe cet hôte.",
+            measured_at=ts, severity="alerte" if t["trend"] == "rupture_brutale" else "attention",
+            evidence={"trend": t, "hostname": (it.get("evidence") or {}).get("hostname"),
+                      "intake_name": (it.get("evidence") or {}).get("intake_name")},
+            tags=["volumetrie-basse"]).as_dict())
+
+    record_verdicts("hostname_silence", silent)
+    record_verdicts("hostname_volumetry_drop", dropping)
+    return {
+        "available": True, "window": window, "sample": sample, "measured_at": ts,
+        "active_hosts": len(active), "silent": len(silent), "dropping": len(dropping),
+        "items": {"silent": silent, "dropping": dropping},
+        "headline": f"{len(silent)} hôte(s) disparu(s) de l'échantillon, "
+                    f"{len(dropping)} en baisse de volumétrie, sur "
+                    f"{len(active)} hôte(s) actifs observés.",
+        "why": "Un instantané ne peut jamais prouver un silence : il faut au "
+               "moins deux relevés pour dire qu'un hôte qui parlait s'est tu.",
+    }
+
+
+async def apikey_detectors() -> dict:
+    """Création de clé API et expiration proche — deux signaux ponctuels que
+    l'inventaire seul ne fait pas remonter (il montre un état, pas un
+    changement)."""
+    prev = read_inventory("api_keys", limit=10000)
+    had_baseline = bool(prev.get("captured_at"))
+    previously_known = {r.get("uuid") for r in prev.get("items") or []}
+
+    rows = await collect("api_keys")
+    ts = _now()
+    store_inventory("api_keys", rows)
+
+    created, expiring = [], []
+    if had_baseline:
+        for r in rows:
+            if r.get("uuid") and r["uuid"] not in previously_known:
+                created.append(Verdict(
+                    subject=r.get("name") or r.get("uuid"),
+                    verdict="Nouvelle clé API détectée depuis le dernier relevé.",
+                    uncertainty="Détecté par comparaison avec le dernier "
+                                "instantané local, pas avec l'historique complet "
+                                "du tenant : une clé créée puis supprimée entre "
+                                "deux relevés ne serait jamais vue.",
+                    measured_at=ts, severity="attention",
+                    evidence={"uuid": r.get("uuid"), "created_at": r.get("created_at"),
+                              "permissions": r.get("permissions")},
+                    tags=["anomalie"]).as_dict())
+    for r in rows:
+        days = r.get("expires_in_days")
+        if days is not None and 0 <= days <= 7 and r.get("enabled"):
+            expiring.append(Verdict(
+                subject=r.get("name") or r.get("uuid"),
+                verdict=(f"Expire dans {days} jour(s)." if days > 0
+                         else "Expire aujourd'hui."),
+                uncertainty="Date fournie par Sekoia telle quelle.",
+                measured_at=ts, severity="alerte" if days <= 2 else "attention",
+                evidence={"uuid": r.get("uuid"), "expires_at": r.get("expires_at"),
+                          "expires_in_days": days},
+                tags=["anomalie"]).as_dict())
+
+    record_verdicts("api_key_created", created)
+    record_verdicts("api_key_expiry", expiring)
+    return {
+        "measured_at": ts, "total_keys": len(rows),
+        "baseline_established": had_baseline,
+        "created": len(created), "expiring_soon": len(expiring),
+        "items": {"created": created, "expiring_soon": expiring},
+        "headline": (f"{len(created)} nouvelle(s) clé(s) API, {len(expiring)} "
+                    "expirant sous 7 jours." if had_baseline else
+                    f"Premier relevé — {len(rows)} clé(s) API enregistrée(s) "
+                    "comme référence, aucune création détectable avant le "
+                    "prochain relevé."),
     }
 
 
@@ -1969,11 +2119,113 @@ async def inventory_dashboard(name: str, ts: str, params: dict) -> dict:
                     "rattacher les orphelins"]}
 
 
+# ── Alerting & Detections — flux unifié ──────────────────────────────────────
+#
+# Chaque détecteur historise déjà ses verdicts (record_verdicts) dans SA
+# famille (kind). Cette fonction ne réimplémente aucune détection : elle
+# CONSULTE ce que chaque détecteur vient de produire et les met à plat dans un
+# seul flux triable/filtrable — c'est une vue, pas une nouvelle mesure.
+
+ALERT_FAMILIES = {
+    "intake_silence": "Intake silencieux",
+    "volumetrie_basse": "Baisse de volumétrie (intake)",
+    "hostname_silence": "log.hostname silencieux",
+    "hostname_volumetry_drop": "Baisse de volumétrie (log.hostname)",
+    "api_key_created": "Nouvelle clé API",
+    "api_key_expiry": "Clé API — expiration proche",
+}
+
+
+async def alerting_feed(hours: int = 24, window: str = "1h", sample: int = 2000,
+                        families: Optional[str] = None) -> dict:
+    """Calcule (donc rafraîchit) chaque détecteur puis aplatit leurs verdicts
+    du jour en un seul flux. `families` filtre par famille, séparées par
+    virgule (ex. « intake_silence,api_key_expiry »)."""
+    want = set(families.split(",")) if families else None
+    ts = _now()
+
+    silence = await source_silence_detector(hours=hours)
+    volumetry = await source_volumetry_monitor(hours=hours)
+    hostnames = await hostname_detectors(window=window, sample=sample)
+    apikeys = await apikey_detectors()
+
+    volumetrie_basse = [v for v in (volumetry.get("items") or [])
+                        if "volumetrie-basse" in (v.get("tags") or [])]
+
+    by_family = {
+        "intake_silence": silence.get("items") or [],
+        "volumetrie_basse": volumetrie_basse,
+        "hostname_silence": (hostnames.get("items") or {}).get("silent") or [],
+        "hostname_volumetry_drop": (hostnames.get("items") or {}).get("dropping") or [],
+        "api_key_created": (apikeys.get("items") or {}).get("created") or [],
+        "api_key_expiry": (apikeys.get("items") or {}).get("expiring_soon") or [],
+    }
+    if want:
+        unknown = want - set(ALERT_FAMILIES)
+        if unknown:
+            return {"ok": False, "error": f"famille(s) inconnue(s) : {sorted(unknown)}",
+                    "known": list(ALERT_FAMILIES)}
+        by_family = {k: v for k, v in by_family.items() if k in want}
+
+    flat = []
+    for fam, items in by_family.items():
+        for v in items:
+            flat.append({**v, "family": fam, "family_label": ALERT_FAMILIES[fam]})
+    sev_rank = {"alerte": 0, "attention": 1, "info": 2}
+    flat.sort(key=lambda v: (sev_rank.get(v.get("severity"), 3), v.get("measured_at") or ""),
+              reverse=False)
+
+    counts = {fam: len(items) for fam, items in by_family.items()}
+    return {
+        "measured_at": ts, "hours": hours, "window": window,
+        "families": {k: ALERT_FAMILIES[k] for k in by_family},
+        "counts": counts, "total": len(flat),
+        "items": flat,
+        "headline": f"{len(flat)} alerte(s) actives, toutes familles confondues.",
+        "why": "Chaque famille garde sa propre discipline de mesure (seuils, "
+               "incertitude, historisation) — ce flux ne fait qu'assembler ce "
+               "qui a déjà été mesuré, il ne mesure rien de nouveau.",
+    }
+
+
+async def alerting_history(kind: Optional[str] = None, limit: int = 200) -> dict:
+    """Historique brut des verdicts déjà enregistrés, sans recalcul — pour
+    consulter ce qui a été vu sans redéclencher un cycle de détection."""
+    q = ("SELECT kind, subject, verdict, severity, uncertainty, measured_at, evidence "
+        "FROM verdicts WHERE 1=1")
+    p: list = []
+    if kind:
+        q += " AND kind = ?"
+        p.append(kind)
+    with _db() as c:
+        rows = c.execute(q + " ORDER BY measured_at DESC LIMIT ?", p + [limit]).fetchall()
+    return {"count": len(rows), "kind": kind,
+            "items": [{"kind": r[0], "subject": r[1], "verdict": r[2],
+                      "severity": r[3], "uncertainty": r[4], "measured_at": r[5],
+                      "family_label": ALERT_FAMILIES.get(r[0], r[0]),
+                      "evidence": json.loads(r[6]) if r[6] else {}} for r in rows],
+            "known_families": ALERT_FAMILIES,
+            "note": "Historique brut, non recalculé : reflète l'état au moment "
+                    "où chaque détecteur a tourné, pas l'état actuel."}
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 def register(an_app) -> None:
     dep = [Depends(cp.require_internal_token)]
     P = "/control/sekoia/analyst"
+
+    # Route LITTÉRALE enregistrée AVANT le chemin paramétré /inventory/{entity}
+    # ci-dessous : Starlette matche dans l'ordre d'enregistrement, et
+    # /inventory/{entity} capturerait sinon /inventory/api-keys avec
+    # entity="api-keys" (trait d'union) — jamais égal à l'entité réelle
+    # « api_keys » (tiret bas), donc toujours rejetée comme inconnue.
+    @an_app.get(f"{P}/inventory/api-keys", dependencies=dep)
+    async def ext_inv_apikeys(limit: int = Query(default=200, ge=1, le=2000),
+                              offset: int = 0, refresh_first: bool = False):
+        if refresh_first:
+            await refresh("api_keys")
+        return read_inventory("api_keys", limit=limit, offset=offset)
 
     @an_app.get(f"{P}/inventory/{{entity}}", dependencies=dep)
     async def get_inv(entity: str, limit: int = Query(default=200, ge=1, le=2000),
@@ -2212,6 +2464,14 @@ def register(an_app) -> None:
         return {"measured_at": _now(), "drift": drift, "schema": schema, "loss": loss,
                 "headline": drift["headline"]}
 
+    @an_app.get(f"{P}/monitoring/hostnames", dependencies=dep)
+    async def ext_mon_hostnames(window: str = "1h", sample: int = 2000):
+        return await hostname_detectors(window=window, sample=sample)
+
+    @an_app.get(f"{P}/monitoring/api-keys", dependencies=dep)
+    async def ext_mon_apikeys():
+        return await apikey_detectors()
+
     @an_app.get(f"{P}/monitoring/fortigate", dependencies=dep)
     async def ext_mon_fortigate(window: str = "1h", sample: int = 2000):
         # Fortinet est le cas nomme dans le cahier des charges ; le detecteur
@@ -2271,3 +2531,23 @@ def register(an_app) -> None:
                 "qualite_latence": ql.get("anomalies") or 0}
         return {"measured_at": _now(), "families": fams, "total": sum(fams.values()),
                 "headline": f"{sum(fams.values())} anomalie(s) toutes familles confondues."}
+
+    # ── Alerting & Detections — flux unifié ─────────────────────────────────
+
+    @an_app.get(f"{P}/alerting/feed", dependencies=dep)
+    async def get_alerting_feed(hours: int = Query(default=24, ge=1, le=720),
+                                window: str = "1h",
+                                sample: int = Query(default=2000, ge=SAMPLE_MIN,
+                                                    le=SAMPLE_MAX),
+                                families: str = Query(default=None)):
+        return await alerting_feed(hours=hours, window=window, sample=sample,
+                                   families=families)
+
+    @an_app.get(f"{P}/alerting/history", dependencies=dep)
+    async def get_alerting_history(kind: str = Query(default=None),
+                                   limit: int = Query(default=200, ge=1, le=2000)):
+        return await alerting_history(kind=kind, limit=limit)
+
+    @an_app.get(f"{P}/alerting/families", dependencies=dep)
+    async def get_alerting_families():
+        return {"families": ALERT_FAMILIES}

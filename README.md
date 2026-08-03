@@ -143,6 +143,37 @@ Console unifiée montée sur les 8 écrans historiques du portail, en 11 vues.
 - **Stockage** — état réel des index, projection de croissance mesurée, rétention
   par paliers avec simulation obligatoire.
 
+### Extension analystes — Inventaires, Monitoring, Dashboards, Alerting & Detections
+
+Deuxième console, adossée à `analyst.py` (`/control/sekoia/analyst/*`),
+restructurée autour de **quatre blocs alignés sur les cas d'usage** plutôt que
+sur l'architecture interne : un analyste sait pourquoi il ouvre chaque onglet,
+pas seulement où il se trouve.
+
+- **Inventaires** — intakes, sources, règles, actifs, détections, formats,
+  champs, et **clés API** (créée/désactivée, permissions, expiration) : pagination
+  réelle (`offset`/`limit`/`has_more`), export CSV/JSON via les endpoints REST.
+- **Monitoring** — silence et dérive de volumétrie par intake ; silence et
+  dérive de volumétrie **par `log.hostname`**, historisés dans le temps (un
+  instantané seul ne peut jamais prouver qu'un hôte qui parlait s'est tu — il
+  faut au moins deux relevés) ; clés API (créations, expirations proches).
+- **Dashboards** — actifs, règles, couverture MITRE prouvée, taxonomies.
+- **Alerting & Detections** — flux unifié (`/alerting/feed`), 6 familles :
+  intake silencieux, baisse de volumétrie (intake), `log.hostname` silencieux,
+  baisse de volumétrie (`log.hostname`), nouvelle clé API, clé API expirant
+  sous 7 jours. Filtrable par famille (une famille inconnue est refusée
+  explicitement, jamais un flux vide silencieux), historisé
+  (`/alerting/history`), trié par sévérité puis fraîcheur.
+
+Chaque détecteur garde la même discipline de mesure que le reste du module :
+un verdict porte toujours son incertitude et sa date de mesure, et refuse de
+conclure sous les seuils statistiques déjà en place (`MIN_POINTS`,
+`MIN_DRAWS`, `MIN_EVENTS`). Voir
+[`docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md`](docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md)
+pour le détail des endpoints et la preuve de chaque correctif, et
+[`docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md`](docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md)
+pour l'audit complet de l'outil.
+
 ### Satisfiabilité des règles — ce qu'aucun SIEM ne sait dire
 La console dit quelles règles sont **activées**. Elle ne dit jamais lesquelles
 peuvent **se déclencher**. Une règle Sigma teste des champs ; si aucune source

@@ -370,3 +370,42 @@ code retour). `0 FAIL`.
 `offset: int = 0` et le transmet à `read_inventory`) — 0 échec. Image
 `sekoia-controlplane` reconstruite (le service tourne sans montage bind — un
 `docker cp` à chaud aurait été perdu au prochain rebuild).
+
+---
+
+# i18n — 73 chaînes anglaises jamais traduites, restées en français
+
+Point explicitement demandé (« cohérence FR/EN »). La parité des clés entre
+`fr.json` et `en.json` était déjà parfaite (2562 = 2562, aucune clé
+manquante d'un côté ou de l'autre) — mais parité de clés n'est pas parité de
+contenu. 120 clés `msg.*` avaient exactement la même valeur dans les deux
+fichiers ; l'écrasante majorité sont légitimement identiques (sélecteurs
+CSS, chemins de fichiers, noms d'attributs `data-*`, extraits de code —
+`[data-admin-only]`, `audit-center.csv`, `TC.deep(e, 'host.hostname')`...).
+En triant sur les phrases de 4 mots et plus, 73 se sont révélées être du
+texte français **jamais traduit**, restitué tel quel à un utilisateur en
+anglais : « Règle de test active en production », « PowerShell suspect /
+obfusqué », « UI Token expiré — mettez à jour le token dans ce panneau »...
+
+## Le correctif
+
+73 clés traduites dans `en.json` uniquement (`fr.json` non touché — son
+contenu était déjà correct). Les 47 clés restantes identiques entre les deux
+fichiers ont été vérifiées une par une et laissées telles quelles : ce sont
+des identifiants techniques, pas du texte d'interface. Une clé
+(`msg.ouvrez_l`, un fragment sans occurrence dans le code JS du portail) a
+été laissée de côté — traduire un fragment de phrase hors contexte aurait
+été une supposition, pas une correction.
+
+## Preuve, sur le conteneur reconstruit (`i18n-en-proof.mjs`)
+
+`fetch('/shared/i18n/en.json').msg.regle_de_test_active_en_production` →
+`"Test rule active in production"` (recompilé dans l'image, pas seulement
+sur disque — le service ne monte pas `portal-shared` en bind, un correctif
+non reconstruit n'aurait donc jamais été servi). `fr.json` vérifié inchangé
+en parallèle. `0 FAIL`.
+
+## Validation
+
+Parité de clés FR/EN toujours 2562 = 2562 après correctif. JSON valide sur
+les deux fichiers. Image `cert-portal` reconstruite.

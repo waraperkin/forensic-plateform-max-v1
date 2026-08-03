@@ -186,3 +186,40 @@ rollback disponible. Le bouton « Appliquer » est vérifié présent, jamais cl
 les 2 restantes sont le défaut de harnais déjà documenté plus haut dans ce
 document (§ « cohérence — familles distinctes »), inchangé par cette
 modification.
+
+---
+
+# Actions manuelles étendues à l'inventaire brut
+
+Le premier incrément rendait actionnables les lignes **signalées** (règle
+inerte, source muette…). Il restait un manque : parcourir librement
+l'inventaire — sans qu'une anomalie ne soit détectée — n'offrait toujours
+aucune action.
+
+## Ce qui a changé
+
+Le navigateur d'inventaire (`viewInventory`, entités `intakes`, `rules`,
+`assets`) porte désormais le même bouton **Agir** que les tableaux de
+verdicts, sur **chacune des 200 lignes affichées**. La détermination de cible
+(`bulkSubjectFromRow`) est la même règle honnête : pas d'identifiant Sekoia
+réel dans la ligne, pas de bouton.
+
+## Validation
+
+200 actions détectées sur l'inventaire des actifs, 200 sur celui des règles,
+panneau d'action vérifié ouvrable, aucun objet brut, 0 erreur console. 0 FAIL.
+Régression complète verte (44 tests JS, `legacy`, `sagf-tab`, `psoar-ui`),
+santé 16/16.
+
+## Ce qui reste hors de portée de cette session
+
+Deux consoles plus anciennes — `sekoia-assets`/`gov-assets`
+(`threat-platforms.js`, `governance.js`) — restent des **vitrines en cartes**,
+sans aucune action. Les y ajouter demanderait de reconstruire une logique
+d'action dans deux moteurs de rendu différents de celui utilisé ici (cartes,
+pas tableaux ; pas de câblage `bulkops` existant). Ce n'est pas un oubli : je
+choisis de na pas improviser une troisième variante d'action dans une session
+déjà longue, plutôt que de livrer un code non éprouvé sur un chemin d'écriture.
+La table « doublons → fusion » du document 16 reste le bon plan pour ces deux
+écrans : les repointer vers l'inventaire actionnable plutôt que de les
+dupliquer une troisième fois.

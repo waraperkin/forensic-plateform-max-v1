@@ -119,6 +119,22 @@
     return null;
   }
 
+  // Même détermination, mais depuis une ligne BRUTE de l'inventaire local
+  // (pas un verdict) : le navigateur d'inventaire couvre les 12 entités, dont
+  // trois seulement portent une action Sekoia réelle.
+  function bulkSubjectFromRow(entity, row) {
+    if (entity === 'rules' && row.rule_uuid) {
+      return { target: 'rules', id: row.rule_uuid, taggable: true, toggle: true };
+    }
+    if ((entity === 'intakes' || entity === 'sources') && row.intake_uuid) {
+      return { target: 'intakes', id: row.intake_uuid, taggable: false, toggle: true };
+    }
+    if (entity === 'assets' && row.uuid) {
+      return { target: 'assets', id: row.uuid, taggable: true, toggle: false };
+    }
+    return null;
+  }
+
   async function bulkDry(target, id, op, tags) {
     return bulkApi(`/bulk/${encodeURIComponent(target)}`, {
       method: 'POST',
@@ -382,11 +398,22 @@
         T('an.objects')} · ${freshness(d)}</p>
         <p class="swb-hint" style="margin:.3rem 0 0">${esc(d.note || '')}</p>
         <div class="swb-tablewrap" style="max-height:40vh;margin-top:.5rem">
-        <table class="swb-table"><tbody>${(d.items || []).slice(0, 200).map((i) =>
-          `<tr><td class="swb-truncate">${esc(i.intake_name || i.rule_name
-            || i.name || i.field || i.dialect_name || '—')}</td>
-          <td class="swb-hint swb-truncate">${esc(i.intake_status
-            || i.connector_name || i.rule_enabled || '')}</td></tr>`).join('')}
+        <table class="swb-table"><tbody>${(d.items || []).slice(0, 200).map((i) => {
+          const bs = bulkSubjectFromRow(st.entity, i);
+          const key = bs ? `${bs.target}:${bs.id}` : null;
+          const openRow = key && st.bulkOpen === key;
+          const label = esc(i.intake_name || i.rule_name || i.name || i.field
+            || i.dialect_name || '—');
+          const sub = esc(i.intake_status || i.connector_name || i.rule_enabled || '');
+          const actBtn = bs ? `<button type="button" class="fp-btn fp-btn-sm"
+              data-an-act="bulk-toggle" data-key="${esc(key)}"
+              data-target="${esc(bs.target)}" data-id="${esc(bs.id)}">${
+              T(openRow ? 'an.act_close' : 'an.act_open')}</button>` : '';
+          return `<tr><td class="swb-truncate">${label}</td>
+          <td class="swb-hint swb-truncate">${sub}</td>
+          <td style="white-space:nowrap">${actBtn}</td></tr>${
+            openRow ? `<tr><td colspan="3" style="padding:0">${bulkPanel(bs)}</td></tr>` : ''}`;
+        }).join('')}
         </tbody></table></div>`, 'accent')}`;
   }
 

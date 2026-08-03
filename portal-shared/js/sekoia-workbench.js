@@ -1097,7 +1097,8 @@
     }).join('')}</tr>`).join('');
     return form + `<div class="swb-panel" style="padding:0">
       <div class="swb-filters" style="padding:.6rem .8rem 0">
-        <span class="swb-count">${nf(res.collected || items.length)} collectés${res.total ? ` sur ${nf(res.total)}` : ''}${res.truncated ? ' · tronqué' : ''}</span></div>
+        <span class="swb-count">${nf(res.collected || items.length)} collectés${res.total ? ` sur ${nf(res.total)}` : ''}${res.truncated ? ' · tronqué' : ''}${
+  items.length > 200 ? ` · 200 lignes affichées (tableau borné, tous les événements collectés restent exportables)` : ''}</span></div>
       <div class="swb-tablewrap"><table class="swb-table"><thead><tr>
         ${cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
         <tbody>${rows}</tbody></table></div></div>`;

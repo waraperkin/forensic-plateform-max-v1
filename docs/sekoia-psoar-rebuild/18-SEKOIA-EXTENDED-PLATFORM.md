@@ -448,3 +448,47 @@ identique à `.cc-modal-overlay`. `0 FAIL`.
 Image `cert-portal` reconstruite. Comparaison directe des styles calculés
 entre les deux systèmes de superposition (CERT et Sekoia) — plus de valeur
 hardcodée invisible dans le volet.
+
+---
+
+# Télémétrie à la demande : la légende annonçait un compte que le tableau
+# ne montrait pas
+
+En cherchant d'autres occurrences du même défaut que la pagination
+d'inventaire (troncature d'affichage silencieuse), la vue « Télémétrie à la
+demande » de `sekoia-workbench.js` s'est révélée porter un défaut apparenté
+mais différent : la légende au-dessus du tableau affiche correctement le
+nombre réellement collecté auprès de Sekoia (`res.collected`, jusqu'à 5000
+via le sélecteur `tmax`), mais le corps du tableau tronque toujours
+l'affichage à `items.slice(0, 200)` sans aucune mention. Un analyste
+sélectionnant « 5000 événements » et obtenant effectivement 5000 résultats
+lisait « 5000 collectés » alors que seuls les 200 premiers étaient visibles
+— un écart entre ce que la légende annonce et ce que l'œil voit.
+
+Les trois autres tables de `sekoia-workbench.js` bornées à N lignes ont été
+vérifiées une à une : le tableau des règles de détection (300/1180) porte
+déjà sa propre légende (`rows.length > 300 ? ' · 300 affichées' : ''`) —
+correct, aucune action. Le tableau de dérive d'inventaire (200 changements)
+reste sans légende dédiée mais le total exact est déjà visible juste
+au-dessus via le KPI « Changements » — moins net, mais pas silencieux ;
+laissé tel quel.
+
+## Le correctif
+
+Légende complétée : `${nf(res.collected...)} collectés...${items.length >
+200 ? ' · 200 lignes affichées (tableau borné, tous les événements
+collectés restent exportables)' : ''}`. Vérifié avant d'écrire cette
+phrase que l'export (`export-os` → `/api/threat/export/opensearch`) envoie
+bien `st.data.events.items` — le tableau **complet** collecté, pas les 200
+lignes affichées — pour ne pas ajouter une affirmation inexacte à l'UI.
+
+## Preuve
+
+Conteneur `cert-portal` reconstruit ; `telemetry-caption-proof.mjs` récupère
+`/shared/js/sekoia-workbench.js` tel que servi réellement et vérifie que la
+nouvelle légende conditionnelle y figure. `0 FAIL`.
+
+## Validation
+
+Image `cert-portal` reconstruite et servie. Logique de la légende vérifiée
+conditionnelle (`items.length > 200`), pas permanente.

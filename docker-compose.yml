@@ -90,7 +90,7 @@ services:
     image: postgres:15-alpine
     container_name: forensic-postgres
     logging: *default-logging
-    restart: unless-stopped
+    restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -157,7 +157,7 @@ services:
     image: cassandra:4.1
     container_name: forensic-cassandra
     logging: *default-logging
-    restart: unless-stopped
+    restart: always
     environment:
       - CASSANDRA_CLUSTER_NAME=forensic-thp
       - CASSANDRA_DC=datacenter1

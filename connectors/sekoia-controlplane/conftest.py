@@ -9,6 +9,12 @@ les assignations identiques en tête des modules de test deviennent des no-ops.
 import os
 
 os.environ.setdefault("INTERNAL_API_TOKEN", "test-internal-token")
+# Couche données neutralisée par défaut : les tests existants vérifient des
+# lectures fraîches après mutation d'état interne (monkeypatch) — un cache TTL
+# intercalé les ferait mentir. test_dataplane.py réactive ses réglages en local.
+os.environ.setdefault("SEKOIA_DP_TTL_S", "0")
+os.environ.setdefault("SEKOIA_DP_TTL_HEAVY_S", "0")
+os.environ.setdefault("SEKOIA_JOBS_PER_MINUTE", "100000")
 os.environ.setdefault("SECRETS_PATH", "/tmp/test-sekoia-secrets.enc")
 os.environ.setdefault("SEKOIA_DATA_PATH", "/tmp/test-sekoia-data.enc")
 os.environ.setdefault("WATCHLISTS_PATH", "/tmp/test-sekoia-watchlists.json")

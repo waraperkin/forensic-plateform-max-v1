@@ -307,6 +307,36 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     }
   });
 
+  // ── Couche données côté proxy (QA 04/08/2026) ───────────────────────────────
+  // 1. COALESCENCE : deux GET identiques concurrents ne partent qu'une fois en
+  //    amont — l'UI dupliquait apikeys ×2, audit ×2, stats ×3 par écran.
+  // 2. MICRO-CACHE : réponses GET JSON conservées quelques secondes pour
+  //    absorber les rafales de navigation (le vrai cache vit dans le
+  //    control-plane, dataplane.py — ici on ne fait qu'amortir).
+  // 3. ANNULATION : si le navigateur ferme (onglet quitté), l'appel amont est
+  //    abandonné — plus de travail fantôme après départ de l'analyste.
+  const GET_CACHE_TTL_MS = Number(process.env.THREAT_PROXY_CACHE_MS || 10000);
+  const GET_CACHE_MAX = 256;
+  const NO_COALESCE_RE = /\/(fetch|events|search|export|config|dataplane)(\/|$)/;
+  const getCache = new Map(); // key → { ts, status, body }
+  const inflight = new Map(); // key → Promise<{ status, body }>
+  function cacheKey(req) {
+    return `${req.path}?${JSON.stringify(Object.entries(req.query || {}).sort())}`;
+  }
+  function cacheGet(key) {
+    const e = getCache.get(key);
+    if (!e) return null;
+    if (Date.now() - e.ts > GET_CACHE_TTL_MS) { getCache.delete(key); return null; }
+    return e;
+  }
+  function cacheSet(key, status, body) {
+    if (getCache.size >= GET_CACHE_MAX) {
+      const oldest = [...getCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
+      if (oldest) getCache.delete(oldest[0]);
+    }
+    getCache.set(key, { ts: Date.now(), status, body });
+  }
+
   // Catch-all proxy : conserve méthode, query, body — restreint à une allowlist
   // de ressources (correctif audit P-06) et sans fuite de topologie interne.
   // Ressources autorisées côté proxy. Les trois dernières sont les moteurs de la
@@ -353,25 +383,72 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     // echantillonnage de telemetrie (meme cout qu'un inventaire d'actifs au
     // premier appel), et « inventory/hostnames » pour la meme raison.
     const chained = /^\/analyst\/(dashboard\/|monitoring\/|analytics\/|coverage\/|quality\/|alerting\/|export\/|inventory\/hostnames)/.test(req.path);
+    // Depuis la couche données du control-plane (single-flight + cache TTL +
+    // budget de jobs), les recalculs complets sont bornés : 900 s de délai ne
+    // protégeait rien, il transformait chaque incident en écran gelé.
     const timeout = chained
-      ? Number(process.env.ANALYST_PROXY_TIMEOUT_MS || 900000)
+      ? Number(process.env.ANALYST_PROXY_TIMEOUT_MS || 600000)
       : heavy
         ? Number(process.env.SEKOIA_PROXY_TIMEOUT_HEAVY_MS || 240000)
-        : Number(process.env.SEKOIA_PROXY_TIMEOUT_MS || 120000);
+        : Number(process.env.SEKOIA_PROXY_TIMEOUT_MS || 60000);
+    const wantsFresh = req.query && (req.query.refresh === '1' || req.query.refresh === 'true');
+    const coalescable = req.method === 'GET' && !NO_COALESCE_RE.test(req.path);
+    const key = coalescable ? cacheKey(req) : null;
+    if (key && !wantsFresh) {
+      const hit = cacheGet(key);
+      if (hit) {
+        res.set('X-Proxy-Cache', `hit;age=${Math.round((Date.now() - hit.ts) / 1000)}`);
+        return res.status(hit.status).json(hit.body);
+      }
+      const pending = inflight.get(key);
+      if (pending) {
+        try {
+          const out = await pending;
+          res.set('X-Proxy-Cache', 'coalesced');
+          return res.status(out.status).json(out.body);
+        } catch (_) { /* le meneur a échoué : on tente soi-même */ }
+      }
+    }
+    // Annulation amont : les lectures partagées (coalesçables) vont au bout —
+    // leur résultat sert le cache et les suiveurs. Les collectes à la demande
+    // (fetch, events, export…), elles, sont abandonnées si l'analyste part :
+    // c'est un travail commandé pour lui seul, plus personne ne l'attend.
+    const controller = new AbortController();
+    const onClose = () => controller.abort();
+    if (!coalescable && req.method === 'GET') req.on('close', onClose);
+    const doRequest = () => axios.request({
+      method: req.method,
+      url,
+      params: req.query,
+      data: ['GET', 'HEAD'].includes(req.method) ? undefined : (req.body || {}),
+      headers: { ...internalHeaders },
+      timeout,
+      signal: controller.signal,
+      validateStatus: () => true,
+    });
     try {
-      const r = await axios.request({
-        method: req.method,
-        url,
-        params: req.query,
-        data: ['GET', 'HEAD'].includes(req.method) ? undefined : (req.body || {}),
-        headers: { ...internalHeaders },
-        timeout,
-        validateStatus: () => true,
-      });
+      let promise = null;
+      if (key && !wantsFresh) {
+        promise = doRequest();
+        inflight.set(key, promise
+          .then((r) => ({ status: r.status, body: r.data }))
+          .finally(() => inflight.delete(key)));
+      }
+      const r = await (promise || doRequest());
+      req.off('close', onClose);
+      if (key && r.status === 200 && String(r.headers['content-type'] || '').includes('application/json')) {
+        cacheSet(key, r.status, r.data);
+      }
       // Audit : enregistre les écritures (création/modif/suppression) relayées.
       if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) {
         const entry = classifyAudit(req.method, req.path, req.body, r.status, req.user);
         if (entry) recordAudit(entry);
+        // Écriture réussie : le micro-cache de la famille de ressource ment —
+        // on le purge (ex. PATCH /sekoia/rules/<id> retire toute clé /sekoia/rules).
+        if (r.status < 400) {
+          const family = req.path.split('/').slice(0, 3).join('/');
+          [...getCache.keys()].forEach((k) => { if (k.startsWith(family)) getCache.delete(k); });
+        }
       }
       // Le control-plane ne renvoie pas QUE du JSON : /analyst/export/*?format=csv
       // sort un fichier. Forcer res.json() ici le ré-encodait en chaîne JSON
@@ -389,16 +466,23 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
       }
       return res.status(r.status).json(r.data);
     } catch (e) {
+      req.off('close', onClose);
+      // Client parti : personne n'attend la réponse, on n'écrit rien.
+      if (e.code === 'ERR_CANCELED') return undefined;
       log.warn?.(`threat proxy ${req.method} ${url}: ${e.message}`);
       // Dégradation propre : message exploitable, code technique à part (pas de
       // stack/code réseau brut type ENOTFOUND exposé dans l'UI).
+      const timedOut = e.code === 'ECONNABORTED' || /timeout/i.test(e.message || '');
       return res.json({
         configured: false,
         items: [],
         count: 0,
-        error: 'Control-plane Sekoia momentanément indisponible — le service démarre ou est redémarré. Réessayez dans quelques secondes.',
+        error: timedOut
+          ? `Le calcul dépasse le délai autorisé (${Math.round(timeout / 1000)} s). Les données en cache restent servies dès qu'elles existent — réessayez, ou relancez avec « Actualiser ».`
+          : 'Control-plane Sekoia momentanément indisponible — le service démarre ou est redémarré. Réessayez dans quelques secondes.',
         error_code: e.code || 'network_error',
-        controlplane_unavailable: true,
+        controlplane_unavailable: !timedOut,
+        timed_out: timedOut || undefined,
       });
     }
   });

@@ -108,9 +108,24 @@
     return (n === null || n === undefined || isNaN(n)) ? '—'
       : Number(n).toLocaleString('fr-FR');
   }
+  // Délai navigateur : jamais de squelette éternel — expiration lisible et le
+  // calcul serveur (single-flight) reste disponible au prochain essai.
+  function withTimeout(o) {
+    if (!o.signal && typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
+      o.signal = AbortSignal.timeout(Number(window.THREAT_FETCH_TIMEOUT_MS || 180000));
+    }
+    return o;
+  }
+  function timeoutError(e) {
+    if (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
+      return new Error('Délai dépassé (3 min). Le calcul se poursuit côté serveur — réessayez dans un instant.');
+    }
+    return e;
+  }
   async function api(path, opts) {
-    const o = Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {});
-    const r = await fetch(API + path, o);
+    const o = withTimeout(Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {}));
+    let r;
+    try { r = await fetch(API + path, o); } catch (e) { throw timeoutError(e); }
     const d = await r.json().catch(() => ({}));
     if (!r.ok && d && d.error) throw new Error(d.error);
     return d;
@@ -126,8 +141,9 @@
    */
   const BULK_API = '/api/threat/sekoia';
   async function bulkApi(path, opts) {
-    const o = Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {});
-    const r = await fetch(BULK_API + path, o);
+    const o = withTimeout(Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {}));
+    let r;
+    try { r = await fetch(BULK_API + path, o); } catch (e) { throw timeoutError(e); }
     const d = await r.json().catch(() => ({}));
     if (!r.ok && d && d.error) throw new Error(d.error);
     return d;

@@ -42,7 +42,25 @@
       o.headers = Object.assign({ 'Content-Type': 'application/json' }, o.headers || {});
       o.body = JSON.stringify(o.body);
     }
-    const r = await fetch(API_BASE + path, o);
+    // Délai côté navigateur (QA 04/08/2026) : sans lui, un appel amont qui
+    // pend laissait l'écran en « Chargement… » à jamais, sans erreur ni issue.
+    // Après expiration, le calcul continue côté serveur et alimente le cache :
+    // un nouvel essai aboutit — le message le dit à l'analyste.
+    if (!o.signal && typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
+      o.signal = AbortSignal.timeout(Number(window.THREAT_FETCH_TIMEOUT_MS || 180000));
+    }
+    let r;
+    try {
+      r = await fetch(API_BASE + path, o);
+    } catch (e) {
+      const timedOut = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+      return {
+        ok: false, items: [], count: 0, timed_out: timedOut || undefined,
+        error: timedOut
+          ? 'Délai dépassé (3 min). Le calcul se poursuit côté serveur — cliquez sur « Actualiser » dans un instant pour lire le résultat.'
+          : `Erreur réseau — ${e && e.message ? e.message : 'service injoignable'}`,
+      };
+    }
     let data = null;
     try { data = await r.json(); } catch (_) { data = {}; }
     if (data && (data.token_expired || data.stale)) threatOffline = true;

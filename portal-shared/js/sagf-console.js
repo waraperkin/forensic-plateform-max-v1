@@ -84,7 +84,19 @@
       o.body = JSON.stringify(o.body);
       o.headers = Object.assign({ 'Content-Type': 'application/json' }, o.headers || {});
     }
-    const r = await fetch(API + path, o);
+    // Délai navigateur : jamais de squelette éternel (voir QA 04/08/2026).
+    if (!o.signal && typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
+      o.signal = AbortSignal.timeout(Number(window.THREAT_FETCH_TIMEOUT_MS || 180000));
+    }
+    let r;
+    try {
+      r = await fetch(API + path, o);
+    } catch (e) {
+      if (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
+        throw new Error('Délai dépassé (3 min). Le calcul se poursuit côté serveur — réessayez dans un instant.');
+      }
+      throw e;
+    }
     const d = await r.json().catch(() => ({}));
     if (!r.ok && d && d.error) throw new Error(d.error);
     return d;

@@ -324,6 +324,16 @@ async def sek_request(method: str, path: str, json_body: Any = None,
     if is_stale():
         return None, "token_expired"
     base = _api_base() if use_api_host else conf()["base"]
+    # Création de job de recherche : passage obligé par le budget global
+    # (concurrence + volume/minute) — voir dataplane.py. Sans cette borne, un
+    # seul écran peut lancer 66 jobs et consommer le quota du tenant.
+    is_job_creation = method == "POST" and path.endswith("/events/search/jobs")
+    if is_job_creation:
+        import dataplane  # import tardif : dataplane importe déjà app
+        try:
+            await dataplane.acquire_job_slot()
+        except dataplane.JobBudgetExceeded as exc:
+            return None, str(exc)
     try:
         async with _client() as s:
             r = await s.request(method, f"{base}{path}", json=json_body, params=params)
@@ -336,6 +346,10 @@ async def sek_request(method: str, path: str, json_body: Any = None,
         return payload, None
     except httpx.HTTPError as exc:
         return None, str(exc)
+    finally:
+        if is_job_creation:
+            import dataplane
+            dataplane.release_job_slot()
 
 
 # ── Fetchers inventaire ───────────────────────────────────────────────────────
@@ -1667,6 +1681,11 @@ adversary.register(app)
 
 import twin  # noqa: E402
 twin.register(app)
+
+# Couche données — single-flight, cache TTL, budget de jobs (QA 04/08/2026).
+# Enregistrée en DERNIER pour envelopper toutes les routes montées ci-dessus.
+import dataplane  # noqa: E402
+dataplane.register(app)
 
 
 if __name__ == "__main__":

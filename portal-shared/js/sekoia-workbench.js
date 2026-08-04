@@ -141,37 +141,57 @@
     return `il y a ${Math.round(h / 24)} j`;
   }
 
+  // Délai navigateur partagé : un appel qui pend ne doit JAMAIS laisser un
+  // squelette éternel — il expire, la vue affiche l'erreur et « Réessayer »,
+  // et le calcul serveur (single-flight) alimente le cache pour l'essai suivant.
+  function withTimeout(o) {
+    if (!o.signal && typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
+      o.signal = AbortSignal.timeout(Number(window.THREAT_FETCH_TIMEOUT_MS || 180000));
+    }
+    return o;
+  }
+  function timeoutError(e) {
+    if (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
+      return new Error('Délai dépassé (3 min). Le calcul se poursuit côté serveur — réessayez dans un instant pour lire le résultat.');
+    }
+    return e;
+  }
+
   async function api(path, opts) {
-    const o = Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {});
+    const o = withTimeout(Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {}));
     if (o.body && typeof o.body !== 'string') {
       o.body = JSON.stringify(o.body);
       o.headers = Object.assign({ 'Content-Type': 'application/json' }, o.headers || {});
     }
-    const r = await fetch(API + path, o);
+    let r;
+    try { r = await fetch(API + path, o); } catch (e) { throw timeoutError(e); }
     const d = await r.json().catch(() => ({}));
     if (d && d.controlplane_unavailable) {
       throw new Error(d.error || 'Control-plane momentanément indisponible.');
     }
+    if (d && d.timed_out) throw new Error(d.error || 'Délai dépassé côté serveur — réessayez.');
     if (!r.ok && d && d.error) throw new Error(d.error);
     return d;
   }
   // SAGF vit sous un prefixe distinct : le confondre avec /sekoia ferait croire
   // qu'il fait partie du SIEM, ce que l'adossement interdit (L8).
   async function sagfApi(path, opts) {
-    const o = Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {});
+    const o = withTimeout(Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {}));
     if (o.body && typeof o.body !== 'string') {
       o.body = JSON.stringify(o.body);
       o.headers = Object.assign({ 'Content-Type': 'application/json' }, o.headers || {});
     }
-    const r = await fetch('/api/threat/sagf' + path, o);
+    let r;
+    try { r = await fetch('/api/threat/sagf' + path, o); } catch (e) { throw timeoutError(e); }
     const d = await r.json().catch(() => ({}));
     if (!r.ok && d && d.error) throw new Error(d.error);
     return d;
   }
 
   async function portalApi(path, opts) {
-    const o = Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {});
-    const r = await fetch('/api/threat' + path, o);
+    const o = withTimeout(Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {}));
+    let r;
+    try { r = await fetch('/api/threat' + path, o); } catch (e) { throw timeoutError(e); }
     const d = await r.json().catch(() => ({}));
     if (!r.ok && d && d.error) throw new Error(d.error);
     return d;

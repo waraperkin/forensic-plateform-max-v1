@@ -23,6 +23,8 @@ services:
       - CONNECTOR_NAME=ExportReportPdf
       - CONNECTOR_SCOPE=report
       - CONNECTOR_LOG_LEVEL=error
+      - EXPORT_REPORT_PDF_PRIMARY_COLOR=#000000
+      - EXPORT_REPORT_PDF_SECONDARY_COLOR=#fc0000
     networks: [forensic-net]
     depends_on:
       opencti: { condition: service_healthy }

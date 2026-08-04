@@ -14,4 +14,3 @@ body:not(.cc-mode-sekoia) .cc-nav-section--sekoia { display: none; }
 .cc-open-sekoia-btn {
   display: flex; align-items: center; gap: .5rem; width: 100%;
 }
-.cc-open-sekoia-btn .cc-ext-mark { opacity: .7; font-size: .85em; }

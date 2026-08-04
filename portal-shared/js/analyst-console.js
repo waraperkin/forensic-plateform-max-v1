@@ -400,9 +400,15 @@
 
   function viewInventory() {
     const d = st.data.inv;
-    const sel = ['intakes', 'sources', 'rules', 'assets', 'detections',
-                 'api_keys', 'fields', 'formats', 'taxonomies', 'mitre',
-                 'integration_types', 'groups', 'owners'];
+    // « hostnames » n'est pas une entité stockée : c'est une observation tirée
+    // d'un échantillon (cf. hostname_inventory côté backend). Elle figure ici
+    // parce que l'analyste la cherche au même endroit que les autres
+    // inventaires, mais elle passe par sa propre route et n'a pas de
+    // « recollecte » — il n'y a rien à re-stocker.
+    const sel = ['intakes', 'sources', 'hostnames', 'rules', 'assets',
+                 'detections', 'api_keys', 'fields', 'formats', 'taxonomies',
+                 'mitre', 'integration_types', 'groups', 'owners'];
+    const observed = st.entity === 'hostnames';
     return `${panel(T('an.inv'), `
       <div class="swb-filters">
         <select class="swb-input" id="an-entity">${sel.map((e) =>
@@ -411,9 +417,13 @@
         <button type="button" class="fp-btn fp-btn-sm" data-an-act="inv"${
           st.busy.has('inv') ? ' disabled' : ''}>${
           st.busy.has('inv') ? T('an.computing') : T('an.read')}</button>
-        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary"
+        ${observed ? '' : `<button type="button" class="fp-btn fp-btn-sm fp-btn-primary"
           data-an-act="inv-refresh"${st.busy.has('inv') ? ' disabled' : ''}>${
-          T('an.recollect')}</button>
+          T('an.recollect')}</button>`}
+        <button type="button" class="fp-btn fp-btn-sm" data-an-act="inv-export"
+          data-fmt="csv">${T('an.export_csv')}</button>
+        <button type="button" class="fp-btn fp-btn-sm" data-an-act="inv-export"
+          data-fmt="json">${T('an.export_json')}</button>
       </div>
       <p class="swb-hint" style="margin:.4rem 0 0">${T('an.inv_sub')}</p>`)}
       ${!d ? '' : panel('', `<p style="margin:0"><strong>${nf(d.total)}</strong> ${
@@ -421,7 +431,7 @@
         ${d.total ? ` · ${T('an.inv_page', {
           a: nf((d.offset || 0) + 1), b: nf((d.offset || 0) + (d.returned || 0))
         })}` : ''}</p>
-        <p class="swb-hint" style="margin:.3rem 0 0">${esc(d.note || '')}</p>
+        <p class="swb-hint" style="margin:.3rem 0 0">${esc(d.note || d.uncertainty || '')}</p>
         <div class="swb-filters" style="margin:.5rem 0 0">
           <button type="button" class="fp-btn fp-btn-sm" data-an-act="inv-prev"${
             (d.offset || 0) <= 0 ? ' disabled' : ''}>${T('an.inv_prev')}</button>
@@ -433,9 +443,14 @@
           const bs = bulkSubjectFromRow(st.entity, i);
           const key = bs ? `${bs.target}:${bs.id}` : null;
           const openRow = key && st.bulkOpen === key;
-          const label = esc(i.intake_name || i.rule_name || i.name || i.field
-            || i.dialect_name || '—');
-          const sub = esc(i.intake_status || i.connector_name || i.rule_enabled || '');
+          const label = esc(i.hostname || i.intake_name || i.rule_name || i.name
+            || i.field || i.dialect_name || '—');
+          // Pour un hôte, la colonne secondaire porte la source qui le fronte
+          // et son volume estimé : sans elles, « srv-12 » seul ne dit ni d'où
+          // il parle ni s'il pèse quelque chose.
+          const sub = esc(i.hostname
+            ? `${i.intake_name || '—'} · ${nf(i.estimated_events || 0)}`
+            : (i.intake_status || i.connector_name || i.rule_enabled || ''));
           const actBtn = bs ? `<button type="button" class="fp-btn fp-btn-sm"
               data-an-act="bulk-toggle" data-key="${esc(key)}"
               data-target="${esc(bs.target)}" data-id="${esc(bs.id)}">${
@@ -646,6 +661,14 @@
             + `?limit=${st.invLimit}&offset=${st.invOffset}`);
           if (myGen !== st.reqGen) return;
           st.data.inv = result;
+        } else if (act === 'inv-export') {
+          // Téléchargement direct : la session est portée par le cookie, et
+          // passer par fetch() obligerait à reconstruire un Blob pour un
+          // résultat identique. L'export porte sur l'inventaire ENTIER, pas
+          // sur la page affichée — sinon « exporter » ne voudrait rien dire.
+          const fmt = b.dataset.fmt === 'csv' ? 'csv' : 'json';
+          window.open(`${API}/export/${encodeURIComponent(st.entity)}?format=${fmt}`,
+            '_blank', 'noopener');
         } else if (act === 'tags') {
           const result = await api('/tags');
           if (myGen !== st.reqGen) return;

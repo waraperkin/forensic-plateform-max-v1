@@ -179,6 +179,13 @@ def _db() -> sqlite3.Connection:
         uncertainty TEXT, measured_at TEXT, evidence TEXT)""")
     c.execute("""CREATE INDEX IF NOT EXISTS ix_verdicts
         ON verdicts(kind, subject, measured_at)""")
+    # Vues enregistrées : un jeu de filtres nommé, rejouable. Elles ne
+    # contiennent QUE des critères — jamais une copie des données mesurées.
+    # Rejouer une vue relance donc la mesure et renvoie l'état courant, pas un
+    # cliché figé qui vieillirait en silence.
+    c.execute("""CREATE TABLE IF NOT EXISTS saved_views(
+        scope TEXT, name TEXT, criteria TEXT, created_at TEXT,
+        PRIMARY KEY(scope, name))""")
     return c
 
 
@@ -1040,6 +1047,145 @@ async def source_hostname_monitor(window: str = "1h", sample: int = 2000,
 
 # MIN_DRAWS (seuil de tirage minimal) est déjà défini plus haut dans le
 # module — réutilisé tel quel, pas de second seuil parallèle à maintenir.
+
+
+async def hostname_inventory(window: str = "1h", sample: int = 2000,
+                             intake: Optional[str] = None,
+                             limit: int = 500, offset: int = 0) -> dict:
+    """Inventaire des `log.hostname` observés, par intake et par source.
+
+    Distinct du monitoring : celui-ci REGARDE ce qui existe (quel hôte parle,
+    sous quel intake, à quel volume), l'autre juge (silence, dérive). Un
+    inventaire qui porterait déjà un verdict mélangerait deux questions que
+    l'analyste pose séparément.
+
+    Cet inventaire n'est PAS stocké en base comme les 13 autres entités : un
+    hôte n'est pas un objet du tenant Sekoia, c'est une observation tirée d'un
+    échantillon d'événements. Le figer dans `inventory` laisserait croire à un
+    référentiel stable alors que sa composition dépend de la fenêtre et du
+    tirage.
+    """
+    snap = await source_hostname_monitor(window=window, sample=sample,
+                                         intake=intake, relays_only=False)
+    ts = snap.get("measured_at") or _now()
+    if not snap.get("available"):
+        return {"available": False, "reason": snap.get("reason"),
+                "measured_at": ts, "entity": "hostnames",
+                "total": 0, "returned": 0, "items": []}
+
+    rows = []
+    for it in (snap.get("items") or []):
+        ev = it.get("evidence") or {}
+        if "estimated_events" not in ev:
+            continue
+        rows.append({
+            "hostname": ev.get("hostname"),
+            "intake_name": ev.get("intake_name"),
+            "intake_uuid": ev.get("intake_uuid"),
+            "estimated_events": ev.get("estimated_events"),
+            "draws": ev.get("draws"),
+            "subject": it.get("subject"),
+        })
+    rows.sort(key=lambda r: -(r.get("estimated_events") or 0))
+
+    total = len(rows)
+    page = rows[offset:offset + limit]
+    returned = len(page)
+    has_more = (offset + returned) < total
+    return {
+        "available": True, "entity": "hostnames", "window": window,
+        "sample": sample, "measured_at": ts,
+        "total": total, "returned": returned, "offset": offset,
+        "limit": limit, "has_more": has_more,
+        "next_offset": (offset + returned) if has_more else None,
+        "items": page,
+        "distinct_intakes": len({r["intake_uuid"] for r in rows}),
+        "headline": f"{total} hôte(s) distinct(s) observé(s) sur "
+                    f"{len({r['intake_uuid'] for r in rows})} source(s).",
+        "uncertainty": "Recensement par ÉCHANTILLON, pas comptage exhaustif : "
+                       "un hôte peu bavard peut ne pas avoir été tiré sur "
+                       f"cette fenêtre de {window}. L'absence d'un hôte ici "
+                       "n'établit pas qu'il s'est tu — c'est le rôle du "
+                       "monitoring, qui compare plusieurs relevés.",
+    }
+
+
+# ── Vues enregistrées ────────────────────────────────────────────────────────
+
+def save_view(scope: str, name: str, criteria: dict) -> dict:
+    """Enregistre un jeu de filtres nommé, rejouable tel quel."""
+    name = (name or "").strip()
+    if not name:
+        return {"ok": False, "error": "nom de vue vide"}
+    if not isinstance(criteria, dict):
+        return {"ok": False, "error": "critères illisibles : objet attendu"}
+    ts = _now()
+    with _db() as c:
+        c.execute("INSERT OR REPLACE INTO saved_views(scope, name, criteria, "
+                  "created_at) VALUES(?,?,?,?)",
+                  (scope, name, json.dumps(criteria, ensure_ascii=False), ts))
+        c.commit()
+    return {"ok": True, "scope": scope, "name": name,
+            "criteria": criteria, "created_at": ts}
+
+
+def list_views(scope: Optional[str] = None) -> dict:
+    q = "SELECT scope, name, criteria, created_at FROM saved_views"
+    p: list = []
+    if scope:
+        q += " WHERE scope = ?"
+        p.append(scope)
+    with _db() as c:
+        rows = c.execute(q + " ORDER BY created_at DESC LIMIT 500", p).fetchall()
+    items = []
+    for r in rows:
+        try:
+            crit = json.loads(r[2])
+        except ValueError:
+            crit = {}
+        items.append({"scope": r[0], "name": r[1], "criteria": crit,
+                      "created_at": r[3]})
+    return {"count": len(items), "items": items,
+            "note": "Une vue ne stocke que des critères. La rejouer relance la "
+                    "mesure : elle ne peut donc pas afficher un état périmé."}
+
+
+def delete_view(scope: str, name: str) -> dict:
+    with _db() as c:
+        cur = c.execute("DELETE FROM saved_views WHERE scope = ? AND name = ?",
+                        (scope, name))
+        c.commit()
+    return {"ok": cur.rowcount > 0, "deleted": cur.rowcount,
+            "scope": scope, "name": name}
+
+
+# ── Export ───────────────────────────────────────────────────────────────────
+
+def rows_to_csv(rows: list) -> str:
+    """Sérialise en CSV en réunissant les colonnes de TOUTES les lignes.
+
+    Se fier aux seules clés de la première ligne perdrait silencieusement les
+    champs que seules les lignes suivantes portent — un export incomplet qui
+    se présente comme complet est pire qu'une erreur franche.
+    """
+    import csv
+    import io
+    if not rows:
+        return ""
+    cols: list = []
+    for r in rows:
+        for k in r:
+            if k not in cols:
+                cols.append(k)
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
+    w.writeheader()
+    for r in rows:
+        w.writerow({k: ("" if r.get(k) is None else
+                        (json.dumps(r[k], ensure_ascii=False)
+                         if isinstance(r[k], (dict, list)) else r[k]))
+                    for k in cols})
+    return buf.getvalue()
 
 
 async def hostname_detectors(window: str = "1h", sample: int = 2000) -> dict:
@@ -1998,6 +2144,16 @@ async def _dashboard_compute(name: str, window: str = "1h", sample: int = 2000,
         return {"dashboard": "intakes", "measured_at": ts, "params": params,
                 "headline": vol["headline"], "panels": [vol, sil],
                 "actions": ["comparer à l'attendu déclaré", "remonter l'intake"]}
+    if name in ("api_keys", "apikeys", "cles_api"):
+        k = await apikey_detectors()
+        inv = read_inventory("api_keys", limit=2000)
+        return {"dashboard": name, "measured_at": ts, "params": params,
+                "headline": k.get("headline", "Aucune donnée."),
+                "panels": [k, inv],
+                "actions": ["renouveler toute clé expirant sous 7 jours",
+                            "rapprocher chaque création récente d'une demande "
+                            "tracée",
+                            "désactiver une clé sans propriétaire identifié"]}
     if name in ("hostnames", "fortigate"):
         # « fortigate » reste un alias FILTRANT : il ne regarde que les sources
         # Fortinet. « hostnames » couvre toutes les sources multi-hôtes, ce qui
@@ -2084,7 +2240,7 @@ INVENTORY_DASHBOARDS = {
 }
 
 DASHBOARDS = ("sources", "rules", "assets", "intakes", "hostnames", "fortigate",
-              "coverage", "mitre_coverage", "debt",
+              "api_keys", "coverage", "mitre_coverage", "debt",
               "quality", "latency", "loss", "fields", "formats", "taxonomies",
               "mitre", "integration_types", "groups", "owners", "dependencies",
               "volumetry", "drift", "silence", "anomalies", "tenants",
@@ -2226,6 +2382,21 @@ def register(an_app) -> None:
         if refresh_first:
             await refresh("api_keys")
         return read_inventory("api_keys", limit=limit, offset=offset)
+
+    # DOIT rester déclarée AVANT /inventory/{entity} : Starlette résout dans
+    # l'ordre d'enregistrement, et la route générique capturerait sinon
+    # entity="hostnames" pour la rejeter comme entité inconnue (elle n'est pas
+    # dans ENTITIES — un hôte est une observation, pas un objet du tenant).
+    @an_app.get(f"{P}/inventory/hostnames", dependencies=dep)
+    async def ext_inv_hostnames(window: str = "1h",
+                                sample: int = Query(default=2000, ge=SAMPLE_MIN,
+                                                    le=SAMPLE_MAX),
+                                intake: Optional[str] = None,
+                                limit: int = Query(default=200, ge=1, le=2000),
+                                offset: int = 0):
+        return await hostname_inventory(window=window, sample=sample,
+                                        intake=intake or None,
+                                        limit=limit, offset=offset)
 
     @an_app.get(f"{P}/inventory/{{entity}}", dependencies=dep)
     async def get_inv(entity: str, limit: int = Query(default=200, ge=1, le=2000),
@@ -2551,3 +2722,47 @@ def register(an_app) -> None:
     @an_app.get(f"{P}/alerting/families", dependencies=dep)
     async def get_alerting_families():
         return {"families": ALERT_FAMILIES}
+
+    # ── Vues enregistrées et export ─────────────────────────────────────────
+
+    @an_app.get(f"{P}/views", dependencies=dep)
+    async def get_views(scope: Optional[str] = None):
+        return list_views(scope or None)
+
+    @an_app.post(f"{P}/views", dependencies=dep)
+    async def post_view(scope: str = Query(...), name: str = Query(...),
+                        criteria: str = Query(default="{}")):
+        try:
+            crit = json.loads(criteria)
+        except ValueError:
+            return {"ok": False, "error": "critères illisibles : JSON attendu"}
+        return save_view(scope, name, crit)
+
+    @an_app.delete(f"{P}/views", dependencies=dep)
+    async def del_view(scope: str = Query(...), name: str = Query(...)):
+        return delete_view(scope, name)
+
+    @an_app.get(f"{P}/export/{{entity}}", dependencies=dep)
+    async def export_entity(entity: str,
+                            fmt: str = Query(default="json", alias="format"),
+                            limit: int = Query(default=5000, ge=1, le=100000)):
+        """Export d'un inventaire. Le CSV sort en texte brut téléchargeable ;
+        le JSON conserve la réponse complète, incertitude comprise."""
+        if fmt not in ("json", "csv"):
+            return {"ok": False, "error": f"format inconnu « {fmt} »",
+                    "known": ["json", "csv"]}
+        if entity == "hostnames":
+            out = await hostname_inventory(limit=limit)
+        elif entity in ENTITIES:
+            out = read_inventory(entity, limit=limit)
+        else:
+            return {"ok": False, "error": f"entité inconnue « {entity} »",
+                    "known": list(ENTITIES) + ["hostnames"]}
+        if fmt == "json":
+            return out
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(
+            rows_to_csv(out.get("items") or []),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition":
+                     f'attachment; filename="{entity}.csv"'})

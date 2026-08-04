@@ -2740,7 +2740,9 @@
       "alerting": "Alerting & Detections",
       "alerting_sub": "Unified feed: intake silence and drift, missing or declining log.hostname, API keys created or expiring within 7 days. Each row comes from a detector that already measured and recorded it — this feed only assembles them.",
       "alerting_all_families": "All families",
-      "alerting_none": "No active alert for this filter."
+      "alerting_none": "No active alert for this filter.",
+      "export_csv": "Export CSV",
+      "export_json": "Export JSON"
     }
   },
   "swbtx": {

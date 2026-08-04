@@ -2740,7 +2740,9 @@
       "alerting": "Alerting & Detections",
       "alerting_sub": "Flux unifié : silence et dérive des intakes, log.hostname disparus ou en baisse, clés API créées ou expirant sous 7 jours. Chaque ligne vient d'un détecteur déjà mesuré et historisé — ce flux ne fait que les assembler.",
       "alerting_all_families": "Toutes les familles",
-      "alerting_none": "Aucune alerte active sur ce filtre."
+      "alerting_none": "Aucune alerte active sur ce filtre.",
+      "export_csv": "Exporter CSV",
+      "export_json": "Exporter JSON"
     }
   },
   "swbtx": {

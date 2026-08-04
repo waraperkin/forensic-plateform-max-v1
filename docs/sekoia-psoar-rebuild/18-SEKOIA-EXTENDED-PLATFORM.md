@@ -611,3 +611,96 @@ sauvegarde de vue ni d'export en un clic n'a été construite pour cette
 itération — périmètre volontairement laissé pour une prochaine passe plutôt
 que livré à moitié. La sidebar CERT (hors extension analystes) n'a pas été
 retouchée dans cette passe.
+
+---
+
+# Refonte — inventaire des `log.hostname`, vues enregistrées, export
+
+Complète la restructuration en 4 blocs (Inventaires / Monitoring / Dashboards /
+Alerting & Detections) en construisant les trois capacités qui manquaient
+encore aux cas d'usage demandés. Rien n'a été réécrit : chaque ajout se branche
+sur une fonction déjà testée.
+
+## 1. Inventaire des `log.hostname` (`/inventory/hostnames`)
+
+Le monitoring par hôte existait (silence, dérive) ; l'**inventaire** non — on
+pouvait juger un hôte sans pouvoir le lister. Chaque ligne porte les trois
+dimensions demandées : `hostname`, la source qui le fronte (`intake_name` /
+`intake_uuid`) et sa volumétrie (`estimated_events`).
+
+Cet inventaire n'est **pas** stocké comme les 13 autres entités, et c'est
+délibéré : un hôte n'est pas un objet du tenant Sekoia, c'est une observation
+tirée d'un échantillon. Le figer dans la table `inventory` laisserait croire à
+un référentiel stable alors que sa composition dépend de la fenêtre et du
+tirage. Il porte donc son incertitude en propre, et les entrées sans volumétrie
+(qui sont des verdicts de silence, pas des observations) sont exclues du total
+— les mélanger fausserait le compte.
+
+Même contrat de pagination que les autres inventaires
+(`offset`/`limit`/`has_more`/`next_offset`) : deux tableaux de la même console
+qui se pagineraient différemment seraient un piège pour l'analyste.
+
+**Déclarée avant `/inventory/{entity}`** — Starlette résout dans l'ordre
+d'enregistrement, et la route générique capturerait sinon `entity="hostnames"`
+pour la rejeter comme entité inconnue. Défaut déjà rencontré sur
+`/inventory/api-keys` ; un test le verrouille désormais.
+
+## 2. Vues enregistrées (`/views`)
+
+Un jeu de filtres nommé, rejouable, cloisonné par portée (une vue « muettes »
+sur les intakes n'a aucun sens sur les règles).
+
+**Une vue ne stocke que des critères, jamais une copie des données mesurées.**
+Figer les lignes rendrait la vue périmée en silence : la rouvrir afficherait un
+état ancien présenté comme courant. La rejouer relance donc la mesure.
+
+## 3. Export (`/export/{entity}?format=csv|json`)
+
+Porte sur l'inventaire **entier**, pas sur la page affichée — sinon « exporter »
+ne voudrait rien dire. Le CSV réunit les colonnes de **toutes** les lignes : se
+fier aux seules clés de la première perdrait en silence les champs que seules
+les suivantes portent, et un export incomplet qui se présente comme complet est
+pire qu'une erreur franche. Un format inconnu est refusé explicitement.
+
+### Défaut trouvé en écrivant la preuve
+
+Le proxy CERT faisait `res.status(...).json(...)` sur **toute** réponse amont.
+Le CSV repartait donc ré-encodé en chaîne JSON servie en `application/json` :
+le navigateur affichait du texte échappé au lieu de télécharger un fichier.
+Corrigé en relayant le `Content-Type` et le `Content-Disposition` d'origine dès
+que la réponse amont n'est pas du JSON — le chemin JSON, lui, ne change pas d'un
+octet. `/views` et `/export` étaient par ailleurs absentes de l'allowlist du
+proxy (404 avant même d'atteindre le control-plane) ; ajoutées, avec le délai
+étendu pour `/export/hostnames` et `/inventory/hostnames` qui déclenchent un
+échantillonnage de télémétrie.
+
+## 4. Tableau de bord des clés API
+
+`api_keys` ajouté à `DASHBOARDS` : croise l'inventaire des clés et les
+détecteurs (création récente, expiration sous 7 jours) et propose des actions
+concrètes plutôt qu'un simple constat.
+
+## Validation
+
+- **108 tests Python** (0 échec) — 21 nouveaux : inventaire hostnames (tri,
+  pagination, exclusion des entrées sans volumétrie, incertitude déclarée,
+  dégradation lisible), vues enregistrées (cloisonnement, remplacement sans
+  doublon, refus d'un nom vide ou de critères non-objet), export CSV (réunion
+  des colonnes, valeurs composées, cellule vide pour une valeur absente),
+  ordre de déclaration des routes.
+- **`refonte-e2e-proof.mjs` — 0 FAIL** (17 assertions via le proxy réel
+  authentifié) : hostnames paginés et documentés, cycle complet
+  création/relecture/suppression d'une vue, CSV servi en `text/csv` avec
+  en-tête de colonnes, JSON complet, format inconnu refusé, tableau de bord des
+  clés API rendu avec ses actions.
+- **`dbggroups.mjs` — 0 FAIL** (15 vues, aucune perdue), **`i18n-en-proof.mjs`
+  — 0 FAIL**, parité FR/EN maintenue (**2570 = 2570**).
+
+`pagination-proof.mjs` n'a pas pu être rejoué en fin de passe : l'hôte
+traversait une forte instabilité Docker (opencti, timesketch et 6 connecteurs
+en cycle start/die sur une fenêtre de 3 minutes, mesuré via `docker events`),
+qui déclenche `ERR_NETWORK_CHANGED` côté Chromium et interrompt le chargement
+de page. Le contrat testé par cette preuve a été vérifié **directement contre
+le backend** pendant l'incident : `total 5000, returned 200, has_more True,
+next_offset 200` en 0,2 s — la pagination est intacte, c'est la session
+navigateur qui ne tient pas sous ce churn.

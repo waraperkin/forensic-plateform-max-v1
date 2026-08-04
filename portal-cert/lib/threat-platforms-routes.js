@@ -314,7 +314,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   // lot) : sans elles ici, l'UI ne peut pas les atteindre malgré leur présence
   // dans le control-plane.
   const ALLOWED_SAGF_RE = /^\/sagf\/(laws|mechanisms|query|saved|debt|self-report|config|reconcile|risk|nl|journal|optimise|compliance|feedback|conflicts|dac|economics|efficacy|harness|insurance|adversary|twin)(\/|$)/;
-  const ALLOWED_ANALYST_RE = /^\/analyst\/(inventory|monitor|monitoring|analytics|coverage|quality|dashboard|tags|filters|filter|alerting)(\/|$)/;
+  const ALLOWED_ANALYST_RE = /^\/analyst\/(inventory|monitor|monitoring|analytics|coverage|quality|dashboard|tags|filters|filter|alerting|views|export)(\/|$)/;
   const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
@@ -349,7 +349,10 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     // Les alias « Sekoia.IO Extended Platform » enchainent eux aussi plusieurs
     // mesures (ex. /monitoring/sources = derive + schema + pertes) : meme
     // risque que les tableaux de bord, meme delai.
-    const chained = /^\/analyst\/(dashboard\/|monitoring\/|analytics\/|coverage\/|quality\/|alerting\/)/.test(req.path);
+    // « export/ » y figure parce que /export/hostnames declenche un
+    // echantillonnage de telemetrie (meme cout qu'un inventaire d'actifs au
+    // premier appel), et « inventory/hostnames » pour la meme raison.
+    const chained = /^\/analyst\/(dashboard\/|monitoring\/|analytics\/|coverage\/|quality\/|alerting\/|export\/|inventory\/hostnames)/.test(req.path);
     const timeout = chained
       ? Number(process.env.ANALYST_PROXY_TIMEOUT_MS || 900000)
       : heavy
@@ -369,6 +372,20 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
       if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) {
         const entry = classifyAudit(req.method, req.path, req.body, r.status, req.user);
         if (entry) recordAudit(entry);
+      }
+      // Le control-plane ne renvoie pas QUE du JSON : /analyst/export/*?format=csv
+      // sort un fichier. Forcer res.json() ici le ré-encodait en chaîne JSON
+      // servie en application/json — le navigateur affichait alors du texte
+      // échappé au lieu de télécharger un CSV. On relaie donc le type et le
+      // nom de fichier d'origine dès que la réponse amont n'est pas du JSON ;
+      // le chemin JSON, lui, ne change pas d'un octet.
+      const upstreamType = String(r.headers['content-type'] || '');
+      if (upstreamType && !upstreamType.includes('application/json')) {
+        res.set('Content-Type', upstreamType);
+        if (r.headers['content-disposition']) {
+          res.set('Content-Disposition', r.headers['content-disposition']);
+        }
+        return res.status(r.status).send(r.data);
       }
       return res.status(r.status).json(r.data);
     } catch (e) {

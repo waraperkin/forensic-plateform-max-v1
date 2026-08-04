@@ -858,3 +858,205 @@ def test_l_historique_filtre_par_famille():
     import asyncio
     out = asyncio.run(analyst.alerting_history(kind="intake_silence"))
     assert out["count"] == 1 and out["items"][0]["kind"] == "intake_silence"
+
+
+# ── Inventaire des log.hostname ───────────────────────────────────────────────
+
+def _snap(items, available=True):
+    """Fabrique une reponse de source_hostname_monitor."""
+    return {"available": available, "measured_at": analyst._now(),
+            "items": items}
+
+
+def _host(hostname, intake_name, intake_uuid, events, draws=10):
+    return {"subject": f"{hostname} · {intake_name}",
+            "evidence": {"hostname": hostname, "intake_name": intake_name,
+                         "intake_uuid": intake_uuid,
+                         "estimated_events": events, "draws": draws}}
+
+
+def test_l_inventaire_des_hostnames_liste_par_intake_avec_volumetrie(monkeypatch):
+    """Le besoin est « par intake, par source, par hostname, avec volumetrie » :
+    chaque ligne doit donc porter les trois, pas seulement le nom d'hote."""
+    import asyncio
+    async def fake(**kw):
+        return _snap([_host("srv-a", "FortiGate", "u1", 900),
+                      _host("srv-b", "FortiGate", "u1", 400)])
+    monkeypatch.setattr(analyst, "source_hostname_monitor", fake)
+    out = asyncio.run(analyst.hostname_inventory())
+    assert out["available"] is True
+    assert out["total"] == 2
+    first = out["items"][0]
+    assert first["hostname"] == "srv-a"
+    assert first["intake_name"] == "FortiGate"
+    assert first["intake_uuid"] == "u1"
+    assert first["estimated_events"] == 900
+
+
+def test_l_inventaire_des_hostnames_trie_du_plus_bavard_au_moins(monkeypatch):
+    import asyncio
+    async def fake(**kw):
+        return _snap([_host("petit", "S", "u1", 10),
+                      _host("gros", "S", "u1", 5000)])
+    monkeypatch.setattr(analyst, "source_hostname_monitor", fake)
+    out = asyncio.run(analyst.hostname_inventory())
+    assert [i["hostname"] for i in out["items"]] == ["gros", "petit"]
+
+
+def test_l_inventaire_des_hostnames_pagine_reellement(monkeypatch):
+    """Meme contrat de pagination que les autres inventaires — sinon deux
+    tableaux de la meme console se pagineraient differemment."""
+    import asyncio
+    async def fake(**kw):
+        return _snap([_host(f"h{i}", "S", "u1", 100 - i) for i in range(5)])
+    monkeypatch.setattr(analyst, "source_hostname_monitor", fake)
+    p1 = asyncio.run(analyst.hostname_inventory(limit=2, offset=0))
+    assert p1["returned"] == 2 and p1["has_more"] is True and p1["next_offset"] == 2
+    p3 = asyncio.run(analyst.hostname_inventory(limit=2, offset=4))
+    assert p3["returned"] == 1 and p3["has_more"] is False
+    assert p3["next_offset"] is None
+
+
+def test_l_inventaire_des_hostnames_ignore_les_hotes_sans_volumetrie(monkeypatch):
+    """Une entree sans `estimated_events` est un verdict (silence), pas une
+    observation d'inventaire : la melanger fausserait le total."""
+    import asyncio
+    async def fake(**kw):
+        return _snap([_host("actif", "S", "u1", 50),
+                      {"subject": "muet · S", "evidence": {"hostname": "muet"}}])
+    monkeypatch.setattr(analyst, "source_hostname_monitor", fake)
+    out = asyncio.run(analyst.hostname_inventory())
+    assert out["total"] == 1 and out["items"][0]["hostname"] == "actif"
+
+
+def test_l_inventaire_des_hostnames_dit_son_incertitude(monkeypatch):
+    """Un recensement par echantillon ne prouve pas une absence : il doit le
+    dire lui-meme, sinon l'analyste lira « 12 hotes » comme un exhaustif."""
+    import asyncio
+    async def fake(**kw):
+        return _snap([_host("a", "S", "u1", 1)])
+    monkeypatch.setattr(analyst, "source_hostname_monitor", fake)
+    out = asyncio.run(analyst.hostname_inventory())
+    assert "CHANTILLON" in out["uncertainty"].upper()
+    assert out["measured_at"]
+
+
+def test_l_inventaire_des_hostnames_reste_lisible_quand_indisponible(monkeypatch):
+    import asyncio
+    async def fake(**kw):
+        return {"available": False, "reason": "pas d'evenements",
+                "measured_at": analyst._now()}
+    monkeypatch.setattr(analyst, "source_hostname_monitor", fake)
+    out = asyncio.run(analyst.hostname_inventory())
+    assert out["available"] is False
+    assert out["total"] == 0 and out["items"] == []
+    assert out["reason"]
+
+
+# ── Vues enregistrees ─────────────────────────────────────────────────────────
+
+def test_une_vue_enregistree_se_relit():
+    analyst.save_view("intakes", "prod muettes", {"status": "muet"})
+    out = analyst.list_views("intakes")
+    names = [v["name"] for v in out["items"]]
+    assert "prod muettes" in names
+    v = [x for x in out["items"] if x["name"] == "prod muettes"][0]
+    assert v["criteria"] == {"status": "muet"}
+
+
+def test_une_vue_ne_stocke_que_des_criteres_jamais_des_donnees():
+    """Une vue qui figerait les lignes mesurees vieillirait en silence : la
+    rejouer afficherait un etat perime presente comme courant."""
+    analyst.save_view("rules", "v", {"severity": "high"})
+    v = [x for x in analyst.list_views("rules")["items"] if x["name"] == "v"][0]
+    assert set(v["criteria"]) == {"severity"}
+    assert "items" not in v and "total" not in v
+
+
+def test_une_vue_sans_nom_est_refusee():
+    out = analyst.save_view("intakes", "   ", {"a": 1})
+    assert out["ok"] is False and "nom" in out["error"].lower()
+
+
+def test_des_criteres_non_objet_sont_refuses():
+    out = analyst.save_view("intakes", "x", ["pas", "un", "objet"])
+    assert out["ok"] is False
+
+
+def test_reenregistrer_une_vue_la_remplace_sans_doublon():
+    analyst.save_view("assets", "dup", {"a": 1})
+    analyst.save_view("assets", "dup", {"a": 2})
+    matching = [x for x in analyst.list_views("assets")["items"]
+                if x["name"] == "dup"]
+    assert len(matching) == 1 and matching[0]["criteria"] == {"a": 2}
+
+
+def test_une_vue_supprimee_disparait():
+    analyst.save_view("intakes", "jetable", {"a": 1})
+    out = analyst.delete_view("intakes", "jetable")
+    assert out["ok"] is True
+    assert "jetable" not in [v["name"] for v in analyst.list_views("intakes")["items"]]
+
+
+def test_supprimer_une_vue_absente_ne_ment_pas():
+    out = analyst.delete_view("intakes", "jamais-creee")
+    assert out["ok"] is False and out["deleted"] == 0
+
+
+def test_les_vues_sont_cloisonnees_par_portee():
+    """Une vue « muettes » sur les intakes n'a aucun sens sur les regles : les
+    melanger proposerait a l'analyste des filtres inapplicables."""
+    analyst.save_view("intakes", "portee-a", {"a": 1})
+    analyst.save_view("rules", "portee-b", {"b": 2})
+    noms_intakes = [v["name"] for v in analyst.list_views("intakes")["items"]]
+    assert "portee-a" in noms_intakes and "portee-b" not in noms_intakes
+
+
+# ── Export ────────────────────────────────────────────────────────────────────
+
+def test_l_export_csv_reunit_les_colonnes_de_toutes_les_lignes():
+    """Se fier aux seules cles de la 1re ligne perdrait en silence les champs
+    que seules les suivantes portent."""
+    csv = analyst.rows_to_csv([{"a": 1}, {"a": 2, "b": 3}])
+    entete = csv.splitlines()[0]
+    assert "a" in entete and "b" in entete
+
+
+def test_l_export_csv_serialise_les_valeurs_composees():
+    csv = analyst.rows_to_csv([{"tags": ["x", "y"]}])
+    assert "x" in csv and "y" in csv
+    assert "[object" not in csv
+
+
+def test_l_export_csv_d_un_inventaire_vide_ne_casse_pas():
+    assert analyst.rows_to_csv([]) == ""
+
+
+def test_l_export_csv_ecrit_une_cellule_vide_pour_une_valeur_absente():
+    csv = analyst.rows_to_csv([{"a": 1, "b": None}])
+    assert "None" not in csv
+
+
+# ── Routes de la refonte ──────────────────────────────────────────────────────
+
+def test_les_routes_de_la_refonte_sont_declarees():
+    src = open(analyst.__file__, encoding="utf-8").read()
+    for path in ("/inventory/hostnames", "/views"):
+        assert f'f"{{P}}{path}"' in src, f"route absente : {path}"
+    # Les chemins parametres s'ecrivent avec des accolades DOUBLEES dans la
+    # f-string source : chercher la forme simple ne trouverait jamais rien et
+    # le test passerait a cote de son objet.
+    assert 'f"{P}/export/{{entity}}"' in src, "route absente : /export/{entity}"
+
+
+def test_la_route_hostnames_est_declaree_avant_la_route_generique():
+    """Starlette resout dans l'ordre d'enregistrement : declaree apres, la
+    route generique capturerait entity=\"hostnames\" et la rejetterait comme
+    entite inconnue. Defaut deja rencontre sur /inventory/api-keys."""
+    src = open(analyst.__file__, encoding="utf-8").read()
+    assert src.index('f"{P}/inventory/hostnames"') \
+        < src.index('f"{P}/inventory/{{entity}}"')
+
+
+def test_le_tableau_de_bord_des_cles_api_est_nomme():
+    assert "api_keys" in analyst.DASHBOARDS

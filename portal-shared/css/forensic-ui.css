@@ -55,7 +55,10 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { font-size: 14px; scroll-behavior: smooth; }
+/* 14px comprimait toute l'echelle rem : 77 % des textes visibles
+   tombaient sous 12px (jusqu'a 8,68px pour les intitules de section), ce qui
+   est illisible sur une console consultee des heures durant. */
+html { font-size: 15px; scroll-behavior: smooth; }
 
 body {
   background: var(--bg);

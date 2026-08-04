@@ -2742,7 +2742,7 @@
       "g_monitoring": "Monitoring",
       "g_dashboards": "Dashboards",
       "g_alerting": "Alerting & Détections",
-      "v_alerting": "Alerting & Détections",
+      "v_alerting": "Flux d'alertes",
       "alerting": "Alerting & Detections",
       "alerting_sub": "Flux unifié : silence et dérive des intakes, log.hostname disparus ou en baisse, clés API créées ou expirant sous 7 jours. Chaque ligne vient d'un détecteur déjà mesuré et historisé — ce flux ne fait que les assembler.",
       "alerting_all_families": "Toutes les familles",

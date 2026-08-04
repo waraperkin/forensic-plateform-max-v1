@@ -39,8 +39,11 @@
 
 /* Boutons enterprise : accent plein + hover foncé */
 [data-edition="cybercorp"] .fp-btn-primary {
-  background: var(--accent);
-  border: 1px solid var(--accent);
+  /* Blanc sur var(--accent) (#0A84FF) ne donne que 3,65:1, sous le seuil de
+     4,5:1. On assombrit le fond du BOUTON uniquement : la couleur de marque
+     reste #0A84FF partout ailleurs (liens, bordures, accents). */
+  background: #0063D1;
+  border: 1px solid #0063D1;
   color: #ffffff;
   font-weight: 600;
 }
@@ -156,7 +159,8 @@
 }
 [data-edition="cybercorp"] .cc-nav-section-title {
   margin: 0.65rem 0.75rem 0.35rem;
-  font-size: 0.62rem;
+  /* 0.62rem etait le plus petit texte de toute l'interface. */
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;

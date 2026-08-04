@@ -2742,7 +2742,7 @@
       "g_monitoring": "Monitoring",
       "g_dashboards": "Dashboards",
       "g_alerting": "Alerting & Detections",
-      "v_alerting": "Alerting & Detections",
+      "v_alerting": "Alert feed",
       "alerting": "Alerting & Detections",
       "alerting_sub": "Unified feed: intake silence and drift, missing or declining log.hostname, API keys created or expiring within 7 days. Each row comes from a detector that already measured and recorded it — this feed only assembles them.",
       "alerting_all_families": "All families",

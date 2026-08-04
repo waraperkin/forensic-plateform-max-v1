@@ -204,7 +204,7 @@
         T(open ? 'an.act_close' : 'an.act_open')}</button>` : '';
     const panel = open ? bulkPanel(bs) : '';
     return `<tr>
-      <td class="swb-truncate"><strong>${esc(v.subject)}</strong></td>
+      <td class="swb-truncate" title="${esc(v.subject)}"><strong>${esc(v.subject)}</strong></td>
       <td>${esc(v.verdict)}</td>
       <td class="swb-hint swb-truncate" title="${esc(v.uncertainty)}">${
         esc(v.uncertainty)}</td>
@@ -284,7 +284,7 @@
         <table class="swb-table"><thead><tr><th>${T('an.c_intake')}</th>
           <th>${T('an.c_hosts')}</th><th>${T('an.c_family')}</th></tr></thead>
         <tbody>${p.relay_summary.map((r) => `<tr>
-          <td class="swb-truncate">${esc(r.intake_name)}</td>
+          <td class="swb-truncate" title="${esc(r.intake_name)}">${esc(r.intake_name)}</td>
           <td class="swb-num"><strong>${nf(r.hosts)}</strong></td>
           <td class="swb-hint">${esc(r.family || '—')}</td></tr>`).join('')}
         </tbody></table></div>` + verdictTable(p.items, true), 'accent');
@@ -300,7 +300,7 @@
         <p class="swb-hint" style="margin:.4rem 0 0">${esc(p.uncertainty || '')}</p>
         <div class="swb-tablewrap" style="max-height:34vh;margin-top:.5rem">
         <table class="swb-table"><tbody>${(p.items || []).slice(0, 150).map((t) =>
-          `<tr><td class="swb-truncate swb-mono">${esc(t.technique)}</td>
+          `<tr><td class="swb-truncate swb-mono" title="${esc(t.technique)}">${esc(t.technique)}</td>
            <td class="swb-num">${nf(t.rules_proven)}/${nf(t.rules_declared)}</td>
            <td><span class="swb-pill swb-pill-${t.status === 'prouvee' ? 'ok' : 'warn'
              } swb-pill-flat">${esc(t.status)}</span></td></tr>`).join('')}
@@ -321,7 +321,7 @@
         <p class="swb-hint" style="margin:0 0 .4rem">${esc(p.trends.meaning || '')}</p>
         <div class="swb-tablewrap" style="max-height:26vh"><table class="swb-table"><tbody>
           ${(p.trends.items || []).map((t) => `<tr>
-            <td class="swb-truncate">${esc(t.intake_name)}</td>
+            <td class="swb-truncate" title="${esc(t.intake_name)}">${esc(t.intake_name)}</td>
             <td><span class="swb-pill swb-pill-warn swb-pill-flat">${esc(t.trend)}</span></td>
             <td class="swb-hint swb-truncate">${esc(t.meaning || '')}</td></tr>`).join('')}
         </tbody></table></div>` + verdictTable(p.items, true), 'accent');
@@ -460,7 +460,7 @@
               data-an-act="bulk-toggle" data-key="${esc(key)}"
               data-target="${esc(bs.target)}" data-id="${esc(bs.id)}">${
               T(openRow ? 'an.act_close' : 'an.act_open')}</button>` : '';
-          return `<tr><td class="swb-truncate">${label}</td>
+          return `<tr><td class="swb-truncate" title="${label}">${label}</td>
           <td class="swb-hint swb-truncate">${sub}</td>
           <td style="white-space:nowrap">${actBtn}</td></tr>${
             openRow ? `<tr><td colspan="3" style="padding:0">${bulkPanel(bs)}</td></tr>` : ''}`;
@@ -483,7 +483,7 @@
           ).join(' ')}</p>
         <div class="swb-tablewrap" style="max-height:34vh;margin-top:.5rem">
         <table class="swb-table"><tbody>${(d.items || []).map((i) =>
-          `<tr><td class="swb-truncate">${esc(i.id)}</td>
+          `<tr><td class="swb-truncate" title="${esc(i.id)}">${esc(i.id)}</td>
            <td><span class="swb-pill swb-pill-warn swb-pill-flat">${esc(i.tag)}</span></td>
            <td class="swb-hint swb-truncate">${esc(i.reason)}</td></tr>`).join('')}
         </tbody></table></div>`, 'accent')}`;

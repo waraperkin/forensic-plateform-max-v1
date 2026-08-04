@@ -378,7 +378,7 @@
     "s1_policies_lead": "Group policies and custom STAR rules — edit.",
     "s1_fetch_lead": "Targeted threats & activities for a host / IP / agentId.",
     "config_secrets_lead": "Connector secrets (encrypted server-side, never in .env).",
-    "sekoia_cc_lead": "Sekoia inventory, connectors, modules, formats, playbooks and statistics.",
+    "sekoia_cc_lead": "Control overview: 24h volume, most active sources, critical alerts.",
     "xdr_lead": "Merged asset view: Sekoia intakes & events, SentinelOne threats & activities, unified timeline, Timesketch / OpenSearch export.",
     "api_key_help": "API key used to authenticate calls to this connector.",
     "delete_secrets": "Delete secrets",

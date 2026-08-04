@@ -119,7 +119,7 @@
     </tr>`).join('');
     const invRows = (r.invariants || []).map((i) => `<tr>
       <td><span class="swb-mono">${esc(i.id)}</span></td>
-      <td class="swb-truncate">${esc(i.name)}</td>
+      <td class="swb-truncate" title="${esc(i.name)}">${esc(i.name)}</td>
       <td>${i.enforced === 'code' ? pill(T('sg.by_code'), 'ok') : pill(esc(i.enforced), 'warn')}</td>
       <td class="swb-hint swb-truncate" title="${esc(i.where)}">${esc(i.where)}</td>
     </tr>`).join('');
@@ -194,7 +194,7 @@
         </tr></thead><tbody>${items.map((x) => `<tr>
           <td>${x.implemented ? pill(T('sg.on'), 'ok') : pill(T('sg.off'), 'mute')}</td>
           <td><span class="swb-mono">${esc(x.code)}</span></td>
-          <td class="swb-truncate">${esc(x.name)}</td>
+          <td class="swb-truncate" title="${esc(x.name)}">${esc(x.name)}</td>
           <td class="swb-hint swb-truncate" title="${esc(x.inputs)}">${esc(x.inputs)}</td>
           <td class="swb-hint swb-truncate" title="${esc(x.outputs)}">${esc(x.outputs)}</td>
           <td class="swb-hint swb-truncate">${esc(x.delegates_to || '—')}</td>
@@ -235,12 +235,12 @@
             <p class="swb-hint" style="margin:.2rem 0 0">${esc(q.note || '')}</p>
             <div class="swb-tablewrap" style="max-height:34vh;margin-top:.5rem"><table class="swb-table"><tbody>
               ${(q.items || []).map((g) => `<tr>
-                <td class="swb-truncate swb-mono">${esc(Object.values(g.key).join(' · '))}</td>
+                <td class="swb-truncate swb-mono" title="${esc(Object.values(g.key).join(' · '))}">${esc(Object.values(g.key).join(' · '))}</td>
                 <td style="text-align:right"><strong>${nf(g.count)}</strong></td>
               </tr>`).join('')}</tbody></table></div>`
           : `<div class="swb-tablewrap" style="max-height:34vh;margin-top:.5rem"><table class="swb-table"><tbody>
             ${(q.items || []).slice(0, 60).map((it) => `<tr>
-              <td class="swb-truncate">${esc(it.rule_name || it.intake_name || it.field || it.dialect_uuid || '—')}</td>
+              <td class="swb-truncate" title="${esc(it.rule_name || it.intake_name || it.field || it.dialect_uuid || '—')}">${esc(it.rule_name || it.intake_name || it.field || it.dialect_uuid || '—')}</td>
               <td class="swb-hint swb-truncate">${esc(it.verdict || it.intake_status || it.reason || '')}</td>
             </tr>`).join('')}</tbody></table></div>`}`
           : `<p class="swb-hint" style="margin:.4rem 0 0">${T('sg.not_executed')}</p>`}</div>`;
@@ -351,7 +351,7 @@
         <div class="swb-tablewrap" style="max-height:30vh"><table class="swb-table"><thead><tr>
           <th>${T('sg.name')}</th><th class="swb-num">${T('sg.severity')}</th><th>${T('sg.reason')}</th>
         </tr></thead><tbody>${(rk.items || []).slice(0, 40).map((x) => `<tr>
-          <td class="swb-truncate">${esc(x.rule_name)}</td>
+          <td class="swb-truncate" title="${esc(x.rule_name)}">${esc(x.rule_name)}</td>
           <td class="swb-num">${pill(String(x.severity), x.severity >= 80 ? 'danger' : 'warn', true)}</td>
           <td class="swb-hint swb-truncate">${esc(x.reason)}</td></tr>`).join('')}
         </tbody></table></div>`)}
@@ -385,9 +385,9 @@
           <td class="swb-hint">${esc((e.at || '').slice(0, 19).replace('T', ' '))}</td>
           <td class="swb-mono swb-truncate">${esc(e.object_ref)}</td>
           <td>${pill(esc(e.kind), 'mute', true)}</td>
-          <td class="swb-truncate">${esc(e.author)}</td>
+          <td class="swb-truncate" title="${esc(e.author)}">${esc(e.author)}</td>
           <td class="swb-hint swb-truncate">${esc(e.reason)}</td>
-          <td class="swb-truncate">${esc(e.text)}</td></tr>`).join('')
+          <td class="swb-truncate" title="${esc(e.text)}">${esc(e.text)}</td></tr>`).join('')
           || `<tr><td colspan="6"><p class="swb-hint" style="padding:1rem">${T('sg.journal_empty')}</p></td></tr>`}
         </tbody></table></div></div>`;
   }
@@ -435,7 +435,7 @@
     const rows = ((rates || {}).items || []).map((r) => {
       const p = r.precision || {};
       return `<tr>
-        <td class="swb-truncate">${esc(r.rule_ref || r.rule_uuid || r.analyst || '—')}</td>
+        <td class="swb-truncate" title="${esc(r.rule_ref || r.rule_uuid || r.analyst || '—')}">${esc(r.rule_ref || r.rule_uuid || r.analyst || '—')}</td>
         <td class="swb-num">${nf(r.verdicts)}</td>
         <td class="swb-num">${nf(r.true_positive)}</td>
         <td class="swb-num">${nf(r.false_positive)}</td>
@@ -539,7 +539,7 @@
         <p class="swb-hint" style="margin:0 0 .4rem">${T('sg.cf_unreadable_sub', { n: nf(c.rules_unreadable) })}</p>
         <div class="swb-tablewrap" style="max-height:20vh"><table class="swb-table"><tbody>
           ${c.unreadable.slice(0, 30).map((u) => `<tr>
-            <td class="swb-truncate">${esc(u.rule_name)}</td>
+            <td class="swb-truncate" title="${esc(u.rule_name)}">${esc(u.rule_name)}</td>
             <td class="swb-hint swb-truncate">${esc(u.reason)}</td></tr>`).join('')}
         </tbody></table></div>`) : ''}`;
   }
@@ -588,7 +588,7 @@
               <table class="swb-table"><thead><tr><th>${T('sg.name')}</th>
                 <th>${T('sg.dac_before')}</th><th>${T('sg.dac_after')}</th></tr></thead><tbody>
               ${p.items.slice(0, 60).map((it) => `<tr>
-                <td class="swb-truncate">${esc(it.name || it.id)}</td>
+                <td class="swb-truncate" title="${esc(it.name || it.id)}">${esc(it.name || it.id)}</td>
                 <td class="swb-hint swb-mono">${esc(JSON.stringify(it.before || {}))}</td>
                 <td class="swb-mono">${esc(JSON.stringify(it.patch || {}))}</td>
               </tr>`).join('')}</tbody></table></div>` : ''}
@@ -652,7 +652,7 @@
           <p class="swb-hint" style="margin:.3rem 0 0">${esc(a.optimality)}</p>
           ${(a.dropped_items || []).length ? `<div class="swb-tablewrap" style="max-height:22vh;margin-top:.5rem">
             <table class="swb-table"><tbody>${a.dropped_items.map((d) => `<tr>
-              <td class="swb-truncate">${esc(d.name)}</td>
+              <td class="swb-truncate" title="${esc(d.name)}">${esc(d.name)}</td>
               <td class="swb-num swb-hint">${T('sg.eco_gain')} ${nf(d.gain)}</td></tr>`).join('')}
             </tbody></table></div>` : ''}`}`)}
       <div class="swb-panel" style="padding:0">
@@ -663,7 +663,7 @@
           <th class="swb-num">${T('sg.eco_cost')}</th><th class="swb-num">${T('sg.eco_alerts')}</th>
           <th class="swb-num">${T('sg.eco_per_alert')}</th><th>${T('sg.eco_lose')}</th>
         </tr></thead><tbody>${(e.items || []).slice(0, 60).map((r) => `<tr>
-          <td class="swb-truncate">${esc(r.intake_name)}</td>
+          <td class="swb-truncate" title="${esc(r.intake_name)}">${esc(r.intake_name)}</td>
           <td class="swb-num">${nf(r.events_period)}</td>
           <td class="swb-num">${nf(r.collection_cost)}</td>
           <td class="swb-num">${nf(r.alerts)}</td>
@@ -715,7 +715,7 @@
         ${(d.items || []).slice(0, 80).map((r) => `<tr>
           <td>${pill(esc(r.position), r.position === 'broyeuse' ? 'danger'
             : r.position === 'pilier' ? 'ok' : 'mute')}</td>
-          <td class="swb-truncate">${esc(r.rule_name)}</td>
+          <td class="swb-truncate" title="${esc(r.rule_name)}">${esc(r.rule_name)}</td>
           <td class="swb-num">${nf(r.alerts_per_day)}</td>
           <td class="swb-hint">${(r.precision || {}).publishable
             ? `${esc(r.precision.point)} %` : '—'}</td>
@@ -758,7 +758,7 @@
       <div class="swb-panel" style="padding:0"><div class="swb-tablewrap" style="max-height:36vh">
         <table class="swb-table"><thead><tr><th>${T('sg.col_source')}</th>
           <th class="swb-num">${T('sg.twin_risk')}</th><th></th></tr></thead><tbody>
-        ${(d.items || []).map((i) => `<tr><td class="swb-truncate">${esc(i.intake_name)}</td>
+        ${(d.items || []).map((i) => `<tr><td class="swb-truncate" title="${esc(i.intake_name)}">${esc(i.intake_name)}</td>
           <td class="swb-num">${nf(i.rules_at_risk)}</td>
           <td><button type="button" class="fp-btn fp-btn-sm fp-btn-ghost"
             data-sagf-act="twin-out" data-id="${esc(i.intake_uuid)}">${T('sg.twin_sim')}</button></td>

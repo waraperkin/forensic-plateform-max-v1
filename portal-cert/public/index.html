@@ -667,7 +667,14 @@
         <div id="analyst-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
     </section>
     <section id="tab-sekoia-cc" class="fp-panel">
-      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title">Sekoia Control Center</h2>
+      <!-- Le titre etait fige en dur (« Sekoia Control Center », sans data-i18n,
+           contrairement a tous ses voisins) et le sous-titre decrivait un
+           contenu (« connecteurs, modules, formats, playbooks ») qui n'est
+           JAMAIS rendu : depuis la consolidation vers sekoia-workbench.js,
+           #sekoia-cc-root affiche une synthese de volumetrie (KPI, courbe,
+           sources), pas un inventaire de connecteurs. Constate en session :
+           l'ecran promettait un contenu different de celui qu'il affiche. -->
+      <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.sekoia_cc"></h2>
         <p class="fp-muted" data-i18n="tp.sekoia_cc_lead"></p>
         <div id="sekoia-cc-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
     </section>

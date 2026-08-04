@@ -258,7 +258,7 @@
           n: nf(act.preview.unchanged) })}</p>` : ''}
         <div class="swb-tablewrap" style="max-height:24vh"><table class="swb-table"><tbody>
           ${(act.preview.results || []).slice(0, 60).map((r) => `<tr>
-            <td class="swb-truncate">${esc(r.name || r.id)}</td>
+            <td class="swb-truncate" title="${esc(r.name || r.id)}">${esc(r.name || r.id)}</td>
             <td class="swb-hint">${esc(JSON.stringify(r.before || {}))} → ${esc(JSON.stringify(r.would_apply || {}))}</td>
           </tr>`).join('')}</tbody></table></div></div>` : '';
 
@@ -276,7 +276,7 @@
             <table class="swb-table"><thead><tr><th>${T('swb.col.rule')}</th>
               <th class="swb-num">${T('swb.v.events')}</th><th>${T('swb.v.verdict')}</th>
             </tr></thead><tbody>${(bb.top || []).map((r) => `<tr>
-              <td class="swb-truncate">${esc(r.rule_name)}</td>
+              <td class="swb-truncate" title="${esc(r.rule_name)}">${esc(r.rule_name)}</td>
               <td class="swb-num">${nf(r.matches)}</td>
               <td class="swb-hint swb-truncate">${esc((r.verdict || {}).text || '')}</td>
             </tr>`).join('')}</tbody></table></div></div>`);
@@ -402,7 +402,7 @@
     const rem = (d.issue || {}).remediation || {};
     const p = d.preview || {};
     const rows = (p.results || []).slice(0, 200).map((r) => `<tr>
-      <td class="swb-truncate">${esc(r.name || r.id)}</td>
+      <td class="swb-truncate" title="${esc(r.name || r.id)}">${esc(r.name || r.id)}</td>
       <td class="swb-hint">${esc(JSON.stringify(r.before || {}))} → ${esc(JSON.stringify(r.would_apply || {}))}</td>
     </tr>`).join('');
     return {
@@ -626,7 +626,7 @@
             <td class="swb-truncate" title="${esc(i.intake_name)}">${esc(i.intake_name)}</td>
             <td class="swb-num">${pill(`${i.parsing_ok_pct} %`, i.parsing_ok_pct >= 99 ? 'ok' : 'danger', true)}</td>
             <td class="swb-num">${esc(nf(i.parsing_failures))}</td>
-            <td class="swb-truncate">${esc(i.dialects.join(', '))}${i.mixed_dialects ? ' ' + pill('mélange', 'warn', true) : ''}</td>
+            <td class="swb-truncate" title="${esc(i.dialects.join(', '))}">${esc(i.dialects.join(', '))}${i.mixed_dialects ? ' ' + pill('mélange', 'warn', true) : ''}</td>
             <td class="swb-num">${esc(i.fields_count)}</td></tr>`).join('')}
         </tbody></table></div>
         <p class="swb-hint" style="margin-top:.4rem">${esc(q.sampling_note)}</p></div>`;
@@ -696,7 +696,7 @@
         <td><span class="swb-grade swb-grade-${esc(r.grade)}">${esc(r.grade)}</span></td>
         <td class="swb-num">${esc(r.score)}</td>
         <td class="swb-truncate" title="${esc(r.intake_name)}">${esc(r.intake_name || r.intake_uuid)}</td>
-        <td class="swb-truncate">${esc(r.entity_name || '—')}</td>
+        <td class="swb-truncate" title="${esc(r.entity_name || '—')}">${esc(r.entity_name || '—')}</td>
         <td class="swb-num">${count}</td>
         <td class="swb-num">${measured ? nf(Math.round(r.baseline_avg || 0)) : '—'}</td>
         <td>${r.silent ? pill(T('swb.pill.silent'), 'danger') : (measured ? pill(T('swb.pill.active'), 'ok') : pill(T('swb.pill.unmeasured'), 'warn'))}</td>
@@ -736,8 +736,8 @@
       <td class="swb-num">${esc(nf(h.events))}</td>
       <td>${h.is_relay ? pill('relais', 'warn', true)
     : h.known_asset ? pill('référencé', 'ok', true) : pill('non référencé', 'danger')}</td>
-      <td class="swb-truncate">${esc(h.intakes.join(', '))}</td>
-      <td class="swb-truncate swb-hint">${esc(h.dialects.join(', '))}</td>
+      <td class="swb-truncate" title="${esc(h.intakes.join(', '))}">${esc(h.intakes.join(', '))}</td>
+      <td class="swb-truncate swb-hint" title="${esc(h.dialects.join(', '))}">${esc(h.dialects.join(', '))}</td>
       <td class="swb-hint">${esc((h.ips || []).join(', ') || '—')}</td></tr>`).join('');
 
     const relays = (a.relays || []).map((r) => `<li><span class="swb-mono">${esc(r.relay)}</span>
@@ -853,9 +853,9 @@
         <td>${r.rule_enabled ? pill(T('swb.pill.active'), 'ok') : pill(T('swb.pill.inactive'), 'mute')}</td>
         <td class="swb-truncate" title="${esc(r.rule_name)}">${esc(r.rule_name)}</td>
         <td class="swb-num">${pill(String(sev), tone, true)}</td>
-        <td class="swb-truncate">${esc(r.rule_datasources || '—')}</td>
+        <td class="swb-truncate" title="${esc(r.rule_datasources || '—')}">${esc(r.rule_datasources || '—')}</td>
         <td class="swb-num">${r.rule_attack_refs_count ? esc(r.rule_attack_refs_count) : '<span class="swb-hint">0</span>'}</td>
-        <td class="swb-truncate">${esc(r.rule_tags || '—')}</td>
+        <td class="swb-truncate" title="${esc(r.rule_tags || '—')}">${esc(r.rule_tags || '—')}</td>
       </tr>`;
     }).join('');
 
@@ -1127,7 +1127,7 @@
     const body = aRows.slice(0, 200).map((a) => `<tr>
       <td>${pill(a.severity, a.severity === 'critical' ? 'danger' : a.severity === 'high' ? 'warn' : 'mute')}</td>
       <td><span class="swb-mono">${esc(a.rule_type || '—')}</span></td>
-      <td class="swb-truncate">${esc(a.intake_name || '—')}</td>
+      <td class="swb-truncate" title="${esc(a.intake_name || '—')}">${esc(a.intake_name || '—')}</td>
       <td class="swb-truncate" title="${esc(a.message)}">${esc(a.message || '')}</td>
       <td>${a.group_size > 1 ? pill(`×${a.group_size}`, 'warn', true) : ''}</td>
       <td class="swb-hint">${esc(ago(a['@timestamp']))}</td></tr>`).join('');
@@ -1231,7 +1231,7 @@
         <div class="swb-tablewrap" style="max-height:22vh"><table class="swb-table"><thead><tr>
           <th>Machine</th><th>Relevés</th><th>Créneaux</th><th>Attendu maintenant</th><th>Référence</th>
         </tr></thead><tbody>${best.map((p) => `<tr>
-          <td class="swb-truncate">${esc(p.host)}</td>
+          <td class="swb-truncate" title="${esc(p.host)}">${esc(p.host)}</td>
           <td class="swb-num swb-hint">${nf(p.points)}</td>
           <td class="swb-num">${nf(p.coverage.cells_filled)}/48</td>
           <td class="swb-num">${nf(p.expected_now.median)}</td>
@@ -1263,8 +1263,8 @@
     }
 
     const rows = items.slice(0, 250).map((h) => `<tr>
-      <td class="swb-truncate">${esc(h.host)}</td>
-      <td class="swb-truncate">${esc(h.intake_name || '—')}</td>
+      <td class="swb-truncate" title="${esc(h.host)}">${esc(h.host)}</td>
+      <td class="swb-truncate" title="${esc(h.intake_name || '—')}">${esc(h.intake_name || '—')}</td>
       <td class="swb-num">${nf(h.estimated_events)}</td>
       <td class="swb-num swb-hint">${esc(h.share_pct)} %</td>
       <td class="swb-num swb-hint">${nf(h.sampled)}</td>
@@ -1329,7 +1329,7 @@
               <td class="swb-num">${nf(b.rules_blocked)}</td>
               <td class="swb-num"><strong>${nf(b.rules_enabled_blocked)}</strong></td>
               <td class="swb-num">${pill(String(b.max_severity), b.max_severity >= 80 ? 'danger' : 'warn', true)}</td>
-              <td class="swb-truncate swb-hint">${esc((b.examples || []).slice(0, 2).join(' · '))}</td>
+              <td class="swb-truncate swb-hint" title="${esc((b.examples || []).slice(0, 2).join(' · '))}">${esc((b.examples || []).slice(0, 2).join(' · '))}</td>
             </tr>`).join('')}</tbody></table></div></div>` : ''}
         <div class="swb-panel" style="padding:0">
           <div class="swb-panel-head" style="padding:.8rem .9rem 0">
@@ -1411,7 +1411,7 @@
             <th class="swb-num">${T('swb.v.alerts')}</th><th class="swb-num">${T('swb.v.per_alert')}</th>
             <th>${T('swb.col.state')}</th></tr></thead><tbody>
             ${(val.items || []).slice(0, 60).map((i) => `<tr>
-              <td class="swb-truncate">${esc(i.intake_name)}</td>
+              <td class="swb-truncate" title="${esc(i.intake_name)}">${esc(i.intake_name)}</td>
               <td class="swb-num">${nf(i.events_period)}</td>
               <td class="swb-num">${nf(i.alerts)}</td>
               <td class="swb-num">${i.events_per_alert === null ? '<span class="swb-hint">—</span>' : nf(i.events_per_alert)}</td>
@@ -1421,7 +1421,7 @@
           <div class="swb-panel-head" style="padding:.8rem .9rem 0">
             <h3 class="swb-panel-title">${T('swb.v.noisy')}</h3></div>
           <div class="swb-tablewrap" style="max-height:24vh"><table class="swb-table"><tbody>
-            ${r.top_noisy.slice(0, 12).map((n) => `<tr><td class="swb-truncate">${esc(n.rule_name)}</td>
+            ${r.top_noisy.slice(0, 12).map((n) => `<tr><td class="swb-truncate" title="${esc(n.rule_name)}">${esc(n.rule_name)}</td>
               <td class="swb-num">${nf(n.alerts)}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
     } else if (val) {
       valBlock = degraded(val.reason || val.error || '');
@@ -1499,7 +1499,7 @@
       </tr></thead><tbody>${((mech || {}).implemented || []).map((m) => `<tr>
         <td>${m.implemented ? pill(T('swb.sg.on'), 'ok') : pill(T('swb.sg.off'), 'mute')}</td>
         <td><span class="swb-mono">${esc(m.code)}</span></td>
-        <td class="swb-truncate">${esc(m.name)}</td>
+        <td class="swb-truncate" title="${esc(m.name)}">${esc(m.name)}</td>
         <td class="swb-hint swb-truncate">${esc(m.delegates_to || '—')}</td>
         <td class="swb-hint swb-truncate" title="${esc(m.refutation)}">${esc(m.refutation)}</td>
       </tr>`).join('')}</tbody></table></div></div>`;
@@ -1525,7 +1525,7 @@
             <p class="swb-hint swb-mono" style="margin:.2rem 0 0">${esc((q.provenance || {}).chain ? q.provenance.chain.join(' ← ') : '')}</p>
             <div class="swb-tablewrap" style="max-height:24vh;margin-top:.4rem"><table class="swb-table"><tbody>
               ${(q.items || []).slice(0, 40).map((it) => `<tr>
-                <td class="swb-truncate">${esc(it.rule_name || it.intake_name || it.field || it.dialect_uuid || '—')}</td>
+                <td class="swb-truncate" title="${esc(it.rule_name || it.intake_name || it.field || it.dialect_uuid || '—')}">${esc(it.rule_name || it.intake_name || it.field || it.dialect_uuid || '—')}</td>
                 <td class="swb-hint swb-truncate">${esc(it.verdict || it.intake_status || '')}</td></tr>`).join('')}
             </tbody></table></div>` : `<p class="swb-hint" style="margin:.3rem 0 0">${T('swb.sg.not_executed')}</p>`}
         </div>`}</div>`;
@@ -1548,7 +1548,7 @@
         ${prev.dry_run && prev.selected ? `<button type="button" class="fp-btn fp-btn-sm fp-btn-danger" data-swb-act="bulk-apply">Appliquer à ${nf(prev.selected)} objet(s)</button>` : ''}</div>
       ${prev.error ? `<p class="swb-hint">${esc(prev.error)}</p>` : ''}
       <div class="swb-tablewrap" style="max-height:32vh"><table class="swb-table"><thead><tr><th>Objet</th><th>${prev.dry_run ? 'État avant' : 'Résultat'}</th></tr></thead>
-        <tbody>${(prev.results || []).slice(0, 100).map((r) => `<tr><td class="swb-truncate">${esc(r.name || r.id)}</td>
+        <tbody>${(prev.results || []).slice(0, 100).map((r) => `<tr><td class="swb-truncate" title="${esc(r.name || r.id)}">${esc(r.name || r.id)}</td>
           <td class="swb-hint">${esc(prev.dry_run ? JSON.stringify(r.before || {}) : (r.ok ? 'appliqué' : (r.error || 'échec')))}</td></tr>`).join('')}</tbody></table></div></div>`;
 
     const histRows = ((hist && hist.items) || []).slice(0, 25).map((b) => `<tr>
@@ -1626,7 +1626,7 @@
       <td>${r.status === 'ok' ? pill('ok', 'ok') : pill(`${r.http || 'erreur'}`, 'danger')}</td>
       <td><span class="swb-mono">${esc(r.type)}</span></td>
       <td>${esc(r.action)}</td>
-      <td class="swb-truncate swb-mono">${esc(r.target_id || '—')}</td>
+      <td class="swb-truncate swb-mono" title="${esc(r.target_id || '—')}">${esc(r.target_id || '—')}</td>
       <td>${esc(r.user || '—')}${r.role ? ` <span class="swb-hint">(${esc(r.role)})</span>` : ''}</td>
       <td class="swb-truncate swb-hint" title="${esc(r.summary)}">${esc(r.summary || '—')}</td></tr>`).join('');
     return `<div class="swb-head"><div><h2 class="swb-title">Centre d'audit</h2>
@@ -2240,26 +2240,14 @@
     load();
   }
 
+  // L'activation des 9 ecrans (clic ET lien profond ?tab=) est centralisee
+  // dans cert-app.js:tab() via window.SekoiaWorkbench.mountAt — c'est le
+  // dispatcher unique deja utilise par tous les autres modules du portail.
+  // Un ecouteur de clic propre a ce module, comme avant, faisait DOUBLE
+  // emploi avec celui que cert-app.js attache deja a tout [data-tab-btn]
+  // (deux appels a mountAt() par clic) et surtout ne couvrait PAS le lien
+  // profond, le rafraichissement de page ni le retour arriere du navigateur
+  // — ces neuf panneaux restaient alors bloques sur « Chargement... »
+  // indefiniment, sans erreur, alors meme que le backend repondait en 0,5 s.
   window.SekoiaWorkbench = { init, load, mountAt };
-  document.addEventListener('DOMContentLoaded', () => {
-    // Chaque entree de la barre laterale ouvre le socle sur SA mission :
-    // huit ecrans heterogenes deviennent huit vues d'un meme produit.
-    const TABS = {
-      'sekoia-extended': ['sekoia-extended-root', null, true],
-      'sekoia-cc': ['sekoia-cc-root', 'overview', false],
-      'sekoia-ingest': ['sekoia-ingest-root', 'ingestion', false],
-      'sekoia-assets': ['sekoia-assets-root', 'sources', false],
-      'sekoia-rules': ['sekoia-rules-root', 'detections', false],
-      'sekoia-fetch': ['sekoia-fetch-root', 'telemetry', false],
-      'sekoia-apikeys': ['sekoia-apikeys-root', 'apikeys', false],
-      'audit-center': ['audit-center-root', 'audit', false],
-      'tp-config': ['tp-config-root', 'config', false],
-    };
-    Object.keys(TABS).forEach((tab) => {
-      const btn = document.querySelector(`[data-tab-btn="${tab}"]`);
-      if (!btn) return;
-      const [elId, view, withNav] = TABS[tab];
-      btn.addEventListener('click', () => setTimeout(() => mountAt(elId, view, withNav), 60));
-    });
-  });
 }());

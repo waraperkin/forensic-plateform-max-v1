@@ -44,6 +44,45 @@ function resolveTab(raw) {
   return TAB_ALIASES[raw] || raw;
 }
 
+// Les 9 ecrans de sekoia-workbench.js (SekoiaWorkbench.mountAt) ne
+// s'activent aujourd'hui QUE sur un clic direct dans la barre laterale — le
+// module attache son propre ecouteur en DOMContentLoaded, mais rien
+// n'appelle mountAt() pour un lien profond (?tab=), un rafraichissement de
+// page ou un retour arriere du navigateur. Constate en session : ces neuf
+// panneaux restent bloques sur « Chargement... » indefiniment, sans erreur,
+// des qu'on y arrive autrement que par un clic — le backend repond pourtant
+// en 0,5 s. SekoiaWorkbench est charge en differe (portal-lazy.js) : au
+// moment ou tab() tourne pendant boot(), le module peut ne pas encore
+// exister, d'ou le sondage plutot qu'un appel direct (meme discipline que
+// loadDoc() pour PortalDoc un peu plus haut dans ce fichier).
+const SEKOIA_WORKBENCH_TABS = {
+  'sekoia-extended': ['sekoia-extended-root', null, true],
+  'sekoia-cc': ['sekoia-cc-root', 'overview', false],
+  'sekoia-ingest': ['sekoia-ingest-root', 'ingestion', false],
+  'sekoia-assets': ['sekoia-assets-root', 'sources', false],
+  'sekoia-rules': ['sekoia-rules-root', 'detections', false],
+  'sekoia-fetch': ['sekoia-fetch-root', 'telemetry', false],
+  'sekoia-apikeys': ['sekoia-apikeys-root', 'apikeys', false],
+  'audit-center': ['audit-center-root', 'audit', false],
+  'tp-config': ['tp-config-root', 'config', false],
+};
+function mountSekoiaWorkbenchDeepLink(t, n = 0) {
+  const cfg = SEKOIA_WORKBENCH_TABS[t];
+  if (!cfg) return;
+  if (window.SekoiaWorkbench && typeof window.SekoiaWorkbench.mountAt === 'function') {
+    const [elId, view, withNav] = cfg;
+    window.SekoiaWorkbench.mountAt(elId, view, withNav);
+    return;
+  }
+  if (n < 60) { setTimeout(() => mountSekoiaWorkbenchDeepLink(t, n + 1), 50); return; }
+  // 3 s sans que le module ne se charge : ne pas laisser le « Chargement… »
+  // fige indefiniment sans explication.
+  const root = document.getElementById(cfg[0]);
+  if (root && /Chargement/i.test(root.textContent || '')) {
+    root.innerHTML = '<p class="fp-alert fp-alert-err">Module indisponible — rechargez la page.</p>';
+  }
+}
+
 function tab(raw) {
   const t = resolveTab(raw);
   activeTab = t;
@@ -167,6 +206,7 @@ function tab(raw) {
   if (t === 'ti-overview' && window.PortalOverview) PortalOverview.loadTiOverview();
   if (t === 'ti-ioc' && window.PortalOverview) PortalOverview.loadTiIocList();
   if (t === 'ti-heatmap' && window.PortalOverview) PortalOverview.loadTiHeatmap();
+  if (SEKOIA_WORKBENCH_TABS[t]) mountSekoiaWorkbenchDeepLink(t);
   if (window.CybercorpUltra) CybercorpUltra.bindClickableCards();
 }
 

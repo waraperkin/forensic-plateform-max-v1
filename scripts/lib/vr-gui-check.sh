@@ -45,7 +45,7 @@ fp_vr_test_nginx_to_server() {
     "http://velociraptor-server:8000${path}" 2>/dev/null; then
     return 0
   fi
-  code=$((docker exec "$nginx" wget -S -O /dev/null -T 10 \
+  code=$( (docker exec "$nginx" wget -S -O /dev/null -T 10 \
     "http://velociraptor-server:8000${path}" 2>&1 || true) | awk '/^[[:space:]]*HTTP\//{print $2}' | tail -1)
   fp_vr_http_code_ok "$code"
 }

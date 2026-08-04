@@ -27,7 +27,7 @@ async function runPortalAudit() {
 
   function collectNetwork() {
     return performance.getEntriesByType('resource')
-      .filter((e) => e.transferSize === 0 && e.duration > 0 && /api\\//.test(e.name))
+      .filter((e) => e.transferSize === 0 && e.duration > 0 && /api\//.test(e.name))
       .map((e) => ({ url: e.name, duration: e.duration }));
   }
 

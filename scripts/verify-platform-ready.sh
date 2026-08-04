@@ -26,7 +26,7 @@ check() {
   local name="$1" path="$2" expect="${3:-200}"
   local code target="${BASE}${path}"
   if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-nginx$'; then
-    code=$((docker exec forensic-nginx wget -q -O /dev/null --no-check-certificate -S "$target" 2>&1 || true) \
+    code=$( (docker exec forensic-nginx wget -q -O /dev/null --no-check-certificate -S "$target" 2>&1 || true) \
       | awk '/HTTP\//{print $2}' | tail -1)
     [ -z "$code" ] && code="000"
   else
@@ -159,7 +159,7 @@ if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^forensic-nginx$'; the
     http://velociraptor-server:8000/velociraptor/app/index.html 2>/dev/null; then
     echo "PASS: nginx → velociraptor-server:8000"
   else
-    code=$((docker exec forensic-nginx wget -S -O /dev/null -T 10 \
+    code=$( (docker exec forensic-nginx wget -S -O /dev/null -T 10 \
       http://velociraptor-server:8000/velociraptor/app/index.html 2>&1 || true) | awk '/^[[:space:]]*HTTP\//{print $2}' | tail -1)
     if echo "$code" | grep -qE '^(200|301|302|307|308|401)$'; then
       echo "PASS: nginx → velociraptor-server:8000 (HTTP $code)"

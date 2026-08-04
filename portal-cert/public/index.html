@@ -70,27 +70,41 @@
           <li><button type="button" class="cc-nav-btn" data-tab-btn="it-ops" data-cc-icon="exposure"><span data-i18n="sidebar.it_ops"></span></button></li>
         </ul>
       </div>
+      <!-- Barre laterale /sekoia reorganisee autour des 4 blocs metier
+           (Inventaires / Monitoring / Dashboards / Alerting & Detections),
+           plus Administration et Avance. Les 15 onglets d'origine sont TOUS
+           conserves : ils changent de section, aucun n'est supprime — les
+           doublons apparents (sekoia-assets vs gov-assets, sekoia-rules vs
+           gov-rules, sekoia-apikeys vs gov-apikeys) rendent des vues
+           differentes (operationnelle vs gouvernance) et les fusionner
+           demanderait de verifier ligne a ligne ce que chacune montre. -->
       <div class="cc-nav-section cc-nav-section--sekoia">
-        <p class="cc-nav-section-title" data-i18n="nav.sek_visibility"></p>
+        <p class="cc-nav-section-title" data-i18n="nav.sek_inventories"></p>
         <ul class="fp-sidebar-nav">
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-ingest" data-cc-icon="ingest"><span data-i18n="sidebar.sekoia_ingest"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="analyst" data-cc-icon="inventory"><span data-i18n="sidebar.analyst"></span></button></li>
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-fetch" data-cc-icon="tools"><span data-i18n="sidebar.sekoia_fetch"></span></button></li>
-        </ul>
-      </div>
-      <div class="cc-nav-section cc-nav-section--sekoia">
-        <p class="cc-nav-section-title" data-i18n="nav.sek_scope"></p>
-        <ul class="fp-sidebar-nav">
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-assets" data-cc-icon="inventory"><span data-i18n="sidebar.sekoia_assets"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="gov-assets" data-cc-icon="inventory"><span data-i18n="sidebar.gov_assets"></span></button></li>
         </ul>
       </div>
       <div class="cc-nav-section cc-nav-section--sekoia">
-        <p class="cc-nav-section-title" data-i18n="nav.sek_detection"></p>
+        <p class="cc-nav-section-title" data-i18n="nav.sek_monitoring"></p>
+        <ul class="fp-sidebar-nav">
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-ingest" data-cc-icon="ingest"><span data-i18n="sidebar.sekoia_ingest"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-fetch" data-cc-icon="tools"><span data-i18n="sidebar.sekoia_fetch"></span></button></li>
+        </ul>
+      </div>
+      <div class="cc-nav-section cc-nav-section--sekoia">
+        <p class="cc-nav-section-title" data-i18n="nav.sek_dashboards"></p>
+        <ul class="fp-sidebar-nav">
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-cc" data-cc-icon="dash"><span data-i18n="sidebar.sekoia_cc"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-extended" data-cc-icon="dash"><span data-i18n="sidebar.sekoia_extended"></span></button></li>
+        </ul>
+      </div>
+      <div class="cc-nav-section cc-nav-section--sekoia">
+        <p class="cc-nav-section-title" data-i18n="nav.sek_alerting"></p>
         <ul class="fp-sidebar-nav">
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-rules" data-cc-icon="connector"><span data-i18n="sidebar.sekoia_rules"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="gov-rules" data-cc-icon="connector"><span data-i18n="sidebar.gov_rules"></span></button></li>
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-extended" data-cc-icon="dash"><span data-i18n="sidebar.sekoia_extended"></span></button></li>
         </ul>
       </div>
       <div class="cc-nav-section">
@@ -109,20 +123,19 @@
         </ul>
       </div>
       <div class="cc-nav-section cc-nav-section--sekoia">
-        <p class="cc-nav-section-title" data-i18n="nav.sek_governance"></p>
-        <ul class="fp-sidebar-nav">
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="sagf" data-cc-icon="inventory"><span data-i18n="sidebar.sagf"></span></button></li>
-        </ul>
-      </div>
-      <div class="cc-nav-section cc-nav-section--sekoia">
         <p class="cc-nav-section-title" data-i18n="nav.sek_admin"></p>
         <ul class="fp-sidebar-nav">
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-cc" data-cc-icon="dash"><span data-i18n="sidebar.sekoia_cc"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="tp-config" data-cc-icon="settings" data-admin-only><span data-i18n="sidebar.tp_config"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-apikeys" data-cc-icon="key"><span data-i18n="sidebar.sekoia_apikeys"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="gov-apikeys" data-cc-icon="key"><span data-i18n="sidebar.gov_apikeys"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="audit-center" data-cc-icon="log"><span data-i18n="sidebar.audit_center"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="gov-views" data-cc-icon="kb"><span data-i18n="sidebar.gov_views"></span></button></li>
+        </ul>
+      </div>
+      <div class="cc-nav-section cc-nav-section--sekoia">
+        <p class="cc-nav-section-title" data-i18n="nav.sek_advanced"></p>
+        <ul class="fp-sidebar-nav">
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="sagf" data-cc-icon="inventory"><span data-i18n="sidebar.sagf"></span></button></li>
         </ul>
       </div>
       <div class="cc-nav-section">

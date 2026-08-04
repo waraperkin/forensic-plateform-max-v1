@@ -19,7 +19,12 @@
     "sek_governance": "SEKOIA — 4. Gouvernance",
     "sek_admin": "SEKOIA — 5. Administration",
     "response_psoar": "Réponse aux incidents (PSOAR)",
-    "sekoia_link": "Outil dédié"
+    "sekoia_link": "Outil dédié",
+    "sek_inventories": "SEKOIA — 1. Inventaires",
+    "sek_monitoring": "SEKOIA — 2. Monitoring",
+    "sek_dashboards": "SEKOIA — 3. Dashboards",
+    "sek_alerting": "SEKOIA — 4. Alerting & Détections",
+    "sek_advanced": "SEKOIA — Avancé"
   },
   "units": {
     "bytes_b": "o",

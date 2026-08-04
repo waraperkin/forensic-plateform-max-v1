@@ -30,6 +30,21 @@ networks:
     ipam:
       config:
         - subnet: 172.26.0.0/16
+          # Sans `ip_range`, Docker alloue les adresses dynamiques a partir de
+          # 172.26.0.1 — c'est-a-dire EXACTEMENT sur la plage ou vivent toutes
+          # les reservations statiques de ce fichier (172.26.0.10 a .112).
+          # Tant que le conteneur statique tourne son adresse est prise, donc
+          # aucun conflit visible ; mais des qu'il est arrete (rebuild, restart),
+          # un conteneur sans IP fixe — typiquement un connecteur OpenCTI en
+          # boucle de redemarrage — s'empare de l'adresse liberee. Le service
+          # statique ne peut alors plus redemarrer : « Address already in use ».
+          # Incident constate : redis (172.26.0.11) rendu indemarrable par un
+          # connecteur pendant un rebuild, entrainant la chute du portail CERT
+          # qui en depend.
+          # En confinant l'allocation dynamique au-dessus de 172.26.128.0, les
+          # deux populations ne peuvent plus se croiser (32 766 adresses
+          # dynamiques, bien au-dela des ~30 conteneurs sans IP fixe).
+          ip_range: 172.26.128.0/17
   helk_net:
     external: true
     name: helk_net

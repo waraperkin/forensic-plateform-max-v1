@@ -283,14 +283,6 @@
         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-reset-all">${esc(T("act_reset_all"))}</button>
       </div>
       <div class="cc-cc-subnav">${CC_SUB_GROUPS.map(([g, keys]) => `<div class="cc-subnav-group"><span class="cc-subnav-group-label">${g}</span><div class="cc-subnav-group-btns">${keys.map((k) => `<button type="button" class="fp-btn fp-btn-sm cc-subtab${k === cc.sub ? ' active' : ''}" data-act="cc-sub" data-sub="${k}">${CC_SUB_LABELS[k]}</button>`).join('')}</div></div>`).join('')}</div>
-      <div class="cc-cc-quick">
-        <span class="fp-muted">Panneaux dédiés :</span>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-open" data-tab="sekoia-assets">Assets &amp; Sources ↗</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-open" data-tab="sekoia-rules">Rules Explorer ↗</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-open" data-tab="sekoia-fetch">Telemetry Explorer ↗</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-open" data-tab="sekoia-apikeys">API Keys Manager ↗</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-open" data-tab="psoar">PSOAR ↗</button>
-      </div>
       <div id="cc-body" class="cc-cc-body"><p class="fp-muted">Chargement…</p></div>
     </div>`;
     ccRenderBody();

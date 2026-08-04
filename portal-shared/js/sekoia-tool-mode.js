@@ -44,6 +44,7 @@
     const nodes = [document.getElementById('portal-title'),
       document.querySelector('.cc-brand-sub'),
       document.querySelector('.cc-badge-edition'),
+      document.querySelector('.cc-footer'),
       document.querySelector('title')].filter(Boolean);
     const observers = [];
     const setBrand = () => {
@@ -56,6 +57,11 @@
       const sub = document.querySelector('.cc-brand-sub');
       if (sub) { sub.removeAttribute('data-i18n');
         sub.textContent = 'Extension Sekoia.IO — visibilité, périmètre, détection, gouvernance'; }
+      // Pied de page : l'outil n'est pas « le portail interne CERT », il est
+      // l'extension Sekoia. Marque cohérente d'un bout à l'autre de l'écran.
+      const foot = document.querySelector('.cc-footer');
+      if (foot) { foot.removeAttribute('data-i18n');
+        foot.textContent = '© CYBERCORP — Sekoia.IO Extended Platform'; }
       observers.forEach((o, i) => o.observe(nodes[i], { childList: true, characterData: true, subtree: true }));
     };
     setBrand();

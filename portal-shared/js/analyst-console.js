@@ -565,6 +565,45 @@
       '<span class="swb-nav-sep"></span>')}</nav>`;
   }
 
+  // QA 04/08/2026 — chargement automatique à l'ouverture d'une vue.
+  // Avant : 13 vues sur 15 s'ouvraient sur un formulaire vide (« Fenêtre /
+  // Échantillon / Calculer ») indistinguable des autres. Depuis la couche
+  // données (cache TTL + budget de jobs côté control-plane), déclencher la
+  // mesure à l'ouverture est sûr : les prélèvements sont mutualisés et bornés.
+  // Chaque vue s'ouvre donc sur SES données, plus sur un formulaire nu.
+  async function autoLoad() {
+    const view = st.view;
+    const has = view === 'inventory' ? !!st.data.inv
+      : view === 'tags' ? !!st.data.tags
+        : view === 'alerting' ? !!st.data.alerting
+          : !!st.data['dash_' + view];
+    const busyKey = view === 'inventory' ? 'inv' : view === 'tags' ? 'tags'
+      : view === 'alerting' ? 'alerting' : 'dash:' + view;
+    if (has || st.busy.has(busyKey)) return;
+    const myGen = ++st.reqGen;
+    st.busy.add(busyKey); st.error = null; paint();
+    try {
+      if (view === 'inventory') {
+        st.data.inv = await api('/inventory/' + st.entity
+          + `?limit=${st.invLimit}&offset=${st.invOffset}`);
+      } else if (view === 'tags') {
+        st.data.tags = await api('/tags');
+      } else if (view === 'alerting') {
+        const q = new URLSearchParams({ hours: String(st.hours), window: st.window, sample: String(st.sample) });
+        if (st.alertFamily) q.set('families', st.alertFamily);
+        st.data.alerting = await api(`/alerting/feed?${q}`);
+      } else {
+        const q = new URLSearchParams({ window: st.window, sample: String(st.sample),
+          hours: String(st.hours), relays_only: String(st.relaysOnly) });
+        if (st.intake) q.set('intake', st.intake);
+        st.data['dash_' + view] = await api(`/dashboard/${view}?${q}`);
+      }
+    } catch (e) { if (myGen === st.reqGen) st.error = e.message; }
+    finally { st.busy.delete(busyKey); }
+    if (myGen !== st.reqGen) return;
+    paint();
+  }
+
   function paint() {
     const el = document.getElementById('analyst-root');
     if (!el) return;
@@ -594,7 +633,7 @@
     el.dataset.anBound = '1';
     el.addEventListener('click', async (ev) => {
       const v = ev.target.closest('[data-an-view]');
-      if (v) { st.view = v.dataset.anView; paint(); return; }
+      if (v) { st.view = v.dataset.anView; paint(); autoLoad(); return; }
       const b = ev.target.closest('[data-an-act]');
       if (!b) return;
       const act = b.dataset.anAct;
@@ -725,8 +764,10 @@
       if (T('an.v_sources') !== 'an.v_sources') {
         clearInterval(ready);
         paint();
+        autoLoad();   // la vue d'ouverture affiche ses données, pas un formulaire
       } else if (tries > 40) {          // 8 s : au-dela, le repli suffira
         clearInterval(ready);
+        autoLoad();
       }
     }, 200);
   }

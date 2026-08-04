@@ -51,12 +51,29 @@
   box-shadow: 0 4px 18px rgba(0, 229, 255, 0.12);
 }
 
+/* Les pictogrammes sont des SVG (voir KPI_ICONS) : `font-size` ne les
+   dimensionne pas, c'est la boite qui les aligne. Ils heritent de
+   currentColor, donc la tonalite du KPI se propage a l'icone — un compteur
+   « DOWN » a desormais une icone rouge, ce qu'un emoji ne pouvait pas faire. */
 #sekoia-ingest-root .si-kpi-icon {
-  font-size: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
   line-height: 1;
   opacity: 0.9;
   flex-shrink: 0;
+  color: currentColor;
 }
+/* Valeurs de repli explicites : --si-* est declare sur `.si-ingest-panel`,
+   donc un KPI rendu hors de ce conteneur n'en herite pas et `var()` sans repli
+   retomberait sur la couleur de texte — l'icone perdrait sa tonalite sans que
+   rien ne le signale. */
+#sekoia-ingest-root .si-kpi--warn .si-kpi-icon { color: var(--si-warn, #ffd60a); }
+#sekoia-ingest-root .si-kpi--down .si-kpi-icon,
+#sekoia-ingest-root .si-kpi--danger .si-kpi-icon { color: var(--si-down, #ff6b6b); }
+#sekoia-ingest-root .si-kpi--ok .si-kpi-icon { color: var(--si-ok, #22c55e); }
 
 #sekoia-ingest-root .si-kpi--warn .sv-kpi-value {
   color: var(--si-warn);

@@ -2651,7 +2651,7 @@
       "v_rules": "Rules",
       "v_assets": "Assets",
       "v_intakes": "Intakes",
-      "v_inv": "Inventories",
+      "v_inv": "Object explorer",
       "v_tags": "Tags",
       "idle": "This dashboard queries the Sekoia API on demand: it consumes search quota.",
       "compute": "Compute",

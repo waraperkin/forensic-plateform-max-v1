@@ -45,7 +45,12 @@
   ];
   const VIEWS = GROUPS.flatMap(([, v]) => v);
 
-  const st = { view: 'sources', data: {}, loading: false, error: null,
+  // Vue d'ouverture : « inventory » et non « sources ». « sources » est un
+  // tableau de bord qui interroge l'API a la demande : a l'ouverture il
+  // n'affiche qu'un formulaire « Heures / Calculer » sur une page vide, ce qui
+  // se lit comme un outil casse. L'inventaire, lui, montre immediatement des
+  // donnees deja collectees, et c'est aussi le 1er des 4 blocs annonces.
+  const st = { view: 'inventory', data: {}, loading: false, error: null,
                entity: 'intakes',
                /* Paramètres d'échantillonnage, choisis par l'analyste. Les
                 * élargir coûte du quota de recherche Sekoia : c'est un

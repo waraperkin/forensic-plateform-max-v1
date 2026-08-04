@@ -24,7 +24,8 @@
     "sek_monitoring": "SEKOIA — 2. Monitoring",
     "sek_dashboards": "SEKOIA — 3. Dashboards",
     "sek_alerting": "SEKOIA — 4. Alerting & Detections",
-    "sek_advanced": "SEKOIA — Advanced"
+    "sek_advanced": "SEKOIA — Advanced",
+    "sek_console": "SEKOIA — Analyst console"
   },
   "units": {
     "bytes_b": "B",
@@ -126,9 +127,9 @@
     "psoar": "PSOAR — Incidents",
     "psoar_playbooks": "PSOAR — Playbooks",
     "purge": "Retention & archiving",
-    "sekoia_extended": "Analyst workbench",
+    "sekoia_extended": "Overview & alerts",
     "sagf": "SAGF — Governance",
-    "analyst": "Monitoring & blind spots",
+    "analyst": "Analyst workstation",
     "open_sekoia": "Sekoia.IO Extended Platform"
   },
   "header": {

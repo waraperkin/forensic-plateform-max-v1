@@ -197,19 +197,13 @@
     return d;
   }
 
-  // Les onglets Sekoia sont des panneaux exclusifs : un seul est visible a la
-  // fois. Un socle unique se remonte donc dans le conteneur de l'onglet actif,
-  // plutot que neuf instances concurrentes.
+  // QA 04/08/2026 — le workbench n'occupe plus QUE « Synthèse & alertes »
+  // (sekoia-extended), avec sa navigation interne à 12 vues. Les autres onglets
+  // Sekoia ont chacun leur rendeur dédié : les monter aussi ici créait deux
+  // rendeurs concurrents sur le même nœud DOM (sous-nav du Pilotage effacée,
+  // double chargement, écrans figés). Un seul montage, une seule vérité.
   const MOUNTS = [
     { el: 'sekoia-extended-root', view: null, nav: true },
-    { el: 'sekoia-cc-root', view: 'overview', nav: false },
-    { el: 'sekoia-ingest-root', view: 'ingestion', nav: false },
-    { el: 'sekoia-assets-root', view: 'sources', nav: false },
-    { el: 'sekoia-rules-root', view: 'detections', nav: false },
-    { el: 'sekoia-fetch-root', view: 'telemetry', nav: false },
-    { el: 'sekoia-apikeys-root', view: 'apikeys', nav: false },
-    { el: 'audit-center-root', view: 'audit', nav: false },
-    { el: 'tp-config-root', view: 'config', nav: false },
   ];
   st.mount = 'sekoia-extended-root';
   st.nav = true;

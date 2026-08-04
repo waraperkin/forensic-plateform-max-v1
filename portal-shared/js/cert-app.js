@@ -55,16 +55,16 @@ function resolveTab(raw) {
 // moment ou tab() tourne pendant boot(), le module peut ne pas encore
 // exister, d'ou le sondage plutot qu'un appel direct (meme discipline que
 // loadDoc() pour PortalDoc un peu plus haut dans ce fichier).
+// QA 04/08/2026 — un seul rendeur par onglet. Le workbench (SEP) n'ouvre plus
+// QUE « Synthèse & alertes » (sekoia-extended), avec sa navigation interne à
+// 12 vues. Les onglets sekoia-cc, sekoia-ingest, sekoia-assets, sekoia-rules,
+// sekoia-fetch, sekoia-apikeys, audit-center et tp-config ont chacun un
+// rendeur dédié (control-center, sekoia-volume, threat-platforms) — ce sont
+// ceux que le QA a jugés les meilleurs. Le double-montage effaçait la
+// sous-navigation du Pilotage et doublait chaque chargement (source majeure
+// de lenteur et du bug « sous-nav qui disparaît »).
 const SEKOIA_WORKBENCH_TABS = {
   'sekoia-extended': ['sekoia-extended-root', null, true],
-  'sekoia-cc': ['sekoia-cc-root', 'overview', false],
-  'sekoia-ingest': ['sekoia-ingest-root', 'ingestion', false],
-  'sekoia-assets': ['sekoia-assets-root', 'sources', false],
-  'sekoia-rules': ['sekoia-rules-root', 'detections', false],
-  'sekoia-fetch': ['sekoia-fetch-root', 'telemetry', false],
-  'sekoia-apikeys': ['sekoia-apikeys-root', 'apikeys', false],
-  'audit-center': ['audit-center-root', 'audit', false],
-  'tp-config': ['tp-config-root', 'config', false],
 };
 function mountSekoiaWorkbenchDeepLink(t, n = 0) {
   const cfg = SEKOIA_WORKBENCH_TABS[t];

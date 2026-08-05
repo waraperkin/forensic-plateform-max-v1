@@ -117,6 +117,17 @@ _fp_deploy_ensure_prereqs() {
     err "Docker inaccessible — rejoindre le groupe docker ou utiliser sudo"
     return 1
   fi
+  if [ -f "$DIR/.env" ]; then
+    if [ ! -r "$DIR/.env" ] || [ ! -w "$DIR/.env" ]; then
+      warn ".env permissions insuffisantes — tentative chown/chmod (wara:docker 660)"
+      chmod 660 "$DIR/.env" 2>/dev/null || true
+      chgrp docker "$DIR/.env" 2>/dev/null || true
+      if { [ ! -r "$DIR/.env" ] || [ ! -w "$DIR/.env" ]; } && command -v sudo >/dev/null 2>&1; then
+        sudo chown "$(id -u):docker" "$DIR/.env" 2>/dev/null || true
+        sudo chmod 660 "$DIR/.env" 2>/dev/null || true
+      fi
+    fi
+  fi
   if [ ! -f "$DIR/.env" ]; then
     warn ".env absent — génération secrets / repair-env"
     if declare -F repair_env >/dev/null 2>&1; then
@@ -149,6 +160,17 @@ _fp_deploy_ensure_prereqs() {
   if ! docker volume inspect velociraptor-sidecar_velociraptor-data >/dev/null 2>&1; then
     docker volume create velociraptor-sidecar_velociraptor-data >/dev/null 2>&1 || true
   fi
+  # Chemins VR / logs accessibles (sinon generate-config / tee échouent en non-root)
+  local d
+  for d in "$DIR/logs" "$DIR/velociraptor/config" "$DIR/velociraptor/clients" "$DIR/velociraptor/data"; do
+    mkdir -p "$d" 2>/dev/null || true
+    if [ ! -w "$d" ]; then
+      chmod -R u+w "$d" 2>/dev/null || true
+    fi
+    if [ ! -w "$d" ]; then
+      warn "Chemin non accessible en écriture : $d (sidecars peuvent échouer)"
+    fi
+  done
   return 0
 }
 
@@ -273,6 +295,11 @@ _fp_deploy_start_sidecars_if_needed() {
     portals-forensic|full)
       if [ -x "$DIR/scripts/setup-sidecars.sh" ]; then
         step "Sidecars HELK / Velociraptor"
+        mkdir -p "$DIR/logs" 2>/dev/null || true
+        if [ ! -w "$DIR/logs" ]; then
+          export FP_LOG_START="/tmp/fp-deploy-${mode}.log"
+          warn "logs/ non accessible — journal sidecar → $FP_LOG_START"
+        fi
         bash "$DIR/scripts/setup-sidecars.sh" || warn "setup-sidecars partiel — VR/HELK peuvent être absents"
       fi
       ;;

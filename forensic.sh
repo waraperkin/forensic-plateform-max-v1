@@ -1278,6 +1278,14 @@ full_start() {
     $UP cert-portal it-portal
   fi
   sleep 8
+  # Sekoia Extended Platform (control-plane + monitor) — requis pour un full vraiment complet
+  step "6bis/8 Sekoia Extended Platform"
+  if $UP sekoia-controlplane sekoia-monitor; then
+    ok "Sekoia control-plane + monitor démarrés"
+  else
+    START_WARN+=("Sekoia Extended Platform")
+    warn "Sekoia partiel — UI /sekoia peut fonctionner sans control-plane"
+  fi
   if [ "${FP_SKIP_SIDECARS:-0}" != "1" ] && [ -x "$DIR/scripts/setup-sidecars.sh" ]; then
     step "6a/8 Sidecars HELK / Velociraptor (avant Nginx)"
     if bash "$DIR/scripts/setup-sidecars.sh" 2>&1 \

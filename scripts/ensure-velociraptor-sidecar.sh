@@ -12,6 +12,19 @@ export FP_ROOT="$ROOT"
 
 log() { echo "[ensure-vr] $*"; }
 
+# Journal : ne jamais faire échouer le script si logs/ non accessible
+_fp_vr_log() {
+  local f="${FP_LOG_START:-$ROOT/logs/forensic_start.log}"
+  mkdir -p "$(dirname "$f")" 2>/dev/null || true
+  if touch "$f" 2>/dev/null; then
+    echo "$f"
+  else
+    echo "/tmp/fp-velociraptor-sidecar.log"
+  fi
+}
+FP_VR_LOG="$(_fp_vr_log)"
+export FP_LOG_START="$FP_VR_LOG"
+
 if [ -f "$ROOT/scripts/lib/host-ip.sh" ]; then
   # shellcheck source=/dev/null
   . "$ROOT/scripts/lib/host-ip.sh"
@@ -50,13 +63,20 @@ if [ ! -x "$VR_DIR/scripts/generate-config.sh" ]; then
 fi
 
 log "Régénération server.config.yaml (use_plain_http + public_url IP)"
-FP_VR_NGINX_ONLY=1 PUBLIC_HOST="$HOST" bash "$VR_DIR/scripts/generate-config.sh" \
-  >> "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" 2>&1
+if ! FP_VR_NGINX_ONLY=1 PUBLIC_HOST="$HOST" bash "$VR_DIR/scripts/generate-config.sh" \
+  >> "$FP_VR_LOG" 2>&1; then
+  if [ -s "$VR_DIR/config/server.config.yaml" ]; then
+    log "generate-config partiel — conservation de server.config.yaml existant"
+  else
+    log "ERREUR: generate-config échoué et pas de config"
+    exit 1
+  fi
+fi
 
 log "Démarrage conteneur $CONTAINER"
 cd "$VR_DIR"
 "${VR_COMPOSE[@]}" up -d --build --force-recreate velociraptor-server \
-  >> "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" 2>&1
+  >> "$FP_VR_LOG" 2>&1
 
 log "Attente GUI Velociraptor sur $VR_HOST_URL (max ${MAX_WAIT}s)…"
 deadline=$((SECONDS + MAX_WAIT))

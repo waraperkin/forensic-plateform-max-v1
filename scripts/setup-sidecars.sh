@@ -22,6 +22,15 @@ step() { echo -e "\n\033[0;34m━━━ $* ━━━\033[0m"; }
 ok() { echo -e "\033[0;32m[ OK ]\033[0m $*"; }
 warn() { echo -e "\033[1;33m[WARN]\033[0m $*"; }
 
+_fp_sidecar_log() {
+  local f="${FP_LOG_START:-$ROOT/logs/forensic_start.log}"
+  mkdir -p "$(dirname "$f")" 2>/dev/null || true
+  if touch "$f" 2>/dev/null; then echo "$f"; else echo "/tmp/fp-setup-sidecars.log"; fi
+}
+FP_SIDECAR_LOG="$(_fp_sidecar_log)"
+export FP_LOG_START="$FP_SIDECAR_LOG"
+_tee_log() { tee -a "$FP_SIDECAR_LOG"; }
+
 ensure_network() {
   local name=$1 cidr=$2
   if ! docker network inspect "$name" >/dev/null 2>&1; then
@@ -39,7 +48,7 @@ cd "$ROOT/helk"
 HELK_KIBANA_PUBLIC_URL="$HELK_KIBANA_PUBLIC_URL" \
   docker compose -f docker-compose.helk.yml -f docker-compose.external-net.yml up -d \
   helk-elasticsearch helk-kibana helk-logstash 2>&1 \
-  | tee -a "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" \
+  | _tee_log \
   || warn "HELK sidecar partiel (Kafka non requis pour Kibana)"
 
 for i in $(seq 1 40); do
@@ -50,7 +59,7 @@ if curl -sf "http://127.0.0.1:${FP_HELK_ES_PORT:-19201}/_cluster/health" >/dev/n
   ok "HELK Elasticsearch (19200)"
   if [ -x "$ROOT/scripts/ensure-helk-kibana-objects.sh" ]; then
     bash "$ROOT/scripts/ensure-helk-kibana-objects.sh" 2>&1 \
-      | tee -a "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" \
+      | _tee_log \
       && ok "HELK Kibana objects (index-patterns + dashboards)" \
       || warn "HELK Kibana import partiel"
   fi
@@ -61,7 +70,7 @@ fi
 step "Stack Velociraptor sidecar (GUI obligatoire pour nginx)"
 if [ -x "$ROOT/scripts/ensure-velociraptor-sidecar.sh" ]; then
   bash "$ROOT/scripts/ensure-velociraptor-sidecar.sh" 2>&1 \
-    | tee -a "${FP_LOG_START:-$ROOT/logs/forensic_start.log}"
+    | _tee_log
   ok "Velociraptor server prêt"
 else
   warn "ensure-velociraptor-sidecar.sh absent"
@@ -71,7 +80,7 @@ fi
 step "Bridges plateforme"
 cd "$ROOT"
 docker compose up -d helk-bridge velociraptor-bridge 2>&1 \
-  | tee -a "${FP_LOG_START:-$ROOT/logs/forensic_start.log}" \
+  | _tee_log \
   || warn "Bridges partiels"
 
 ok "Sidecars HELK/Velociraptor — PUBLIC_HOST=$PUBLIC_HOST"

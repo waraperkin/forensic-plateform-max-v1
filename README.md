@@ -1,6 +1,6 @@
 # Forensic Plateform MAX — Plateforme SOC / DFIR
 
-Plateforme forensic et SOC **clé en main**, pensée pour le lab, la formation et les équipes CERT/DFIR. Elle regroupe ingestion, SIEM, threat intelligence, gestion d’incidents, timelines, hunting et collecte endpoint derrière un point d’entrée HTTPS unique, avec une **couche Sekoia.io v3** (Sekoia Extended Platform + PSOAR) et des portails CERT/IT premium FR/EN en mode dark/light.
+Plateforme forensic et SOC **clé en main**, pensée pour le lab, la formation et les équipes CERT/DFIR. Elle regroupe ingestion, SIEM, threat intelligence, gestion d’incidents, timelines, hunting et collecte endpoint derrière un point d’entrée HTTPS unique, avec une **couche Sekoia.io v3** (Sekoia Extended Platform — workbench, console analyste, **96 cas d'usage CERT full-auto** — + PSOAR) et des portails CERT/IT premium FR/EN en mode dark/light.
 
 **Dépôt :** [`waraperkin/forensic-plateform-max-v1`](https://github.com/waraperkin/forensic-plateform-max-v1) — snapshot portable, QA navigateur et correctifs proxy (MISP, Timesketch, Velociraptor).
 
@@ -71,7 +71,7 @@ Galerie complète (25 captures portails + outils) : [`docs/PORTAL/SCREENS.md`](d
 | **Incident Response** | TheHive, Cortex |
 | **Observabilité** | Grafana, Prometheus, Loki, Tempo |
 | **Hunting & DFIR** | HELK (sidecar ES/Kibana/Logstash), Velociraptor |
-| **Couche Sekoia.io** | `sekoia-controlplane` (inventaires, volumétrie, télémétrie, graphe, surveillance par hôte, opérations en lot), `sekoia-monitor` (poller de volumétrie, moteurs d'alerting) — voir [`docs/SEKOIA.md`](docs/SEKOIA.md) et [`docs/sekoia-psoar-rebuild/`](docs/sekoia-psoar-rebuild/) |
+| **Couche Sekoia.io** | `sekoia-controlplane` (inventaires, volumétrie, télémétrie, graphe, surveillance par hôte, **96 cas d'usage CERT full-auto**, parcours d'actifs à l'échelle, opérations en lot), `sekoia-monitor` (poller de volumétrie, moteurs d'alerting) — voir [`docs/SEKOIA.md`](docs/SEKOIA.md) et [`docs/sekoia-psoar-rebuild/`](docs/sekoia-psoar-rebuild/) |
 | **Infrastructure** | PostgreSQL, Redis, RabbitMQ, Cassandra |
 
 ### Flux de données (schéma logique)
@@ -117,62 +117,59 @@ qualité de parsing, la latence de livraison et l'intelligence d'actifs.
 
 ### Sekoia Extended Platform (SEP)
 
-Console unifiée montée sur les 8 écrans historiques du portail, en 11 vues.
+Deux couches complémentaires, et une console CERT dédiée aux cas d'usage.
 
-- **Sources & santé** — score par intake, fraîcheur, stabilité, maturité de
-  baseline ; détection des **relais de collecte** (un `log.hostname` unique
-  derrière lequel remontent jusqu'à 25 machines).
-- **Détections** — catalogue de 1 180 règles, couverture ATT&CK par
-  attack-patterns rattachés, et **moteur de recommandations** : priorité, motif,
-  action, formats nommés.
-- **Graphe de télémétrie unifié** — intakes, connecteurs, formats, entités et
-  règles dans un objet navigable (1 343 nœuds, 465 liens) ; répond à « qu'est-ce
-  qui dépend de cette source ? ».
-- **Simulateur what-if** — verdict en clair avant de désactiver une règle ou un
-  intake, plutôt qu'une décision à l'aveugle.
-- **Surveillance par hôte** — voir plus bas.
-- **Télémétrie à la demande** — qualité de parsing, latence de livraison et
-  hôtes en un seul prélèvement (deux jobs concurrents en produisaient un vide).
-- **Inventaire** — snapshots, dérive entre relevés, cohérence (161 anomalies
-  relevées sur le tenant, chacune avec son action).
-- **Alerting d'ingestion** — règles configurables, seuils dynamiques (z-score),
-  déduplication et **regroupement en incidents** : 40 sources tombant derrière
-  le même connecteur forment un incident, pas 40 notifications.
-- **Opérations en lot** — sélection par filtre, `dry-run` systématique, rollback,
-  export JSON/YAML, et **étiquetage** des règles et des actifs.
-- **Stockage** — état réel des index, projection de croissance mesurée, rétention
-  par paliers avec simulation obligatoire.
+**1. Workbench & outils** — les écrans historiques du portail (sources & santé,
+détections, graphe, simulateur what-if, télémétrie à la demande, inventaire,
+alerting d'ingestion, opérations en lot, stockage) plus la **surveillance par
+hôte** (voir plus bas). Adossés à `analytics.py`, `inventory.py`, `graph.py`,
+`hostwatch.py`, `bulkops.py`, etc.
 
-### Extension analystes — Inventaires, Monitoring, Dashboards, Alerting & Detections
+**2. Console analyste** — adossée à `analyst.py`
+(`/control/sekoia/analyst/*`), structurée en Inventaires · Monitoring ·
+Dashboards · Alerting & Détections. Chaque détecteur porte son incertitude et
+sa date de mesure, et refuse de conclure sous les seuils statistiques
+(`MIN_POINTS`, `MIN_DRAWS`, `MIN_EVENTS`).
 
-Deuxième console, adossée à `analyst.py` (`/control/sekoia/analyst/*`),
-restructurée autour de **quatre blocs alignés sur les cas d'usage** plutôt que
-sur l'architecture interne : un analyste sait pourquoi il ouvre chaque onglet,
-pas seulement où il se trouve.
+**3. Cas d'usage CERT** (`sekoia-sep`) — ce que Sekoia ne restitue pas.
 
-- **Inventaires** — intakes, sources, règles, actifs, détections, formats,
-  champs, et **clés API** (créée/désactivée, permissions, expiration) : pagination
-  réelle (`offset`/`limit`/`has_more`), export CSV/JSON via les endpoints REST.
-- **Monitoring** — silence et dérive de volumétrie par intake ; silence et
-  dérive de volumétrie **par `log.hostname`**, historisés dans le temps (un
-  instantané seul ne peut jamais prouver qu'un hôte qui parlait s'est tu — il
-  faut au moins deux relevés) ; clés API (créations, expirations proches).
-- **Dashboards** — actifs, règles, couverture MITRE prouvée, taxonomies.
-- **Alerting & Detections** — flux unifié (`/alerting/feed`), 6 familles :
-  intake silencieux, baisse de volumétrie (intake), `log.hostname` silencieux,
-  baisse de volumétrie (`log.hostname`), nouvelle clé API, clé API expirant
-  sous 7 jours. Filtrable par famille (une famille inconnue est refusée
-  explicitement, jamais un flux vide silencieux), historisé
-  (`/alerting/history`), trié par sévérité puis fraîcheur.
+96 analyses, 8 tableaux de bord et 10 opérations de gestion, dérivés d'une
+seule mécanique : **six signaux purs** (silence, dérive, pic, instabilité,
+verbosité, fantôme) appliqués à **six entités** (intakes, devices /
+`log.hostname`, actifs natifs, groupes CERT, règles, dépendances). Un cas
+d'usage est une ligne de catalogue (`sep_catalog.py`), pas un endpoint.
 
-Chaque détecteur garde la même discipline de mesure que le reste du module :
-un verdict porte toujours son incertitude et sa date de mesure, et refuse de
-conclure sous les seuils statistiques déjà en place (`MIN_POINTS`,
-`MIN_DRAWS`, `MIN_EVENTS`). Voir
-[`docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md`](docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md)
-pour le détail des endpoints et la preuve de chaque correctif, et
-[`docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md`](docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md)
-pour l'audit complet de l'outil.
+| Domaine | Contenu |
+|---------|---------|
+| Inventaire | état global : critiques, multi-devices, silencieux, en dérive, orphelins, incohérents |
+| Monitoring | ce qui va mal maintenant (parsing, dialecte, fantômes, groupes incomplets) |
+| Détection | anomalies datées (chute / pics d'ingestion, règles contradictoires, activité Admins/DCs/VIP) |
+| Dashboards | intakes, devices, assets, règles, MITRE prouvé vs déclaré, dépendances, parsing |
+| Gestion | opérations en masse, **simulation obligatoire** (`dry_run` par défaut) |
+
+Le moteur (`sep.py`) tourne **en full-auto** toutes les 15 minutes : échantillon
+d'événements, parsing, historique d'atomes, tranche d'actifs, évaluation des
+cas de détection, persistance des déclenchements. La console s'ouvre déjà
+remplie.
+
+**Pagination à l'échelle d'un tenant réel** (`sep_crawl.py`) — l'API Sekoia
+plafonne `limit` à 100 et n'offre ni curseur ni filtre temporel. Trois voies
+budgétées par cycle :
+
+- **tête** — nouveautés (`created_at` décroissant), coût = créations, pas la taille du parc ;
+- **fond** — rattrapage par type (hôtes → réseaux → comptes), curseur persisté ;
+- **balayage** — relecture complète périodique + réconciliation des écarts
+  (suppressions pendant le parcours).
+
+Sur le bac à sable : ~106 k actifs indexés, cycle en régime permanent ~1 s.
+Conçu pour ×100 (production).
+
+Sur `/sekoia`, la barre latérale n'affiche plus le préfixe « SEKOIA — » /
+« Sekoia.IO — » : l'en-tête annonce déjà la plateforme. Les mêmes clés i18n
+gardent le préfixe sur le portail CERT, où Sekoia côtoie SentinelOne.
+
+Détail : [`docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md`](docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md),
+audit : [`docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md`](docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md).
 
 ### Satisfiabilité des règles — ce qu'aucun SIEM ne sait dire
 La console dit quelles règles sont **activées**. Elle ne dit jamais lesquelles
@@ -296,24 +293,23 @@ absentes de l'inventaire d'actifs · TheHive et Cortex rejettent leurs clés API
 ```bash
 ./scripts/validate-sekoia.sh                       # services, routes API, télémétrie, CTI
 
-# 227 tests unitaires du control-plane (dans le conteneur — dépendances requises)
-docker exec -u root forensic-sekoia-controlplane pip install -q pytest pytest-asyncio
-for f in connectors/sekoia-controlplane/test_*.py; do docker cp "$f" forensic-sekoia-controlplane:/tmp/; done
-docker exec -u root -w /app forensic-sekoia-controlplane sh -c 'python -m pytest /tmp/test_*.py -q'
+# 678 tests unitaires du control-plane (signaux, catalogue, parcours d'actifs, …)
+docker run --rm -v "$PWD/connectors/sekoia-controlplane:/w" -w /w --entrypoint sh \
+  python:3.12-slim -c \
+  "pip install -q -r requirements.txt pytest pytest-asyncio >/dev/null && python -m pytest -q"
 
-# 39 tests unitaires PSOAR — les tests ne sont pas dans l'image, on les y copie
+# Tests unitaires PSOAR — hors image, copiés au moment de l'exécution
 docker exec forensic-cert-portal mkdir -p /app/test
 docker cp portal-cert/test/psoar.test.js forensic-cert-portal:/app/test/
 docker cp portal-cert/test/similarity.test.js forensic-cert-portal:/app/test/
 docker exec -w /app forensic-cert-portal node --test test/
+
+# QA navigateur — console Cas d'usage CERT (96 cas, 8 dashboards, gestion)
+sudo node tests/sep-ui.mjs
 ```
 
-Validation visuelle (Playwright, captures dans `screenshots/`) : 12 vues du
-workbench, 8 onglets historiques, console PSOAR — 0 FAIL, 0 erreur console.
-
 Documentation détaillée : [`docs/sekoia-psoar-rebuild/`](docs/sekoia-psoar-rebuild/)
-— audit initial, architecture cible, changelog fonctionnel, validation, et le
-programme complet avec les bugs trouvés et leur cause.
+et [`docs/sekoia-psoar-rebuild/RUN-TESTS.md`](docs/sekoia-psoar-rebuild/RUN-TESTS.md).
 
 ---
 
@@ -732,25 +728,24 @@ Projets disponibles : `ui`, `playwright`, `ui-integration` (voir `tests/package.
 ### Couche Sekoia (SEP + PSOAR)
 
 ```bash
-# 227 tests unitaires du control-plane — logique pure, sans réseau
-docker exec -u root forensic-sekoia-controlplane pip install -q pytest pytest-asyncio
-for f in connectors/sekoia-controlplane/test_*.py; do docker cp "$f" forensic-sekoia-controlplane:/tmp/; done
-docker exec -u root -w /app forensic-sekoia-controlplane sh -c 'python -m pytest /tmp/test_*.py -q'
+# 678 tests unitaires du control-plane
+docker run --rm -v "$PWD/connectors/sekoia-controlplane:/w" -w /w --entrypoint sh \
+  python:3.12-slim -c \
+  "pip install -q -r requirements.txt pytest pytest-asyncio >/dev/null && python -m pytest -q"
 
-# 39 tests unitaires PSOAR (playbooks, typage IOC, TLP, similarité)
-# Le test doit rester a cote de portal-cert/routes/ pour resoudre ses imports.
+# PSOAR (playbooks, typage IOC, TLP, similarité)
 docker exec forensic-cert-portal mkdir -p /app/test
 docker cp portal-cert/test/psoar.test.js forensic-cert-portal:/app/test/
 docker cp portal-cert/test/similarity.test.js forensic-cert-portal:/app/test/
 docker exec -w /app forensic-cert-portal node --test test/
+
+# Consoles navigateur (un script à la fois)
+sudo node tests/sep-ui.mjs          # Cas d'usage CERT
+sudo node tests/sekoia-tool.mjs     # outil /sekoia
+sudo node tests/analyst-ui.mjs      # console analyste
 ```
 
-Les tests unitaires restent **hors des images de production** : ils sont copiés
-dans le conteneur au moment de les exécuter, jamais embarqués.
-
-Validation visuelle par Playwright — 11 vues du workbench, 8 onglets historiques
-et la console PSOAR, avec contrôle des erreurs de console et détection
-d'affichage brut (JSON non formaté, métriques trompeuses). Voir
+Les tests unitaires restent **hors des images de production**. Voir
 [`docs/sekoia-psoar-rebuild/RUN-TESTS.md`](docs/sekoia-psoar-rebuild/RUN-TESTS.md).
 
 ### Scripts de validation ciblés
@@ -806,7 +801,7 @@ python3 scripts/opensearch_siem_full_verify.py
 ## Structure du dépôt
 
 ```
-forensic-minimal/
+forensic-plateform-max-v1/
 ├── forensic.sh              # Orchestrateur principal
 ├── docker-compose.yml       # Stack Docker
 ├── scripts/                 # Bootstrap, activation SIEM/TI, bridges
@@ -815,11 +810,13 @@ forensic-minimal/
 ├── portal-cert/ portal-it/  # Portails opérationnels
 ├── dashboards/              # Saved objects OpenSearch Dashboards
 ├── helk/ velociraptor/      # Sidecars hunting & DFIR
-├── connectors/              # sekoia-controlplane, sekoia-monitor (+ tests unitaires)
-├── portal-shared/           # Workbench SEP, consoles PSOAR (JS/CSS partagés)
-├── tests/                   # Playwright
+├── connectors/
+│   ├── sekoia-controlplane/ # SEP : sep.py, sep_catalog, sep_crawl, sep_signals, …
+│   └── sekoia-monitor/      # Poller de volumétrie & alerting
+├── portal-shared/           # sekoia-sep.js, workbench, consoles PSOAR
+├── tests/                   # Playwright (sep-ui, sekoia-tool, analyst-ui, …)
 └── docs/                    # Documentation détaillée
-    └── sekoia-psoar-rebuild/  # Audit, architecture, changelog, validation SEP/PSOAR
+    └── sekoia-psoar-rebuild/  # Specs SEP/PSOAR + RUN-TESTS.md
 ```
 
 ---

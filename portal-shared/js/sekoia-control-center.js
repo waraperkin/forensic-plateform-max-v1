@@ -1807,18 +1807,23 @@
   function auUniq(key) { return Array.from(new Set(audit.items.map((x) => x[key]).filter(Boolean))).sort(); }
   function auRenderBar() {
     const bar = document.getElementById('au-bar'); if (!bar) return;
-    const opt = (arr, cur) => ['<option value="">— tous —</option>'].concat(arr.map((x) => `<option value="${esc(x)}"${cur === x ? ' selected' : ''}>${esc(x)}</option>`)).join('');
+    const opt = (arr, cur, label) => (TC.selectOpts
+      ? TC.selectOpts(arr, cur, label)
+      : ['<option value="">— tous —</option>'].concat(arr.map((x) => `<option value="${esc(x)}"${cur === x ? ' selected' : ''}>${esc(x)}</option>`)).join(''));
+    const ff = (label, html, meta) => (TC.filterField
+      ? TC.filterField(label, html, meta)
+      : `<label class="cc-flt-field"><span class="cc-flt-label">${esc(label)}</span>${html}</label>`);
     bar.innerHTML = `<div class="cc-tp-filterbar">
-      <input class="fp-input fp-input-sm" id="au-q" placeholder="${esc(T("ph_search"))}" value="${esc(audit.filt.q)}">
-      <label class="cc-flt-date">Du <input class="fp-input fp-input-sm" id="au-from" type="datetime-local" value="${esc(audit.filt.from)}"></label>
-      <label class="cc-flt-date">Au <input class="fp-input fp-input-sm" id="au-to" type="datetime-local" value="${esc(audit.filt.to)}"></label>
-      <select class="fp-select fp-input-sm" id="au-platform" title="Plateforme">${opt(auUniq('platform'), audit.filt.platform)}</select>
-      <select class="fp-select fp-input-sm" id="au-type" title="Type">${opt(auUniq('type'), audit.filt.type)}</select>
-      <select class="fp-select fp-input-sm" id="au-action" title="Action">${opt(auUniq('action'), audit.filt.action)}</select>
-      <select class="fp-select fp-input-sm" id="au-user" title="Utilisateur">${opt(auUniq('user'), audit.filt.user)}</select>
+      ${ff('Recherche', `<input class="fp-input fp-input-sm" id="au-q" placeholder="${esc(T('ph_search'))}" value="${esc(audit.filt.q)}" autocomplete="off">`, { grow: true })}
+      <label class="cc-flt-date">Du<input class="fp-input fp-input-sm" id="au-from" type="datetime-local" value="${esc(audit.filt.from)}" aria-label="Du"></label>
+      <label class="cc-flt-date">Au<input class="fp-input fp-input-sm" id="au-to" type="datetime-local" value="${esc(audit.filt.to)}" aria-label="Au"></label>
+      ${ff('Plateforme', `<select class="fp-select fp-input-sm" id="au-platform" aria-label="Plateforme">${opt(auUniq('platform'), audit.filt.platform, 'Plateforme')}</select>`)}
+      ${ff('Type', `<select class="fp-select fp-input-sm" id="au-type" aria-label="Type">${opt(auUniq('type'), audit.filt.type, 'Type')}</select>`)}
+      ${ff('Action', `<select class="fp-select fp-input-sm" id="au-action" aria-label="Action">${opt(auUniq('action'), audit.filt.action, 'Action')}</select>`)}
+      ${ff('Utilisateur', `<select class="fp-select fp-input-sm" id="au-user" aria-label="Utilisateur">${opt(auUniq('user'), audit.filt.user, 'Utilisateur')}</select>`)}
       <span class="cc-tp-filter-actions">
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="au-reload">${esc(T("act_refresh"))}</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="au-reset">${esc(T("act_reset"))}</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="au-reload">${esc(T('act_refresh'))}</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="au-reset">${esc(T('act_reset'))}</button>
         ${TC.exportButtons()}</span>
     </div>`;
   }

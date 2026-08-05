@@ -34,7 +34,14 @@
   }
   function toolbar(call, extra) { return `<div class="cc-tp-toolbar"><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" onclick="${call}">${i18n.t('ui.refresh')}</button>${extra || ''}</div>`; }
   function uniq(arr) { return Array.from(new Set((arr || []).filter((x) => x != null && x !== ''))).sort(); }
-  function opts(values, sel) { return ['<option value="">— tous —</option>'].concat(uniq(values).map((v) => `<option value="${TC.esc(v)}"${v === sel ? ' selected' : ''}>${TC.esc(v)}</option>`)).join(''); }
+  function opts(values, sel, label) {
+    return TC.selectOpts ? TC.selectOpts(values, sel, label)
+      : ['<option value="">— tous —</option>'].concat(uniq(values).map((v) => `<option value="${TC.esc(v)}"${v === sel ? ' selected' : ''}>${TC.esc(v)}</option>`)).join('');
+  }
+  function ff(label, html, meta) {
+    return TC.filterField ? TC.filterField(label, html, meta)
+      : `<label class="cc-flt-field"><span class="cc-flt-label">${TC.esc(label)}</span>${html}</label>`;
+  }
   function delegate(root, handlers) { root.addEventListener('click', (e) => { const el = e.target.closest('[data-act]'); if (!el) return; const h = handlers[el.dataset.act]; if (h) h(el); }); }
 
   function clickCard(label, value, tone, ds, active) {
@@ -371,32 +378,32 @@
 
   function assetFilterBar() {
     const critOpts = [
-      ['', '— criticité : toutes —'], ['80', '≥ 80 (high)'], ['50', '≥ 50'], ['20', '≥ 20'], ['0', '≥ 0'],
+      ['', '— Criticité : toutes —'], ['80', '≥ 80 (high)'], ['50', '≥ 50'], ['20', '≥ 20'], ['0', '≥ 0'],
     ].map(([v, l]) => `<option value="${v}"${assetFilters.criticality === v ? ' selected' : ''}>${l}</option>`).join('');
     const typeOpts = ['', 'host', 'account', 'network'].map((v) =>
-      `<option value="${v}"${assetFilters.type === v ? ' selected' : ''}>${v || '— type : tous —'}</option>`).join('');
+      `<option value="${v}"${assetFilters.type === v ? ' selected' : ''}>${v || '— Type : tous —'}</option>`).join('');
     const catOpts = ['', 'server', 'desktop', 'user', 'technical'].map((v) =>
-      `<option value="${v}"${assetFilters.category === v ? ' selected' : ''}>${v || '— catégorie —'}</option>`).join('');
+      `<option value="${v}"${assetFilters.category === v ? ' selected' : ''}>${v || '— Catégorie : toutes —'}</option>`).join('');
     const srcOpts = ['', 'manual', 'automatic', 'import'].map((v) =>
-      `<option value="${v}"${assetFilters.source === v ? ' selected' : ''}>${v || '— source —'}</option>`).join('');
+      `<option value="${v}"${assetFilters.source === v ? ' selected' : ''}>${v || '— Source : toutes —'}</option>`).join('');
     const revOpts = [
-      ['', '— reviewed —'], ['true', 'Reviewed'], ['false', 'Non reviewed'],
+      ['', '— Reviewed : tous —'], ['true', 'Reviewed'], ['false', 'Non reviewed'],
     ].map(([v, l]) => `<option value="${v}"${assetFilters.reviewed === v ? ' selected' : ''}>${l}</option>`).join('');
     const sortOpts = ['criticality', 'name', 'updated_at', 'created_at', 'type'].map((v) =>
-      `<option value="${v}"${assetFilters.sort === v ? ' selected' : ''}>tri : ${v}</option>`).join('');
+      `<option value="${v}"${assetFilters.sort === v ? ' selected' : ''}>${v}</option>`).join('');
     return `<div class="cc-tp-filterbar">
-      <input class="fp-input fp-input-sm" id="ga-flt-q" placeholder="🔎 Recherche nom…" value="${TC.esc(assetFilters.q)}" autocomplete="off">
-      <select class="fp-select fp-input-sm" id="ga-flt-type">${typeOpts}</select>
-      <select class="fp-select fp-input-sm" id="ga-flt-cat">${catOpts}</select>
-      <select class="fp-select fp-input-sm" id="ga-flt-crit">${critOpts}</select>
-      <select class="fp-select fp-input-sm" id="ga-flt-source">${srcOpts}</select>
-      <select class="fp-select fp-input-sm" id="ga-flt-rev">${revOpts}</select>
-      <input class="fp-input fp-input-sm" id="ga-flt-tags" placeholder="tags (virgules)" value="${TC.esc(assetFilters.tags)}">
-      <select class="fp-select fp-input-sm" id="ga-flt-sort">${sortOpts}</select>
-      <select class="fp-select fp-input-sm" id="ga-flt-dir">
+      ${ff('Recherche', `<input class="fp-input fp-input-sm" id="ga-flt-q" placeholder="Nom d’actif…" value="${TC.esc(assetFilters.q)}" autocomplete="off">`, { grow: true })}
+      ${ff('Type', `<select class="fp-select fp-input-sm" id="ga-flt-type" aria-label="Type">${typeOpts}</select>`)}
+      ${ff('Catégorie', `<select class="fp-select fp-input-sm" id="ga-flt-cat" aria-label="Catégorie">${catOpts}</select>`)}
+      ${ff('Criticité', `<select class="fp-select fp-input-sm" id="ga-flt-crit" aria-label="Criticité">${critOpts}</select>`)}
+      ${ff('Source', `<select class="fp-select fp-input-sm" id="ga-flt-source" aria-label="Source">${srcOpts}</select>`)}
+      ${ff('Reviewed', `<select class="fp-select fp-input-sm" id="ga-flt-rev" aria-label="Reviewed">${revOpts}</select>`)}
+      ${ff('Tags', `<input class="fp-input fp-input-sm" id="ga-flt-tags" placeholder="tags (virgules)" value="${TC.esc(assetFilters.tags)}">`)}
+      ${ff('Tri', `<select class="fp-select fp-input-sm" id="ga-flt-sort" aria-label="Tri">${sortOpts}</select>`)}
+      ${ff('Ordre', `<select class="fp-select fp-input-sm" id="ga-flt-dir" aria-label="Ordre">
         <option value="desc"${assetFilters.direction === 'desc' ? ' selected' : ''}>desc</option>
         <option value="asc"${assetFilters.direction === 'asc' ? ' selected' : ''}>asc</option>
-      </select>
+      </select>`)}
       <span class="cc-tp-filter-actions">
         <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="ga-apply">Filtrer</button>
         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-reset">↺</button>
@@ -547,10 +554,10 @@
 
   function ruleFilterBarG() {
     return `<div class="cc-tp-filterbar">
-      <input class="fp-input fp-input-sm" id="gr-flt-q" placeholder="🔎 Recherche libre…" value="${TC.esc(ruleFilters.q)}" autocomplete="off">
-      <select class="fp-select fp-input-sm" id="gr-flt-source" title="Source">${opts(govRules.map((x) => x.source), ruleFilters.source)}</select>
-      <select class="fp-select fp-input-sm" id="gr-flt-sev" title="${TC.esc(i18n.t('table.severity'))}">${opts(govRules.map((x) => x.sev), ruleFilters.sev)}</select>
-      <select class="fp-select fp-input-sm" id="gr-flt-type" title="Type">${opts(govRules.map((x) => x.type), ruleFilters.type)}</select>
+      ${ff('Recherche', `<input class="fp-input fp-input-sm" id="gr-flt-q" placeholder="Nom, UUID…" value="${TC.esc(ruleFilters.q)}" autocomplete="off">`, { grow: true })}
+      ${ff('Source', `<select class="fp-select fp-input-sm" id="gr-flt-source" aria-label="Source">${opts(govRules.map((x) => x.source), ruleFilters.source, 'Source')}</select>`)}
+      ${ff(i18n.t('table.severity') || 'Sévérité', `<select class="fp-select fp-input-sm" id="gr-flt-sev" aria-label="Sévérité">${opts(govRules.map((x) => x.sev), ruleFilters.sev, 'Sévérité')}</select>`)}
+      ${ff('Type', `<select class="fp-select fp-input-sm" id="gr-flt-type" aria-label="Type">${opts(govRules.map((x) => x.type), ruleFilters.type, 'Type')}</select>`)}
       <span class="cc-tp-filter-actions">
         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="gr-reset">↺ Réinitialiser</button>
         ${TC.exportButtons()}</span>
@@ -609,8 +616,8 @@
 
   function keyFilterBarG() {
     return `<div class="cc-tp-filterbar">
-      <input class="fp-input fp-input-sm" id="gk-flt-q" placeholder="🔎 Recherche libre…" value="${TC.esc(keyFiltersG.q)}" autocomplete="off">
-      <select class="fp-select fp-input-sm" id="gk-flt-source" title="Plateforme">${opts(govKeys.map((x) => x.source), keyFiltersG.source)}</select>
+      ${ff('Recherche', `<input class="fp-input fp-input-sm" id="gk-flt-q" placeholder="Nom, UUID…" value="${TC.esc(keyFiltersG.q)}" autocomplete="off">`, { grow: true })}
+      ${ff('Plateforme', `<select class="fp-select fp-input-sm" id="gk-flt-source" aria-label="Plateforme">${opts(govKeys.map((x) => x.source), keyFiltersG.source, 'Plateforme')}</select>`)}
       <span class="cc-tp-filter-actions">
         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="gk-reset">↺ Réinitialiser</button>
         ${TC.exportButtons()}</span>

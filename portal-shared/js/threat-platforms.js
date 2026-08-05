@@ -62,7 +62,14 @@
 
   function toMap(list) { const m = {}; (list || []).forEach((x) => { m[x.label] = x.count; }); return m; }
   function uniq(arr) { return Array.from(new Set((arr || []).filter((x) => x != null && x !== ''))).sort(); }
-  function opts(values, sel) { return ['<option value="">— tous —</option>'].concat(uniq(values).map((v) => `<option value="${TC.esc(v)}"${v === sel ? ' selected' : ''}>${TC.esc(v)}</option>`)).join(''); }
+  function opts(values, sel, label) {
+    return TC.selectOpts ? TC.selectOpts(values, sel, label)
+      : ['<option value="">— tous —</option>'].concat(uniq(values).map((v) => `<option value="${TC.esc(v)}"${v === sel ? ' selected' : ''}>${TC.esc(v)}</option>`)).join('');
+  }
+  function ff(label, html, meta) {
+    return TC.filterField ? TC.filterField(label, html, meta)
+      : `<label class="cc-flt-field"><span class="cc-flt-label">${TC.esc(label)}</span>${html}</label>`;
+  }
 
   const sekFilters = { format: '', formatUuid: '', status: '', module: '', entity: '', connector: '', q: '' };
   function resetSekFilters() {
@@ -72,16 +79,16 @@
 
   function sekFilterBar() {
     const I = sekData.intakes;
-    const connOpts = `<option value=""${sekFilters.connector === '' ? ' selected' : ''}>— connecteur : tous —</option>`
+    const connOpts = `<option value=""${sekFilters.connector === '' ? ' selected' : ''}>— Connecteur : tous —</option>`
       + `<option value="with"${sekFilters.connector === 'with' ? ' selected' : ''}>Avec connecteur</option>`
       + `<option value="without"${sekFilters.connector === 'without' ? ' selected' : ''}>${i18n.t('msg.sans_connecteur')}</option>`;
     return `<div class="cc-tp-filterbar">
-      <input class="fp-input fp-input-sm" id="sek-flt-q" placeholder="🔎 Recherche libre…" value="${TC.esc(sekFilters.q)}">
-      <select class="fp-select fp-input-sm" id="sek-flt-format" title="Format">${opts(I.map((r) => r.intake_format_name_via_script || r.intake_format_name), sekFilters.format)}</select>
-      <select class="fp-select fp-input-sm" id="sek-flt-status" title="Statut">${opts(I.map((r) => r.intake_status), sekFilters.status)}</select>
-      <select class="fp-select fp-input-sm" id="sek-flt-module" title="Module">${opts(I.map((r) => r.module_name), sekFilters.module)}</select>
-      <select class="fp-select fp-input-sm" id="sek-flt-entity" title="${i18n.t('msg.entite')}">${opts(I.map((r) => r.entity_name), sekFilters.entity)}</select>
-      <select class="fp-select fp-input-sm" id="sek-flt-connector" title="Connecteur">${connOpts}</select>
+      ${ff('Recherche', `<input class="fp-input fp-input-sm" id="sek-flt-q" placeholder="Nom, UUID, techno…" value="${TC.esc(sekFilters.q)}" autocomplete="off">`, { grow: true })}
+      ${ff('Format', `<select class="fp-select fp-input-sm" id="sek-flt-format" aria-label="Format">${opts(I.map((r) => r.intake_format_name_via_script || r.intake_format_name), sekFilters.format, 'Format')}</select>`)}
+      ${ff('Statut', `<select class="fp-select fp-input-sm" id="sek-flt-status" aria-label="Statut">${opts(I.map((r) => r.intake_status), sekFilters.status, 'Statut')}</select>`)}
+      ${ff('Module', `<select class="fp-select fp-input-sm" id="sek-flt-module" aria-label="Module">${opts(I.map((r) => r.module_name), sekFilters.module, 'Module')}</select>`)}
+      ${ff(i18n.t('msg.entite') || 'Entité', `<select class="fp-select fp-input-sm" id="sek-flt-entity" aria-label="Entité">${opts(I.map((r) => r.entity_name), sekFilters.entity, 'Entité')}</select>`)}
+      ${ff('Connecteur', `<select class="fp-select fp-input-sm" id="sek-flt-connector" aria-label="Connecteur">${connOpts}</select>`)}
       <span class="cc-tp-filter-actions">
         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-reset">${i18n.t('ui.reset')}</button>
         ${TC.exportButtons()}</span>
@@ -446,20 +453,20 @@
     const lifecycles = fac.lifecycles || R.map((r) => r.rule_lifecycle);
     const enSel = (v, l) => `<option value="${v}"${ruleFilters.enabled === v ? ' selected' : ''}>${l}</option>`;
     return `<div class="cc-tp-filterbar">
-      <input class="fp-input fp-input-sm" id="rule-flt-q" placeholder="🔎 Recherche libre…" value="${TC.esc(ruleFilters.q)}">
-      <select class="fp-select fp-input-sm" id="rule-flt-type" title="Type">${opts(types, ruleFilters.type)}</select>
-      <select class="fp-select fp-input-sm" id="rule-flt-enabled" title="État">
-        ${enSel('', '— état : tous —')}${enSel('1', 'Activées')}${enSel('0', 'Désactivées')}
-      </select>
-      <select class="fp-select fp-input-sm" id="rule-flt-lifecycle" title="Lifecycle">${opts(lifecycles, ruleFilters.lifecycle)}</select>
-      <select class="fp-select fp-input-sm" id="rule-flt-dialect" title="Dialect">${opts(dialects, ruleFilters.dialect)}</select>
-      <select class="fp-select fp-input-sm" id="rule-flt-tag" title="Tag">${opts(tags, ruleFilters.tag)}</select>
-      <select class="fp-select fp-input-sm" id="rule-flt-datasource" title="Datasource">${opts(datasources, ruleFilters.datasource)}</select>
-      <input class="fp-input fp-input-sm cc-flt-num" id="rule-flt-sevmin" type="number" placeholder="${i18n.t('msg.sev_min')}" value="${TC.esc(ruleFilters.sevMin)}">
-      <input class="fp-input fp-input-sm cc-flt-num" id="rule-flt-sevmax" type="number" placeholder="${i18n.t('msg.sev_max')}" value="${TC.esc(ruleFilters.sevMax)}">
-      <input class="fp-input fp-input-sm" id="rule-flt-payload" placeholder="dans payload Sigma…" value="${TC.esc(ruleFilters.payload)}">
-      <input class="fp-input fp-input-sm" id="rule-flt-mitre" placeholder="MITRE (T1059…)" value="${TC.esc(ruleFilters.mitre)}">
-      <input class="fp-input fp-input-sm" id="rule-flt-cve" placeholder="CVE-2024-…" value="${TC.esc(ruleFilters.cve)}">
+      ${ff('Recherche', `<input class="fp-input fp-input-sm" id="rule-flt-q" placeholder="Nom, UUID, MITRE…" value="${TC.esc(ruleFilters.q)}" autocomplete="off">`, { grow: true })}
+      ${ff('Type', `<select class="fp-select fp-input-sm" id="rule-flt-type" aria-label="Type">${opts(types, ruleFilters.type, 'Type')}</select>`)}
+      ${ff('État', `<select class="fp-select fp-input-sm" id="rule-flt-enabled" aria-label="État">
+        ${enSel('', '— État : tous —')}${enSel('1', 'Activées')}${enSel('0', 'Désactivées')}
+      </select>`)}
+      ${ff('Lifecycle', `<select class="fp-select fp-input-sm" id="rule-flt-lifecycle" aria-label="Lifecycle">${opts(lifecycles, ruleFilters.lifecycle, 'Lifecycle')}</select>`)}
+      ${ff('Dialect', `<select class="fp-select fp-input-sm" id="rule-flt-dialect" aria-label="Dialect">${opts(dialects, ruleFilters.dialect, 'Dialect')}</select>`)}
+      ${ff('Tag', `<select class="fp-select fp-input-sm" id="rule-flt-tag" aria-label="Tag">${opts(tags, ruleFilters.tag, 'Tag')}</select>`)}
+      ${ff('Datasource', `<select class="fp-select fp-input-sm" id="rule-flt-datasource" aria-label="Datasource">${opts(datasources, ruleFilters.datasource, 'Datasource')}</select>`)}
+      ${ff('Sév. min', `<input class="fp-input fp-input-sm cc-flt-num" id="rule-flt-sevmin" type="number" placeholder="${i18n.t('msg.sev_min')}" value="${TC.esc(ruleFilters.sevMin)}" aria-label="Sévérité min">`)}
+      ${ff('Sév. max', `<input class="fp-input fp-input-sm cc-flt-num" id="rule-flt-sevmax" type="number" placeholder="${i18n.t('msg.sev_max')}" value="${TC.esc(ruleFilters.sevMax)}" aria-label="Sévérité max">`)}
+      ${ff('Payload', `<input class="fp-input fp-input-sm" id="rule-flt-payload" placeholder="dans payload Sigma…" value="${TC.esc(ruleFilters.payload)}">`, { grow: true })}
+      ${ff('MITRE', `<input class="fp-input fp-input-sm" id="rule-flt-mitre" placeholder="T1059…" value="${TC.esc(ruleFilters.mitre)}">`)}
+      ${ff('CVE', `<input class="fp-input fp-input-sm" id="rule-flt-cve" placeholder="CVE-2024-…" value="${TC.esc(ruleFilters.cve)}">`)}
       <span class="cc-tp-filter-actions">
         <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="rule-apply">Filtrer</button>
         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="rule-reset">${i18n.t('ui.reset')}</button>
@@ -1033,15 +1040,15 @@
   }
   function keyFilterBar() {
     const sel = (v, l) => `<option value="${v}"${keyFilters.bucket === v ? ' selected' : ''}>${l}</option>`;
-    const tagOpts = ['<option value="">— tag : tous —</option>'].concat(KEY_TAGS.map((t) =>
+    const tagOpts = ['<option value="">— Tag : tous —</option>'].concat(KEY_TAGS.map((t) =>
       `<option value="${t}"${keyFilters.tag === t ? ' selected' : ''}>${t}</option>`)).join('');
     return `<div class="cc-tp-filterbar">
-      <input class="fp-input fp-input-sm" id="key-flt-q" placeholder="🔎 Recherche libre…" value="${TC.esc(keyFilters.q)}">
-      <select class="fp-select fp-input-sm" id="key-flt-bucket" title="${i18n.t('table.status')}">
-        ${sel('', '— toutes —')}${sel('active', 'Actives')}${sel('inactive', 'Inactives')}${sel('expired', i18n.t('msg.expirees'))}${sel('week', 'Expire ≤7j')}${sel('near', 'Proche expiration (≤30j)')}${sel('never', 'Sans expiration')}
-      </select>
-      <select class="fp-select fp-input-sm" id="key-flt-tag" title="Tag">${tagOpts}</select>
-      <input class="fp-input fp-input-sm" id="key-flt-perms" placeholder="Scope / permission…" value="${TC.esc(keyFilters.perms)}">
+      ${ff('Recherche', `<input class="fp-input fp-input-sm" id="key-flt-q" placeholder="Nom, UUID…" value="${TC.esc(keyFilters.q)}" autocomplete="off">`, { grow: true })}
+      ${ff('Statut', `<select class="fp-select fp-input-sm" id="key-flt-bucket" aria-label="Statut">
+        ${sel('', '— Statut : tous —')}${sel('active', 'Actives')}${sel('inactive', 'Inactives')}${sel('expired', i18n.t('msg.expirees'))}${sel('week', 'Expire ≤7j')}${sel('near', 'Proche expiration (≤30j)')}${sel('never', 'Sans expiration')}
+      </select>`)}
+      ${ff('Tag', `<select class="fp-select fp-input-sm" id="key-flt-tag" aria-label="Tag">${tagOpts}</select>`)}
+      ${ff('Permission', `<input class="fp-input fp-input-sm" id="key-flt-perms" placeholder="Scope / permission…" value="${TC.esc(keyFilters.perms)}">`, { grow: true })}
       <span class="cc-tp-filter-actions">
         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="key-reset">${i18n.t('ui.reset')}</button>
         ${TC.exportButtons()}</span>

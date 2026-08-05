@@ -145,9 +145,14 @@
   [data-edition="cybercorp"] .app-body { max-width: 2200px; }
 }
 @media (max-width: 1024px) {
+  /* Garder une grille de champs (pas une colonne unique width:100%). */
   [data-edition="cybercorp"] .cc-tp-filterbar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: flex-end;
+  }
+  [data-edition="cybercorp"] .cc-flt-field,
+  [data-edition="cybercorp"] .cc-flt-field--grow {
+    max-width: none;
   }
   [data-edition="cybercorp"] .cc-tp-filter-actions {
     margin-left: 0;

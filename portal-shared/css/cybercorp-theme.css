@@ -704,16 +704,75 @@
 }
 [data-edition="cybercorp"] .cc-tp-querybox code { color: var(--ti-accent); word-break: break-all; }
 [data-edition="cybercorp"] .cc-tp-filterbar {
-  display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+  display: flex; gap: 0.55rem 0.7rem; flex-wrap: wrap; align-items: flex-end;
   margin: 0.6rem 0 0.9rem; padding: 0.6rem 0.7rem;
   background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius);
 }
+/* forensic-ui pose width:100% sur .fp-select/.fp-input → chaque filtre
+   prenait une ligne entière (illisibles, empilés). On borne ici. */
+[data-edition="cybercorp"] .cc-tp-filterbar .fp-input,
+[data-edition="cybercorp"] .cc-tp-filterbar .fp-select,
 [data-edition="cybercorp"] .cc-tp-filterbar .fp-input-sm,
 [data-edition="cybercorp"] .cc-tp-filterbar .fp-select.fp-input-sm {
-  height: 32px; padding: 0 0.5rem; font-size: 0.85rem; min-width: 120px;
+  width: 100%;
+  max-width: none;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 0.55rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 [data-edition="cybercorp"] .cc-tp-filterbar .cc-flt-num { min-width: 90px; width: 90px; }
-[data-edition="cybercorp"] .cc-tp-filter-actions { margin-left: auto; display: flex; gap: 0.4rem; }
+[data-edition="cybercorp"] .cc-tp-filter-actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  align-self: flex-end;
+  padding-bottom: 1px;
+}
+/* Libellés visibles au-dessus de chaque contrôle (plus seulement title=). */
+[data-edition="cybercorp"] .cc-flt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  flex: 1 1 9.5rem;
+  min-width: 9.5rem;
+  max-width: 15rem;
+  margin: 0;
+}
+[data-edition="cybercorp"] .cc-flt-field--grow {
+  flex: 2 1 14rem;
+  max-width: 22rem;
+}
+[data-edition="cybercorp"] .cc-flt-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text);
+  opacity: 0.9;
+  line-height: 1.2;
+}
+[data-edition="cybercorp"] .cc-flt-date {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text);
+  opacity: 0.9;
+  flex: 1 1 10rem;
+  min-width: 10rem;
+  max-width: 15rem;
+}
 [data-edition="cybercorp"] .cc-payload {
   max-height: 320px; overflow: auto; background: #0B0F16; border: 1px solid var(--border);
   border-radius: var(--radius); padding: 0.8rem 1rem; margin: 0.4rem 0 0.8rem;
@@ -762,12 +821,12 @@
 [data-edition="cybercorp"] .cc-card-click:hover::after { opacity: .8; }
 [data-edition="cybercorp"] .cc-card-click:hover::before { filter: brightness(1.4); }
 
-/* Barre de filtres : libellé contextuel discret « Filtres ». */
-[data-edition="cybercorp"] .cc-tp-filterbar { position: relative; padding-top: 1.5rem; }
+/* Barre de filtres : bandeau « Filtres » (les champs ont leurs propres labels). */
+[data-edition="cybercorp"] .cc-tp-filterbar { position: relative; padding-top: 1.65rem; }
 [data-edition="cybercorp"] .cc-tp-filterbar::before {
   content: "Filtres"; position: absolute; top: .4rem; left: .75rem;
-  font-size: .66rem; text-transform: uppercase; letter-spacing: .08em;
-  color: var(--text-muted);
+  font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text); opacity: 0.75;
 }
 
 /* Carte de détail (intake / connecteur / règle) : accent latéral repérable. */

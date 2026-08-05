@@ -348,6 +348,25 @@
   }
 
   /**
+   * Champ de filtre inventaire : libellé visible + contrôle.
+   * Sans ça, les <select> n'ont qu'un title hover et « — tous — » anonyme.
+   */
+  function filterField(label, controlHtml, meta) {
+    const grow = meta && meta.grow ? ' cc-flt-field--grow' : '';
+    return `<label class="cc-flt-field${grow}">`
+      + `<span class="cc-flt-label">${esc(label)}</span>${controlHtml}</label>`;
+  }
+
+  /** Options <select> avec première ligne « — Label : tous — ». */
+  function selectOpts(values, sel, allLabel) {
+    const empty = allLabel ? `— ${allLabel} : tous —` : '— tous —';
+    const uniq = Array.from(new Set((values || []).filter((x) => x != null && x !== ''))).sort();
+    return [`<option value="">${esc(empty)}</option>`]
+      .concat(uniq.map((v) => `<option value="${esc(v)}"${String(v) === String(sel) ? ' selected' : ''}>${esc(v)}</option>`))
+      .join('');
+  }
+
+  /**
    * Charge toutes les pages d'un endpoint envelope {items,total,offset,limit}.
    * Pour exports / facettes — borné (maxItems) pour la prod.
    */
@@ -444,6 +463,7 @@
     staleBanner, offlineBanner, offlineCacheSet, offlineCacheGet, tableLoading, clearThreatOffline,
     apiPaged, pagerBar,
     matchText, download, exportCSV, exportJSON, exportButtons,
+    filterField, selectOpts,
     sendBar, sendEvents, bindSend,
   };
 

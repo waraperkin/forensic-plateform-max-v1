@@ -400,7 +400,7 @@
     "s1_fetch_lead": "Targeted threats & activities for a host / IP / agentId.",
     "config_secrets_lead": "Connector secrets (encrypted server-side, never in .env).",
     "sekoia_cc_lead": "SEP operational overview: KPIs, volume and quick access to builders.",
-    "sekoia_kheish_lead": "CERT/SOC agent console — mockup ready to bind to the Kheish daemon and SageMaker.",
+    "sekoia_kheish_lead": "Multi-tool CERT/SOC agent (Sekoia, SentinelOne, XSOAR, ServiceNow…) — chat, skills, dedicated config.",
     "xdr_lead": "Merged asset view: Sekoia intakes & events, SentinelOne threats & activities, unified timeline, Timesketch / OpenSearch export.",
     "api_key_help": "API key used to authenticate calls to this connector.",
     "delete_secrets": "Delete secrets",

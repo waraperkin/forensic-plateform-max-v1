@@ -38,6 +38,21 @@
     { id: 'config', key: 'c', group: 3 },
   ];
 
+  // Mode SEP (/sekoia) : l'entrée sidebar « Alerting & drops » ne doit PAS
+  // ressortir le workbench 12 onglets (Inventaire, Clés API, Audit…) déjà
+  // couverts ailleurs. Deux missions seulement.
+  const SEP_VIEWS = [
+    { id: 'drops', key: 'd', group: 1 },
+    { id: 'alerting', key: 'a', group: 2 },
+  ];
+
+  function isSepTool() {
+    return document.body.classList.contains('cc-mode-sekoia');
+  }
+  function activeViews() {
+    return isSepTool() ? SEP_VIEWS : VIEWS;
+  }
+
   const st = {
     view: 'overview', range: 24, loading: false, error: null,
     q: '', filters: {}, sort: null, sortDir: -1,
@@ -1118,11 +1133,88 @@
         <tbody>${rows}</tbody></table></div></div>`;
   }
 
+  // ── Baisses & silencieux (mission SEP « Alerting & drops ») ───────────────
+  function viewDrops() {
+    const h = st.data.health;
+    if (!h || !Array.isArray(h.items)) return degraded('État des intakes injoignable.');
+    const items = h.items;
+    const silent = items.filter((i) => i.silent);
+    const drops = items.filter((i) => {
+      const base = Number(i.baseline_avg) || 0;
+      const ratio = i.drop_ratio;
+      return base > 0 && ratio != null && Number(ratio) < 0.5 && !i.silent;
+    });
+    const interrupted = silent.filter((i) => (Number(i.baseline_avg) || 0) > 0);
+    const never = silent.filter((i) => !(Number(i.baseline_avg) || 0));
+    const byType = (st.data.alerts && st.data.alerts.by_type) || {};
+
+    const q = (st.q || '').trim().toLowerCase();
+    const filt = (row) => !q || [row.intake_name, row.entity_name, row.intake_uuid]
+      .some((x) => String(x || '').toLowerCase().includes(q));
+
+    const silentRows = silent.filter(filt).slice(0, 250).map((i) => `<tr>
+      <td class="swb-truncate" title="${esc(i.intake_name)}">${esc(i.intake_name || '—')}</td>
+      <td class="swb-truncate" title="${esc(i.entity_name || '')}">${esc(i.entity_name || '—')}</td>
+      <td class="swb-num">${esc(nf(i.baseline_avg))}</td>
+      <td class="swb-num">${esc(i.last_event_age_min != null ? `${nf(i.last_event_age_min)} min` : '—')}</td>
+      <td>${(Number(i.baseline_avg) || 0) > 0
+        ? pill('interrompue', 'danger') : pill('jamais alimentée', 'mute')}</td>
+    </tr>`).join('');
+
+    const dropRows = drops.filter(filt).slice(0, 100).map((i) => {
+      const pct = Math.round((1 - Number(i.drop_ratio)) * 100);
+      return `<tr>
+        <td class="swb-truncate" title="${esc(i.intake_name)}">${esc(i.intake_name || '—')}</td>
+        <td class="swb-num">${esc(nf(i.current_count))}</td>
+        <td class="swb-num">${esc(nf(i.baseline_avg))}</td>
+        <td>${pill(`−${pct} %`, pct >= 50 ? 'danger' : 'warn', true)}</td>
+        <td class="swb-hint">${esc(i.grade || '—')}</td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="swb-head">
+        <div><h2 class="swb-title">Baisses &amp; silencieux</h2>
+          <p class="swb-sub">Intakes qui se taisent ou chutent ≥ 50 % vs baseline — pas la volumétrie globale ni l'inventaire.</p></div>
+        <div class="swb-actions">
+          <button type="button" class="fp-btn fp-btn-sm" data-swb-act="reload">↻ ${esc(T('swb.act.refresh'))}</button></div></div>
+      <div class="swb-kpis">
+        ${kpi('Intakes', nf(items.length), 'ok')}
+        ${kpi('Silencieux', nf(silent.length), silent.length ? 'danger' : 'ok',
+          `${nf(interrupted.length)} interrompus · ${nf(never.length)} jamais alimentés`)}
+        ${kpi('Baisses ≥ 50 %', nf(drops.length), drops.length ? 'warn' : 'ok', 'émetteurs encore actifs')}
+        ${kpi('Alertes silent 24 h', nf(byType.intake_silent || 0), byType.intake_silent ? 'danger' : 'ok',
+          'événements (polls répétés)')}
+        ${kpi('Alertes drop 24 h', nf((byType.volume_drop || 0) + (byType.host_drop || 0)),
+          (byType.volume_drop || byType.host_drop) ? 'warn' : 'ok')}
+      </div>
+      ${toolbar('Filtrer un intake…', '', `${nf(silent.length)} silencieux · ${nf(drops.length)} baisses`)}
+      <div class="swb-panel" style="padding:0">
+        <div class="swb-panel-head" style="padding:.8rem .9rem 0">
+          <h3 class="swb-panel-title">Sources silencieuses</h3></div>
+        <div class="swb-tablewrap" style="max-height:36vh"><table class="swb-table"><thead><tr>
+          <th>Intake</th><th>Entité</th><th class="swb-num">Baseline</th><th class="swb-num">Âge signal</th><th>État</th>
+        </tr></thead><tbody>${silentRows
+          || '<tr><td colspan="5"><p class="swb-hint" style="padding:1rem">Aucun intake silencieux.</p></td></tr>'}</tbody></table></div></div>
+      <div class="swb-panel" style="padding:0;margin-top:.7rem">
+        <div class="swb-panel-head" style="padding:.8rem .9rem 0">
+          <h3 class="swb-panel-title">Baisses de collecte ≥ 50 %</h3></div>
+        <div class="swb-tablewrap" style="max-height:28vh"><table class="swb-table"><thead><tr>
+          <th>Intake</th><th class="swb-num">Courant</th><th class="swb-num">Baseline</th><th>Chute</th><th>Grade</th>
+        </tr></thead><tbody>${dropRows
+          || '<tr><td colspan="5"><p class="swb-hint" style="padding:1rem">Aucune baisse ≥ 50 % sur les émetteurs actifs.</p></td></tr>'}</tbody></table></div></div>`;
+  }
+
   // ── Alerting ──────────────────────────────────────────────────────────────
   function viewAlerting() {
     const rules = st.data.arules; const alerts = st.data.alerts;
     if (!rules) return degraded('Moteur de règles injoignable.');
     const bySev = (alerts && alerts.by_severity) || {};
+    const byType = (alerts && alerts.by_type) || {};
+    const typeHint = Object.entries(byType)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([k, n]) => `${k}: ${nf(n)}`)
+      .join(' · ');
     const ruleRows = (rules.items || []).map((r) => `<tr>
       <td>${r.enabled ? pill(T('swb.pill.active'), 'ok') : pill(T('swb.pill.inactive'), 'mute')}</td>
       <td>${esc(r.name)}</td>
@@ -1137,24 +1229,27 @@
     </tr>`).join('');
 
     let aRows = (alerts && alerts.items) || [];
-    aRows = aRows.filter((a) => match(a, ['intake_name', 'message', 'rule_type', 'rule']));
+    aRows = aRows.filter((a) => match(a, ['intake_name', 'message', 'rule_type', 'rule', 'host']));
     const body = aRows.slice(0, 200).map((a) => `<tr>
       <td>${pill(a.severity, a.severity === 'critical' ? 'danger' : a.severity === 'high' ? 'warn' : 'mute')}</td>
       <td><span class="swb-mono">${esc(a.rule_type || '—')}</span></td>
-      <td class="swb-truncate" title="${esc(a.intake_name || '—')}">${esc(a.intake_name || '—')}</td>
+      <td class="swb-truncate" title="${esc(a.intake_name || a.host || '—')}">${esc(a.intake_name || a.host || '—')}</td>
       <td class="swb-truncate" title="${esc(a.message)}">${esc(a.message || '')}</td>
       <td>${a.group_size > 1 ? pill(`×${a.group_size}`, 'warn', true) : ''}</td>
       <td class="swb-hint">${esc(ago(a['@timestamp']))}</td></tr>`).join('');
 
     return `<div class="swb-head">
         <div><h2 class="swb-title">Alerting d'ingestion</h2>
-          <p class="swb-sub">Seuils dynamiques adossés à la baseline et à l'écart-type. Les alertes simultanées partageant une cause forment un incident unique.</p></div>
+          <p class="swb-sub">Règles, seuils et flux d'alertes. Les volumes bruts (ex. intake_silent × chaque poll) ne sont pas des intakes distincts.</p></div>
         <div class="swb-actions">
           <button type="button" class="fp-btn fp-btn-sm" data-swb-act="evaluate">${T('swb.act.evaluate')}</button></div></div>
       <div class="swb-kpis">
-        ${kpi('Alertes 24 h', nf((alerts && alerts.total) || 0), (alerts && alerts.total) ? 'warn' : 'ok')}
-        ${kpi('Critiques', nf(bySev.critical || 0), bySev.critical ? 'danger' : 'ok')}
-        ${kpi('Élevées', nf(bySev.high || 0), bySev.high ? 'warn' : 'ok')}
+        ${kpi('Alertes 24 h', nf((alerts && alerts.total) || 0), (alerts && alerts.total) ? 'warn' : 'ok', typeHint || undefined)}
+        ${kpi('Critiques', nf(bySev.critical || 0), bySev.critical ? 'danger' : 'ok',
+          byType.intake_silent ? `${nf(byType.intake_silent)} silent` : undefined)}
+        ${kpi('Élevées', nf(bySev.high || 0), bySev.high ? 'warn' : 'ok',
+          (byType.host_drop || byType.volume_drop)
+            ? `${nf(byType.host_drop || 0)} host_drop · ${nf(byType.volume_drop || 0)} volume_drop` : undefined)}
         ${kpi('Règles actives', nf(rules.enabled || 0), 'ok', `${nf(rules.count)} définies`)}
       </div>
       <div class="swb-panel">
@@ -1690,7 +1785,7 @@
   function nav() {
     let html = '<nav class="swb-nav" role="tablist">';
     let group = null;
-    VIEWS.forEach((v) => {
+    activeViews().forEach((v) => {
       if (group !== null && v.group !== group) html += '<span class="swb-nav-sep"></span>';
       group = v.group;
       const b = st.badges[v.id];
@@ -1716,6 +1811,7 @@
     else if (st.view === 'telemetry') body = viewTelemetry();
     else if (st.view === 'hosts') body = viewHosts();
     else if (st.view === 'value') body = viewValue();
+    else if (st.view === 'drops') body = viewDrops();
     else if (st.view === 'alerting') body = viewAlerting();
     else if (st.view === 'operations') body = viewOperations();
     else if (st.view === 'apikeys') body = viewApiKeys();
@@ -1793,6 +1889,15 @@
         if (r[0] && r[0].issues_total) {
           st.badges.inventory = { text: String(r[0].issues_total), tone: 'danger' };
         }
+      } else if (st.view === 'drops') {
+        const r = await Promise.all([
+          api('/intakes/health'),
+          api('/alerting/alerts?hours=24').catch(() => null),
+        ]);
+        st.data.health = r[0];
+        st.data.alerts = r[1];
+        const silentN = ((r[0] && r[0].items) || []).filter((i) => i.silent).length;
+        if (silentN) st.badges.drops = { text: String(silentN), tone: 'danger' };
       } else if (st.view === 'alerting') {
         const r = await Promise.all([
           api('/alerting/rules'), api('/alerting/alerts?hours=24').catch(() => null),
@@ -2228,7 +2333,7 @@
     }
     if (ev.key === 'g') { chord = true; setTimeout(() => { chord = false; }, 1200); return; }
     if (chord) {
-      const v = VIEWS.find((x) => x.key === ev.key);
+      const v = activeViews().find((x) => x.key === ev.key);
       chord = false;
       if (v) { st.view = v.id; st.q = ''; st.filters = {}; st.sort = null; load(); }
     }
@@ -2245,7 +2350,11 @@
   function mountAt(elId, view, withNav) {
     st.mount = elId;
     st.nav = withNav !== false;
+    // Vue demandée > défaut SEP (alerting) > défaut CERT (overview).
     if (view) st.view = view;
+    else if (isSepTool()) st.view = 'alerting';
+    // Si une vue hors périmètre SEP est restée en mémoire, recentrer.
+    if (isSepTool() && !SEP_VIEWS.some((v) => v.id === st.view)) st.view = 'alerting';
     st.q = ''; st.filters = {}; st.sort = null; st.drawer = null;
     const el = root();
     if (!el) return;

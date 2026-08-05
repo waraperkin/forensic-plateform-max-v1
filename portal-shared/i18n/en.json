@@ -2260,6 +2260,7 @@
       "inventory": "Inventory",
       "telemetry": "Telemetry",
       "hosts": "Hosts",
+      "drops": "Drops & silent",
       "alerting": "Alerting",
       "operations": "Operations",
       "apikeys": "API keys",

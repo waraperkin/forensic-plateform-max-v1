@@ -55,16 +55,13 @@ function resolveTab(raw) {
 // moment ou tab() tourne pendant boot(), le module peut ne pas encore
 // exister, d'ou le sondage plutot qu'un appel direct (meme discipline que
 // loadDoc() pour PortalDoc un peu plus haut dans ce fichier).
-// QA 04/08/2026 — un seul rendeur par onglet. Le workbench (SEP) n'ouvre plus
-// QUE « Synthèse & alertes » (sekoia-extended), avec sa navigation interne à
-// 12 vues. Les onglets sekoia-cc, sekoia-ingest, sekoia-assets, sekoia-rules,
-// sekoia-fetch, sekoia-apikeys, audit-center et tp-config ont chacun un
-// rendeur dédié (control-center, sekoia-volume, threat-platforms) — ce sont
-// ceux que le QA a jugés les meilleurs. Le double-montage effaçait la
-// sous-navigation du Pilotage et doublait chaque chargement (source majeure
-// de lenteur et du bug « sous-nav qui disparaît »).
+// QA 04/08/2026 — un seul rendeur par onglet. Le workbench n'occupe que
+// sekoia-extended ; les autres onglets ont leur rendeur dédié. En mode SEP,
+// la nav workbench est réduite à Baisses & Alerting (voir SEP_VIEWS).
 const SEKOIA_WORKBENCH_TABS = {
-  'sekoia-extended': ['sekoia-extended-root', null, true],
+  // SEP « Alerting & drops » : atterrir sur l'alerting, pas la vue d'ensemble
+  // fourre-tout (12 onglets qui doublaient Inventaire / API keys / Settings).
+  'sekoia-extended': ['sekoia-extended-root', 'alerting', true],
 };
 function mountSekoiaWorkbenchDeepLink(t, n = 0) {
   const cfg = SEKOIA_WORKBENCH_TABS[t];

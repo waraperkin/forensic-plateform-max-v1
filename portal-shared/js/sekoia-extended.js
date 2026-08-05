@@ -443,8 +443,7 @@
   }
 
   window.SekoiaExtended = { init: init, load: load };
-  document.addEventListener('DOMContentLoaded', function () {
-    const btn = document.querySelector('[data-tab-btn="sekoia-extended"]');
-    if (btn) btn.addEventListener('click', function () { setTimeout(init, 50); });
-  });
+  // Ne plus monter ici : #sekoia-extended-root appartient à sekoia-workbench.js
+  // (cert-app → SekoiaWorkbench.mountAt). Un second init() 50 ms après le clic
+  // écrasait le workbench et produisait l'écran fourre-tout « ALERTS ».
 }());

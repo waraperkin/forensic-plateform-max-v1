@@ -116,7 +116,7 @@ métriques, détecter une source muette ou en dérive, identifier les règles
 jamais déclenchées, identifier les actifs sans logs ou sans couverture, voir
 les sources multi-hôtes silencieuses ou en dérive, visualiser la couverture
 MITRE et les angles morts. Chacun est exercé par au moins une assertion dans
-`analyst-ui.mjs`, `dbgbulk.mjs`, `dbgbulk2.mjs` ou `sekoia-tool.mjs`.
+`analyst-ui.mjs`, `sep-ui.mjs` ou `sekoia-tool.mjs`.
 
 ## 7. Une panne d'infrastructure découverte pendant la validation
 
@@ -279,7 +279,7 @@ cache invisible est un cache dont on ne peut pas vérifier le comportement.
 
 523 tests Python (5 nouveaux sur le cache : fraîcheur non falsifiée, expiration
 réelle, erreurs jamais mises en cache, plafond respecté, clés distinctes non
-confondues), 44 tests JS, régression navigateur `dbgbulk.mjs` — 0 FAIL.
+confondues), 44 tests JS, régression navigateur `sep-ui.mjs` — 0 FAIL.
 
 ---
 
@@ -336,7 +336,7 @@ capture) — 0 échec. Régression navigateur : `pagination-proof.mjs` (0 FAIL),
 `dbggroups.mjs` (0 FAIL, 14 vues et 3 groupes intacts), `sagf-tab.mjs`
 (0 FAIL, console SAGF intacte).
 
-`legacy.mjs` et `dbgbulk.mjs` ont échoué de façon intermittente pendant cette
+`legacy.mjs` a échoué de façon intermittente pendant cette
 session — cause identifiée : `server.js` du portail CERT saturé (99 % CPU
 soutenu sur plus d'une heure, `docker top`) par l'enchaînement des collectes
 `assets` répétées (48 s chacune) déclenchées par les propres essais de ce

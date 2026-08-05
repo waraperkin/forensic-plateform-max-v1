@@ -74,7 +74,13 @@ desktop.ini
 *~
 .idea/
 .vscode/
+.claude/
 *.sublime-*
+
+# --- Captures / rapports de campagne (ne jamais reversionner) ---
+portal-cert/reports/
+portal-it/reports/
+**/screenshots-premium-*/
 
 # --- Archives & fichiers temporaires (racine — pas plugins HELK embarqués) ---
 /*.zip

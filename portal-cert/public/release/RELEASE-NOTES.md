@@ -16,7 +16,7 @@
 - Performance UI sur panneaux lourds (Rules 1100+)
 - Sekoia Control Center Enterprise++ (Query/Dashboard/Asset Profile)
 - Exports Timesketch / OpenSearch depuis Telemetry & CERT Tools
-- Packaging production (`scripts/build-production.sh`)
+- Packaging production (*(retiré — packaging via Docker / full-start)*)
 
 ## Correctifs
 
@@ -32,7 +32,7 @@
 | Threat proxy | `portal-cert/lib/threat-platforms-routes.js` (inchangé routes existantes) |
 | Connecteurs | `connectors/sekoia-controlplane`, `connectors/sentinelone-controlplane` |
 | QA | `tests/`, `scripts/run-qa.sh` |
-| Release | `release/`, `scripts/build-production.sh`, `scripts/export-soc.sh` |
+| Release | `release/`, *(retiré — packaging via Docker / full-start)*, *(retiré)* |
 
 ## Compatibilité
 

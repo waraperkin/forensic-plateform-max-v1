@@ -127,3 +127,11 @@ config/cortex/application.conf
 docs/*_REPORT.md
 docs/**/*_REPORT.md
 **/TIMESKETCH_*_REPORT.md
+
+# --- Velociraptor : configs générées (clés privées) — régénérer via scripts ---
+velociraptor/config/server.config.yaml
+velociraptor/config/api.config.yaml
+velociraptor/clients/client.config.yaml
+velociraptor/clients/*.yaml
+!velociraptor/config/README.md
+

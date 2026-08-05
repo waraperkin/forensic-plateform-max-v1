@@ -572,3 +572,177 @@ def test_le_calcul_du_motif_ne_modifie_pas_lenregistrement_mesure():
     out = sep._with_reason(uc, rec)
     assert out["evidence"] == "criticité : critique"
     assert rec["evidence"] == "aucun signal actif"
+
+
+# ── Pagination : ce qui casse quand le tenant grossit d'un facteur cent ──────
+@pytest.mark.asyncio
+async def test_les_alertes_sont_demandees_de_la_plus_recente_a_la_plus_ancienne():
+    """L'API rend les alertes de la PLUS ANCIENNE d'abord. Sans tri explicite,
+    une fenêtre de sept jours ne voyait que des alertes de 2023 et toutes les
+    règles ressortaient à zéro alerte — un décompte non pas imprécis mais
+    systématiquement nul."""
+    import sep
+    vus = []
+
+    async def faux_get(method, path, params=None, **kw):
+        vus.append(params or {})
+        return {"items": [], "total": 0}, None
+
+    import app
+    ancien = app.sek_request
+    app.sek_request = faux_get
+    try:
+        await sep._alerts_by_rule(7)
+    finally:
+        app.sek_request = ancien
+    assert vus and vus[0]["sort"] == "created_at"
+    assert vus[0]["direction"] == "desc"
+
+
+@pytest.mark.asyncio
+async def test_le_decompte_dalertes_sarrete_a_la_sortie_de_la_fenetre():
+    """L'ordre décroissant permet de s'arrêter : le coût suit le nombre
+    d'alertes de la période, pas l'historique du tenant."""
+    import sep
+    from datetime import datetime, timezone
+    maintenant = datetime.now(timezone.utc).timestamp()
+    pages = [
+        [{"rule": {"uuid": "r1"}, "created_at": maintenant - 3600}] * 100,
+        [{"rule": {"uuid": "r2"}, "created_at": maintenant - 400 * 86400}] * 100,
+        [{"rule": {"uuid": "r3"}, "created_at": maintenant - 500 * 86400}] * 100,
+    ]
+    appels = {"n": 0}
+
+    async def faux_get(method, path, params=None, **kw):
+        i = appels["n"]
+        appels["n"] += 1
+        return {"items": pages[i] if i < len(pages) else []}, None
+
+    import app
+    ancien = app.sek_request
+    app.sek_request = faux_get
+    try:
+        per_rule, err, capped = await sep._alerts_by_rule(7)
+    finally:
+        app.sek_request = ancien
+    assert appels["n"] == 2, "la page hors fenêtre doit interrompre le parcours"
+    assert per_rule["r1"]["count"] == 100
+    assert "r3" not in per_rule and not capped and err is None
+
+
+@pytest.mark.asyncio
+async def test_lhorodatage_dalerte_accepte_epoch_et_iso():
+    import sep
+    assert sep._alert_epoch({"created_at": 1700000000}) == 1700000000.0
+    assert sep._alert_epoch({"created_at": "2026-01-01T00:00:00Z"}) > 0
+    assert sep._alert_epoch({}) is None
+    assert sep._alert_epoch({"created_at": "pas une date"}) is None
+
+
+@pytest.mark.asyncio
+async def test_une_agregation_pagine_tous_les_termes_et_avoue_sa_limite():
+    """Une agrégation `terms` de taille fixe ne remonte pas d'erreur : elle rend
+    les N premiers termes et fait disparaître les autres. C'est le silence, pas
+    la lenteur, qui rend le passage à l'échelle dangereux."""
+    import sep
+    pages = [
+        {"aggregations": {"pop": {"value": 5},
+                          "by": {"buckets": [{"key": {"k": "a"}, "doc_count": 1},
+                                             {"key": {"k": "b"}, "doc_count": 1}],
+                                 "after_key": {"k": "b"}}}},
+        {"aggregations": {"by": {"buckets": [{"key": {"k": "c"}, "doc_count": 1}]}}},
+    ]
+    vus = []
+
+    async def faux_search(index, body):
+        vus.append(body)
+        return pages[len(vus) - 1], None
+
+    import app
+    ancien = app.os_search
+    app.os_search = faux_search
+    try:
+        buckets, complete, population = await sep._composite_terms(
+            "idx", {"match_all": {}}, "f.keyword", {}, 100)
+    finally:
+        app.os_search = ancien
+    assert [b["key"]["k"] for b in buckets] == ["a", "b", "c"]
+    assert complete is True and population == 5
+    assert vus[1]["aggs"]["by"]["composite"]["after"] == {"k": "b"}
+
+
+@pytest.mark.asyncio
+async def test_une_agregation_qui_depasse_son_budget_se_declare_incomplete():
+    import sep
+
+    async def faux_search(index, body):
+        taille = body["aggs"]["by"]["composite"]["size"]
+        return {"aggregations": {
+            "pop": {"value": 900},
+            "by": {"buckets": [{"key": {"k": str(i)}, "doc_count": 1}
+                               for i in range(taille)],
+                   "after_key": {"k": "suite"}}}}, None
+
+    import app
+    ancien = app.os_search
+    app.os_search = faux_search
+    try:
+        buckets, complete, population = await sep._composite_terms(
+            "idx", {"match_all": {}}, "f.keyword", {}, 10, page_size=5)
+    finally:
+        app.os_search = ancien
+    assert len(buckets) == 10 and complete is False and population == 900
+
+
+@pytest.mark.asyncio
+async def test_le_parcours_des_actifs_indexes_depasse_le_plafond_des_10000():
+    """`size: 10000` est le plafond dur d'OpenSearch. Sur 106 000 actifs il
+    couvrait 9 % de la population et présentait le reste comme inexistant."""
+    import sep
+    lots = [
+        {"hits": {"total": {"value": 3}, "hits": [
+            {"_source": {"uuid": "a"}, "sort": [0, "a"]},
+            {"_source": {"uuid": "b"}, "sort": [0, "b"]}]}},
+        {"hits": {"total": {"value": 3}, "hits": [
+            {"_source": {"uuid": "c"}, "sort": [0, "c"]}]}},
+    ]
+    vus = []
+
+    async def faux_search(index, body):
+        vus.append(body)
+        return lots[len(vus) - 1], None
+
+    import app
+    ancien, page = app.os_search, sep.ASSET_SCAN_PAGE
+    app.os_search, sep.ASSET_SCAN_PAGE = faux_search, 2
+    try:
+        assets, population, complete = await sep._scan_assets(limit=6)
+    finally:
+        app.os_search, sep.ASSET_SCAN_PAGE = ancien, page
+    assert [a["uuid"] for a in assets] == ["a", "b", "c"]
+    assert population == 3 and complete is True
+    assert vus[1]["search_after"] == [0, "b"]
+
+
+@pytest.mark.asyncio
+async def test_le_parcours_des_actifs_filtre_par_type():
+    """Un groupe d'hôtes se résout sur les hôtes, pas sur un échantillon de la
+    population entière — c'est ce qui le rend exact plutôt qu'indicatif."""
+    import sep
+
+    vus = []
+
+    async def faux_search(index, body):
+        vus.append(body)
+        return {"hits": {"total": {"value": 0}, "hits": []}}, None
+
+    import app
+    ancien = app.os_search
+    app.os_search = faux_search
+    try:
+        await sep._scan_assets("host")
+    finally:
+        app.os_search = ancien
+    assert vus[0]["query"] == {"term": {"type.keyword": "host"}}
+    assert vus[0]["sort"][-1] == {"uuid.keyword": {"order": "asc",
+                                                   "unmapped_type": "keyword"}}

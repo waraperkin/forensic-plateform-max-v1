@@ -39,6 +39,7 @@ from fastapi import Body, Depends, Query
 
 import app as cp
 import sep_catalog as cat
+import sep_crawl as crawl
 import sep_groups as grp
 import sep_signals as sig
 
@@ -58,16 +59,28 @@ CYCLE_SAMPLE = int(os.environ.get("SEP_CYCLE_SAMPLE", "1000"))
 CYCLE_WINDOW = os.environ.get("SEP_CYCLE_WINDOW", "1h")
 AUTO_ENABLED = os.environ.get("SEP_AUTO", "1") not in ("0", "false", "no")
 
-# Parcours incrémental des actifs. 106 380 actifs à 100 par page font 1 064
-# appels : impensable à chaque cycle, indispensable à terme. On en prend une
-# tranche par cycle, en tournant, et on indexe. La couverture est exposée
-# telle quelle plutôt que sous-entendue complète.
-ASSET_PAGES_PER_CYCLE = int(os.environ.get("SEP_ASSET_PAGES", "25"))
-ASSET_PAGE_SIZE = 100
-ASSET_MATCH_MAX = int(os.environ.get("SEP_ASSET_MATCH_MAX", "10000"))
+# Population d'actifs chargée en mémoire pour les croisements (règles, groupes
+# CERT). Ce plafond n'est pas la taille du tenant : c'est ce qu'on accepte de
+# manipuler en une fois. Au-delà, la mesure le DIT au lieu de présenter un
+# échantillon comme une population — voir `_indexed_assets`.
+ASSET_MATCH_MAX = int(os.environ.get("SEP_ASSET_MATCH_MAX", "200000"))
+ASSET_SCAN_PAGE = int(os.environ.get("SEP_ASSET_SCAN_PAGE", "5000"))
+
+# Plafonds de MESURE, et non de requête. Les agrégations paginent désormais sur
+# la totalité des termes (voir `_composite_terms`) : ce qui reste ici est le
+# nombre d'objets qu'on accepte de profiler et de garder en mémoire en une
+# fois. Dépassé, ce n'est plus une troncature silencieuse : la mesure le dit.
+MAX_INTAKES = int(os.environ.get("SEP_MAX_INTAKES", "20000"))
+MAX_DEVICES = int(os.environ.get("SEP_MAX_DEVICES", "100000"))
+MAX_ATOMS = int(os.environ.get("SEP_MAX_ATOMS", "50000"))
 
 ALERTS_PAGE = 100
-ALERTS_CAP = int(os.environ.get("SEP_ALERTS_CAP", "3000"))
+# Plafond de pages d'alertes lues dans la fenêtre. Avec le tri décroissant et
+# l'arrêt à la sortie de la fenêtre, le coût suit le nombre d'alertes de la
+# période — ce plafond n'est plus un plafond de population, c'est un garde-fou
+# contre une rafale. 20 000 alertes sur sept jours restent lisibles en quelques
+# minutes ; au-delà, la mesure se déclare tronquée plutôt que de mentir.
+ALERTS_CAP = int(os.environ.get("SEP_ALERTS_CAP", "20000"))
 
 # Durées de vie des mesures. Un écran qui recalcule tout à chaque clic est un
 # écran qu'on n'ouvre pas : ces valeurs sont ce qui rend la navigation fluide
@@ -83,7 +96,7 @@ MAX_ITEMS = int(os.environ.get("SEP_MAX_ITEMS", "500"))
 
 _state: dict[str, Any] = {
     "cycles": 0, "last_cycle": None, "last_error": None, "running": False,
-    "asset_offset": 0, "assets_indexed": 0, "assets_total": None,
+    "assets_indexed": 0, "assets_total": None, "assets_coverage": {},
     "last_duration_s": None, "started_at": None,
 }
 
@@ -119,6 +132,82 @@ def invalidate(prefix: str = "") -> int:
     for k in keys:
         _cache.pop(k, None)
     return len(keys)
+
+
+# ── Étendue d'une mesure ─────────────────────────────────────────────────────
+# Toute mesure bornée doit dire ce qu'elle n'a pas regardé. Un écran qui affiche
+# « 5 000 devices » sans préciser qu'il y en a 400 000 ne se trompe pas d'un
+# facteur 80 : il fait croire à l'analyste que le parc est couvert. C'est le
+# seul type d'erreur qu'on ne peut pas rattraper en aval, parce que rien, à
+# l'écran, ne permet de la soupçonner.
+_scope: dict[str, dict] = {}
+
+
+def _set_scope(entity: str, measured: int, population: Optional[int],
+               complete: bool, note: str = "") -> None:
+    _scope[entity] = {
+        "measured": measured,
+        "population": population if population is not None else measured,
+        "complete": complete,
+        "note": note,
+    }
+
+
+def scope_of(entity: str) -> dict:
+    return _scope.get(entity) or {"measured": 0, "population": 0,
+                                  "complete": True, "note": ""}
+
+
+async def _composite_terms(index: str, query: dict, field: str,
+                           sub_aggs: dict, max_buckets: int,
+                           page_size: int = 1000) -> tuple[list[dict], bool, int]:
+    """Tous les termes d'un champ, page par page, sans plafond arbitraire.
+
+    Une agrégation `terms` de taille fixe est le piège classique du passage à
+    l'échelle : elle ne remonte jamais d'erreur, elle rend simplement les N
+    premiers termes. À 5 000 sur un parc de 400 000 machines, les 395 000
+    autres n'existent plus — et le silence d'un équipement critique absent du
+    lot ne sera jamais détecté, puisqu'il n'a jamais été mesuré.
+
+    `composite` pagine sur la totalité des termes via `after_key`, à coût
+    constant par page. Le budget qui subsiste ici n'est plus une limite
+    d'agrégation mais une limite de MÉMOIRE assumée : quand il est atteint, la
+    fonction le dit, et l'appelant l'affiche.
+    """
+    buckets: list[dict] = []
+    after: Optional[dict] = None
+    complete = True
+    estimate = 0
+    first = True
+    while len(buckets) < max_buckets:
+        composite: dict = {"size": min(page_size, max_buckets - len(buckets)),
+                           "sources": [{"k": {"terms": {"field": field}}}]}
+        if after:
+            composite["after"] = after
+        body: dict = {"size": 0, "query": query,
+                      "aggs": {"by": {"composite": composite, "aggs": sub_aggs}}}
+        if first:
+            # Cardinalité demandée une seule fois : elle donne la population
+            # totale même quand le budget interrompt le parcours.
+            body["aggs"]["pop"] = {"cardinality": {"field": field,
+                                                   "precision_threshold": 40000}}
+        res, err = await cp.os_search(index, body)
+        if err or not res:
+            complete = False
+            break
+        aggs = res.get("aggregations") or {}
+        if first:
+            estimate = int(((aggs.get("pop") or {}).get("value")) or 0)
+            first = False
+        by = aggs.get("by") or {}
+        page = by.get("buckets") or []
+        buckets.extend(page)
+        after = by.get("after_key")
+        if not after or not page:
+            break
+    else:
+        complete = False
+    return buckets, complete, max(estimate, len(buckets))
 
 
 def _age_hours(ts: Optional[str]) -> Optional[float]:
@@ -160,60 +249,56 @@ def _flatten(rec: dict) -> dict:
 
 
 # ── Mesure : intakes ─────────────────────────────────────────────────────────
-async def _intake_series(hours: int) -> dict:
-    res, err = await cp.os_search("sekoia-intakes-*", {
-        "size": 0,
-        "query": {"range": {"@timestamp": {"gte": f"now-{hours}h"}}},
-        "aggs": {"by": {
-            "terms": {"field": "intake_uuid.keyword", "size": 3000},
-            "aggs": {
-                "h": {"date_histogram": {"field": "@timestamp",
-                                         "fixed_interval": "1h",
-                                         "min_doc_count": 0},
-                      "aggs": {"v": {"avg": {"field": "current_count"}}}},
-                "last": {"max": {"field": "@timestamp"}},
-                "hosts": {"max": {"field": "hostnames_count"}},
-                "cur": {"top_hits": {"size": 1, "_source": ["current_count", "silent"],
-                                     "sort": [{"@timestamp": {"order": "desc"}}]}},
-            }}}})
+async def _intake_series(hours: int) -> tuple[dict, bool, int]:
+    buckets, complete, population = await _composite_terms(
+        "sekoia-intakes-*",
+        {"range": {"@timestamp": {"gte": f"now-{hours}h"}}},
+        "intake_uuid.keyword",
+        {
+            "h": {"date_histogram": {"field": "@timestamp",
+                                     "fixed_interval": "1h",
+                                     "min_doc_count": 0},
+                  "aggs": {"v": {"avg": {"field": "current_count"}}}},
+            "last": {"max": {"field": "@timestamp"}},
+            "hosts": {"max": {"field": "hostnames_count"}},
+            "cur": {"top_hits": {"size": 1, "_source": ["current_count", "silent"],
+                                 "sort": [{"@timestamp": {"order": "desc"}}]}},
+        },
+        MAX_INTAKES)
     out: dict[str, dict] = {}
-    if err or not res:
-        return out
-    for b in ((res.get("aggregations") or {}).get("by") or {}).get("buckets", []):
+    for b in buckets:
         hits = (((b.get("cur") or {}).get("hits") or {}).get("hits") or [{}])
         src = (hits[0] or {}).get("_source") or {}
-        out[b["key"]] = {
+        out[b["key"]["k"]] = {
             "points": _hist_points(b.get("h")),
             "last_ts": (b.get("last") or {}).get("value_as_string"),
             "devices_count": int(((b.get("hosts") or {}).get("value") or 0)),
             "volume": src.get("current_count"),
             "observations": b.get("doc_count") or 0,
         }
-    return out
+    return out, complete, population
 
 
 async def _parsing_state() -> dict:
     """Dernier relevé de qualité d'ingestion par intake, écrit par le cycle."""
-    res, err = await cp.os_search(f"{IDX_PARSING}-*", {
-        "size": 0,
-        "query": {"range": {"@timestamp": {"gte": "now-24h"}}},
-        "aggs": {"by": {"terms": {"field": "intake_uuid.keyword", "size": 3000},
-                        "aggs": {"last": {"top_hits": {
-                            "size": 1,
-                            "sort": [{"@timestamp": {"order": "desc"}}]}}}}}})
+    buckets, _, _ = await _composite_terms(
+        f"{IDX_PARSING}-*",
+        {"range": {"@timestamp": {"gte": "now-24h"}}},
+        "intake_uuid.keyword",
+        {"last": {"top_hits": {"size": 1,
+                               "sort": [{"@timestamp": {"order": "desc"}}]}}},
+        MAX_INTAKES)
     out: dict[str, dict] = {}
-    if err or not res:
-        return out
-    for b in ((res.get("aggregations") or {}).get("by") or {}).get("buckets", []):
+    for b in buckets:
         hits = (((b.get("last") or {}).get("hits") or {}).get("hits") or [{}])
-        out[b["key"]] = (hits[0] or {}).get("_source") or {}
+        out[b["key"]["k"]] = (hits[0] or {}).get("_source") or {}
     return out
 
 
 async def measure_intakes(hours: int = DEFAULT_HOURS) -> list[dict]:
     full = await cp.get_full()
     rows = (full.get("inventory") or {}).get("main_inventory") or []
-    series = await _intake_series(hours)
+    series, series_complete, series_pop = await _intake_series(hours)
     parsing = await _parsing_state()
     devices = await _memo(f"devices:{DEVICE_HOURS}", TTL_SLOW,
                           lambda: measure_devices(DEVICE_HOURS))
@@ -273,39 +358,47 @@ async def measure_intakes(hours: int = DEFAULT_HOURS) -> list[dict]:
             **prof,
         }
         records.append(_flatten(rec))
+    _set_scope("intake", len(records), len(records), series_complete,
+               "" if series_complete else
+               f"Historique disponible pour {series_pop} intakes au plus — "
+               f"les intakes sans série sont listés sans tendance.")
     return records
 
 
 # ── Mesure : devices ─────────────────────────────────────────────────────────
 async def measure_devices(hours: int = DEVICE_HOURS) -> list[dict]:
-    res, err = await cp.os_search("sekoia-hostvol-*", {
-        "size": 0,
-        "query": {"range": {"@timestamp": {"gte": f"now-{hours}h"}}},
-        "aggs": {"by": {
-            "terms": {"field": "host.keyword", "size": 5000,
-                      "order": {"vol": "desc"}},
-            "aggs": {
-                "vol": {"max": {"field": "estimated_events"}},
-                "h": {"date_histogram": {"field": "@timestamp",
-                                         "fixed_interval": "1h",
-                                         "min_doc_count": 0},
-                      "aggs": {"v": {"max": {"field": "estimated_events"}}}},
-                "last": {"max": {"field": "@timestamp"}},
-                "intakes": {"terms": {"field": "intake_uuid.keyword", "size": 10}},
-                "inames": {"terms": {"field": "intake_name.keyword", "size": 3}},
-                "dialects": {"terms": {"field": "dialects.keyword", "size": 5}},
-                "known": {"max": {"field": "known_asset"}},
-            }}}})
-    if err or not res:
-        return []
-    buckets = ((res.get("aggregations") or {}).get("by") or {}).get("buckets", [])
+    # Le tri par volume décroissant a disparu avec l'agrégation `terms`, et
+    # c'est voulu : il plaçait les plus bavards en tête pour n'en garder que
+    # 5 000. Or le device qu'on cherche ici est justement celui qui s'est tu :
+    # le dernier que ce tri aurait conservé.
+    buckets, complete, population = await _composite_terms(
+        "sekoia-hostvol-*",
+        {"range": {"@timestamp": {"gte": f"now-{hours}h"}}},
+        "host.keyword",
+        {
+            "vol": {"max": {"field": "estimated_events"}},
+            "h": {"date_histogram": {"field": "@timestamp",
+                                     "fixed_interval": "1h",
+                                     "min_doc_count": 0},
+                  "aggs": {"v": {"max": {"field": "estimated_events"}}}},
+            "last": {"max": {"field": "@timestamp"}},
+            "intakes": {"terms": {"field": "intake_uuid.keyword", "size": 10}},
+            "inames": {"terms": {"field": "intake_name.keyword", "size": 3}},
+            "dialects": {"terms": {"field": "dialects.keyword", "size": 5}},
+            "known": {"max": {"field": "known_asset"}},
+        },
+        MAX_DEVICES)
+    _set_scope("device", len(buckets), population, complete,
+               "" if complete else
+               f"{len(buckets)} devices profilés sur {population} observés — "
+               f"budget de mesure atteint (SEP_MAX_DEVICES).")
 
     # Un device n'est fantôme que si SA SOURCE vit encore. Sans ce croisement,
     # la chute d'un intake produirait des centaines de faux fantômes et noierait
     # le seul cas qui compte : la machine muette dans un intake qui parle.
     intake_alive: dict[str, bool] = {}
     try:
-        series = await _intake_series(hours)
+        series, _, _ = await _intake_series(hours)
         for uuid, s in series.items():
             age = _age_hours(s.get("last_ts"))
             intake_alive[uuid] = not sig.signal_silence(
@@ -318,7 +411,7 @@ async def measure_devices(hours: int = DEVICE_HOURS) -> list[dict]:
 
     records = []
     for b in buckets:
-        host = b["key"]
+        host = b["key"]["k"]
         uuids = [x["key"] for x in ((b.get("intakes") or {}).get("buckets") or [])]
         inames = [x["key"] for x in ((b.get("inames") or {}).get("buckets") or [])]
         points = _hist_points(b.get("h"))
@@ -397,34 +490,101 @@ def rule_token_index(rules: list[dict]) -> dict[str, set]:
     return index
 
 
+async def _scan_assets(asset_type: Optional[str] = None,
+                       limit: int = ASSET_MATCH_MAX) -> tuple[list[dict], int, bool]:
+    """Actifs indexés, parcourus par `search_after`, et la vérité sur l'étendue.
+
+    L'ancienne version demandait `size: 10000` — le plafond dur d'OpenSearch —
+    et rendait la liste telle quelle. Sur le bac à sable, cela couvrait 9 % de
+    la population ; sur un tenant cent fois plus grand, moins de 0,1 %. Le
+    défaut n'était pas la lenteur mais le SILENCE : un groupe CERT résolu sur
+    un neuvième du parc annonçait « 3 membres manquants » avec le même aplomb
+    que s'il avait tout vu.
+
+    Deux réponses, et il faut les deux. `search_after` supprime le plafond des
+    10 000 — il pagine sans coût croissant, contrairement à `from`. Et le
+    troisième retour dit si le parcours a été EXHAUSTIF, pour que l'appelant
+    puisse annoncer ce qu'il n'a pas regardé.
+
+    Le tri par criticité décroissante n'est pas décoratif : si le budget est
+    atteint, ce qui reste dehors est ce qui compte le moins.
+    """
+    query: dict = ({"term": {"type.keyword": asset_type}} if asset_type
+                   else {"match_all": {}})
+    body = {
+        "size": min(ASSET_SCAN_PAGE, limit),
+        "query": query,
+        "track_total_hits": True,
+        # Un départage stable est OBLIGATOIRE : sans clé unique en dernier
+        # critère, deux actifs de même criticité peuvent changer d'ordre entre
+        # deux pages et le parcours en saute ou en répète.
+        "sort": [{"criticality": {"order": "desc", "unmapped_type": "long"}},
+                 {"uuid.keyword": {"order": "asc", "unmapped_type": "keyword"}}],
+    }
+    out: list[dict] = []
+    population = 0
+    after: Optional[list] = None
+    while len(out) < limit:
+        page = dict(body, size=min(ASSET_SCAN_PAGE, limit - len(out)))
+        if after:
+            page["search_after"] = after
+        res, err = await cp.os_search(IDX_ASSETS, page)
+        if err or not res:
+            break
+        hits = (res.get("hits") or {}).get("hits") or []
+        population = int(((res.get("hits") or {}).get("total") or {}).get("value")
+                         or population)
+        if not hits:
+            break
+        out.extend(h.get("_source") or {} for h in hits)
+        after = hits[-1].get("sort")
+        if not after or len(hits) < page["size"]:
+            break
+    return out, population or len(out), len(out) >= population
+
+
 async def _indexed_assets(limit: int = ASSET_MATCH_MAX) -> list[dict]:
-    res, err = await cp.os_search(IDX_ASSETS, {
-        "size": min(limit, 10000),
-        "query": {"match_all": {}},
-        "sort": [{"criticality": {"order": "desc", "unmapped_type": "long"}}],
-    })
-    if err or not res:
-        return []
-    return [h.get("_source") or {} for h in (res.get("hits") or {}).get("hits", [])]
+    assets, _, _ = await _scan_assets(limit=limit)
+    return assets
+
+
+def _asset_scope_note(scanned: int, indexed: int, upstream: Optional[int],
+                      scan_complete: bool, cov: dict) -> str:
+    """Ce qui manque à la mesure, en une phrase, ou rien si elle est complète.
+
+    Deux troncatures possibles et il faut les distinguer : l'index local peut
+    être en retard sur le tenant (parcours en cours), ou la mesure peut n'avoir
+    lu qu'une partie de l'index (budget mémoire). Confondre les deux enverrait
+    l'exploitant régler le mauvais paramètre.
+    """
+    parts = []
+    if not scan_complete:
+        parts.append(f"{scanned} actifs analysés sur {indexed} indexés "
+                     f"(budget de mesure atteint)")
+    if upstream and indexed < upstream:
+        done = cov.get("sweeps") or 0
+        parts.append(f"{indexed} actifs indexés sur {upstream} au tenant — "
+                     f"parcours en cours"
+                     + (f", {done} balayage(s) complet(s) déjà effectué(s)"
+                        if done else ""))
+    return " · ".join(parts)
 
 
 async def _atom_series(hours: int) -> dict:
-    res, err = await cp.os_search(f"{IDX_ATOMS}-*", {
-        "size": 0,
-        "query": {"range": {"@timestamp": {"gte": f"now-{hours}h"}}},
-        "aggs": {"by": {
-            "terms": {"field": "atom.keyword", "size": 5000, "order": {"vol": "desc"}},
-            "aggs": {"vol": {"sum": {"field": "count"}},
-                     "h": {"date_histogram": {"field": "@timestamp",
-                                              "fixed_interval": "1h",
-                                              "min_doc_count": 0},
-                           "aggs": {"v": {"sum": {"field": "count"}}}},
-                     "last": {"max": {"field": "@timestamp"}}}}}})
+    buckets, _, _ = await _composite_terms(
+        f"{IDX_ATOMS}-*",
+        {"range": {"@timestamp": {"gte": f"now-{hours}h"}}},
+        "atom.keyword",
+        {"vol": {"sum": {"field": "count"}},
+         "h": {"date_histogram": {"field": "@timestamp",
+                                  "fixed_interval": "1h",
+                                  "min_doc_count": 0},
+               "aggs": {"v": {"sum": {"field": "count"}}}},
+         "last": {"max": {"field": "@timestamp"}}},
+        MAX_ATOMS)
     out: dict[str, dict] = {}
-    if err or not res:
-        return out
-    for b in ((res.get("aggregations") or {}).get("by") or {}).get("buckets", []):
-        out[str(b["key"]).lower()] = {
+    for b in buckets:
+        out[str(b["key"]["k"]).lower()] = {
             "points": _hist_points(b.get("h")),
             "volume": (b.get("vol") or {}).get("value"),
             "last_ts": (b.get("last") or {}).get("value_as_string"),
@@ -434,7 +594,12 @@ async def _atom_series(hours: int) -> dict:
 
 
 async def measure_native_assets(hours: int = DEFAULT_HOURS) -> list[dict]:
-    assets = await _indexed_assets()
+    assets, population, complete = await _scan_assets()
+    cov = _state.get("assets_coverage") or {}
+    upstream = cov.get("total")
+    _set_scope("asset_native", len(assets), upstream or population, complete
+               and bool(cov.get("complete")),
+               _asset_scope_note(len(assets), population, upstream, complete, cov))
     full = await cp.get_full()
     tokens = rule_token_index(full.get("rules") or [])
     atoms = await _atom_series(hours)
@@ -474,13 +639,32 @@ async def measure_native_assets(hours: int = DEFAULT_HOURS) -> list[dict]:
 # ── Mesure : groupes CERT ────────────────────────────────────────────────────
 async def measure_custom_groups() -> list[dict]:
     groups = grp.load()
-    assets = await _indexed_assets()
     full = await cp.get_full()
     tokens = rule_token_index(full.get("rules") or [])
     rules_by_uuid = {r.get("rule_uuid"): r for r in (full.get("rules") or [])}
 
+    # Chaque groupe est résolu sur SA population et pas sur un échantillon
+    # commun. Un groupe de contrôleurs de domaine se joue sur 5 866 hôtes, pas
+    # sur les 106 380 actifs du tenant : restreindre au type rend la résolution
+    # exacte là où un échantillon global la rendrait indicative — et sur un
+    # tenant cent fois plus grand, c'est la différence entre une mesure et une
+    # impression.
+    by_type: dict[str, tuple[list[dict], int, bool]] = {}
+
+    async def population_for(asset_type: str):
+        if asset_type not in by_type:
+            by_type[asset_type] = await _scan_assets(
+                None if asset_type == "any" else asset_type)
+        return by_type[asset_type]
+
     records = []
+    scanned_total = 0
+    all_complete = True
     for g in groups:
+        atype = g.get("asset_type") or "any"
+        assets, population, complete = await population_for(atype)
+        scanned_total = max(scanned_total, len(assets))
+        all_complete = all_complete and complete
         r = grp.resolve(g, assets)
         # Règles impactées : celles qui citent au moins un membre effectif OU le
         # nom du groupe. Sans ce croisement, « groupe obsolète » resterait une
@@ -509,6 +693,8 @@ async def measure_custom_groups() -> list[dict]:
                       for u in sorted(hit)[:10]],
             "selector_error": r["compiled_error"],
             "population_scanned": len(assets),
+            "population_type": population,
+            "population_complete": complete,
             "signals": {}, "firing": [], "severity": "info",
         }
         problems = []
@@ -524,15 +710,51 @@ async def measure_custom_groups() -> list[dict]:
         rec["severity"] = ("alerte" if (r["intruders_count"] or r["candidates_missing"])
                            else "info")
         records.append(rec)
+    cov = _state.get("assets_coverage") or {}
+    _set_scope("asset_custom", len(records), len(records),
+               all_complete and bool(cov.get("complete")),
+               "" if all_complete and cov.get("complete") else
+               f"Groupes résolus sur {scanned_total} actifs indexés — "
+               f"le parcours du tenant n'est pas terminé, un membre éligible "
+               f"non encore indexé n'apparaît pas comme manquant.")
     return records
 
 
 # ── Mesure : règles ──────────────────────────────────────────────────────────
-async def _alerts_by_rule(days: int) -> tuple[dict, Optional[str]]:
-    """Alertes Sekoia agrégées par règle, avec série horaire.
+def _alert_epoch(alert: dict) -> Optional[float]:
+    """Horodatage d'une alerte, quelle que soit la forme rendue par l'API.
+
+    Le champ arrive tantôt en secondes epoch, tantôt en ISO 8601 selon les
+    routes. Traiter un entier comme une chaîne ISO échouait silencieusement et
+    l'alerte était comptée hors fenêtre.
+    """
+    raw = alert.get("created_at") or alert.get("timestamp") or alert.get("@timestamp")
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    try:
+        return datetime.fromisoformat(str(raw).replace("Z", "+00:00")).timestamp()
+    except (ValueError, TypeError):
+        return None
+
+
+async def _alerts_by_rule(days: int) -> tuple[dict, Optional[str], bool]:
+    """Alertes Sekoia agrégées par règle, sur la fenêtre demandée.
 
     Sekoia expose les alertes une par une. Le débit PAR RÈGLE — la seule mesure
     qui dise si une règle produit, se tait ou hurle — doit être reconstruit.
+
+    LE TRI EST LA MESURE. L'API rend les alertes de la PLUS ANCIENNE à la plus
+    récente par défaut : sans `direction=desc`, les trente premières pages du
+    tenant remontaient des alertes de février 2023, toutes écartées par la
+    fenêtre de sept jours. Chaque règle ressortait alors à zéro alerte, et les
+    cas « règle silencieuse » et « règle obsolète » désignaient la totalité du
+    catalogue. Le décompte n'était pas imprécis : il était systématiquement nul.
+
+    Trier du plus récent au plus ancien permet aussi de S'ARRÊTER à la sortie de
+    la fenêtre. Le coût suit le nombre d'alertes de la période, jamais
+    l'historique du tenant — 116 000 alertes ici, cent fois plus demain.
     """
     cutoff = datetime.now(timezone.utc).timestamp() - days * 86400
     per_rule: dict[str, dict] = {}
@@ -541,32 +763,32 @@ async def _alerts_by_rule(days: int) -> tuple[dict, Optional[str]]:
     while offset < ALERTS_CAP:
         payload, e = await cp.sek_request(
             "GET", "/api/v1/sic/alerts",
-            params={"limit": ALERTS_PAGE, "offset": offset})
+            params={"limit": ALERTS_PAGE, "offset": offset,
+                    "sort": "created_at", "direction": "desc"})
         if e:
             err = e
             break
         items = (payload or {}).get("items") or []
         if not items:
             break
+        out_of_window = False
         for a in items:
             rule = a.get("rule") or {}
             rid = (rule.get("uuid") if isinstance(rule, dict) else None) \
                 or a.get("rule_uuid") or "inconnu"
-            ts = a.get("created_at") or a.get("timestamp") or a.get("@timestamp")
-            epoch = None
-            if ts:
-                try:
-                    epoch = datetime.fromisoformat(
-                        str(ts).replace("Z", "+00:00")).timestamp()
-                except ValueError:
-                    epoch = None
+            epoch = _alert_epoch(a)
             if epoch is not None and epoch < cutoff:
+                out_of_window = True
                 continue
             r = per_rule.setdefault(rid, {"count": 0, "epochs": []})
             r["count"] += 1
             if epoch is not None:
                 r["epochs"].append(epoch)
         offset += len(items)
+        # Ordre décroissant : la première alerte antérieure à la fenêtre prouve
+        # que tout ce qui suit l'est aussi.
+        if out_of_window:
+            break
     # Série horaire par règle : c'est elle qui permet de distinguer « bavarde »
     # (débit constant élevé) de « instable » (rafales séparées de silences).
     now = datetime.now(timezone.utc).timestamp()
@@ -581,14 +803,14 @@ async def _alerts_by_rule(days: int) -> tuple[dict, Optional[str]]:
         r["series"] = series
         r["last"] = max(r["epochs"]) if r["epochs"] else None
         r.pop("epochs", None)
-    return per_rule, err
+    return per_rule, err, offset >= ALERTS_CAP
 
 
 async def measure_rules(days: int = RULE_DAYS) -> list[dict]:
     full = await cp.get_full()
     rules = full.get("rules") or []
     rows = (full.get("inventory") or {}).get("main_inventory") or []
-    alerts, alerts_err = await _alerts_by_rule(days)
+    alerts, alerts_err, alerts_capped = await _alerts_by_rule(days)
     intakes = await _memo(f"intakes:{DEFAULT_HOURS}", TTL_SLOW,
                           lambda: measure_intakes(DEFAULT_HOURS))
     intake_by_format: dict[str, list[dict]] = {}
@@ -661,6 +883,11 @@ async def measure_rules(days: int = RULE_DAYS) -> list[dict]:
             **prof,
         }
         records.append(_flatten(rec))
+    _set_scope("rule", len(records), len(records), not alerts_capped,
+               "" if not alerts_capped else
+               f"Décompte d'alertes arrêté à {ALERTS_CAP} sur la fenêtre : les "
+               f"règles les moins récentes de la période peuvent être "
+               f"sous-comptées (SEP_ALERTS_CAP).")
     return records
 
 
@@ -720,6 +947,11 @@ async def measure_dependencies(hours: int = DEFAULT_HOURS) -> list[dict]:
             "severity": "critique" if broken_at else "alerte" if starved else "info",
             "signals": {}, "firing": ["silence"] if (broken_at or starved) else [],
         })
+    rule_scope = scope_of("rule")
+    device_scope = scope_of("device")
+    _set_scope("dependency", len(records), len(records),
+               rule_scope["complete"] and device_scope["complete"],
+               " · ".join(n for n in (rule_scope["note"], device_scope["note"]) if n))
     return records
 
 
@@ -816,6 +1048,7 @@ async def run_use_case(uc_id: str, params: Optional[dict] = None) -> dict:
         "returned": min(len(hits), limit),
         "truncated": len(hits) > limit,
         "verdict": _verdict(uc, len(hits), len(records)),
+        "scope": scope_of(uc.entity),
         "severities": severities,
         "columns": columns,
         "items": hits[:limit],
@@ -848,6 +1081,7 @@ async def run_dashboard(dash_id: str, params: Optional[dict] = None) -> dict:
         "ok": True, "id": dash_id, "title": spec["title"], "why": spec["why"],
         "entity": spec["entity"], "entity_label": cat.ENTITIES[spec["entity"]]["label"],
         "measured_at": _now(), "population": len(records),
+        "scope": scope_of(spec["entity"]),
         "tiles": tiles, "engine": engine_status(),
     }
     if spec.get("aggregate") == "mitre":
@@ -1225,103 +1459,19 @@ async def _previous_fields() -> dict:
 
 
 async def crawl_assets() -> dict:
-    """Tranche du parcours des actifs Sekoia, indexée localement.
+    """Une tranche de parcours des actifs — voir `sep_crawl` pour la mécanique.
 
-    106 380 actifs à cent par page : un parcours complet coûte plus de mille
-    appels. On en prend une tranche par cycle, en tournant, et on annonce la
-    couverture atteinte plutôt que de laisser croire qu'elle est totale.
+    Le détail vit dans son propre module parce qu'il ne relève pas du moteur de
+    cas d'usage : c'est une négociation avec les limites d'une API (pas de
+    curseur, pas de filtre temporel, cent objets par page) qui n'a rien à voir
+    avec les signaux ni le catalogue.
     """
-    offset = _state["asset_offset"]
-    docs = []
-    total = _state.get("assets_total")
-    for _ in range(ASSET_PAGES_PER_CYCLE):
-        payload, err = await cp.sek_request(
-            "GET", "/api/v2/asset-management/assets",
-            params={"limit": ASSET_PAGE_SIZE, "offset": offset})
-        if err:
-            return {"error": err, "indexed": len(docs), "offset": offset}
-        items = (payload or {}).get("items") or []
-        total = (payload or {}).get("total") or total
-        if not items:
-            offset = 0
-            break
-        for a in items:
-            uuid = a.get("uuid")
-            if not uuid:
-                continue
-            docs.append((IDX_ASSETS, {
-                "_id": uuid, "uuid": uuid, "name": a.get("name"),
-                "type": a.get("type"), "category": a.get("category"),
-                "criticality": a.get("criticality") or 0,
-                "tags": [t if isinstance(t, str) else (t or {}).get("name")
-                         for t in (a.get("tags") or [])],
-                "source": a.get("source"), "revoked": a.get("revoked"),
-                "kind": classify_atom(a),
-                "updated_at": a.get("updated_at"), "indexed_at": _now(),
-            }))
-        offset += len(items)
-        if total and offset >= total:
-            offset = 0
-            break
-    written = 0
-    if docs:
-        written, werr = await _os_upsert(docs)
-        if werr:
-            return {"error": werr, "indexed": 0, "offset": offset}
-    _state["asset_offset"] = offset
-    _state["assets_total"] = total
-    _state["assets_indexed"] = await _count_indexed_assets()
-    return {"indexed": written, "offset": offset, "total": total}
-
-
-async def _os_upsert(docs: list[tuple[str, dict]]) -> tuple[int, Optional[str]]:
-    """Écriture idempotente : l'identifiant d'actif sert de clé de document.
-
-    Sans `_id`, chaque passage du parcours créerait un doublon et l'index
-    grossirait indéfiniment en décrivant toujours la même population.
-    """
-    import httpx
-    lines = []
-    for index, doc in docs:
-        meta = {"index": {"_index": index}}
-        if doc.get("_id"):
-            meta["index"]["_id"] = doc.pop("_id")
-        lines.append(json.dumps(meta))
-        lines.append(json.dumps(doc, ensure_ascii=False, default=str))
-    auth = (cp.OS_USER, cp.OS_PASSWORD) if cp.OS_PASSWORD else None
-    try:
-        async with httpx.AsyncClient(timeout=120, auth=auth) as client:
-            r = await client.post(f"{cp.OS_URL}/_bulk",
-                                  content="\n".join(lines) + "\n",
-                                  headers={"Content-Type": "application/x-ndjson"})
-        if r.status_code >= 400:
-            return 0, f"OpenSearch HTTP {r.status_code}"
-        return len(docs), None
-    except Exception as exc:                     # noqa: BLE001
-        return 0, f"{type(exc).__name__}: {exc}"
-
-
-async def _count_indexed_assets() -> int:
-    """Nombre d'actifs indexés, APRÈS rafraîchissement de l'index.
-
-    Sans ce rafraîchissement, le comptage suit de quelques millisecondes
-    l'écriture en lot et ne voit rien : les gabarits d'index du projet portent
-    un `refresh_interval` de 30 s. La console annonçait donc « 0 actif indexé »
-    en permanence alors que le parcours fonctionnait — un compteur qui ment sur
-    une couverture est pire que pas de compteur du tout.
-    """
-    import httpx
-    auth = (cp.OS_USER, cp.OS_PASSWORD) if cp.OS_PASSWORD else None
-    try:
-        async with httpx.AsyncClient(timeout=30, auth=auth) as client:
-            await client.post(f"{cp.OS_URL}/{IDX_ASSETS}/_refresh")
-    except Exception as exc:                     # noqa: BLE001 - comptage best-effort
-        log.warning("sep: rafraîchissement de %s impossible (%s)", IDX_ASSETS, exc)
-    res, err = await cp.os_search(IDX_ASSETS, {"size": 0, "query": {"match_all": {}},
-                                               "track_total_hits": True})
-    if err or not res:
-        return _state.get("assets_indexed") or 0
-    return int(((res.get("hits") or {}).get("total") or {}).get("value") or 0)
+    report = await crawl.crawl(classify_atom)
+    cov = report.get("coverage") or {}
+    _state["assets_indexed"] = cov.get("indexed") or 0
+    _state["assets_total"] = cov.get("total")
+    _state["assets_coverage"] = cov
+    return report
 
 
 async def persist_findings() -> dict:
@@ -1405,19 +1555,18 @@ async def scheduler() -> None:
     # Démarrage différé : le control-plane doit avoir chargé sa configuration et
     # son inventaire avant qu'on lui demande un échantillon.
     await asyncio.sleep(int(os.environ.get("SEP_BOOT_DELAY_S", "60")))
-    # Reprise du parcours d'actifs là où il s'était arrêté. Le rang de reprise
-    # se déduit du nombre déjà indexé : la pagination de l'API est
-    # déterministe. Sans cela, chaque redémarrage repartait de zéro et la
-    # couverture des 106 380 actifs n'aurait jamais progressé au-delà des
-    # premiers milliers.
+    # Le parcours reprend sur son curseur persisté, pas sur une déduction : on
+    # se contente ici de charger la couverture connue pour que la console
+    # annonce un état juste avant même le premier cycle.
     try:
-        already = await _count_indexed_assets()
-        if already:
-            _state["assets_indexed"] = already
-            _state["asset_offset"] = already
-            log.info("sep: reprise du parcours d'actifs au rang %d", already)
+        cov = await crawl.status()
+        _state["assets_indexed"] = cov.get("indexed") or 0
+        _state["assets_total"] = cov.get("total")
+        _state["assets_coverage"] = cov
+        log.info("sep: parcours d'actifs — %s indexés, balayages terminés : %s",
+                 cov.get("indexed"), cov.get("sweeps"))
     except Exception as exc:                     # noqa: BLE001
-        log.warning("sep: reprise du parcours impossible (%s)", exc)
+        log.warning("sep: état du parcours illisible (%s)", exc)
     while True:
         try:
             await cycle()
@@ -1431,6 +1580,7 @@ async def scheduler() -> None:
 def engine_status() -> dict:
     total = _state.get("assets_total")
     indexed = _state.get("assets_indexed") or 0
+    cov = _state.get("assets_coverage") or {}
     return {
         "auto": AUTO_ENABLED,
         "cycles": _state["cycles"],
@@ -1442,6 +1592,7 @@ def engine_status() -> dict:
         "assets_total": total,
         "assets_coverage_pct": round(indexed / total * 100, 1)
         if (total and indexed) else None,
+        "assets_coverage": cov,
         "history_note": "Les séries d'intakes et de devices proviennent du "
                         "poller (déjà en place). Les séries d'atomes et le taux "
                         "de parsing sont constitués par ce moteur, cycle après "

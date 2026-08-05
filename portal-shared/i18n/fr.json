@@ -109,6 +109,7 @@
     "s1_fetch": "SentinelOne - On-demand Telemetry",
     "tp_config": "Configuration",
     "sekoia_cc": "Sekoia.IO — Pilotage",
+    "sekoia_sep": "Cas d’usage CERT",
     "xdr_view": "XDR View — Sekoia + S1",
     "audit_center": "Journal des modifications",
     "gov_assets": "Inventaire des actifs",

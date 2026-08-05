@@ -135,6 +135,16 @@
   function plural(n, one, many) {
     return Number(n) > 1 ? many : one;
   }
+  /* Ce que la mesure n'a PAS regardé. Un décompte présenté sans son périmètre
+   * se lit comme un total : « 12 devices silencieux » sur un parc profilé à
+   * moitié n'est pas une petite imprécision, c'est une conclusion fausse tirée
+   * avec assurance. Rien ne s'affiche quand la mesure est complète. */
+  function scopeNote(scope) {
+    if (!scope || scope.complete || !scope.note) return '';
+    return `<p class="swb-hint" style="margin:.3rem 0 0;color:var(--swb-warn)">
+      Périmètre de la mesure : ${esc(scope.note)}</p>`;
+  }
+
   function stat(value, label, tone) {
     return `<div class="swb-stat"><span class="swb-stat-v"${
       tone ? ` style="color:var(--swb-${tone})"` : ''}>${value}</span>
@@ -157,9 +167,39 @@
       ${stat(cov === null || cov === undefined ? '—' : nf(cov) + ' %', 'Actifs indexés')}
       ${stat(nf(e.assets_indexed) + (e.assets_total ? ' / ' + nf(e.assets_total) : ''), 'Population')}
     </div>
+    ${crawlNote(e.assets_coverage)}
     ${e.last_error ? `<p class="swb-hint" style="margin:0 0 .5rem;color:var(--swb-danger)">
       Dernier cycle en échec : ${esc(e.last_error)}</p>` : ''}
     <p class="swb-hint" style="margin:0 0 .8rem">${esc(e.history_note || '')}</p>`;
+  }
+
+  /* Avancement du parcours, type par type. Un pourcentage global cache le seul
+   * fait qui change le travail de l'analyste : les hôtes — donc les contrôleurs
+   * de domaine et les hyperviseurs — sont couverts bien avant les comptes. */
+  function crawlNote(cov) {
+    if (!cov || !cov.by_type) return '';
+    const TYPES = { host: 'hôtes', account: 'comptes', network: 'réseaux' };
+    const parts = Object.entries(cov.by_type).map(([k, v]) => {
+      const done = v.done ? '✓' : '…';
+      return `${TYPES[k] || k} ${nf(v.indexed)}${
+        v.total ? '/' + nf(v.total) : ''} ${done}`;
+    });
+    const sweeps = cov.sweeps
+      ? ` · ${nf(cov.sweeps)} ${plural(cov.sweeps, 'balayage complet', 'balayages complets')}`
+      : '';
+    // Un écart résiduel se dit. Il vient de la pagination par offset, qui saute
+    // un objet quand un actif est supprimé pendant le parcours ; le balayage
+    // suivant le rattrape, et l'analyste sait pourquoi le compte ne tombe pas
+    // juste au lieu de douter de tout l'écran.
+    const gap = cov.missing
+      ? ` ${nf(cov.missing)} ${plural(cov.missing, 'actif', 'actifs')} non
+        ${plural(cov.missing, 'retrouvé', 'retrouvés')} au dernier balayage
+        (suppressions en cours de parcours) : repris au balayage suivant.`
+      : '';
+    return `<p class="swb-hint" style="margin:0 0 .5rem">${
+      cov.complete ? 'Parcours à jour' : 'Parcours en cours'} — ${
+      esc(parts.join(' · '))}${sweeps}. Les nouveaux actifs sont indexés au
+      cycle suivant leur création, indépendamment de la taille du parc.${gap}</p>`;
   }
 
   // ── Vue : synthèse (full-auto) ────────────────────────────────────────────
@@ -302,6 +342,7 @@
       : '';
     const head = `<p style="margin:0"><strong>${esc(r.verdict)}</strong></p>
       <p class="swb-hint" style="margin:.3rem 0 0">${esc(r.why)}</p>
+      ${scopeNote(r.scope)}
       <p style="margin:.5rem 0 0">${sevPills}
         <span class="swb-pill swb-pill-mute swb-pill-flat">mesuré en ${
           nf(r.duration_s)} s</span>
@@ -355,7 +396,8 @@
     const agg = d.aggregate;
     return cards + panel('', `<p style="margin:0"><strong>${esc(d.title)}</strong> — ${
         nf(d.population)} ${esc(d.entity_label.toLowerCase())} mesuré(s)</p>
-      <p class="swb-hint" style="margin:.3rem 0 0">${esc(d.why)}</p>`, 'accent')
+      <p class="swb-hint" style="margin:.3rem 0 0">${esc(d.why)}</p>
+      ${scopeNote(d.scope)}`, 'accent')
       + (agg ? aggregatePanel(agg) : '')
       + panel('', `<div class="sep-tiles">${(d.tiles || []).map((t) => `
         <div class="sep-tile sep-tile-${SEV_TONE[t.severity] || 'mute'}">

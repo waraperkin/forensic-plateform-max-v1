@@ -52,11 +52,27 @@ await inputs.nth(1).fill(env.PORTAL_ADMIN_PASSWORD);
 await p.locator('button[type="submit"]').first().click();
 await p.waitForTimeout(3500);
 
-for (let i = 0; i < 3; i++) {
-  try { await p.goto('https://192.168.2.67/sekoia', { waitUntil: 'domcontentloaded', timeout: 30000 }); break; }
-  catch (e) { if (i === 2) throw e; await p.waitForTimeout(3000); }
+for (let i = 0; i < 5; i++) {
+  try { await p.goto('https://192.168.2.67/sekoia', { waitUntil: 'domcontentloaded', timeout: 60000 }); break; }
+  catch (e) { if (i === 4) throw e; await p.waitForTimeout(4000); }
 }
 await p.waitForTimeout(4000);
+
+// ── Nomenclature de la barre latérale ───────────────────────────────────────
+// Sur /sekoia, le préfixe « SEKOIA — » / « Sekoia.IO — » n'ajoute plus
+// d'information : l'en-tête annonce déjà la plateforme. Il doit disparaître
+// des titres de section et des libellés d'onglets, sans toucher au portail CERT
+// où le même préfixe distingue encore Sekoia de SentinelOne.
+const navText = await p.locator('.cc-nav-section--sekoia').allInnerTexts()
+  .then((parts) => parts.join('\n'));
+ok(!/sekoia\.io\s*[—–-]/i.test(navText) && !/\bsekoia\s*[—–-]/i.test(navText),
+   'aucun préfixe « SEKOIA — » / « Sekoia.IO — » dans la barre latérale');
+ok(/1\.\s*Inventaires/i.test(navText), 'la section Inventaires reste numérotée');
+ok(/Ingestion\s*&\s*volumétrie/i.test(navText), '« Ingestion & volumétrie » est lisible sans préfixe');
+ok(/Télémétrie à la demande|On-demand telemetry/i.test(navText),
+   '« Télémétrie à la demande » est lisible sans préfixe');
+ok(/Cas d.usage CERT|CERT use cases/i.test(navText),
+   'l’onglet des cas d’usage CERT porte son libellé i18n');
 
 // ── Ouverture de l'onglet ───────────────────────────────────────────────────
 const btn = p.locator('[data-tab-btn="sekoia-sep"]');

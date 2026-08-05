@@ -68,6 +68,46 @@
     nodes.forEach(() => observers.push(new MutationObserver(setBrand)));
     setBrand();   // arme la surveillance avec les observateurs maintenant créés
     window.addEventListener('i18n:language-changed', setBrand);
+
+    // Nomenclature de la barre latérale. Les libellés partagés portent un
+    // préfixe « SEKOIA — » / « Sekoia.IO — » qui distingue ces entrées de
+    // SentinelOne et de PSOAR sur le portail CERT. Ici, l'en-tête annonce déjà
+    // « Sekoia.IO Extended Platform » et aucune section ne vient d'ailleurs :
+    // le préfixe ne distingue plus rien, il consomme la largeur utile et
+    // repousse le nom réel — « Ingestion & volumétrie » — hors du regard.
+    //
+    // Retiré à l'affichage plutôt que dans les fichiers de traduction : ce sont
+    // les MÊMES clés qui servent au portail CERT, où le préfixe garde tout son
+    // sens. Le motif s'applique aux deux langues et couvrira les libellés
+    // ajoutés plus tard sans qu'on ait à y penser.
+    const PREFIX = /^\s*(sekoia\.io|sekoia)\s*[—–-]\s*/i;
+    // i18n pose ces libellés APRÈS avoir libéré ses `whenReady` : s'y accrocher
+    // seul ferait passer le nettoyage avant l'écriture qu'il doit corriger. On
+    // surveille donc les sections elles-mêmes, ce qui couvre aussi les
+    // réécritures ultérieures sans avoir à les recenser.
+    const navSections = Array.from(
+      document.querySelectorAll('.cc-nav-section--sekoia'));
+    const navObservers = [];
+    const stripPrefixes = () => {
+      // Même piège que pour la marque, et même parade : les mutations qu'on
+      // provoque soi-même sont livrées au tour de microtâche suivant, donc un
+      // garde booléen synchrone ne protège de rien. On déconnecte.
+      navObservers.forEach((o) => o.disconnect());
+      document.querySelectorAll(
+        '.cc-nav-section--sekoia .cc-nav-section-title,'
+        + ' .cc-nav-section--sekoia .cc-nav-btn span,'
+        + ' .cc-nav-section--sekoia .cc-nav-btn'
+      ).forEach((el) => {
+        if (el.children.length) return;   // conteneur : son enfant est traité
+        const short = el.textContent.replace(PREFIX, '');
+        if (short && short !== el.textContent) el.textContent = short;
+      });
+      navObservers.forEach((o, i) => o.observe(navSections[i],
+        { childList: true, characterData: true, subtree: true }));
+    };
+    navSections.forEach(() => navObservers.push(new MutationObserver(stripPrefixes)));
+    stripPrefixes();
+    window.addEventListener('i18n:language-changed', stripPrefixes);
   } else {
     // Sur le portail CERT : le bouton d'ouverture, lié une seule fois.
     document.addEventListener('click', (ev) => {

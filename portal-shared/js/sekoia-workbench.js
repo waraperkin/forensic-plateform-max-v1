@@ -1159,6 +1159,10 @@
       <td class="swb-num">${esc(i.last_event_age_min != null ? `${nf(i.last_event_age_min)} min` : '—')}</td>
       <td>${(Number(i.baseline_avg) || 0) > 0
         ? pill('interrompue', 'danger') : pill('jamais alimentée', 'mute')}</td>
+      <td><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-swb-act="intake-enable"
+        data-id="${esc(i.intake_uuid)}">Enable</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-swb-act="intake-disable"
+        data-id="${esc(i.intake_uuid)}">Disable</button></td>
     </tr>`).join('');
 
     const dropRows = drops.filter(filt).slice(0, 100).map((i) => {
@@ -1188,13 +1192,33 @@
           (byType.volume_drop || byType.host_drop) ? 'warn' : 'ok')}
       </div>
       ${toolbar('Filtrer un intake…', '', `${nf(silent.length)} silencieux · ${nf(drops.length)} baisses`)}
+      ${(() => {
+        const alerts = (st.data.alerts && st.data.alerts.items) || [];
+        const hostvol = (st.data.hostvol && st.data.hostvol.items) || [];
+        const silentIds = new Set(silent.map((i) => i.intake_uuid).filter(Boolean));
+        const silentNames = new Set(silent.map((i) => String(i.intake_name || '').toLowerCase()).filter(Boolean));
+        const linkedAlerts = alerts.filter((a) =>
+          silentIds.has(a.intake_uuid) || silentNames.has(String(a.intake_name || '').toLowerCase())
+          || ['intake_silent', 'volume_drop', 'host_drop'].includes(a.rule_type)).slice(0, 12);
+        const linkedHosts = hostvol.filter((h) => h.silent || h.gone || !h.known_asset).slice(0, 8);
+        if (!linkedAlerts.length && !linkedHosts.length) return '';
+        return `<div class="swb-panel" style="border-left:3px solid var(--swb-accent)">
+          <div class="swb-panel-head"><h3 class="swb-panel-title">Corrélation silence ↔ drop ↔ hôte</h3></div>
+          <p class="swb-hint" style="margin:0 0 .5rem">Alertes d'ingestion liées aux silencieux / baisses, et hôtes suspects (non inventoriés ou absents).</p>
+          <ul style="margin:0;padding-left:1.1rem;font-size:.82rem;columns:2;column-gap:1.5rem">
+            ${linkedAlerts.map((a) => `<li><strong>${esc(a.rule_type || 'alerte')}</strong> —
+              ${esc(a.intake_name || a.host || '—')} · ${esc(ago(a['@timestamp']))}</li>`).join('')}
+            ${linkedHosts.map((h) => `<li><strong>host</strong> — ${esc(h.host)}
+              ${h.known_asset ? '' : ' · hors inventaire'}${h.intake_name ? ` · ${esc(h.intake_name)}` : ''}</li>`).join('')}
+          </ul></div>`;
+      })()}
       <div class="swb-panel" style="padding:0">
         <div class="swb-panel-head" style="padding:.8rem .9rem 0">
           <h3 class="swb-panel-title">Sources silencieuses</h3></div>
         <div class="swb-tablewrap" style="max-height:36vh"><table class="swb-table"><thead><tr>
-          <th>Intake</th><th>Entité</th><th class="swb-num">Baseline</th><th class="swb-num">Âge signal</th><th>État</th>
+          <th>Intake</th><th>Entité</th><th class="swb-num">Baseline</th><th class="swb-num">Âge signal</th><th>État</th><th>Action</th>
         </tr></thead><tbody>${silentRows
-          || '<tr><td colspan="5"><p class="swb-hint" style="padding:1rem">Aucun intake silencieux.</p></td></tr>'}</tbody></table></div></div>
+          || '<tr><td colspan="6"><p class="swb-hint" style="padding:1rem">Aucun intake silencieux.</p></td></tr>'}</tbody></table></div></div>
       <div class="swb-panel" style="padding:0;margin-top:.7rem">
         <div class="swb-panel-head" style="padding:.8rem .9rem 0">
           <h3 class="swb-panel-title">Baisses de collecte ≥ 50 %</h3></div>
@@ -1244,7 +1268,10 @@
         <div class="swb-actions">
           <button type="button" class="fp-btn fp-btn-sm" data-swb-act="evaluate">${T('swb.act.evaluate')}</button></div></div>
       <div class="swb-kpis">
-        ${kpi('Alertes 24 h', nf((alerts && alerts.total) || 0), (alerts && alerts.total) ? 'warn' : 'ok', typeHint || undefined)}
+        ${kpi('Alertes uniques 24 h', nf((alerts && alerts.total) || 0), (alerts && alerts.total) ? 'warn' : 'ok',
+          alerts && alerts.raw_total != null
+            ? `${nf(alerts.raw_total)} événements bruts${alerts.deduped ? ' · dédupliqués' : ''}`
+            : (typeHint || undefined))}
         ${kpi('Critiques', nf(bySev.critical || 0), bySev.critical ? 'danger' : 'ok',
           byType.intake_silent ? `${nf(byType.intake_silent)} silent` : undefined)}
         ${kpi('Élevées', nf(bySev.high || 0), bySev.high ? 'warn' : 'ok',
@@ -1252,6 +1279,7 @@
             ? `${nf(byType.host_drop || 0)} host_drop · ${nf(byType.volume_drop || 0)} volume_drop` : undefined)}
         ${kpi('Règles actives', nf(rules.enabled || 0), 'ok', `${nf(rules.count)} définies`)}
       </div>
+      ${alerts && alerts.truncated ? `<p class="swb-hint" style="margin:0 0 .6rem;color:var(--swb-warn)">Échantillon tronqué côté index — total estimé via cardinalité fingerprint.</p>` : ''}
       <div class="swb-panel">
         <div class="swb-panel-head"><h3 class="swb-panel-title">${T('swb.al.new')}</h3></div>
         <div class="swb-filters">
@@ -1892,15 +1920,18 @@
       } else if (st.view === 'drops') {
         const r = await Promise.all([
           api('/intakes/health'),
-          api('/alerting/alerts?hours=24').catch(() => null),
+          api('/alerting/alerts?hours=24&dedupe=1&size=200').catch(() => null),
+          api('/hosts/volumetry?window=1h&sample=800').catch(() => null),
         ]);
         st.data.health = r[0];
         st.data.alerts = r[1];
+        st.data.hostvol = r[2];
         const silentN = ((r[0] && r[0].items) || []).filter((i) => i.silent).length;
         if (silentN) st.badges.drops = { text: String(silentN), tone: 'danger' };
       } else if (st.view === 'alerting') {
         const r = await Promise.all([
-          api('/alerting/rules'), api('/alerting/alerts?hours=24').catch(() => null),
+          api('/alerting/rules'),
+          api('/alerting/alerts?hours=24&dedupe=1&size=200').catch(() => null),
         ]);
         st.data.arules = r[0]; st.data.alerts = r[1];
         st.data.artypes = await api('/alerting/rule-types').catch(() => null);
@@ -2062,7 +2093,16 @@
 
     el.addEventListener('click', async (ev) => {
       const v = ev.target.closest('[data-swb-view]');
-      if (v) { st.view = v.dataset.swbView; st.q = ''; st.filters = {}; st.sort = null; load(); return; }
+      if (v) {
+        st.view = v.dataset.swbView; st.q = ''; st.filters = {}; st.sort = null;
+        try {
+          const u = new URL(location.href);
+          u.searchParams.set('tab', 'sekoia-extended');
+          u.searchParams.set('view', st.view);
+          history.replaceState({}, '', u);
+        } catch (_) { /* noop */ }
+        load(); return;
+      }
       const sortEl = ev.target.closest('[data-swb-sort]');
       if (sortEl) {
         const k = sortEl.dataset.swbSort;
@@ -2254,13 +2294,16 @@
           toast(r.verdict, r.impact && r.impact.creates_blind_spot ? 'err' : 'ok');
           paint(); return;
         }
-        if (act === 'intake-toggle' || act === 'rule-toggle') {
-          const kind = act === 'intake-toggle' ? 'intakes' : 'rules';
-          const to = b.dataset.to === 'enable' ? 'enable' : 'disable';
+        if (act === 'intake-enable' || act === 'intake-disable'
+            || act === 'intake-toggle' || act === 'rule-toggle') {
+          const kind = act === 'rule-toggle' ? 'rules' : 'intakes';
+          const op = act === 'intake-enable' ? 'enable'
+            : act === 'intake-disable' ? 'disable'
+              : (b.dataset.to === 'enable' ? 'enable' : 'disable');
           b.disabled = true;
-          const r = await api(`/${kind}/${encodeURIComponent(b.dataset.id)}/${to}`, { method: 'POST' });
+          const r = await api(`/${kind}/${encodeURIComponent(b.dataset.id)}/${op}`, { method: 'POST' });
           if (r.ok) {
-            toast(to === 'enable' ? 'Activation appliquée' : 'Désactivation appliquée', 'ok');
+            toast(op === 'enable' ? 'Activation appliquée' : 'Désactivation appliquée', 'ok');
             st.drawer = null;
             load();
           } else {
@@ -2350,11 +2393,20 @@
   function mountAt(elId, view, withNav) {
     st.mount = elId;
     st.nav = withNav !== false;
-    // Vue demandée > défaut SEP (alerting) > défaut CERT (overview).
+    const pendingView = window.__pendingSwbView
+      || new URLSearchParams(location.search).get('view');
+    window.__pendingSwbView = null;
+    // Vue demandée > ?view= > défaut SEP (alerting) > défaut CERT (overview).
     if (view) st.view = view;
+    else if (pendingView) st.view = pendingView;
     else if (isSepTool()) st.view = 'alerting';
-    // Si une vue hors périmètre SEP est restée en mémoire, recentrer.
     if (isSepTool() && !SEP_VIEWS.some((v) => v.id === st.view)) st.view = 'alerting';
+    try {
+      const u = new URL(location.href);
+      u.searchParams.set('tab', 'sekoia-extended');
+      u.searchParams.set('view', st.view);
+      history.replaceState({}, '', u);
+    } catch (_) { /* noop */ }
     st.q = ''; st.filters = {}; st.sort = null; st.drawer = null;
     const el = root();
     if (!el) return;

@@ -1407,3 +1407,14 @@
 [data-edition="cybercorp"] .cc-subnav-group-label { font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); padding: 0 .1rem; }
 [data-edition="cybercorp"] .cc-subnav-group-btns { display: flex; flex-wrap: wrap; gap: .3rem; }
 [data-edition="cybercorp"] .cc-cc-subnav { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .6rem .9rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: .7rem .8rem; }
+
+
+/* SEP — état vide inventaires */
+[data-edition="cybercorp"] .cc-empty-state {
+  padding: 1.4rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  text-align: center;
+}
+[data-edition="cybercorp"] .cc-empty-state .fp-muted { margin: 0; }

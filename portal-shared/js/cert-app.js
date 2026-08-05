@@ -705,6 +705,15 @@ function initCertApp() {
       // Sous-vue Control Center (Queries → SOL, Synthèse → overview, Hosts)
       window.__pendingCcSub = btn.dataset.ccSub || null;
       if (btn.dataset.ccSub) window.__activeCcSub = btn.dataset.ccSub;
+      // Deep-link inventaire Intakes (?sub=) et Alerting (?view=)
+      if (btn.dataset.tabBtn === 'sekoia-assets') {
+        const sub = new URLSearchParams(location.search).get('sub');
+        if (sub) window.__pendingSekSub = sub;
+      }
+      if (btn.dataset.tabBtn === 'sekoia-extended') {
+        const view = new URLSearchParams(location.search).get('view');
+        if (view) window.__pendingSwbView = view;
+      }
       tab(btn.dataset.tabBtn);
     });
   });
@@ -786,7 +795,14 @@ async function boot() {
   initCertApp();
   if (window.initCybercorpShell) initCybercorpShell();
   // Deep-link autoritatif : activer l'onglet même si PortalLazy n'a pas encore wrappé tab()
-  const tabParam = new URLSearchParams(location.search).get('tab');
+  const sp0 = new URLSearchParams(location.search);
+  const tabParam = sp0.get('tab');
+  const ccParam = sp0.get('cc');
+  const subParam = sp0.get('sub');
+  const viewParam = sp0.get('view');
+  if (ccParam) { window.__pendingCcSub = ccParam; window.__activeCcSub = ccParam; }
+  if (subParam) window.__pendingSekSub = subParam;
+  if (viewParam) window.__pendingSwbView = viewParam;
   if (tabParam && typeof window.tab === 'function') {
     window.tab(tabParam);
   } else if (tabParam && window.applyInitialTabFromUrl) {

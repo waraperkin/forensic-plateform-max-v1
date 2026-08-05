@@ -302,6 +302,21 @@
         'cc-sol-export': () => ccSolExport(),
         'cc-sol-expand': (el) => ccSolExpand(parseInt(el.dataset.idx, 10)),
         'cc-sol-apply-form': () => { ccSolReadForm(); cc.solQuery = ccSolFormToQuery(); cc.solMode = 'code'; ccRenderSol(); },
+        'cc-sol-hist': (el) => {
+          const idx = parseInt(el.dataset.idx, 10);
+          try {
+            const hist = JSON.parse(localStorage.getItem('sep-sol-history') || '[]');
+            if (hist[idx] && hist[idx].q) {
+              cc.solQuery = hist[idx].q;
+              cc.solMode = 'code';
+              ccRenderSol();
+            }
+          } catch (_) { /* noop */ }
+        },
+        'cc-sol-hist-clear': () => {
+          try { localStorage.removeItem('sep-sol-history'); } catch (_) { /* noop */ }
+          ccRenderSol();
+        },
         'cc-sol-back': () => { cc.sub = 'overview'; loadSekoiaCC(); },
       });
       const debouncedCcList = (window.PortalPerf && window.PortalPerf.debounce)
@@ -431,10 +446,24 @@
   }
   async function ccEnsureInventory(force) {
     if (cc.loaded.inv && !force) return;
+    // Partage le cache 60 s avec l'inventaire Intakes (évite double-fetch SEP).
+    if (!force && TC.cacheGet) {
+      const hit = TC.cacheGet('api-inventory');
+      if (hit && hit.items && (Date.now() - (hit._cachedAt || 0) < 60000)) {
+        cc.env = hit;
+        cc.inv = hit.items || [];
+        cc.stats = hit.stats || null;
+        cc.counts = hit.counts || (hit.stats && hit.stats.totals) || null;
+        cc.loaded.inv = true;
+        return;
+      }
+    }
     const env = ccApplyInventoryCache(await TC.api('/sekoia/inventory' + (force ? '?refresh=1' : '')));
     cc.env = env; cc.inv = env.items || []; cc.stats = env.stats || null; cc.counts = env.counts || (env.stats && env.stats.totals) || null;
     if (!env.token_expired && cc.inv.length) {
+      env._cachedAt = Date.now();
       TC.offlineCacheSet('cc-inventory', { items: cc.inv, stats: cc.stats, counts: cc.counts });
+      if (TC.cacheSet) TC.cacheSet('api-inventory', env);
     }
     cc.loaded.inv = true;
   }
@@ -1233,7 +1262,15 @@
   }
   function ccRenderSol() {
     const body = document.getElementById('cc-body'); if (!body) return;
-    if (cc.solQuery == null || cc.solQuery === '') cc.solQuery = ccSolDefaultQuery();
+    if (cc.solQuery == null || cc.solQuery === '') {
+      try {
+        const fromUrl = new URLSearchParams(location.search).get('q');
+        const fromLs = localStorage.getItem('sep-sol-last');
+        cc.solQuery = fromUrl || fromLs || ccSolDefaultQuery();
+      } catch (_) {
+        cc.solQuery = ccSolDefaultQuery();
+      }
+    }
     const mode = cc.solMode === 'form' ? 'form' : 'code';
     const label = cc.solLabel || T('qb_untitled');
     body.innerHTML = `<div class="cc-qb-shell">
@@ -1267,8 +1304,11 @@
         </div>
         <div id="cc-sol-result"></div>
       </section>
-      <details class="cc-qb-aside fp-section-spaced">
-        <summary>${esc(T('lbl_sol_examples'))} · ${esc(T('lbl_sol_library'))}</summary>
+      <details class="cc-qb-aside fp-section-spaced" open>
+        <summary>Historique local · ${esc(T('lbl_sol_examples'))} · ${esc(T('lbl_sol_library'))}</summary>
+        <h4 class="fp-section-sub fp-section-spaced">Historique (20 dernières)
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sol-hist-clear">Vider</button></h4>
+        <div id="cc-sol-history">${ccSolHistoryHtml()}</div>
         <h4 class="fp-section-sub fp-section-spaced">${esc(T('lbl_sol_examples'))}</h4>
         <div id="cc-sol-examples">${cc.solExamples ? '' : TC.tableLoading(3, i18n.t('ui.loading'))}</div>
         <h4 class="fp-section-sub fp-section-spaced">${esc(T('lbl_sol_library'))}</h4>
@@ -1285,6 +1325,21 @@
     if (cc.solLib) ccRenderSolLibrary();
     if (!cc.solExamples) ccSolLoadExamples();
     if (!cc.solLib) ccSolLoadLib();
+  }
+
+  function ccSolHistoryHtml() {
+    let hist = [];
+    try { hist = JSON.parse(localStorage.getItem('sep-sol-history') || '[]'); } catch (_) { hist = []; }
+    if (!hist.length) return `<p class="fp-muted">Aucune requête récente — les runs sont mémorisés ici et via <code>?cc=sol&amp;q=</code>.</p>`;
+    return `<ul class="cc-sol-histlist" style="list-style:none;padding:0;margin:0">${hist.slice(0, 20).map((h, i) => {
+      const when = h.ts ? new Date(h.ts).toLocaleString() : '';
+      const q = String(h.q || '').slice(0, 160);
+      return `<li style="display:flex;gap:.5rem;align-items:center;margin:.35rem 0">
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sol-hist" data-idx="${i}">Restaurer</button>
+        <span class="fp-muted" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(h.q || '')}"><code>${esc(q)}</code></span>
+        <span class="fp-muted" style="font-size:.75rem">${esc(when)}${h.n != null ? ` · ${esc(String(h.n))}` : ''}</span>
+      </li>`;
+    }).join('')}</ul>`;
   }
 
   function ccRenderSolFeedback() {
@@ -1409,6 +1464,18 @@
     };
     cc.sol = r;
     cc.solResult = r;
+    // Historique local + deep-link résultat (?cc=sol&q=…)
+    try {
+      const hist = JSON.parse(localStorage.getItem('sep-sol-history') || '[]');
+      hist.unshift({ q: cc.solQuery, ts: Date.now(), n: (r && r.count) || (r && r.items && r.items.length) || 0 });
+      localStorage.setItem('sep-sol-history', JSON.stringify(hist.slice(0, 20)));
+      localStorage.setItem('sep-sol-last', cc.solQuery);
+      const u = new URL(location.href);
+      u.searchParams.set('tab', 'sekoia-cc');
+      u.searchParams.set('cc', 'sol');
+      u.searchParams.set('q', cc.solQuery.slice(0, 1800));
+      history.replaceState({}, '', u);
+    } catch (_) { /* noop */ }
     ccRenderSolFeedback();
     ccRenderSolResult();
   }

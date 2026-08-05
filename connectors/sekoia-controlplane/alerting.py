@@ -477,27 +477,62 @@ def register(alerting_app) -> None:
     async def list_alerts(hours: int = Query(default=24, ge=1, le=720),
                           severity: str = Query(default=""),
                           rule_type: str = Query(default=""),
-                          size: int = Query(default=200, ge=1, le=1000)):
+                          size: int = Query(default=200, ge=1, le=1000),
+                          offset: int = Query(default=0, ge=0),
+                          dedupe: int = Query(default=1)):
         filters: list[dict] = [{"range": {"@timestamp": {"gte": f"now-{hours}h"}}}]
         if severity:
             filters.append({"term": {"severity.keyword": severity}})
         if rule_type:
             filters.append({"term": {"rule_type.keyword": rule_type}})
+        # Remonter assez large pour dédupliquer côté API, puis paginer.
+        fetch_size = min(1000, max(size + offset, size * 3 if dedupe else size + offset))
         res, err = await cp.os_search(f"{ALERTS_INDEX_PREFIX}-*", {
-            "size": size, "query": {"bool": {"filter": filters}},
+            "size": fetch_size, "from": 0,
+            "track_total_hits": True,
+            "query": {"bool": {"filter": filters}},
             "sort": [{"@timestamp": {"order": "desc"}}],
             "aggs": {"by_sev": {"terms": {"field": "severity.keyword", "size": 10}},
-                     "by_type": {"terms": {"field": "rule_type.keyword", "size": 20}}}})
+                     "by_type": {"terms": {"field": "rule_type.keyword", "size": 20}},
+                     "unique_fp": {"cardinality": {"field": "fingerprint.keyword"}}}})
         if err:
-            return {"available": False, "error": err, "items": []}
+            return {"available": False, "error": err, "items": [],
+                    "total": 0, "offset": offset, "limit": size, "has_more": False}
         hits = (res or {}).get("hits", {})
         aggs = (res or {}).get("aggregations", {})
+        raw_items = [h.get("_source", {}) for h in hits.get("hits", [])]
+        raw_total = (hits.get("total") or {}).get("value", 0)
+        if dedupe:
+            seen = set()
+            deduped = []
+            for a in raw_items:
+                fp = a.get("fingerprint") or f"{a.get('rule_type')}|{a.get('intake_uuid')}|{a.get('host')}"
+                if fp in seen:
+                    continue
+                seen.add(fp)
+                deduped.append(a)
+            items_all = deduped
+            unique_n = (aggs.get("unique_fp") or {}).get("value")
+            total = int(unique_n) if unique_n is not None else len(deduped)
+            truncated = raw_total > fetch_size
+        else:
+            items_all = raw_items
+            total = raw_total
+            truncated = False
+        page = items_all[offset:offset + size]
         return {
             "available": True, "hours": hours,
-            "total": (hits.get("total") or {}).get("value", 0),
+            "total": total,
+            "raw_total": raw_total,
+            "offset": offset,
+            "limit": size,
+            "has_more": (offset + len(page)) < len(items_all) or (
+                not dedupe and (offset + size) < raw_total),
+            "truncated": truncated,
+            "deduped": bool(dedupe),
             "by_severity": {b["key"]: b["doc_count"]
                             for b in (aggs.get("by_sev") or {}).get("buckets", [])},
             "by_type": {b["key"]: b["doc_count"]
                         for b in (aggs.get("by_type") or {}).get("buckets", [])},
-            "items": [h.get("_source", {}) for h in hits.get("hits", [])],
+            "items": page,
         }

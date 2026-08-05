@@ -367,6 +367,58 @@
   }
 
   /**
+   * Contrat envelope SEP : { items, total, offset, limit, has_more, facets? }.
+   * Accepte aussi un tableau brut ou un objet sans pagination (full-fetch).
+   */
+  function normalizePage(env, fallbackLimit) {
+    const lim = Math.max(1, Number(fallbackLimit) || 100);
+    if (Array.isArray(env)) {
+      return {
+        items: env,
+        total: env.length,
+        offset: 0,
+        limit: lim,
+        has_more: false,
+        count: env.length,
+        facets: null,
+        truncated: false,
+      };
+    }
+    const raw = env && typeof env === 'object' ? env : {};
+    const items = Array.isArray(raw.items) ? raw.items
+      : (Array.isArray(raw.intakes) ? raw.intakes : []);
+    const offset = Math.max(0, Number(raw.offset) || 0);
+    const limit = Math.max(1, Number(raw.limit) || items.length || lim);
+    const total = raw.total != null ? Math.max(0, Number(raw.total)) : items.length;
+    const hasMore = raw.has_more != null
+      ? !!raw.has_more
+      : (offset + items.length) < total;
+    return Object.assign({}, raw, {
+      items,
+      count: items.length,
+      total,
+      offset,
+      limit,
+      has_more: hasMore,
+      facets: raw.facets || null,
+      truncated: !!raw.truncated,
+    });
+  }
+
+  /** Compteur « 1–50 / 1180 » pour les listes inventaire. */
+  function listCountHtml(page) {
+    const p = normalizePage(page);
+    const from = p.total ? (p.offset + 1) : 0;
+    const to = p.offset + p.items.length;
+    return `${from}–${to} / ${p.total}`;
+  }
+
+  /** État vide / erreur uniforme inventaires SEP. */
+  function emptyState(message) {
+    return `<div class="cc-empty-state" role="status"><p class="fp-muted">${esc(message || 'Aucun élément.')}</p></div>`;
+  }
+
+  /**
    * Charge toutes les pages d'un endpoint envelope {items,total,offset,limit}.
    * Pour exports / facettes — borné (maxItems) pour la prod.
    */
@@ -461,7 +513,7 @@
     api, esc, toast, copy, table, chart, countBy, barOption, pieOption,
     statCard, configBanner, errBanner, infoBanner, bind, fetchForm, readFetchForm, deep,
     staleBanner, offlineBanner, offlineCacheSet, offlineCacheGet, tableLoading, clearThreatOffline,
-    apiPaged, pagerBar,
+    apiPaged, pagerBar, normalizePage, listCountHtml, emptyState,
     matchText, download, exportCSV, exportJSON, exportButtons,
     filterField, selectOpts,
     sendBar, sendEvents, bindSend,

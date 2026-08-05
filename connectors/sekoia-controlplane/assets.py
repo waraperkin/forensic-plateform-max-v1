@@ -364,9 +364,17 @@ def register(assets_app) -> None:
         data, err = await cp.sek_request("GET", f"{V2}/assets", params=params)
         items = [_norm_asset(x) for x in ((data or {}).get("items") or [])]
         # Filtre local « DC » si search commence par kind:dc
+        total = (data or {}).get("total") if isinstance(data, dict) else len(items)
+        try:
+            total_n = int(total) if total is not None else len(items)
+        except (TypeError, ValueError):
+            total_n = len(items)
+        off = int(params["offset"])
+        lim = int(params["limit"])
         extra = {
-            "total": (data or {}).get("total") if isinstance(data, dict) else len(items),
-            "limit": params["limit"], "offset": params["offset"],
+            "total": total_n,
+            "limit": lim, "offset": off,
+            "has_more": (off + len(items)) < total_n,
             "api": "v2",
         }
         if stats:

@@ -21,14 +21,19 @@ async function searchOpenSearch(os) {
     const r = await os.search({
       index: ERRORS_INDEX,
       size: 500,
+      track_total_hits: true,
       body: {
         query: { match_all: {} },
         sort: [{ '@timestamp': { order: 'desc' } }],
       },
     });
-    return (r.body.hits?.hits || []).map(mapOsErrorHit);
+    const hits = (r.body.hits?.hits || []).map(mapOsErrorHit);
+    const total = r.body.hits?.total?.value != null
+      ? Number(r.body.hits.total.value)
+      : hits.length;
+    return { items: hits, total, truncated: total > hits.length, limit: 500 };
   } catch {
-    return [];
+    return { items: [], total: 0, truncated: false, limit: 500 };
   }
 }
 
@@ -71,14 +76,29 @@ function createMasterIngestErrorsRoutes(deps) {
 
   router.get('/master/ingest_errors', async (_req, res) => {
     try {
-      let hits = await searchOpenSearch(os);
-      if (!hits.length) {
-        hits = await fetchUploadErrors(os);
+      let pack = await searchOpenSearch(os);
+      let items = pack.items || [];
+      if (!items.length) {
+        items = await fetchUploadErrors(os);
+        pack = {
+          items,
+          total: items.length,
+          truncated: false,
+          limit: 100,
+          source: 'uploads',
+        };
       }
-      res.json(hits);
+      res.json({
+        items,
+        total: pack.total != null ? pack.total : items.length,
+        offset: 0,
+        limit: pack.limit || items.length,
+        has_more: !!pack.truncated,
+        truncated: !!pack.truncated,
+      });
     } catch (err) {
       logger?.warn?.('master/ingest_errors:', err.message);
-      res.json([]);
+      res.json({ items: [], total: 0, offset: 0, limit: 0, has_more: false, truncated: false });
     }
   });
 

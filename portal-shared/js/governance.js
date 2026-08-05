@@ -206,13 +206,19 @@
     if (!root) root = document.getElementById('gov-assets-root');
     if (!root) return;
     if (!root.querySelector('#gov-assets-list')) loading(root);
-    const [sek, st] = await Promise.all([
+    const [sek, st, hostsIntel] = await Promise.all([
       TC.api(`/sekoia/assets?${assetQuery()}`),
       withStats ? TC.api('/sekoia/assets/stats') : Promise.resolve(assetState.stats),
+      withStats ? TC.api('/sekoia/assets/intelligence?window=1h&sample=1000').catch(() => null) : Promise.resolve(null),
     ]);
     assetState.items = sek.items || [];
     assetState.total = sek.total != null ? sek.total : assetState.items.length;
     if (st && st.available) assetState.stats = st;
+    assetState.unmanaged = (hostsIntel && (hostsIntel.hosts_unmanaged != null
+      ? hostsIntel.hosts_unmanaged
+      : (hostsIntel.unmanaged_count || 0))) || 0;
+    assetState.unmanagedHosts = (hostsIntel && (hostsIntel.unmanaged || [])) || [];
+    assetState.hostsIntel = hostsIntel;
     const stats = assetState.stats || {};
     govAssets = assetState.items.map((a) => ({
       name: a.name, source: a.source || 'Sekoia', type: a.type, kind: a.type,
@@ -236,7 +242,12 @@
           ${C('Networks', stats.networks || 0, '', { fkey: 'type', fval: 'network' })}
           ${C('Critiques (≥80)', stats.critical || 0, 'danger', { preset: 'critical' })}
           ${C('DC (estim.)', stats.dc_estimate || 0, 'warn', { preset: 'dc' })}
+          ${C('Hôtes non inventoriés', assetState.unmanaged || 0, (assetState.unmanaged ? 'danger' : ''), { preset: 'unmanaged' })}
         </div>`
+      + ((assetState.unmanaged)
+        ? `<p class="fp-muted" style="margin:.4rem 0 .8rem">Machines observées en télémétrie mais absentes de l’Asset Management — corrélation intake ↔ host ↔ asset à traiter.</p>`
+        : '')
+      + '<div id="ga-unmanaged-panel"></div>'
       + `<div class="cc-tp-grid">
           <div id="gov-assets-chart-type" class="cc-tp-chart"></div>
           <div id="gov-assets-chart-crit" class="cc-tp-chart"></div>
@@ -280,6 +291,27 @@
     root._gaBound = true;
     delegate(root, {
       'card-filter': (el) => {
+        if (el.dataset.preset === 'unmanaged') {
+          const panel = document.getElementById('ga-unmanaged-panel');
+          const names = assetState.unmanagedHosts || [];
+          const links = (assetState.hostsIntel && assetState.hostsIntel.hosts) || [];
+          const rows = names.slice(0, 100).map((h) => {
+            const meta = links.find((x) => x.host === h) || {};
+            const intakes = (meta.intakes || []).slice(0, 4).join(', ');
+            return `<tr><td><code>${TC.esc(h)}</code></td>
+              <td class="fp-muted">${TC.esc(intakes || '—')}</td>
+              <td class="fp-muted">${meta.events != null ? TC.esc(String(meta.events)) : '—'}</td></tr>`;
+          }).join('');
+          if (panel) {
+            panel.innerHTML = `<div class="cc-tp-detail-card fp-section-spaced">
+              <h3 class="fp-section-sub">Hôtes non inventoriés (${names.length})</h3>
+              <p class="fp-muted">Hôtes vus en télémétrie sans asset connu — lien host ↔ intake pour revue bulk.</p>
+              <div class="fp-table-wrap"><table class="fp-table"><thead><tr><th>Hôte</th><th>Intakes</th><th>Events</th></tr></thead>
+              <tbody>${rows || '<tr><td colspan="3" class="fp-muted">Aucun</td></tr>'}</tbody></table></div></div>`;
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+          return;
+        }
         resetAssetFilters();
         if (el.dataset.preset === 'critical') assetFilters.criticality = '80';
         else if (el.dataset.preset === 'dc') { assetFilters.preset = 'dc'; assetFilters.type = 'host'; }

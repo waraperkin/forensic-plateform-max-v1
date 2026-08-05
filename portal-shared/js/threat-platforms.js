@@ -57,8 +57,25 @@
 
   // ── Sekoia : inventaire complet (Assets & Sources) ──────────────────────────
   const sekData = { intakes: [], connectors: [], modules: [], playbooks: [], formats: [], rules: [] };
-  let sekSub = 'intakes';
-  const sekPage = { offset: 0, limit: 100, total: 0, sizes: [50, 100, 200, 500] };
+  let sekSub = (typeof window !== 'undefined' && window.__pendingSekSub) || 'intakes';
+  const sekPage = { offset: 0, limit: 100, total: 0, sizes: [50, 100, 200, 500], facets: null };
+  const SEK_SUBS = new Set(['intakes', 'connectors', 'modules', 'playbooks', 'formats']);
+
+  function syncSekDeepLink() {
+    try {
+      const u = new URL(location.href);
+      u.searchParams.set('tab', 'sekoia-assets');
+      u.searchParams.set('sub', sekSub);
+      history.replaceState({}, '', u);
+    } catch (_) { /* noop */ }
+  }
+
+  function applyPendingSekSub() {
+    const fromUrl = new URLSearchParams(location.search).get('sub');
+    const pending = window.__pendingSekSub || fromUrl;
+    if (pending && SEK_SUBS.has(pending)) sekSub = pending;
+    window.__pendingSekSub = null;
+  }
 
   function toMap(list) { const m = {}; (list || []).forEach((x) => { m[x.label] = x.count; }); return m; }
   function uniq(arr) { return Array.from(new Set((arr || []).filter((x) => x != null && x !== ''))).sort(); }
@@ -78,16 +95,21 @@
   }
 
   function sekFilterBar() {
-    const I = sekData.intakes;
+    const fac = sekPage.facets || {};
+    const I = sekData.intakes || [];
+    const formats = fac.formats || I.map((r) => r.intake_format_name_via_script || r.intake_format_name);
+    const statuses = fac.statuses || I.map((r) => r.intake_status);
+    const modules = fac.modules || I.map((r) => r.module_name);
+    const entities = fac.entities || I.map((r) => r.entity_name);
     const connOpts = `<option value=""${sekFilters.connector === '' ? ' selected' : ''}>— Connecteur : tous —</option>`
       + `<option value="with"${sekFilters.connector === 'with' ? ' selected' : ''}>Avec connecteur</option>`
       + `<option value="without"${sekFilters.connector === 'without' ? ' selected' : ''}>${i18n.t('msg.sans_connecteur')}</option>`;
     return `<div class="cc-tp-filterbar">
       ${ff('Recherche', `<input class="fp-input fp-input-sm" id="sek-flt-q" placeholder="Nom, UUID, techno…" value="${TC.esc(sekFilters.q)}" autocomplete="off">`, { grow: true })}
-      ${ff('Format', `<select class="fp-select fp-input-sm" id="sek-flt-format" aria-label="Format">${opts(I.map((r) => r.intake_format_name_via_script || r.intake_format_name), sekFilters.format, 'Format')}</select>`)}
-      ${ff('Statut', `<select class="fp-select fp-input-sm" id="sek-flt-status" aria-label="Statut">${opts(I.map((r) => r.intake_status), sekFilters.status, 'Statut')}</select>`)}
-      ${ff('Module', `<select class="fp-select fp-input-sm" id="sek-flt-module" aria-label="Module">${opts(I.map((r) => r.module_name), sekFilters.module, 'Module')}</select>`)}
-      ${ff(i18n.t('msg.entite') || 'Entité', `<select class="fp-select fp-input-sm" id="sek-flt-entity" aria-label="Entité">${opts(I.map((r) => r.entity_name), sekFilters.entity, 'Entité')}</select>`)}
+      ${ff('Format', `<select class="fp-select fp-input-sm" id="sek-flt-format" aria-label="Format">${opts(formats, sekFilters.format, 'Format')}</select>`)}
+      ${ff('Statut', `<select class="fp-select fp-input-sm" id="sek-flt-status" aria-label="Statut">${opts(statuses, sekFilters.status, 'Statut')}</select>`)}
+      ${ff('Module', `<select class="fp-select fp-input-sm" id="sek-flt-module" aria-label="Module">${opts(modules, sekFilters.module, 'Module')}</select>`)}
+      ${ff(i18n.t('msg.entite') || 'Entité', `<select class="fp-select fp-input-sm" id="sek-flt-entity" aria-label="Entité">${opts(entities, sekFilters.entity, 'Entité')}</select>`)}
       ${ff('Connecteur', `<select class="fp-select fp-input-sm" id="sek-flt-connector" aria-label="Connecteur">${connOpts}</select>`)}
       <span class="cc-tp-filter-actions">
         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-reset">${i18n.t('ui.reset')}</button>
@@ -95,8 +117,23 @@
     </div>`;
   }
 
-  function filteredIntakes() {
-    return sekData.intakes.filter((r) => {
+  function intakeServerQuery() {
+    const sp = new URLSearchParams();
+    sp.set('limit', String(sekPage.limit));
+    sp.set('offset', String(sekPage.offset));
+    if (sekFilters.q) sp.set('q', sekFilters.q);
+    if (sekFilters.format) sp.set('format', sekFilters.format);
+    if (sekFilters.status) sp.set('status', sekFilters.status);
+    if (sekFilters.module) sp.set('module', sekFilters.module);
+    if (sekFilters.entity) sp.set('entity', sekFilters.entity);
+    if (sekFilters.connector) sp.set('connector', sekFilters.connector);
+    return sp.toString();
+  }
+
+  /** Repli client si l'API pageable est indisponible. */
+  function filteredIntakes() { return filteredIntakesClient(); }
+  function filteredIntakesClient() {
+    return (sekData.intakes || []).filter((r) => {
       if (sekFilters.formatUuid && r.intake_format_uuid !== sekFilters.formatUuid) return false;
       if (sekFilters.format && (r.intake_format_name_via_script || r.intake_format_name) !== sekFilters.format) return false;
       if (sekFilters.status && r.intake_status !== sekFilters.status) return false;
@@ -171,25 +208,77 @@
       `<button type="button" class="fp-btn fp-btn-sm cc-subtab${k === sekSub ? ' active' : ''}" data-act="sek-sub" data-sub="${k}">${l}</button>`).join('')}</div>`;
   }
 
-  async function loadSekoiaAssets() {
-    const root = document.getElementById('sekoia-assets-root'); if (!root) return; loading(root);
-    let env = await TC.api('/sekoia/inventory');
+
+  async function loadInventoryMeta(force) {
+    const cacheKey = 'api-inventory';
+    if (!force && TC.cacheGet) {
+      const hit = TC.cacheGet(cacheKey);
+      if (hit && hit.items && (Date.now() - (hit._cachedAt || 0) < 60000)) return hit;
+    }
+    let env = await TC.api('/sekoia/inventory' + (force ? '?refresh=1' : ''));
     if ((!env.items || !env.items.length) && TC.cacheGet) {
-      const cached = TC.cacheGet('api-inventory');
-      if (cached && cached.items && cached.items.length) {
-        env = Object.assign({}, env, cached, { _from_cache: true });
-      }
+      const cached = TC.cacheGet(cacheKey);
+      if (cached && cached.items && cached.items.length) env = Object.assign({}, env, cached, { _from_cache: true });
     }
     if (!env.token_expired || (env.items && env.items.length)) {
+      env._cachedAt = Date.now();
+      if (TC.cacheSet) TC.cacheSet(cacheKey, env);
+      TC.offlineCacheSet('assets-intakes', { items: env.items || [], stats: env.stats, counts: env.counts });
+    }
+    return env;
+  }
+
+  async function fetchIntakesPage() {
+    let env = await TC.api(`/sekoia/intakes?${intakeServerQuery()}`);
+    const page = TC.normalizePage ? TC.normalizePage(env, sekPage.limit) : env;
+    if (env.total == null && env.offset == null && (env.items || []).length > sekPage.limit) {
       sekData.intakes = env.items || [];
-      TC.offlineCacheSet('assets-intakes', { items: sekData.intakes, stats: env.stats, counts: env.counts });
-      if (TC.cacheSet) TC.cacheSet('api-inventory', env);
+      sekData._allIntakesCache = sekData.intakes;
+      const client = filteredIntakesClient();
+      sekPage.total = client.length;
+      return { rows: client.slice(sekPage.offset, sekPage.offset + sekPage.limit), env, server: false };
+    }
+    sekData.intakes = page.items || [];
+    sekPage.total = page.total;
+    sekPage.offset = page.offset;
+    sekPage.limit = page.limit;
+    sekPage.facets = page.facets || sekPage.facets;
+    return { rows: sekData.intakes, env: Object.assign({}, env, page), server: true };
+  }
+
+  async function fetchSekSubPage(kind) {
+    const sp = new URLSearchParams();
+    sp.set('limit', String(sekPage.limit));
+    sp.set('offset', String(sekPage.offset));
+    if (sekFilters.q) sp.set('q', sekFilters.q);
+    const env = await TC.api(`/sekoia/${kind}?${sp.toString()}`);
+    const page = TC.normalizePage ? TC.normalizePage(env, sekPage.limit) : env;
+    sekPage.total = page.total;
+    sekPage.offset = page.offset;
+    sekPage.limit = page.limit;
+    return { rows: page.items || [], env: Object.assign({}, env, page) };
+  }
+
+  function paintSekPager() {
+    const pager = document.getElementById('sek-pager-host');
+    if (pager && TC.pagerBar) pager.innerHTML = TC.pagerBar('sek', sekPage);
+    const cnt = document.getElementById('sek-list-count');
+    if (cnt) {
+      const shown = Math.min(sekPage.limit, Math.max(0, sekPage.total - sekPage.offset));
+      const from = sekPage.total ? sekPage.offset + 1 : 0;
+      cnt.textContent = `${from}–${sekPage.offset + shown} / ${sekPage.total}`;
+    }
+  }
+
+  async function loadSekoiaAssets() {
+    const root = document.getElementById('sekoia-assets-root'); if (!root) return; loading(root);
+    applyPendingSekSub();
+    const env = await loadInventoryMeta(false);
+    if (!env.token_expired || (env.items && env.items.length)) {
+      sekData._allIntakesCache = env.items || [];
     } else {
       const cached = TC.offlineCacheGet('assets-intakes');
-      if (cached && cached.items && cached.items.length) {
-        env = Object.assign({}, env, { items: cached.items, stats: cached.stats, counts: cached.counts, _from_cache: true });
-        sekData.intakes = cached.items;
-      }
+      if (cached && cached.items) sekData._allIntakesCache = cached.items;
     }
     const stats = env.stats || {};
     const counts = env.counts || (stats.totals) || {};
@@ -207,49 +296,80 @@
     if (stats.intakes_par_format) TC.chart('sek-fmt-chart', TC.pieOption(toMap(stats.intakes_par_format)), 240);
     if (stats.intakes_par_status) TC.chart('sek-status-chart', TC.barOption(toMap(stats.intakes_par_status), '#0A84FF'), 240);
     sekPage.offset = 0;
-    delegate(root, {
-      'sek-sub': (el) => { sekSub = el.dataset.sub; sekPage.offset = 0; document.getElementById('sek-detail').innerHTML = ''; renderSekList(); document.querySelectorAll('.cc-subtab').forEach((b) => b.classList.toggle('active', b.dataset.sub === sekSub)); },
-      'card-filter': (el) => {
-        resetSekFilters();
-        sekPage.offset = 0;
-        if (el.dataset.sub) sekSub = el.dataset.sub;
-        if (el.dataset.fkey) sekFilters[el.dataset.fkey] = el.dataset.fval || '';
-        document.querySelectorAll('.cc-subtab').forEach((b) => b.classList.toggle('active', b.dataset.sub === sekSub));
-        const fb = document.getElementById('sek-filterbar-host'); if (fb) fb.innerHTML = sekFilterBar();
-        const det = document.getElementById('sek-detail'); if (det) det.innerHTML = '';
-        renderSekList();
-        updateSekCardActive();
-        refreshSekFilterHint();
-        if (fb) fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      },
-      'sek-reset': () => {
-        resetSekFilters(); sekPage.offset = 0; const fb = document.getElementById('sek-filterbar-host');
-        if (fb) fb.innerHTML = sekFilterBar();
-        renderSekList(); updateSekCardActive(); refreshSekFilterHint();
-      },
-      'sek-prev': () => { sekPage.offset = Math.max(0, sekPage.offset - sekPage.limit); renderSekList(); },
-      'sek-next': () => { if (sekPage.offset + sekPage.limit < sekPage.total) { sekPage.offset += sekPage.limit; renderSekList(); } },
-      'sek-goto-btn': () => {
-        const n = Number((document.getElementById('sek-goto') || {}).value || 1);
-        const pages = Math.max(1, Math.ceil(sekPage.total / sekPage.limit));
-        sekPage.offset = (Math.min(pages, Math.max(1, n)) - 1) * sekPage.limit;
-        renderSekList();
-      },
-      'sek-intake': (el) => showIntakeDetail(el.dataset.id),
-      'sek-conn': (el) => showConnectorDetail(el.dataset.id),
-      'sek-intake-save': () => saveIntake(),
-      'sek-conn-save': () => saveConnector(),
-      'export-csv': () => TC.exportCSV('sekoia-intakes.csv', filteredIntakes(), [
-        { key: 'intake_name', label: 'intake_name' }, { key: 'intake_status', label: 'status' },
-        { key: 'intake_format_name_via_script', label: 'format' }, { key: 'entity_name', label: 'entity' },
-        { key: 'connector_name', label: 'connector' }, { key: 'module_name', label: 'module' },
-        { key: 'intake_uuid', label: 'uuid' }, { key: 'intake_key', label: 'intake_key' },
-      ]),
-      'export-json': () => TC.exportJSON('sekoia-intakes.json', filteredIntakes()),
-    });
-    root.addEventListener('input', onSekFilter);
-    root.addEventListener('change', onSekFilter);
-    renderSekList();
+    syncSekDeepLink();
+    if (!root._sekBound) {
+      root._sekBound = true;
+      delegate(root, {
+        'sek-sub': (el) => {
+          sekSub = el.dataset.sub; sekPage.offset = 0;
+          const det = document.getElementById('sek-detail'); if (det) det.innerHTML = '';
+          document.querySelectorAll('.cc-subtab').forEach((b) => b.classList.toggle('active', b.dataset.sub === sekSub));
+          syncSekDeepLink(); renderSekList();
+        },
+        'card-filter': (el) => {
+          resetSekFilters(); sekPage.offset = 0;
+          if (el.dataset.sub) sekSub = el.dataset.sub;
+          if (el.dataset.fkey) sekFilters[el.dataset.fkey] = el.dataset.fval || '';
+          document.querySelectorAll('.cc-subtab').forEach((b) => b.classList.toggle('active', b.dataset.sub === sekSub));
+          const fb = document.getElementById('sek-filterbar-host'); if (fb) fb.innerHTML = sekFilterBar();
+          const det = document.getElementById('sek-detail'); if (det) det.innerHTML = '';
+          syncSekDeepLink(); renderSekList(); updateSekCardActive(); refreshSekFilterHint();
+          if (fb) fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        },
+        'sek-reset': () => {
+          resetSekFilters(); sekPage.offset = 0;
+          const fb = document.getElementById('sek-filterbar-host');
+          if (fb) fb.innerHTML = sekFilterBar();
+          renderSekList(); updateSekCardActive(); refreshSekFilterHint();
+        },
+        'sek-prev': () => { sekPage.offset = Math.max(0, sekPage.offset - sekPage.limit); renderSekList(); },
+        'sek-next': () => { if (sekPage.offset + sekPage.limit < sekPage.total) { sekPage.offset += sekPage.limit; renderSekList(); } },
+        'sek-goto-btn': () => {
+          const n = Number((document.getElementById('sek-goto') || {}).value || 1);
+          const pages = Math.max(1, Math.ceil(sekPage.total / sekPage.limit));
+          sekPage.offset = (Math.min(pages, Math.max(1, n)) - 1) * sekPage.limit;
+          renderSekList();
+        },
+        'sek-intake': (el) => showIntakeDetail(el.dataset.id),
+        'sek-conn': (el) => showConnectorDetail(el.dataset.id),
+        'sek-intake-save': () => saveIntake(),
+        'sek-conn-save': () => saveConnector(),
+        'sek-intake-toggle': async (el) => {
+          const id = el.dataset.id;
+          const cur = String(el.dataset.status || '');
+          const enable = !/enabled|RUNNING/i.test(cur);
+          const path = `/sekoia/intakes/${encodeURIComponent(id)}/${enable ? 'enable' : 'disable'}`;
+          const r = await action(path, { method: 'POST' });
+          if (r && r.ok) renderSekList();
+        },
+        'export-csv': async () => {
+          const all = TC.apiPaged
+            ? await TC.apiPaged('/sekoia/intakes', { pageSize: 200, params: {
+              q: sekFilters.q, format: sekFilters.format, status: sekFilters.status,
+              module: sekFilters.module, entity: sekFilters.entity, connector: sekFilters.connector,
+            } })
+            : { items: sekData._allIntakesCache || filteredIntakesClient() };
+          TC.exportCSV('sekoia-intakes.csv', all.items || [], [
+            { key: 'intake_name', label: 'intake_name' }, { key: 'intake_status', label: 'status' },
+            { key: 'intake_format_name_via_script', label: 'format' }, { key: 'entity_name', label: 'entity' },
+            { key: 'connector_name', label: 'connector' }, { key: 'module_name', label: 'module' },
+            { key: 'intake_uuid', label: 'uuid' }, { key: 'intake_key', label: 'intake_key' },
+          ]);
+        },
+        'export-json': async () => {
+          const all = TC.apiPaged
+            ? await TC.apiPaged('/sekoia/intakes', { pageSize: 200, params: {
+              q: sekFilters.q, format: sekFilters.format, status: sekFilters.status,
+              module: sekFilters.module, entity: sekFilters.entity, connector: sekFilters.connector,
+            } })
+            : { items: sekData._allIntakesCache || filteredIntakesClient() };
+          TC.exportJSON('sekoia-intakes.json', all.items || []);
+        },
+      });
+      root.addEventListener('input', onSekFilter);
+      root.addEventListener('change', onSekFilter);
+    }
+    await renderSekList();
     updateSekCardActive();
     refreshSekFilterHint();
   }
@@ -280,71 +400,77 @@
   }
 
   function pageSlice(rows) {
+    // Compat sous-listes non serveur : découpe client + pager.
     const all = rows || [];
     sekPage.total = all.length;
     if (sekPage.offset >= sekPage.total && sekPage.total > 0) {
       sekPage.offset = Math.max(0, (Math.ceil(sekPage.total / sekPage.limit) - 1) * sekPage.limit);
     }
     const slice = all.slice(sekPage.offset, sekPage.offset + sekPage.limit);
-    const pager = document.getElementById('sek-pager-host');
-    if (pager && TC.pagerBar) pager.innerHTML = TC.pagerBar('sek', sekPage);
-    const cnt = document.getElementById('sek-list-count');
-    if (cnt) {
-      const from = sekPage.total ? sekPage.offset + 1 : 0;
-      const to = sekPage.offset + slice.length;
-      cnt.textContent = `${from}–${to} / ${sekPage.total}`;
-    }
+    paintSekPager();
     return slice;
   }
 
   async function renderSekList() {
     const host = document.getElementById('sek-list'); if (!host) return;
+    host.innerHTML = `<p class="fp-muted">${i18n.t('ui.loading')}</p>`;
     if (sekSub === 'intakes') {
-      const rows = pageSlice(filteredIntakes());
+      const { rows } = await fetchIntakesPage();
+      const fb = document.getElementById('sek-filterbar-host');
+      if (fb) fb.innerHTML = sekFilterBar();
+      paintSekPager();
+      if (!rows.length) {
+        host.innerHTML = TC.emptyState
+          ? TC.emptyState(i18n.t('msg.aucun_intake'))
+          : `<p class="fp-muted">${i18n.t('msg.aucun_intake')}</p>`;
+        return;
+      }
       renderTpTable(host, [
         { label: 'Intake', render: (r) => TC.esc(r.intake_name || r.intake_uuid) },
         { label: 'Statut', render: (r) => badge(r.intake_status === 'enabled' ? true : r.intake_status) },
         { label: 'Format', render: (r) => TC.esc(r.intake_format_name_via_script || r.intake_format_name) },
         { label: i18n.t('msg.entite'), render: (r) => TC.esc(r.entity_name || '—') },
         { label: 'Connecteur', render: (r) => TC.esc(r.connector_name || '—') },
-        { label: '', render: (r) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-intake" data-id="${TC.esc(r.intake_uuid)}">${i18n.t('table_cols.detail')}</button>` },
+        { label: '', render: (r) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-intake" data-id="${TC.esc(r.intake_uuid)}">${i18n.t('table_cols.detail')}</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-intake-toggle" data-id="${TC.esc(r.intake_uuid)}" data-status="${TC.esc(r.intake_status || '')}">${/enabled|RUNNING/i.test(String(r.intake_status || '')) ? 'Disable' : 'Enable'}</button>` },
       ], rows, { empty: i18n.t('msg.aucun_intake') });
       return;
     }
-    const txt = (list) => (sekFilters.q ? (list || []).filter((x) => TC.matchText(x, sekFilters.q)) : (list || []));
+    const { rows } = await fetchSekSubPage(sekSub);
+    paintSekPager();
     if (sekSub === 'connectors') {
-      if (!sekData.connectors.length) { const e = await TC.api('/sekoia/connectors'); sekData.connectors = e.items || []; }
+      sekData.connectors = rows;
       renderTpTable(host, [
         { label: 'Connecteur', render: (c) => TC.esc(c.name || c.uuid) },
         { label: 'Type', render: (c) => TC.esc(c.connector_type || '—') },
         { label: 'Statut', render: (c) => TC.esc(c.display_status || '—') },
         { label: '', render: (c) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-conn" data-id="${TC.esc(c.uuid)}">${i18n.t('table_cols.detail')}</button>` },
-      ], pageSlice(txt(sekData.connectors)), { empty: i18n.t('msg.aucun_connecteur') });
+      ], rows, { empty: i18n.t('msg.aucun_connecteur') });
       return;
     }
     if (sekSub === 'modules') {
-      if (!sekData.modules.length) { const e = await TC.api('/sekoia/modules'); sekData.modules = e.items || []; }
+      sekData.modules = rows;
       renderTpTable(host, [
         { label: 'Configuration', render: (m) => TC.esc(m.name || m.uuid) },
         { label: 'Module', render: (m) => TC.esc((m.module || {}).name || m.module_uuid || '—') },
         { label: i18n.t('stats.categories'), render: (m) => TC.esc(((m.module || {}).categories || []).join(', ')) },
-      ], pageSlice(txt(sekData.modules)), { empty: i18n.t('msg.aucun_module') });
+      ], rows, { empty: i18n.t('msg.aucun_module') });
       return;
     }
     if (sekSub === 'playbooks') {
-      if (!sekData.playbooks.length) { const e = await TC.api('/sekoia/playbooks'); sekData.playbooks = e.items || []; }
+      sekData.playbooks = rows;
       renderTpTable(host, [
         { label: 'Playbook', render: (p) => TC.esc(p.name || p.uuid) },
         { label: 'Statut', render: (p) => badge(p.status) },
-      ], pageSlice(txt(sekData.playbooks)), { empty: i18n.t('msg.aucun_playbook') });
+      ], rows, { empty: i18n.t('msg.aucun_playbook') });
       return;
     }
     if (sekSub === 'formats') {
-      if (!sekData.formats.length) { const e = await TC.api('/sekoia/formats'); sekData.formats = e.items || []; }
+      sekData.formats = rows;
       renderTpTable(host, [
         { label: 'Format', render: (f) => TC.esc(f.name || '—') },
         { label: 'UUID', render: (f) => `<code>${TC.esc(f.uuid || '—')}</code>` },
-      ], pageSlice(txt(sekData.formats)), { empty: i18n.t('msg.aucun_format') });
+      ], rows, { empty: i18n.t('msg.aucun_format') });
     }
   }
 
@@ -353,7 +479,9 @@
   }
 
   function showIntakeDetail(id) {
-    const r = sekData.intakes.find((x) => x.intake_uuid === id); if (!r) return;
+    const r = sekData.intakes.find((x) => x.intake_uuid === id)
+      || (sekData._allIntakesCache || []).find((x) => x.intake_uuid === id);
+    if (!r) return;
     const d = document.getElementById('sek-detail');
     d.innerHTML = `<div class="cc-tp-detail-card">
       <h3 class="fp-section-sub">Intake — ${TC.esc(r.intake_name || id)}</h3>
@@ -603,9 +731,17 @@
   async function ruleBulkApply(action, extra) {
     const ids = Array.from(ruleSel);
     if (!ids.length) { TC.toast('Aucune règle sélectionnée', 'warn'); return; }
-    if (!confirm(`${action} sur ${ids.length} règle(s) ?`)) return;
-    const body = Object.assign({ ids, action }, extra || {});
-    const r = await TC.api('/sekoia/rules/bulk', { method: 'POST', body });
+    const preview = await TC.api('/sekoia/rules/bulk', {
+      method: 'POST', body: Object.assign({ ids, action, dry_run: 1 }, extra || {}),
+    });
+    if (!preview || preview.ok === false) {
+      TC.toast((preview && preview.error) || 'Échec simulation lot', 'warn');
+      return;
+    }
+    if (!confirm(`Dry-run OK — ${preview.selected || ids.length} règle(s) · ${action}. Appliquer ?`)) return;
+    const r = await TC.api('/sekoia/rules/bulk', {
+      method: 'POST', body: Object.assign({ ids, action, dry_run: 0 }, extra || {}),
+    });
     TC.toast(r && r.ok
       ? `Lot OK — ${r.done || 0} réussi(s), ${r.failed || 0} échec(s)`
       : ((r && r.error) || 'Échec lot'), r && r.ok && !r.failed ? 'ok' : 'warn');
@@ -695,6 +831,28 @@
         'sek-rule-copy': (el) => { const r = sekData.rules.find((x) => x.rule_uuid === el.dataset.id); if (r) TC.copy(r.rule_payload || ''); },
         'sek-rule-impact': (el) => showRuleImpact(el.dataset.id),
         'sek-rule-diff': (el) => showRuleDiff(el.dataset.id),
+        'sek-rule-simulate': async (el) => {
+          const host = document.getElementById('sek-rule-extra');
+          if (host) host.innerHTML = TC.tableLoading(2, 'Simulation…');
+          const r = await TC.api(`/sekoia/simulate?kind=rule&id=${encodeURIComponent(el.dataset.id)}`);
+          if (host) {
+            host.innerHTML = `<div class="cc-tp-detail-card"><h4 class="fp-section-sub">Simulateur</h4>
+              <pre class="cc-payload"><code>${TC.esc(JSON.stringify(r, null, 2).slice(0, 6000))}</code></pre></div>`;
+          }
+        },
+        'sek-rule-backtest': async (el) => {
+          const host = document.getElementById('sek-rule-extra');
+          if (host) host.innerHTML = TC.tableLoading(3, 'Backtest 7j…');
+          const r = await TC.api(`/sekoia/backtest/${encodeURIComponent(el.dataset.id)}?window=7d`);
+          if (host) {
+            const hits = (r && (r.hits != null ? r.hits : r.match_count)) != null
+              ? (r.hits != null ? r.hits : r.match_count) : '—';
+            host.innerHTML = `<div class="cc-tp-detail-card"><h4 class="fp-section-sub">Backtest 7 jours</h4>
+              <p class="fp-muted">Correspondances estimées : <strong>${TC.esc(String(hits))}</strong>
+              ${r && r.error ? ` · <span class="fp-tag fp-tag-danger">${TC.esc(r.error)}</span>` : ''}</p>
+              <pre class="cc-payload"><code>${TC.esc(JSON.stringify(r, null, 2).slice(0, 6000))}</code></pre></div>`;
+          }
+        },
         'rule-sel-toggle': (el) => {
           const id = el.dataset.id;
           if (el.checked) ruleSel.add(id); else ruleSel.delete(id);
@@ -846,8 +1004,11 @@
         ${detailRow('Datasources', r.rule_datasources)}${detailRow('Description', r.rule_description)}
       </table></div>
       <div class="cc-tp-toolbar fp-section-spaced">
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-rule-impact" data-id="${TC.esc(r.rule_uuid)}">📊 Impact Analyzer</button>
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-rule-diff" data-id="${TC.esc(r.rule_uuid)}">🔀 Diff (avant/après)</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-rule-impact" data-id="${TC.esc(r.rule_uuid)}">Impact Analyzer</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-rule-diff" data-id="${TC.esc(r.rule_uuid)}">Diff (avant/après)</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-rule-simulate" data-id="${TC.esc(r.rule_uuid)}">Simuler</button>
+        <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="sek-rule-backtest" data-id="${TC.esc(r.rule_uuid)}">Backtest 7j</button>
+        <a class="fp-btn fp-btn-ghost fp-btn-sm" href="/sekoia?tab=sekoia-cc&cc=overview" title="Couverture MITRE (Synthèse)">MITRE</a>
       </div>
       <div id="sek-rule-extra"></div>
       <h4 class="fp-section-sub fp-section-spaced">Pattern (payload Sigma)
@@ -1067,14 +1228,45 @@
     return `<span class="cc-tag-toggles">${KEY_TAGS.map((t) =>
       `<button type="button" class="cc-tag-chip${active.indexOf(t) !== -1 ? ' on' : ''}" data-act="toggle-tag" data-id="${TC.esc(id)}" data-tag="${t}">${t}</button>`).join('')}</span>`;
   }
-  function renderKeysList() {
+  function keyServerQuery() {
+    const sp = new URLSearchParams();
+    sp.set('limit', String(keyPage.limit));
+    sp.set('offset', String(keyPage.offset));
+    if (keyFilters.q) sp.set('q', keyFilters.q);
+    if (keyFilters.bucket) sp.set('bucket', keyFilters.bucket);
+    return sp.toString();
+  }
+
+  async function fetchKeysPage() {
+    const env = await TC.api(`/sekoia/apikeys?${keyServerQuery()}`);
+    const page = TC.normalizePage ? TC.normalizePage(env, keyPage.limit) : env;
+    keyData.items = page.items || [];
+    keyPage.total = page.total != null ? page.total : keyData.items.length;
+    keyPage.offset = page.offset != null ? page.offset : keyPage.offset;
+    keyPage.limit = page.limit != null ? page.limit : keyPage.limit;
+    keyData.monitoring = env.monitoring || keyData.monitoring;
+    keyData.unavailable = apiKeysUnavailable(env);
+    return { rows: keyData.items, env: Object.assign({}, env, page) };
+  }
+
+  async function renderKeysList() {
     const host = document.getElementById('sek-keys-list'); if (!host) return;
-    const all = filteredKeys();
-    keyPage.total = all.length;
-    if (keyPage.offset >= keyPage.total && keyPage.total > 0) {
-      keyPage.offset = Math.max(0, (Math.ceil(keyPage.total / keyPage.limit) - 1) * keyPage.limit);
+    host.innerHTML = `<p class="fp-muted">${i18n.t('ui.loading')}</p>`;
+    let rows;
+    try {
+      const r = await fetchKeysPage();
+      rows = r.rows;
+      // Repli : ancienne API sans offset → filtre client.
+      if (r.env && r.env.offset == null && r.env.total == null && (r.env.items || []).length) {
+        const all = filteredKeys();
+        keyPage.total = all.length;
+        rows = all.slice(keyPage.offset, keyPage.offset + keyPage.limit);
+      }
+    } catch (_) {
+      const all = filteredKeys();
+      keyPage.total = all.length;
+      rows = all.slice(keyPage.offset, keyPage.offset + keyPage.limit);
     }
-    const rows = all.slice(keyPage.offset, keyPage.offset + keyPage.limit);
     renderTpTable(host, [
       { label: '', render: (k) => {
         if (keyData.unavailable) return '';
@@ -1117,22 +1309,29 @@
 
   async function loadSekoiaApiKeys() {
     const root = document.getElementById('sekoia-apikeys-root'); if (!root) return; loading(root);
-    let [env, tagsEnv] = await Promise.all([TC.api('/sekoia/apikeys'), TC.api('/apikey-tags')]);
+    // Meta monitoring : page 0 sans filtre bucket pour les cartes.
+    let [env, tagsEnv] = await Promise.all([
+      TC.api('/sekoia/apikeys?limit=50&offset=0'),
+      TC.api('/apikey-tags'),
+    ]);
     keyData.tags = (tagsEnv && tagsEnv.tags) || {};
     if (!env.token_expired || (env.items && env.items.length)) {
       keyData.items = env.items || [];
-      TC.offlineCacheSet('assets-apikeys', { items: keyData.items });
+      keyData.monitoring = env.monitoring;
+      TC.offlineCacheSet('assets-apikeys', { items: keyData.items, monitoring: env.monitoring });
     } else {
       const cached = TC.offlineCacheGet('assets-apikeys');
       if (cached && cached.items && cached.items.length) {
-        env = Object.assign({}, env, { items: cached.items, _from_cache: true });
+        env = Object.assign({}, env, { items: cached.items, monitoring: cached.monitoring, _from_cache: true });
         keyData.items = cached.items;
+        keyData.monitoring = cached.monitoring;
       }
     }
-    const mon = env.monitoring || { total: keyData.items.length, active: 0, near_expiry: 0, inactive: 0 };
-    const week = keyData.items.filter((k) => k.expires_in_days != null && k.expires_in_days >= 0 && k.expires_in_days <= 7).length;
-    const never = keyData.items.filter((k) => k.expires_in_days == null).length;
-    const expired = keyData.items.filter((k) => k.expires_in_days != null && k.expires_in_days < 0).length;
+    const mon = env.monitoring || keyData.monitoring || { total: keyData.items.length, active: 0, near_expiry: 0, inactive: 0 };
+    // Approximate buckets from monitoring when the page is truncated.
+    const week = mon.near_expiry || 0;
+    const never = Math.max(0, (mon.total || 0) - (mon.active || 0) - (mon.inactive || 0));
+    const expired = Math.max(0, (mon.inactive || 0));
     const keysUnavail = apiKeysUnavailable(env);
     keyData.unavailable = keysUnavail;
     const keyCard = (label, val, tone, bucket) => clickCard(label, val, tone, { bucket }, keyFilters.bucket === bucket);

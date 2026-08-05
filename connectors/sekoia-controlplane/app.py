@@ -840,40 +840,108 @@ async def inventory(refresh: int = 0):
 
 
 @app.get("/control/sekoia/intakes", dependencies=[Depends(require_internal_token)])
-async def intakes():
+async def intakes(limit: Optional[int] = None, offset: int = 0,
+                  format: Optional[str] = None, status: Optional[str] = None,
+                  module: Optional[str] = None, entity: Optional[str] = None,
+                  connector: Optional[str] = None, q: Optional[str] = None):
+    """Intakes pageables — filtres appliqués AVANT offset (même contrat que Rules)."""
     full = await get_full()
     inv = full["inventory"]
     err = inv["errors"][0] if inv["errors"] else full.get("refresh_error")
-    return envelope(inv["main_inventory"], error=err,
-                    source="sekoia-intakes", extra={"stats": full["stats"]})
+    rows = list(inv.get("main_inventory") or [])
+
+    if format:
+        rows = [r for r in rows
+                if (r.get("intake_format_name_via_script") or r.get("intake_format_name") or "") == format]
+    if status:
+        st = status.strip().lower()
+        rows = [r for r in rows if (r.get("intake_status") or "").lower() == st]
+    if module:
+        rows = [r for r in rows if (r.get("module_name") or "") == module]
+    if entity:
+        rows = [r for r in rows if (r.get("entity_name") or "") == entity]
+    if connector == "with":
+        rows = [r for r in rows if r.get("connector_configuration_uuid")]
+    elif connector == "without":
+        rows = [r for r in rows if not r.get("connector_configuration_uuid")]
+    if q:
+        ql = q.lower()
+        rows = [r for r in rows
+                if ql in (r.get("intake_name") or "").lower()
+                or ql in (r.get("intake_uuid") or "").lower()
+                or ql in (r.get("entity_name") or "").lower()
+                or ql in (r.get("connector_name") or "").lower()
+                or ql in (r.get("intake_format_name") or "").lower()
+                or ql in (r.get("intake_format_name_via_script") or "").lower()]
+
+    facets = {
+        "formats": _uniq_sorted(
+            (r.get("intake_format_name_via_script") or r.get("intake_format_name") or "")
+            for r in (inv.get("main_inventory") or [])),
+        "statuses": _uniq_sorted((r.get("intake_status") or "") for r in (inv.get("main_inventory") or [])),
+        "modules": _uniq_sorted((r.get("module_name") or "") for r in (inv.get("main_inventory") or [])),
+        "entities": _uniq_sorted((r.get("entity_name") or "") for r in (inv.get("main_inventory") or [])),
+    }
+    page, meta = _page_slice(rows, offset=offset, limit=limit)
+    return envelope(page, error=err, source="sekoia-intakes",
+                    extra={"stats": full.get("stats"), "facets": facets, **meta})
 
 
 # Inventaire Assets réel : voir assets.py (API Asset Management v2).
 
 
 @app.get("/control/sekoia/connectors", dependencies=[Depends(require_internal_token)])
-async def connectors():
+async def connectors(limit: Optional[int] = None, offset: int = 0, q: Optional[str] = None):
     full = await get_full()
-    return envelope(full["inventory"]["connectors_cfg"], source="sekoia-connectors")
+    rows = list(full["inventory"]["connectors_cfg"] or [])
+    if q:
+        ql = q.lower()
+        rows = [r for r in rows
+                if ql in (r.get("name") or "").lower()
+                or ql in (r.get("uuid") or "").lower()
+                or ql in (r.get("connector_type") or "").lower()]
+    page, meta = _page_slice(rows, offset=offset, limit=limit)
+    return envelope(page, source="sekoia-connectors", extra=meta)
 
 
 @app.get("/control/sekoia/modules", dependencies=[Depends(require_internal_token)])
-async def modules():
+async def modules(limit: Optional[int] = None, offset: int = 0, q: Optional[str] = None):
     full = await get_full()
-    return envelope(full["inventory"]["modules_cfg"], source="sekoia-modules")
+    rows = list(full["inventory"]["modules_cfg"] or [])
+    if q:
+        ql = q.lower()
+        rows = [r for r in rows
+                if ql in (r.get("name") or "").lower()
+                or ql in (r.get("uuid") or "").lower()]
+    page, meta = _page_slice(rows, offset=offset, limit=limit)
+    return envelope(page, source="sekoia-modules", extra=meta)
 
 
 @app.get("/control/sekoia/playbooks", dependencies=[Depends(require_internal_token)])
-async def playbooks():
+async def playbooks(limit: Optional[int] = None, offset: int = 0, q: Optional[str] = None):
     full = await get_full()
-    return envelope(full["inventory"]["playbooks"], source="sekoia-playbooks",
-                    extra={"actions": full["inventory"]["playbook_actions"]})
+    rows = list(full["inventory"]["playbooks"] or [])
+    if q:
+        ql = q.lower()
+        rows = [r for r in rows
+                if ql in (r.get("name") or "").lower()
+                or ql in (r.get("uuid") or "").lower()]
+    page, meta = _page_slice(rows, offset=offset, limit=limit)
+    return envelope(page, source="sekoia-playbooks",
+                    extra={"actions": full["inventory"]["playbook_actions"], **meta})
 
 
 @app.get("/control/sekoia/formats", dependencies=[Depends(require_internal_token)])
-async def formats():
+async def formats(limit: Optional[int] = None, offset: int = 0, q: Optional[str] = None):
     full = await get_full()
-    return envelope(full["inventory"]["ingest_formats"], source="sekoia-formats")
+    rows = list(full["inventory"]["ingest_formats"] or [])
+    if q:
+        ql = q.lower()
+        rows = [r for r in rows
+                if ql in (r.get("name") or "").lower()
+                or ql in (r.get("uuid") or "").lower()]
+    page, meta = _page_slice(rows, offset=offset, limit=limit)
+    return envelope(page, source="sekoia-formats", extra=meta)
 
 
 def _safe_int(value, default=0):
@@ -881,6 +949,43 @@ def _safe_int(value, default=0):
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _page_slice(items: list, offset: int = 0, limit: Optional[int] = None,
+                default_limit: int = 100, max_limit: int = 500,
+                full_if_no_limit: bool = True) -> tuple[list, dict]:
+    """Découpe uniforme SEP : total / offset / limit / has_more.
+
+    Sans `limit` explicite : renvoie tout le jeu (compat monitor / full-fetch).
+    Avec `limit` : page serveur bornée (UI inventaires).
+    """
+    total = len(items or [])
+    offset = max(0, int(offset or 0))
+    if limit is None and full_if_no_limit:
+        page = list(items or [])[offset:]
+        return page, {
+            "total": total,
+            "offset": offset,
+            "limit": max(total - offset, 0) or default_limit,
+            "has_more": False,
+            "count": len(page),
+        }
+    if limit is not None and int(limit) > 0:
+        limit = min(int(limit), max_limit)
+    else:
+        limit = default_limit
+    page = list(items or [])[offset:offset + limit]
+    return page, {
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "has_more": (offset + len(page)) < total,
+        "count": len(page),
+    }
+
+
+def _uniq_sorted(values) -> list:
+    return sorted({v for v in values if v})
 
 
 @app.get("/control/sekoia/rules", dependencies=[Depends(require_internal_token)])
@@ -1122,17 +1227,24 @@ async def _community():
 
 
 @app.get("/control/sekoia/apikeys", dependencies=[Depends(require_internal_token)])
-async def apikeys():
+async def apikeys(limit: Optional[int] = None, offset: int = 0,
+                  q: Optional[str] = None, bucket: Optional[str] = None):
     zero = {"total": 0, "active": 0, "near_expiry": 0, "inactive": 0}
     if not configured():
-        return envelope([], source="sekoia-apikeys", extra={"monitoring": zero},
+        return envelope([], source="sekoia-apikeys",
+                        extra={"monitoring": zero, "total": 0, "offset": 0,
+                               "limit": limit or 50, "has_more": False},
                         error="Sekoia non configuré — clé API ou UI token absent")
     if is_stale():
         return envelope([], source="sekoia-apikeys",
-                        extra={"monitoring": zero, "stale": True}, error="token_expired")
+                        extra={"monitoring": zero, "stale": True, "total": 0,
+                               "offset": 0, "limit": limit or 50, "has_more": False},
+                        error="token_expired")
     cid, err = await _community()
     if err:
-        return envelope([], source="sekoia-apikeys", extra={"monitoring": zero}, error=err)
+        return envelope([], source="sekoia-apikeys",
+                        extra={"monitoring": zero, "total": 0, "offset": 0,
+                               "limit": limit or 50, "has_more": False}, error=err)
     items, err = await paginated_get(f"{conf()['base']}/api/v1/communities/{cid}/api-keys")
     rows, active, near = [], 0, 0
     for k in items:
@@ -1161,11 +1273,31 @@ async def apikeys():
         })
     monitoring = {"total": len(rows), "active": active, "near_expiry": near,
                   "inactive": len(rows) - active}
-    api_unavail = bool(err and not rows and ("404" in str(err) or "403" in str(err)))
+    # Filtres avant pagination (volumes clés API typiquement bas).
+    if bucket == "active":
+        rows = [k for k in rows if k.get("enabled")]
+    elif bucket == "inactive":
+        rows = [k for k in rows if not k.get("enabled")]
+    elif bucket == "expired":
+        rows = [k for k in rows if k.get("expires_in_days") is not None and k["expires_in_days"] < 0]
+    elif bucket == "week":
+        rows = [k for k in rows if k.get("expires_in_days") is not None and 0 <= k["expires_in_days"] <= 7]
+    elif bucket == "near":
+        rows = [k for k in rows if k.get("expires_in_days") is not None and 0 <= k["expires_in_days"] <= 30]
+    elif bucket == "never":
+        rows = [k for k in rows if k.get("expires_in_days") is None]
+    if q:
+        ql = q.lower()
+        rows = [k for k in rows
+                if ql in (k.get("name") or "").lower()
+                or ql in (k.get("uuid") or "").lower()
+                or ql in (k.get("permissions") or "").lower()]
+    page, meta = _page_slice(rows, offset=offset, limit=limit, default_limit=50)
+    api_unavail = bool(err and not page and not rows and ("404" in str(err) or "403" in str(err)))
     disp_err = ("La gestion des clés API n'est pas exposée par l'API UI Sekoia pour cette communauté."
                 if api_unavail else err)
-    return envelope(rows, error=disp_err, source="sekoia-apikeys",
-                    extra={"monitoring": monitoring, "api_keys_unavailable": api_unavail})
+    return envelope(page, error=disp_err, source="sekoia-apikeys",
+                    extra={"monitoring": monitoring, "api_keys_unavailable": api_unavail, **meta})
 
 
 @app.post("/control/sekoia/apikeys", dependencies=[Depends(require_internal_token)])
@@ -1566,9 +1698,14 @@ async def bulk_rules(request: Request):
     body = await request.json()
     ids = [str(x) for x in (body.get("ids") or []) if x][:200]
     action = str(body.get("action") or "").lower()
+    dry = str(body.get("dry_run", "0")).lower() in ("1", "true", "yes")
     if not ids:
         return JSONResponse({"ok": False, "error": "ids[] requis (max 200)"}, status_code=400)
     if action in ("enable", "disable"):
+        if dry:
+            return {"ok": True, "dry_run": True, "action": action, "selected": len(ids),
+                    "preview": [{"id": i, "before": {}, "after": {"enabled": action == "enable"}}
+                                for i in ids]}
         return await _bulk_apply(ids, action, "/api/v1/sic/conf/rules/{id}",
                                  {"enabled": action == "enable"})
     if action == "set-severity":
@@ -1578,6 +1715,10 @@ async def bulk_rules(request: Request):
             return JSONResponse({"ok": False, "error": "severity entier requis"}, status_code=400)
         if not 0 <= sev <= 100:
             return JSONResponse({"ok": False, "error": "severity 0–100"}, status_code=400)
+        if dry:
+            return {"ok": True, "dry_run": True, "action": action, "severity": sev,
+                    "selected": len(ids),
+                    "preview": [{"id": i, "after": {"severity": sev}} for i in ids]}
         results = []
         for i in ids:
             _, err = await sek_request("PATCH", f"/api/v1/sic/conf/rules/{i}",

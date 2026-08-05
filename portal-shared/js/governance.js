@@ -262,12 +262,23 @@
           <button type="button" class="fp-btn fp-btn-danger-ghost fp-btn-sm" data-act="ga-bulk-revoke">Révoquer lot</button>
           <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-export-sel">Export sélection</button>
         </div>`
-      + `<p class="fp-ds-muted" id="ga-page-meta">Page ${page} / ${pages} — ${assetState.items.length} affiché(s) / ${total}</p>`
+      + `<p class="fp-ds-muted" id="ga-page-meta" aria-live="polite">${(() => {
+        const off = assetFilters.offset || 0;
+        const lim = assetFilters.limit || 50;
+        const from = total ? off + 1 : 0;
+        const to = off + assetState.items.length;
+        return `${from}–${to} / ${total} · page ${page}/${pages}`;
+      })()}</p>`
       + '<div id="gov-assets-list"></div>'
-      + `<div class="cc-tp-toolbar">
+      + `<div id="ga-pager-host">${TC.pagerBar ? TC.pagerBar('ga', {
+        offset: assetFilters.offset || 0,
+        limit: assetFilters.limit || 50,
+        total,
+        sizes: [25, 50, 100],
+      }) : `<div class="cc-tp-toolbar">
           <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-prev" ${assetFilters.offset <= 0 ? 'disabled' : ''}>← Préc.</button>
           <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-next" ${(assetFilters.offset + assetFilters.limit) >= total ? 'disabled' : ''}>Suiv. →</button>
-        </div>`
+        </div>`}</div>`
       + '<div id="gov-asset-detail" class="cc-tp-detail"></div>';
 
     const byType = stats.by_type || {};
@@ -306,6 +317,10 @@
             panel.innerHTML = `<div class="cc-tp-detail-card fp-section-spaced">
               <h3 class="fp-section-sub">Hôtes non inventoriés (${names.length})</h3>
               <p class="fp-muted">Hôtes vus en télémétrie sans asset connu — lien host ↔ intake pour revue bulk.</p>
+              <div class="cc-tp-toolbar">
+                <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-unmanaged-export">Export CSV</button>
+                <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="ga-unmanaged-create">Créer assets (lot, max 20)</button>
+              </div>
               <div class="fp-table-wrap"><table class="fp-table"><thead><tr><th>Hôte</th><th>Intakes</th><th>Events</th></tr></thead>
               <tbody>${rows || '<tr><td colspan="3" class="fp-muted">Aucun</td></tr>'}</tbody></table></div></div>`;
             panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -327,6 +342,58 @@
       'ga-next': () => {
         assetFilters.offset = (assetFilters.offset || 0) + (assetFilters.limit || 50);
         fetchAssetsPage(root, false);
+      },
+      'ga-pagesize': (el) => {
+        const sel = el.tagName === 'SELECT' ? el : document.getElementById('ga-page-size');
+        const n = Number((sel && sel.value) || 50);
+        if (!n) return;
+        assetFilters.limit = n;
+        assetFilters.offset = 0;
+        fetchAssetsPage(root, false);
+      },
+      'ga-goto-btn': () => {
+        const inp = document.getElementById('ga-goto');
+        const pageNum = Math.max(1, Number((inp && inp.value) || 1));
+        const lim = assetFilters.limit || 50;
+        assetFilters.offset = (pageNum - 1) * lim;
+        fetchAssetsPage(root, false);
+      },
+      'ga-unmanaged-export': () => {
+        const names = assetState.unmanagedHosts || [];
+        const links = (assetState.hostsIntel && assetState.hostsIntel.hosts) || [];
+        const rows = names.map((h) => {
+          const meta = links.find((x) => x.host === h) || {};
+          return {
+            host: h,
+            intakes: (meta.intakes || []).join('|'),
+            events: meta.events != null ? meta.events : '',
+          };
+        });
+        if (!rows.length) return TC.toast('Aucun hôte non inventorié', 'warn');
+        TC.exportCSV('sekoia-unmanaged-hosts.csv', rows, [
+          { key: 'host', label: 'host' },
+          { key: 'intakes', label: 'intakes' },
+          { key: 'events', label: 'events' },
+        ]);
+      },
+      'ga-unmanaged-create': async () => {
+        const names = (assetState.unmanagedHosts || []).slice(0, 20);
+        if (!names.length) return TC.toast('Aucun hôte', 'warn');
+        if (!confirm(`Créer ${names.length} asset(s) host (source=manual, tags=unmanaged-review) ?`)) return;
+        let ok = 0; let fail = 0;
+        for (const name of names) {
+          // eslint-disable-next-line no-await-in-loop
+          const r = await TC.api('/sekoia/assets', {
+            method: 'POST',
+            body: {
+              name, type: 'host', criticality: 50, source: 'manual',
+              tags: ['unmanaged-review', 'sep-bulk'],
+            },
+          });
+          if (r && r.ok) ok += 1; else fail += 1;
+        }
+        TC.toast(`Assets créés : ${ok} · échecs : ${fail}`, fail ? 'warn' : 'ok');
+        if (ok) fetchAssetsPage(root, true);
       },
       'ga-sel-toggle': (el) => {
         const id = el.dataset.id;
@@ -392,6 +459,12 @@
       }),
     });
     const onFlt = (e) => {
+      if (e.target && e.target.id === 'ga-page-size') {
+        assetFilters.limit = Number(e.target.value) || 50;
+        assetFilters.offset = 0;
+        fetchAssetsPage(root, false);
+        return;
+      }
       if (!e.target.id || e.target.id.indexOf('ga-flt-') !== 0) return;
       if (e.type === 'change' || (e.type === 'keydown' && e.key === 'Enter')) {
         syncAssetFiltersFromDom();

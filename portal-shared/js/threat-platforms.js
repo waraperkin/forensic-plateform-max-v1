@@ -1027,6 +1027,23 @@
       </div>
       <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-primary" data-act="sek-rule-save">Enregistrer</button></div>
     </div>`;
+    // Couverture MITRE / intakes : teaser automatique (Impact Analyzer).
+    const mitreHints = [];
+    const payload = String(r.rule_payload || '');
+    const mitreRe = /\bT\d{4}(?:\.\d{3})?\b/g;
+    let m;
+    while ((m = mitreRe.exec(payload)) && mitreHints.length < 8) {
+      if (mitreHints.indexOf(m[0]) === -1) mitreHints.push(m[0]);
+    }
+    String(r.rule_tags || '').split(/[,;]/).forEach((t) => {
+      const x = t.trim();
+      if (/^T\d{4}/i.test(x) && mitreHints.indexOf(x) === -1) mitreHints.push(x);
+    });
+    const extra = document.getElementById('sek-rule-extra');
+    if (extra && mitreHints.length) {
+      extra.innerHTML = `<p class="fp-muted">MITRE détecté : ${mitreHints.map((x) => `<span class="fp-tag">${TC.esc(x)}</span>`).join(' ')}
+        — <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-rule-impact" data-id="${TC.esc(r.rule_uuid)}">Croiser avec les intakes</button></p>`;
+    }
     d.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 

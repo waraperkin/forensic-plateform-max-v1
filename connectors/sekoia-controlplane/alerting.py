@@ -473,6 +473,45 @@ def register(alerting_app) -> None:
     async def run_evaluate(dry_run: int = Query(default=0)):
         return await evaluate(dry_run=bool(dry_run))
 
+    @alerting_app.post("/control/sekoia/alerting/escalate", dependencies=dep)
+    async def escalate_intake(request: Request, dry_run: int = Query(default=0)):
+        """Escalade manuelle : alerte critique liée à un intake silencieux / en baisse."""
+        body = await request.json()
+        intake_uuid = str(body.get("intake_uuid") or "").strip()
+        intake_name = str(body.get("intake_name") or "").strip()
+        reason = str(body.get("reason") or "escalade manuelle SEP").strip()[:500]
+        severity = str(body.get("severity") or "critical").lower()
+        if severity not in SEVERITIES:
+            severity = "critical"
+        if not intake_uuid and not intake_name:
+            return JSONResponse({"ok": False, "error": "intake_uuid ou intake_name requis"},
+                                status_code=400)
+        now = _now()
+        fp = _fingerprint("manual-escalate", intake_uuid or intake_name)
+        alert = {
+            "@timestamp": now,
+            "fingerprint": fp,
+            "rule_id": "manual-escalate",
+            "rule": "Escalade manuelle SEP",
+            "rule_type": "manual_escalate",
+            "severity": severity,
+            "status": "open",
+            "intake_uuid": intake_uuid or None,
+            "intake_name": intake_name or None,
+            "entity_name": body.get("entity_name"),
+            "message": reason,
+            "source": "sekoia-extended-platform",
+            "escalated": True,
+        }
+        if dry_run:
+            return {"ok": True, "dry_run": True, "alert": alert, "written": 0}
+        written, err = await _os_bulk(
+            [(f"{ALERTS_INDEX_PREFIX}-{datetime.now(timezone.utc):%Y.%m}", alert)])
+        if written and not err:
+            await _notify([alert])
+        return {"ok": not err, "dry_run": False, "error": err, "written": written,
+                "alert": alert}
+
     @alerting_app.get("/control/sekoia/alerting/alerts", dependencies=dep)
     async def list_alerts(hours: int = Query(default=24, ge=1, le=720),
                           severity: str = Query(default=""),

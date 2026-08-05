@@ -1162,7 +1162,10 @@
       <td><button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-swb-act="intake-enable"
         data-id="${esc(i.intake_uuid)}">Enable</button>
         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-swb-act="intake-disable"
-        data-id="${esc(i.intake_uuid)}">Disable</button></td>
+        data-id="${esc(i.intake_uuid)}">Disable</button>
+        <button type="button" class="fp-btn fp-btn-danger-ghost fp-btn-sm" data-swb-act="intake-escalate"
+        data-id="${esc(i.intake_uuid)}" data-name="${esc(i.intake_name || '')}"
+        data-entity="${esc(i.entity_name || '')}">Escalader</button></td>
     </tr>`).join('');
 
     const dropRows = drops.filter(filt).slice(0, 100).map((i) => {
@@ -2293,6 +2296,44 @@
           // que de laisser l'analyste lire un objet JSON.
           toast(r.verdict, r.impact && r.impact.creates_blind_spot ? 'err' : 'ok');
           paint(); return;
+        }
+        if (act === 'intake-escalate') {
+          const name = b.dataset.name || b.dataset.id || 'intake';
+          if (!confirm(`Escalader « ${name} » en alerte critique ?`)) return;
+          b.disabled = true;
+          const preview = await api('/alerting/escalate?dry_run=1', {
+            method: 'POST',
+            body: {
+              intake_uuid: b.dataset.id,
+              intake_name: b.dataset.name,
+              entity_name: b.dataset.entity,
+              reason: `Escalade manuelle — intake silencieux (${name})`,
+              severity: 'critical',
+            },
+          });
+          if (!preview || preview.ok === false) {
+            b.disabled = false;
+            toast((preview && preview.error) || 'Échec simulation escalade', 'err');
+            return;
+          }
+          const r = await api('/alerting/escalate?dry_run=0', {
+            method: 'POST',
+            body: {
+              intake_uuid: b.dataset.id,
+              intake_name: b.dataset.name,
+              entity_name: b.dataset.entity,
+              reason: `Escalade manuelle — intake silencieux (${name})`,
+              severity: 'critical',
+            },
+          });
+          b.disabled = false;
+          if (r && r.ok) {
+            toast('Escalade écrite (alerte critique)', 'ok');
+            load();
+          } else {
+            toast((r && r.error) || 'Échec escalade', 'err');
+          }
+          return;
         }
         if (act === 'intake-enable' || act === 'intake-disable'
             || act === 'intake-toggle' || act === 'rule-toggle') {

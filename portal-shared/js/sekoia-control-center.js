@@ -225,6 +225,7 @@
       cc.sub = pending;
       window.__pendingCcSub = null;
     }
+    window.__activeCcSub = cc.sub;
     if (!root.__ccBound) {
       root.__ccBound = true;
       delegate(root, {
@@ -301,19 +302,20 @@
       });
       root.addEventListener('change', onQbForm);
     }
-    // Queries (sidebar) → shell focalisé Query Builder (sans sous-nav CC)
+    // Shell léger (sans sous-nav CC) pour Vue globale / Queries / Hosts
     if (cc.sub === 'querybuilder') { cc.sub = 'sol'; if (!cc.solMode) cc.solMode = 'form'; }
-    const qbFocused = cc.sub === 'sol';
-    ccSyncPanelChrome(qbFocused);
-    if (qbFocused) {
+    const lightSubs = new Set(['sol', 'overview', 'hosts']);
+    const lightFocused = lightSubs.has(cc.sub);
+    ccSyncPanelChrome(cc.sub === 'sol', cc.sub);
+    if (lightFocused) {
       root.innerHTML = `<div class="cc-cc-shell cc-cc-shell--qb">
         <div class="cc-cc-toolbar fp-actions-row">
-          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sol-back">${esc(T('qb_back_cc'))}</button>
           <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-refresh-sub">${esc(T('act_refresh'))}</button>
         </div>
         <div id="cc-body" class="cc-cc-body"><p class="fp-muted">Chargement…</p></div>
       </div>`;
-      ccRenderSol();
+      if (cc.sub === 'sol') ccRenderSol();
+      else ccRenderBody();
       return;
     }
     root.innerHTML = `<div class="cc-cc-shell">
@@ -326,24 +328,45 @@
     </div>`;
     ccRenderBody();
   }
-  function ccSyncPanelChrome(qbFocused) {
+  function ccSyncPanelChrome(isQueryBuilder, sub) {
     const title = document.querySelector('#tab-sekoia-cc .fp-section-title');
     const lead = document.querySelector('#tab-sekoia-cc > .fp-card > .fp-muted');
     if (!title) return;
-    if (qbFocused) {
+    if (isQueryBuilder) {
       title.removeAttribute('data-i18n');
       title.textContent = T('qb_title');
       if (lead) lead.hidden = true;
-    } else {
-      title.setAttribute('data-i18n', 'sidebar.sekoia_cc');
-      title.textContent = i18n.t('sidebar.sekoia_cc');
-      if (lead) lead.hidden = false;
+      return;
     }
+    if (sub === 'hosts') {
+      title.removeAttribute('data-i18n');
+      title.textContent = i18n.t('sidebar.sek_intakes_hosts');
+      if (lead) {
+        lead.hidden = false;
+        lead.removeAttribute('data-i18n');
+        lead.textContent = i18n.t('tp.sekoia_hosts_lead');
+      }
+      return;
+    }
+    if (sub === 'overview') {
+      title.removeAttribute('data-i18n');
+      title.textContent = i18n.t('sidebar.sek_overview');
+      if (lead) {
+        lead.hidden = false;
+        lead.setAttribute('data-i18n', 'tp.sekoia_cc_lead');
+        lead.textContent = i18n.t('tp.sekoia_cc_lead');
+      }
+      return;
+    }
+    title.setAttribute('data-i18n', 'sidebar.sekoia_cc');
+    title.textContent = i18n.t('sidebar.sekoia_cc');
+    if (lead) lead.hidden = false;
   }
   function ccSwitch(sub) {
     cc.sub = sub;
-    // Sol / sortie du shell QB focalisé → reconstruire le chrome
-    if (sub === 'sol' || sub === 'querybuilder' || document.querySelector('#sekoia-cc-root .cc-cc-shell--qb')) {
+    // Sol / hosts / overview / sortie du shell léger → reconstruire le chrome
+    const light = new Set(['sol', 'querybuilder', 'hosts', 'overview']);
+    if (light.has(sub) || document.querySelector('#sekoia-cc-root .cc-cc-shell--qb')) {
       return loadSekoiaCC();
     }
     document.querySelectorAll('#sekoia-cc-root .cc-cc-subnav .cc-subtab').forEach((b) => b.classList.toggle('active', b.dataset.sub === sub));

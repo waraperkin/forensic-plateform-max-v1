@@ -88,7 +88,12 @@ function tab(raw) {
   activeTab = t;
   document.querySelectorAll('[data-tab-btn]').forEach((el) => {
     const btnPanel = resolveTab(el.dataset.tabBtn);
-    el.classList.toggle('active', btnPanel === t);
+    let on = btnPanel === t;
+    // Plusieurs entrées sidebar partagent sekoia-cc (overview / sol / hosts)
+    if (on && t === 'sekoia-cc' && el.dataset.ccSub) {
+      on = el.dataset.ccSub === (window.__activeCcSub || window.__pendingCcSub || 'overview');
+    }
+    el.classList.toggle('active', on);
   });
   document.querySelectorAll('.fp-panel').forEach((el) => {
     const isActive = el.id === `tab-${t}`;
@@ -700,8 +705,9 @@ function initCertApp() {
 
   document.querySelectorAll('[data-tab-btn]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      // Sous-vue Control Center (Queries → SOL, Dashboards → overview)
+      // Sous-vue Control Center (Queries → SOL, Synthèse → overview, Hosts)
       window.__pendingCcSub = btn.dataset.ccSub || null;
+      if (btn.dataset.ccSub) window.__activeCcSub = btn.dataset.ccSub;
       tab(btn.dataset.tabBtn);
     });
   });

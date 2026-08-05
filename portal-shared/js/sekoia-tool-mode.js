@@ -19,13 +19,13 @@
   document.body.classList.toggle('cc-mode-sekoia', IS_TOOL);
 
   if (IS_TOOL) {
-    // Onglet par défaut : le premier de la catégorie Visibilité, la question
-    // qu'un analyste se pose en premier. Un paramètre explicite dans l'URL
-    // (partage de lien, signet) reste toujours prioritaire.
+    // Onglet par défaut : Vue globale (synthèse). ?tab= / ?cc= restent prioritaires.
     if (!new URLSearchParams(location.search).get('tab')) {
       const u = new URL(location.href);
-      u.searchParams.set('tab', 'sekoia-ingest');
+      u.searchParams.set('tab', 'sekoia-cc');
+      u.searchParams.set('cc', 'overview');
       history.replaceState({}, '', u);
+      window.__pendingCcSub = 'overview';
     }
     // Identité visuelle du texte, jamais du thème : mêmes variables CSS,
     // mêmes fichiers de style, seul le libellé change. Réappliqué après le
@@ -56,7 +56,7 @@
       if (badge) { badge.removeAttribute('data-i18n'); badge.textContent = 'EXTENDED PLATFORM'; }
       const sub = document.querySelector('.cc-brand-sub');
       if (sub) { sub.removeAttribute('data-i18n');
-        sub.textContent = 'Extension Sekoia.IO — Investigate, Tools, Configure, Dashboards'; }
+        sub.textContent = 'SEP — Vue globale, Intakes, Rules, API keys, Assets'; }
       // Pied de page : l'outil n'est pas « le portail interne CERT », il est
       // l'extension Sekoia. Marque cohérente d'un bout à l'autre de l'écran.
       const foot = document.querySelector('.cc-footer');

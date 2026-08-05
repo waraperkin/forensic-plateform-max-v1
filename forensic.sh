@@ -145,6 +145,12 @@ if [ -f "$DIR/scripts/lib/installer.sh" ]; then
   . "$DIR/scripts/lib/installer.sh"
 fi
 
+# Modes de déploiement modulaires (portals / sekoia / portals-forensic / full)
+if [ -f "$DIR/scripts/lib/deploy-modes.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$DIR/scripts/lib/deploy-modes.sh"
+fi
+
 # ──────────────────────────────────────────────────────────────
 #  PRÉ-DÉMARRAGE
 # ──────────────────────────────────────────────────────────────
@@ -2872,6 +2878,15 @@ urls() {
 # ──────────────────────────────────────────────────────────────
 case "${1:-help}" in
   start|all)      start ;;
+  deploy|mode)
+    shift || true
+    if declare -F fp_deploy_mode >/dev/null 2>&1; then
+      fp_deploy_mode "${1:-help}"
+    else
+      echo "Module deploy-modes.sh absent" >&2
+      exit 1
+    fi
+    ;;
   -full-start|full-start|full) full_start_orchestrator ;;
   full-stop)      stop ;;
   full-restart)   restart ;;
@@ -3345,6 +3360,7 @@ case "${1:-help}" in
     echo -e "${CYAN}Forensic Platform v2.1${NC}"
     echo ""
     echo "  start | all       ⚡ FAST-BOOT — deps + réseau + up (--no-build --pull never) + status"
+    echo "  deploy <mode>    🧩 Déploiement modulaire (portals|sekoia|portals-sekoia|portals-forensic|full)"
     echo "  -full-start       🚀 ORCHESTRATEUR — bootstrap vierge + install + build + test + rapport"
     echo "  full-start | full 🏗️  alias -full-start (orchestrateur complet)"
     echo "  rebuild           🏗️  alias -full-start (orchestrateur complet)"

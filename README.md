@@ -31,6 +31,21 @@ cd forensic-plateform-max-v1
 
 À l’issue d’un `-full-start` réussi, **aucune étape manuelle** : détection IP AWS, TLS, MISP, HELK, Velociraptor, nginx, identité site (Palo Alto) et vérification des services (16/16) sont automatiques.
 
+### Déploiements modulaires
+
+Outre la stack complète (`-full-start`), vous pouvez démarrer un **sous-ensemble cohérent et opérationnel** :
+
+```bash
+./forensic.sh deploy portals            # Portails CERT + IT (+ redis, MinIO, OpenSearch, nginx)
+./forensic.sh deploy sekoia             # Sekoia Extended Platform (UI /sekoia + control-plane + monitor)
+./forensic.sh deploy portals-sekoia     # CERT/IT + Sekoia (alias de sekoia)
+./forensic.sh deploy portals-forensic   # CERT/IT + outils forensic (OSD, OpenCTI, Timesketch, TheHive, MISP, VR…)
+./forensic.sh deploy full               # Équivalent à ./forensic.sh -full-start
+./forensic.sh deploy --list             # Liste des modes et services
+```
+
+Chaque mode lance les dépendances nécessaires (TLS, réseaux `helk_net` / `velociraptor_net`, builds) et vérifie les endpoints du périmètre. Nginx démarre même si les outils hors mode sont absents (upstreams DNS dynamiques).
+
 - **Accès** : `https://<IP-publique>/` (affiché en fin de script)
 - **16/16 services** vérifiés via `/api/health/global` (Timesketch, MISP, Velociraptor, HELK, etc.)
 - **OpenSearch Dashboards** : dashboards SIEM/TI/Observability importés
@@ -372,6 +387,23 @@ Alias équivalents : `./forensic.sh full-start`, `./forensic.sh full`, `./forens
 
 **Durée estimée :** 1 à 2 heures au premier démarrage (pull d’images, build, activation SIEM/TI, import dashboards).
 
+### 3bis. Déploiements modulaires (sous-ensembles)
+
+Si vous n’avez pas besoin de toute la stack :
+
+| Mode | Contenu opérationnel |
+|------|----------------------|
+| `portals` | Portails CERT + IT, redis, MinIO, OpenSearch, nginx |
+| `sekoia` / `portals-sekoia` | Ci-dessus + Sekoia control-plane, monitor, UI `/sekoia` |
+| `portals-forensic` | Portails + OSD, Logstash, OpenCTI, Timesketch, TheHive, MISP, Cortex, Grafana, Velociraptor… |
+| `full` | Stack complète (`-full-start`) |
+
+```bash
+./forensic.sh deploy portals
+./forensic.sh deploy sekoia
+./forensic.sh deploy portals-forensic
+```
+
 ### Ce que fait le bootstrap (Phase 0)
 
 Sur une machine vierge, **aucune configuration manuelle** n’est requise :
@@ -520,6 +552,7 @@ Réponse attendue de `/api/health/global` : `summary.ok` = 11, `summary.down` = 
 | Commande | Description |
 |----------|-------------|
 | `./forensic.sh -full-start` | Installation + build + activation complète |
+| `./forensic.sh deploy <mode>` | Déploiement modulaire (`portals`, `sekoia`, `portals-sekoia`, `portals-forensic`, `full`) |
 | `./forensic.sh start` | Démarrage rapide (sans rebuild complet) |
 | `./forensic.sh full-stop` | Arrêt de toute la stack |
 | `./forensic.sh full-restart` | Redémarrage |

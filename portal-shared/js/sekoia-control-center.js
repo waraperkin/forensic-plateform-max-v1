@@ -214,6 +214,14 @@
 
   async function loadSekoiaCC() {
     const root = document.getElementById('sekoia-cc-root'); if (!root) return;
+    // Deep-link sidebar /sekoia : data-cc-sub="sol|overview|…" ou ?cc=
+    const pending = window.__pendingCcSub
+      || new URLSearchParams(location.search).get('cc')
+      || null;
+    if (pending) {
+      cc.sub = pending;
+      window.__pendingCcSub = null;
+    }
     if (!root.__ccBound) {
       root.__ccBound = true;
       delegate(root, {
@@ -1555,6 +1563,15 @@
     ], rows, { empty: i18n.t('msg.aucune_modification_enregistree') });
   }
 
-  window.SekoiaControlCenter = { loadSekoiaCC, loadAudit };
+  function openAt(sub) {
+    if (sub) window.__pendingCcSub = sub;
+    return loadSekoiaCC();
+  }
+  // Capture : pose __pendingCcSub avant les autres handlers (lazy / tab).
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-tab-btn][data-cc-sub]');
+    if (btn) window.__pendingCcSub = btn.dataset.ccSub;
+  }, true);
+  window.SekoiaControlCenter = { loadSekoiaCC, loadAudit, openAt };
   TC.bind({ 'sekoia-cc': loadSekoiaCC, 'audit-center': loadAudit });
 }());

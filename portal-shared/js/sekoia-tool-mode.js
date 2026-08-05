@@ -56,7 +56,7 @@
       if (badge) { badge.removeAttribute('data-i18n'); badge.textContent = 'EXTENDED PLATFORM'; }
       const sub = document.querySelector('.cc-brand-sub');
       if (sub) { sub.removeAttribute('data-i18n');
-        sub.textContent = 'Extension Sekoia.IO — visibilité, périmètre, détection, gouvernance'; }
+        sub.textContent = 'Extension Sekoia.IO — Investigate, Tools, Configure, Dashboards'; }
       // Pied de page : l'outil n'est pas « le portail interne CERT », il est
       // l'extension Sekoia. Marque cohérente d'un bout à l'autre de l'écran.
       const foot = document.querySelector('.cc-footer');

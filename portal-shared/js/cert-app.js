@@ -699,7 +699,11 @@ function initCertApp() {
   if (tbtn) tbtn.textContent = theme === 'dark' ? '☀️' : '🌙';
 
   document.querySelectorAll('[data-tab-btn]').forEach((btn) => {
-    btn.addEventListener('click', () => tab(btn.dataset.tabBtn));
+    btn.addEventListener('click', () => {
+      // Sous-vue Control Center (Queries → SOL, Dashboards → overview)
+      window.__pendingCcSub = btn.dataset.ccSub || null;
+      tab(btn.dataset.tabBtn);
+    });
   });
 
   document.getElementById('menu-toggle')?.addEventListener('click', () => {

@@ -81,6 +81,8 @@
     // sens. Le motif s'applique aux deux langues et couvrira les libellés
     // ajoutés plus tard sans qu'on ait à y penser.
     const PREFIX = /^\s*(sekoia\.io|sekoia)\s*[—–-]\s*/i;
+    // Numérotation héritée (« 1. Inventaires ») — Sekoia n'ordonne pas ainsi ses menus.
+    const NUMBERED = /^\s*\d+\.\s*/;
     // i18n pose ces libellés APRÈS avoir libéré ses `whenReady` : s'y accrocher
     // seul ferait passer le nettoyage avant l'écriture qu'il doit corriger. On
     // surveille donc les sections elles-mêmes, ce qui couvre aussi les
@@ -99,7 +101,7 @@
         + ' .cc-nav-section--sekoia .cc-nav-btn'
       ).forEach((el) => {
         if (el.children.length) return;   // conteneur : son enfant est traité
-        const short = el.textContent.replace(PREFIX, '');
+        const short = el.textContent.replace(PREFIX, '').replace(NUMBERED, '');
         if (short && short !== el.textContent) el.textContent = short;
       });
       navObservers.forEach((o, i) => o.observe(navSections[i],

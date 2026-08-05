@@ -475,3 +475,101 @@
   .swb button { transition: none; }
   .swb button:not([disabled]):active { transform: none; }
 }
+
+/* ── Bandeaux de mesures (.swb-stats) ────────────────────────────────────────
+   Ces classes étaient utilisées par la console analystes et par SAGF sans
+   jamais avoir été définies : les mesures s'empilaient en liste verticale non
+   stylée, chiffre et intitulé sur deux lignes. Les définir ici les remet en
+   ligne partout où elles sont employées, sans toucher au balisage existant. */
+.swb-stats {
+  display: flex; flex-wrap: wrap; gap: .5rem;
+  margin: .5rem 0;
+}
+.swb-stat {
+  display: flex; flex-direction: column; gap: .1rem;
+  min-width: 7rem; flex: 0 1 auto;
+  padding: .45rem .7rem;
+  border: 1px solid var(--swb-line);
+  border-radius: var(--swb-radius);
+  background: var(--swb-surface);
+}
+.swb-stat-v {
+  font-size: 1.24rem; font-weight: 640; line-height: 1.1;
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+}
+.swb-stat-k {
+  font-size: .66rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--swb-muted);
+}
+
+/* ── Console des cas d'usage CERT (sekoia-sep.js) ─────────────────────────────
+   Les 96 cas se présentent en cartes plutôt qu'en liste : chaque carte porte le
+   titre ET la raison d'être du cas. Une liste de 96 intitulés obligerait
+   l'analyste à se souvenir de ce que chacun mesure ; la carte le lui dit. */
+.sep-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: .5rem;
+}
+.sep-card {
+  display: flex; flex-direction: column; gap: .3rem;
+  text-align: left; padding: .55rem .7rem;
+  background: var(--swb-surface, rgba(255, 255, 255, .03));
+  border: 1px solid var(--swb-border, rgba(255, 255, 255, .1));
+  border-left: 3px solid transparent;
+  border-radius: 6px; cursor: pointer; color: inherit;
+}
+.sep-card:hover { border-left-color: var(--swb-accent, #4a9eff); }
+.sep-card-on { border-left-color: var(--swb-accent, #4a9eff);
+  background: color-mix(in srgb, var(--swb-accent, #4a9eff) 10%, transparent); }
+.sep-card-t { font-weight: 600; font-size: .84rem; }
+/* La justification est bornée à quatre lignes : au-delà, les cartes se
+   désalignent et la grille cesse d'être balayable d'un regard. */
+.sep-card-w {
+  font-size: .74rem; opacity: .72; line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sep-card-f { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
+.sep-card-n {
+  margin-left: auto; font-weight: 700; font-size: .9rem;
+  font-variant-numeric: tabular-nums;
+}
+.sep-nav-n {
+  margin-left: .3rem; opacity: .6; font-size: .72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sep-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: .5rem;
+}
+.sep-tile {
+  border: 1px solid var(--swb-border, rgba(255, 255, 255, .1));
+  border-top: 3px solid var(--swb-mute, #888);
+  border-radius: 6px; padding: .55rem .7rem;
+}
+.sep-tile-danger { border-top-color: var(--swb-danger); }
+.sep-tile-warn { border-top-color: var(--swb-warn, #e0a53b); }
+.sep-tile-ok { border-top-color: var(--swb-ok, #3bbf7a); }
+.sep-tile-h {
+  display: flex; align-items: baseline; gap: .5rem; width: 100%;
+  background: none; border: 0; color: inherit; cursor: pointer;
+  padding: 0; text-align: left;
+}
+.sep-tile-n { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sep-tile-t { font-size: .8rem; font-weight: 600; }
+.sep-tile-w { font-size: .72rem; opacity: .7; margin: .3rem 0 0; line-height: 1.35; }
+.sep-tile-l { list-style: none; margin: .4rem 0 0; padding: 0; font-size: .75rem; }
+.sep-tile-l li { display: flex; justify-content: space-between; gap: .5rem; }
+.sep-tile-l em { font-style: normal; opacity: .7; font-variant-numeric: tabular-nums; }
+.sep-tile-e { font-size: .74rem; opacity: .5; margin: .4rem 0 0; }
+.sep-tile-r { font-size: .71rem; opacity: .62; margin: .4rem 0 0; font-style: italic; }
+
+.sep-form summary { cursor: pointer; font-size: .8rem; font-weight: 600; }
+.sep-pre {
+  margin: .4rem 0 .5rem; padding: .5rem; border-radius: 4px;
+  background: rgba(0, 0, 0, .25); font-size: .72rem;
+  max-height: 16rem; overflow: auto; white-space: pre-wrap; word-break: break-word;
+}

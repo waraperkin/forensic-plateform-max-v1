@@ -345,7 +345,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   // dans le control-plane.
   const ALLOWED_SAGF_RE = /^\/sagf\/(laws|mechanisms|query|saved|debt|self-report|config|reconcile|risk|nl|journal|optimise|compliance|feedback|conflicts|dac|economics|efficacy|harness|insurance|adversary|twin)(\/|$)/;
   const ALLOWED_ANALYST_RE = /^\/analyst\/(inventory|monitor|monitoring|analytics|coverage|quality|dashboard|tags|filters|filter|alerting|views|export)(\/|$)/;
-  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift)(\/|$)/;
+  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift|sep)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
     const allowed = req.path.startsWith('/sagf')
@@ -365,7 +365,16 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     const url = `${mapped.base}${mapped.target}`;
     // Timeouts adaptés : la collecte d'événements (jobs Sekoia) peut dépasser
     // 60 s ; les inventaires volumineux (1000+ règles) aussi au 1er refresh.
-    const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting|telemetry|intake|graph|simulate|hosts|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift)(\/|$)/.test(req.path)
+    // `sep/cycle` prélève un échantillon Sekoia et parcourt une tranche des
+    // 106 000 actifs : c'est la seule route du moteur qui dépasse la minute.
+    // Les lectures (`sep/uc`, `sep/dashboard`) tapent des mesures déjà en cache.
+    // `intakes`, `rules`, `inventory`, `stats` et leurs voisins reposent tous
+    // sur le même inventaire complet du control-plane : au premier appel après
+    // un redémarrage, sa construction (66 intakes, 1 180 règles, actions de
+    // playbooks) dépasse la minute. Le commentaire ci-dessous le prévoyait,
+    // mais les routes concernées n'avaient jamais été ajoutées ici — d'où des
+    // dépassements à 60 s sur un calcul parfaitement normal.
+    const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting|telemetry|intake|intakes|rules|inventory|stats|assets|connectors|modules|formats|graph|simulate|hosts|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift|sep)(\/|$)/.test(req.path)
       // Les vues SAGF des lots 4, 5, 6 et 10 croisent satisfiabilité, couverture
       // et détections : elles dépassent les 120 s du délai ordinaire. Les omettre
       // ici ne produisait AUCUNE erreur visible — la vue restait simplement en
@@ -430,9 +439,17 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
       let promise = null;
       if (key && !wantsFresh) {
         promise = doRequest();
-        inflight.set(key, promise
+        const shared = promise
           .then((r) => ({ status: r.status, body: r.data }))
-          .finally(() => inflight.delete(key)));
+          .finally(() => inflight.delete(key));
+        // Le meneur attend `promise`, pas `shared`. Si aucun suiveur ne se
+        // présente et que l'appel amont échoue, `shared` reste un rejet sans
+        // gestionnaire — et Node abat TOUT le portail (constaté en QA le
+        // 05/08 : un dépassement de délai sur /sekoia/rules a tué le
+        // processus et provoqué 24 réponses 502). Le gestionnaire vide ne
+        // masque rien : le meneur et les suiveurs voient toujours l'erreur.
+        shared.catch(() => {});
+        inflight.set(key, shared);
       }
       const r = await (promise || doRequest());
       req.off('close', onClose);

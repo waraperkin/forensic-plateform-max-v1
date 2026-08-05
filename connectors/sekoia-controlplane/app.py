@@ -1682,6 +1682,11 @@ adversary.register(app)
 import twin  # noqa: E402
 twin.register(app)
 
+# Moteur des cas d'usage CERT : 96 cas (inventaire, monitoring, détection,
+# tableaux de bord, gestion) montés sur six familles de mesures partagées.
+import sep  # noqa: E402
+sep.register(app)
+
 # Couche données — single-flight, cache TTL, budget de jobs (QA 04/08/2026).
 # Enregistrée en DERNIER pour envelopper toutes les routes montées ci-dessus.
 import dataplane  # noqa: E402

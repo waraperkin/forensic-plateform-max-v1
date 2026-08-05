@@ -168,6 +168,10 @@ function tab(raw) {
   if (t === 'cases' && window.PortalHub) PortalHub.loadCasesHub();
   if (t === 'kb' && window.PortalHub) PortalHub.loadKbHub();
   if (t === 'sekoia-cc' && window.PortalHub) PortalHub.loadSekoiaHub();
+  // La console des cas d'usage ne charge son catalogue qu'à l'ouverture : le
+  // faire au chargement de la page coûterait une requête à chaque visite du
+  // portail, pour un onglet que l'analyste n'ouvre pas toujours.
+  if (t === 'sekoia-sep' && window.SekoiaSEP) SekoiaSEP.boot();
   if (t === 'sekoia-volume-detail' && window.SekoiaVolume) {
     SekoiaVolume.loadDetail(window.PanelDetailCore?.getSlice() || 'volume');
   }

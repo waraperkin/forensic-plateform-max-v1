@@ -118,6 +118,7 @@
         <ul class="fp-sidebar-nav">
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-cc" data-cc-icon="dash"><span data-i18n="sidebar.sekoia_cc"></span></button></li>
           <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-extended" data-cc-icon="dash"><span data-i18n="sidebar.sekoia_extended"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-sep" data-cc-icon="dash">Cas d'usage CERT</button></li>
         </ul>
       </div>
       <div class="cc-nav-section cc-nav-section--sekoia">
@@ -657,6 +658,14 @@
       <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.sekoia_extended"></h2>
         <div id="sekoia-extended-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
     </section>
+    <!-- ═══ Cas d'usage CERT — 96 analyses sur six entités ═══
+         Le panneau ne porte PAS de titre de section : la console en pose un
+         elle-même, avec son sous-titre. En ajouter un ici produirait deux
+         intitulés superposés, défaut relevé sur d'autres onglets. -->
+    <section id="tab-sekoia-sep" class="fp-panel">
+      <div class="fp-card cc-pro-panel">
+        <div id="sekoia-sep-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+    </section>
     <!-- ═══ SAGF — gouvernance adossée ═══ -->
     <section id="tab-sagf" class="fp-panel">
       <div class="fp-card cc-pro-panel"><h2 class="fp-section-title" data-i18n="sidebar.sagf"></h2>
@@ -763,6 +772,7 @@
 <script src="shared/js/sekoia-workbench.js"></script>
 <script src="shared/js/sagf-console.js"></script>
 <script src="shared/js/analyst-console.js"></script>
+<script src="shared/js/sekoia-sep.js"></script>
 <script src="shared/js/psoar-orchestrator.js"></script>
 <script src="shared/js/psoar-console.js"></script>
 <script src="shared/js/psoar-designer.js"></script>

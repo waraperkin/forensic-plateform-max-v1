@@ -96,7 +96,7 @@
   display: grid;
   grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(240px, 280px);
   gap: var(--kh-gap);
-  min-height: 28rem;
+  align-items: start;
 }
 
 @media (max-width: 1100px) {
@@ -118,7 +118,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  min-height: 24rem;
 }
 
 .kh-section-label {
@@ -229,9 +228,9 @@
 .kh-toolbar .kh-spacer { flex: 1; }
 
 .kh-stream, .kh-chat-log {
-  flex: 1;
   overflow: auto;
-  max-height: min(48vh, 28rem);
+  max-height: min(42vh, 22rem);
+  min-height: 8rem;
   border: 1px solid var(--kh-line);
   border-radius: var(--kh-radius);
   background: var(--kh-surface);
@@ -242,7 +241,7 @@
   color: var(--kh-muted);
   font-size: 0.85rem;
   text-align: center;
-  padding: 2rem 1rem;
+  padding: 1rem 0.75rem;
   line-height: 1.5;
 }
 

@@ -170,7 +170,7 @@
       { role: 'assistant', text: 'Bonjour — je suis Kheish. Je peux orchestrer des appels vers Sekoia, SentinelOne, XSOAR, ServiceNow… selon les connecteurs configurés.', t: '—' },
     ];
     return `
-      <div class="kh-panel" style="flex:1;display:flex;flex-direction:column;min-height:22rem">
+      <div class="kh-panel">
         <div class="kh-panel-head">
           <h3>Chat opérateur</h3>
           <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-kh="chat-clear">Vider</button>

@@ -11,33 +11,39 @@
 // séries vides — JAMAIS de séries synthétiques.
 
 const express = require('express');
+const { scanLatestIntakes } = require('../lib/os-intakes-scan');
 
 const INTAKES_INDEX = 'sekoia-intakes-*';
 const VOLUMETRY_INDEX = 'sekoia-volumetry-*';
 const UPLOADS_INDEX = 'forensic-uploads*';
 const ALERTS_INDEX = 'sekoia-alerts-*';
+const VOLUME_SERIES_CONCURRENCY = Math.max(10, Math.min(
+  Number(process.env.OS_VOLUME_SERIES_CONCURRENCY) || 40, 80,
+));
 
 async function searchIntakes(os) {
   try {
-    const r = await os.search({
-      index: INTAKES_INDEX,
-      size: 1000,
-      body: {
-        query: { match_all: {} },
-        sort: [{ '@timestamp': { order: 'desc' } }],
-      },
-    });
-    // Dernier état connu par intake (les docs sont horodatés)
-    const latest = new Map();
-    for (const h of r.body.hits?.hits || []) {
-      const s = h._source || {};
-      const id = s.intake_uuid || s.uuid || s.id;
-      if (id && !latest.has(id)) latest.set(id, s);
-    }
-    return [...latest.values()];
+    // Scan paginé — plus de plafond size:500/1000 qui tronquait « Intakes actifs ».
+    return await scanLatestIntakes(os, { index: INTAKES_INDEX });
   } catch {
     return [];
   }
+}
+
+async function mapPool(items, concurrency, fn) {
+  const out = new Array(items.length);
+  let i = 0;
+  async function worker() {
+    while (i < items.length) {
+      const idx = i;
+      i += 1;
+      // eslint-disable-next-line no-await-in-loop
+      out[idx] = await fn(items[idx], idx);
+    }
+  }
+  const n = Math.min(concurrency, Math.max(1, items.length));
+  await Promise.all(Array.from({ length: n }, () => worker()));
+  return out;
 }
 
 async function searchUploads(os) {
@@ -141,15 +147,13 @@ function createMasterIngestMetaRoutes(deps) {
     try {
       const intakes = await searchIntakes(os);
       const by_intake = {};
-      // Séries réelles par intake (parallèle, borné à 50 intakes pour protéger OS)
-      const slice = intakes.slice(0, 50);
-      const series = await Promise.all(
-        slice.map((row) => fetchVolumeSeries(os, row.intake_uuid || row.uuid || row.id)),
-      );
-      slice.forEach((row, i) => {
+      // Séries pour TOUS les intakes (pool borné) — plus de slice(0, 50).
+      const series = await mapPool(intakes, VOLUME_SERIES_CONCURRENCY, (row) =>
+        fetchVolumeSeries(os, row.intake_uuid || row.uuid || row.id));
+      intakes.forEach((row, i) => {
         const id = row.intake_uuid || row.uuid || row.id;
         if (!id) return;
-        const s = series[i];
+        const s = series[i] || { series_24h: [], series_7d: [], available: false };
         by_intake[id] = {
           volume_24h: Number(row.current_count || 0),
           volume_1h: Number(row.current_count || 0),
@@ -161,7 +165,12 @@ function createMasterIngestMetaRoutes(deps) {
           intake_name: row.intake_name || row.name,
         };
       });
-      res.json({ by_intake, intakes: by_intake });
+      res.json({
+        by_intake,
+        intakes: by_intake,
+        total: intakes.length,
+        series_computed: intakes.length,
+      });
     } catch (err) {
       logger?.warn?.('master/ingest_volume:', err.message);
       res.status(502).json({ error: 'ingest_volume_unavailable', by_intake: {}, intakes: {} });

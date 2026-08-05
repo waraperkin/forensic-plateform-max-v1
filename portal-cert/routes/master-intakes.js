@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const { scanLatestIntakes } = require('../lib/os-intakes-scan');
 
 const INTAKES_INDEX = 'sekoia-intakes-*';
 const SEKOIA_URL = (process.env.SEKOIA_CONTROLPLANE_URL
@@ -33,15 +34,10 @@ function mapOsHit(h) {
 
 async function searchOpenSearch(os) {
   try {
-    const r = await os.search({
+    return await scanLatestIntakes(os, {
       index: INTAKES_INDEX,
-      size: 500,
-      body: {
-        query: { match_all: {} },
-        sort: [{ '@timestamp': { order: 'desc' } }],
-      },
+      mapHit: mapOsHit,
     });
-    return (r.body.hits?.hits || []).map(mapOsHit).filter((row) => row.intake_uuid || row.uuid);
   } catch {
     return [];
   }
@@ -51,17 +47,54 @@ async function fetchSekoiaCp(axios) {
   try {
     const token = (process.env.INTERNAL_API_TOKEN || '').trim();
     const headers = token ? { 'X-Internal-Token': token } : {};
-    const r = await axios.get(`${SEKOIA_URL}/control/sekoia/intakes`, {
+    // Inventaire complet du control-plane (pagination amont déjà gérée).
+    const r = await axios.get(`${SEKOIA_URL}/control/sekoia/inventory`, {
       headers,
-      timeout: 20000,
+      timeout: 120000,
       validateStatus: () => true,
     });
-    if (r.status >= 400) return [];
-    const items = r.data?.items || r.data?.intakes || r.data?.main_inventory || [];
+    if (r.status >= 400) {
+      const r2 = await axios.get(`${SEKOIA_URL}/control/sekoia/intakes`, {
+        headers,
+        timeout: 60000,
+        validateStatus: () => true,
+      });
+      if (r2.status >= 400) return [];
+      const items = r2.data?.items || r2.data?.intakes || r2.data?.main_inventory || [];
+      return Array.isArray(items) ? items : [];
+    }
+    const items = r.data?.items || r.data?.main_inventory || [];
     return Array.isArray(items) ? items : [];
   } catch {
     return [];
   }
+}
+
+/** Fusion OS (métriques) + inventaire CP (exhaustif) — jamais de plafond 500. */
+function mergeIntakes(osHits, cpHits) {
+  const byId = new Map();
+  (osHits || []).forEach((row) => {
+    const id = row.intake_uuid || row.uuid;
+    if (id) byId.set(id, row);
+  });
+  (cpHits || []).forEach((row) => {
+    const id = row.intake_uuid || row.uuid || row.id;
+    if (!id) return;
+    const prev = byId.get(id) || {};
+    byId.set(id, {
+      ...prev,
+      intake_uuid: id,
+      uuid: id,
+      intake_name: row.intake_name || row.name || prev.intake_name || prev.name,
+      name: row.intake_name || row.name || prev.name,
+      intake_format_name: row.intake_format_name_via_script || row.intake_format_name || prev.intake_format_name,
+      intake_status: row.intake_status || row.status || prev.intake_status,
+      entity_name: row.entity_name || prev.entity_name,
+      connector_name: row.connector_name || prev.connector_name,
+      intake_updated_at: row.intake_updated_at || prev.intake_updated_at,
+    });
+  });
+  return Array.from(byId.values());
 }
 
 function createMasterIntakesRoutes(deps) {
@@ -70,18 +103,26 @@ function createMasterIntakesRoutes(deps) {
 
   router.get('/master/intakes', async (_req, res) => {
     try {
-      let hits = await searchOpenSearch(os);
-      if (!hits.length && axios) {
-        hits = await fetchSekoiaCp(axios);
-      }
-      res.json(hits);
+      const [osHits, cpHits] = await Promise.all([
+        searchOpenSearch(os),
+        axios ? fetchSekoiaCp(axios) : Promise.resolve([]),
+      ]);
+      let hits = mergeIntakes(osHits, cpHits);
+      if (!hits.length && osHits.length) hits = osHits;
+      if (!hits.length && cpHits.length) hits = cpHits;
+      res.json({
+        items: hits,
+        count: hits.length,
+        total: hits.length,
+        sources: { opensearch: osHits.length, controlplane: cpHits.length },
+      });
     } catch (err) {
       logger?.warn?.('master/intakes:', err.message);
-      res.json([]);
+      res.json({ items: [], count: 0, total: 0, error: err.message });
     }
   });
 
   return router;
 }
 
-module.exports = { createMasterIntakesRoutes };
+module.exports = { createMasterIntakesRoutes, mergeIntakes, searchOpenSearch };

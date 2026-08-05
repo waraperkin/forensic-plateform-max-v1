@@ -16,6 +16,7 @@ COPY lib/bridge-response.js ./lib/bridge-response.js
 COPY lib/ui-error-log.js ./lib/ui-error-log.js
 COPY lib/upload-limits.js ./lib/upload-limits.js
 COPY portal-cert/lib/master-routes.js ./lib/master-routes.js
+COPY portal-cert/lib/os-intakes-scan.js ./lib/os-intakes-scan.js
 COPY portal-cert/routes/master-intakes.js ./routes/master-intakes.js
 COPY portal-cert/routes/master-ingest-errors.js ./routes/master-ingest-errors.js
 COPY portal-cert/routes/master-ingest-meta.js ./routes/master-ingest-meta.js

@@ -500,18 +500,36 @@ async def _recent_alerts(client: httpx.AsyncClient) -> set[str]:
 async def evaluate_alerts(client: httpx.AsyncClient) -> list[dict]:
     """Évalue toutes les règles contre l'état courant. Retourne les nouvelles alertes."""
     month = _month_suffix()
-    res = await os_search(client, f"sekoia-intakes-{month}", {
-        "size": 1000,
-        "query": {"match_all": {}},
-        "sort": [{"@timestamp": {"order": "desc"}}],
-    })
-    if not res:
-        return []
-    # Dernier état connu par intake
+    # Pagination : un size:1000 tronquait l'évaluation d'alertes (prod ≫ 1k).
     latest: dict[str, dict] = {}
-    for h in res["hits"]["hits"]:
-        src = h["_source"]
-        latest.setdefault(src.get("intake_uuid"), src)
+    search_after = None
+    for _ in range(200):
+        body: dict = {
+            "size": 1000,
+            "query": {"match_all": {}},
+            "sort": [
+                {"@timestamp": {"order": "desc"}},
+                {"_id": {"order": "asc"}},
+            ],
+        }
+        if search_after:
+            body["search_after"] = search_after
+        res = await os_search(client, f"sekoia-intakes-{month}", body)
+        if not res:
+            break
+        hits = res.get("hits", {}).get("hits") or []
+        if not hits:
+            break
+        for h in hits:
+            src = h.get("_source") or {}
+            iid = src.get("intake_uuid") or src.get("uuid")
+            if iid and iid not in latest:
+                latest[iid] = src
+        search_after = hits[-1].get("sort")
+        if len(hits) < 1000:
+            break
+    if not latest:
+        return []
 
     recent = await _recent_alerts(client)
     now = _now_iso()

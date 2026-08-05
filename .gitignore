@@ -122,3 +122,8 @@ config/timesketch/timesketch.conf
 config/portainer/admin-password
 config/thehive/application.conf
 config/cortex/application.conf
+
+# --- Rapports runtime générés (ne pas versionner) ---
+docs/*_REPORT.md
+docs/**/*_REPORT.md
+**/TIMESKETCH_*_REPORT.md

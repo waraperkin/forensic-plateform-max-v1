@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # ==============================================================
 #  deploy-modes.sh — Déploiements modulaires Forensic Platform
 # ==============================================================

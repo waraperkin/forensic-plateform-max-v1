@@ -1,5 +1,7 @@
 # Resources
 
+> **Note forensic-plateform-max-v1 :** les PDF locaux sous `resources/papers/` ont été retirés du dépôt (non utilisés par le sidecar HELK). Les liens ci-dessous pointent vers le dépôt amont HELK.
+
 Helpful resources to learn a little bit more about the HELK and its components. They all inspired me to build the HELK!!
 
 # Goals

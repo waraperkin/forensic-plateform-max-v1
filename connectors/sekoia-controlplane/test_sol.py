@@ -176,3 +176,113 @@ def test_examples():
 def test_auth_required():
     r = client.post("/control/sekoia/sol/validate", json={"query": VALID_QUERY})
     assert r.status_code in (401, 403)
+
+
+# ── Alignement documentation officielle Sekoia SOL ────────────────────────────
+# https://docs.sekoia.io/xdr/features/investigate/sol_query_examples/
+# https://docs.sekoia.io/xdr/features/investigate/sol_how_to_guides/
+# https://docs.sekoia.io/xdr/features/investigate/sol_ref_operators/
+DOC_QUERIES = [
+    # Events of specific intake
+    ("let intake_uuids = intakes | where name == 'Cisco-Access-Point' | distinct uuid;\n"
+     "events\n"
+     "| where timestamp >= ago(24h)\n"
+     "| where sekoiaio.intake.uuid in intake_uuids\n"
+     "| limit 100"),
+    # Join events ↔ intakes
+    ("events\n"
+     "| where timestamp > ago(24h)\n"
+     "| limit 100\n"
+     "| inner join intakes on sekoiaio.intake.uuid == uuid\n"
+     "| distinct intake.name"),
+    # left join
+    ("alerts\n"
+     "| where created_at > ago(24h)\n"
+     "| left join entities on entity_uuid == uuid into my_entity\n"
+     "| select my_entity.name\n"
+     "| limit 20"),
+    # aggregate + order + limit (how-to)
+    ("events\n"
+     "| where timestamp > ago(24h)\n"
+     "| aggregate count() by source.ip\n"
+     "| order by count desc\n"
+     "| limit 20"),
+    # top
+    ("events\n"
+     "| where timestamp >= ago(24h)\n"
+     "| aggregate count() by url.domain\n"
+     "| top 10 by count"),
+    # render
+    ("events\n"
+     "| where timestamp > ago(24h)\n"
+     "| aggregate count() by sekoiaio.any_asset.name\n"
+     "| render barchart with (y=sekoiaio.any_asset.name)\n"
+     "| limit 100"),
+    # time filter dashboard
+    ("events\n"
+     "| where timestamp between (?time.start .. ?time.end)\n"
+     "| where sekoiaio.intake.uuid == \"8c5a242d-e949-46b0-b50c-d5c4b8b21ab6\"\n"
+     "| distinct log.syslog.facility.name, log.syslog.appname, event.category, event.type\n"
+     "| limit 1000"),
+    # assets table
+    ("assets\n"
+     "| where tags.tag in [\"Admin\"]\n"
+     "| limit 100"),
+    # event_telemetry + lookup
+    ("event_telemetry\n"
+     "| where bucket_start_date >= ago(30d)\n"
+     "| aggregate sum_bytes = sum(total_message_size) by intake_uuid\n"
+     "| lookup intakes on intake_uuid == uuid\n"
+     "| select sum_gb = sum_bytes / (1000*1000*1000), intake.name\n"
+     "| order by sum_gb desc"),
+]
+
+
+@pytest.mark.parametrize("query", DOC_QUERIES, ids=[f"doc-{i}" for i in range(len(DOC_QUERIES))])
+def test_validate_official_doc_queries(query):
+    r = client.post("/control/sekoia/sol/validate", json={"query": query}, headers=AUTH)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True, body["errors"]
+
+
+def test_reject_typo_sekoia_dot_io_field_still_syntax_ok():
+    """Le champ erroné sekoia.io.* reste syntaxiquement valide (identifiant),
+    mais les exemples / Form SEP doivent utiliser sekoiaio.intake.uuid (docs)."""
+    q = ('events\n| where timestamp >= ago(24h)\n'
+         '| where sekoiaio.intake.uuid == "x"\n| limit 10')
+    assert sol.validate_sol(q)["ok"] is True
+
+
+def test_form_equivalent_query_matches_docs_field():
+    """Requête générée par le Form SEP (après correctif sekoiaio.*)."""
+    q = (
+        "events\n"
+        "| where timestamp >= ago(24h) and sekoiaio.intake.uuid == "
+        "\"8c5a242d-e949-46b0-b50c-d5c4b8b21ab6\" "
+        "and host.name == \"SRV-DC\" "
+        "and source.ip == \"10.0.0.4\" "
+        "and event.category == \"authentication\"\n"
+        "| limit 1000"
+    )
+    body = sol.validate_sol(q)
+    assert body["ok"] is True, body["errors"]
+    assert "events" in body["tables"]
+
+
+def test_run_doc_intake_query_mocked(monkeypatch):
+    q = DOC_QUERIES[0]
+
+    async def fake_sek(method, path, json_body=None, params=None, use_api_host=False):
+        assert "sekoiaio.intake.uuid" in json_body["query"]
+        return {"items": [
+            {"timestamp": "2026-03-26T15:35:14.738Z", "host.name": "lab-win01"},
+            {"timestamp": "2026-03-26T15:35:03.740Z", "host.name": "lab-win01"},
+        ]}, None
+
+    monkeypatch.setattr(cp, "sek_request", fake_sek)
+    r = client.post("/control/sekoia/sol/run",
+                    json={"query": q, "limit": 100}, headers=AUTH)
+    body = r.json()
+    assert body["ok"] is True
+    assert body["row_count"] == 2

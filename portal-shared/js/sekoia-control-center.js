@@ -1078,8 +1078,9 @@
     const f = cc.solForm || {};
     const ago = f.timeRange || '24h';
     const clauses = [`timestamp >= ago(${ago})`];
-    if (f.intakeUuid) clauses.push(`sekoia.io.intake.uuid == "${ccSolQuote(f.intakeUuid)}"`);
-    if (f.hostname) clauses.push(`host.hostname == "${ccSolQuote(f.hostname)}"`);
+    // Champ officiel docs Sekoia : sekoiaio.intake.uuid (pas sekoia.io.*)
+    if (f.intakeUuid) clauses.push(`sekoiaio.intake.uuid == "${ccSolQuote(f.intakeUuid)}"`);
+    if (f.hostname) clauses.push(`host.name == "${ccSolQuote(f.hostname)}"`);
     if (f.ip) clauses.push(`source.ip == "${ccSolQuote(f.ip)}"`);
     if (f.eventCategory) clauses.push(`event.category == "${ccSolQuote(f.eventCategory)}"`);
     const lim = parseInt(f.limit, 10) || 1000;

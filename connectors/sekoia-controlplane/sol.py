@@ -33,15 +33,18 @@ SOL_API_PATH = os.environ.get("SEKOIA_SOL_API_PATH", "/api/v1/sic/query")
 RUN_LIMIT_MAX = 10_000  # limite documentée du Query Builder Sekoia
 QUERY_MAX_LEN = 20_000
 
-# Tables SOL documentées (Sekoia Query Builder)
+# Tables SOL documentées (docs.sekoia.io — Query Builder / SOL Data Sources)
 TABLES = {
     "events", "alerts", "cases", "intakes", "event_telemetry", "asset_accounts",
+    "assets", "communities", "entities", "intake_formats",
 }
 
-# Opérateurs pipe documentés + alias observés
+# Opérateurs pipe documentés (docs.sekoia.io/xdr/features/investigate/sol_ref_operators)
+# + alias observés. « inner join » / « left join » sont normalisés vers « join ».
 OPERATORS = {
     "where", "aggregate", "limit", "order", "project", "select", "distinct",
     "count", "lookup", "extend", "top", "sort", "summarize", "join", "rename",
+    "render",
 }
 
 # Fonctions scalaires / d'agrégation connues (validation douce, non bloquante)
@@ -190,6 +193,16 @@ def validate_sol(query: str) -> dict:
                 errors.append(f"statement {idx}: opérateur illisible « {seg[:40]} »")
                 continue
             op = m_op.group(1).lower()
+            # Docs Sekoia : « inner join … » / « left join … » (mot-clé jointure)
+            if op in ("inner", "left"):
+                rest = seg[m_op.end():].lstrip().lower()
+                if rest.startswith("join"):
+                    op = "join"
+                else:
+                    errors.append(
+                        f"statement {idx}: attendu `join` après « {op} » "
+                        f"(ex. `{op} join intakes on …`)")
+                    continue
             if op not in OPERATORS:
                 errors.append(
                     f"statement {idx}: opérateur inconnu « {op} » "
@@ -282,6 +295,37 @@ EXAMPLES = [
                "| where event.category == 'network'\n"
                "| lookup alerts on source.ip == source.ip\n"
                "| limit 100")},
+    # Exemples issus de docs.sekoia.io (sol_query_examples / sol_how_to_guides)
+    {"id": "doc-events-intake", "name": "Events of specific intake (docs)",
+     "category": "docs",
+     "query": ("// https://docs.sekoia.io/xdr/features/investigate/sol_query_examples/\n"
+               "let intake_uuids = intakes | where name == 'Sekoia Agent' | distinct uuid;\n"
+               "events\n"
+               "| where timestamp >= ago(24h)\n"
+               "| where sekoiaio.intake.uuid in intake_uuids\n"
+               "| limit 100")},
+    {"id": "doc-join-intakes", "name": "Join events ↔ intakes (docs)",
+     "category": "docs",
+     "query": ("// https://docs.sekoia.io/xdr/features/investigate/sol_how_to_guides/\n"
+               "events\n"
+               "| where timestamp > ago(24h)\n"
+               "| limit 100\n"
+               "| inner join intakes on sekoiaio.intake.uuid == uuid\n"
+               "| distinct intake.name")},
+    {"id": "doc-auth-aggregate", "name": "Auth by source.ip + outcome (docs)",
+     "category": "docs",
+     "query": ("events\n"
+               "| where timestamp >= ago(24h) and event.category == 'authentication'\n"
+               "| aggregate count() by source.ip, action.outcome\n"
+               "| limit 100")},
+    {"id": "doc-time-filter", "name": "Time filter ?time.start/end (docs)",
+     "category": "docs",
+     "query": ("events\n"
+               "| where timestamp between (?time.start .. ?time.end)\n"
+               "| aggregate count() by sekoiaio.intake.dialect_uuid\n"
+               "| lookup intake_formats on sekoiaio.intake.dialect_uuid == uuid\n"
+               "| select intake_format.name, count\n"
+               "| limit 100")},
 ]
 
 
@@ -319,12 +363,25 @@ def register(sol_app) -> None:
         if limit:
             payload["limit"] = limit
 
+        # Essai app host puis api host (certains tenants n'exposent SOL que sur l'un).
         data, err = await cp.sek_request("POST", SOL_API_PATH, json_body=payload)
+        if err and "404" in str(err):
+            data2, err2 = await cp.sek_request(
+                "POST", SOL_API_PATH, json_body=payload, use_api_host=True)
+            if data2 is not None:
+                data, err = data2, None
+            else:
+                err = err2 or err
         if err:
             hint = None
             if "404" in str(err):
-                hint = ("Endpoint SOL introuvable sur ce tenant — ajuster "
-                        "SEKOIA_SOL_API_PATH dans la configuration du controlplane.")
+                hint = (
+                    "Endpoint SOL introuvable (404). La doc publique Sekoia expose "
+                    "le Query Builder en UI et l'export events via "
+                    "/v1/sic/conf/events/search/jobs (langage Dork), pas un REST SOL "
+                    "stable. Ajuster SEKOIA_SOL_API_PATH si le tenant documente un "
+                    "chemin interne (défaut: /api/v1/sic/query)."
+                )
             return {"ok": False, "stage": "execution", "error": err,
                     "endpoint": SOL_API_PATH, "hint": hint,
                     "warnings": check["warnings"]}

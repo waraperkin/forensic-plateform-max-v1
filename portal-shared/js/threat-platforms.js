@@ -58,6 +58,7 @@
   // ── Sekoia : inventaire complet (Assets & Sources) ──────────────────────────
   const sekData = { intakes: [], connectors: [], modules: [], playbooks: [], formats: [], rules: [] };
   let sekSub = 'intakes';
+  const sekPage = { offset: 0, limit: 100, total: 0, sizes: [50, 100, 200, 500] };
 
   function toMap(list) { const m = {}; (list || []).forEach((x) => { m[x.label] = x.count; }); return m; }
   function uniq(arr) { return Array.from(new Set((arr || []).filter((x) => x != null && x !== ''))).sort(); }
@@ -192,15 +193,18 @@
       + `<div class="cc-tp-grid"><div id="sek-fmt-chart" class="cc-tp-chart"></div><div id="sek-status-chart" class="cc-tp-chart"></div></div>`
       + sekSubnav()
       + `<div id="sek-filterbar-host">${sekFilterBar()}</div>`
+      + `<div id="sek-pager-host">${TC.pagerBar ? TC.pagerBar('sek', sekPage) : ''}</div>`
       + `<p class="fp-ds-muted" id="sek-list-count" aria-live="polite"></p>`
       + `<div id="sek-list"><p class="fp-muted">${i18n.t('ui.loading')}</p></div>`
       + '<div id="sek-detail" class="cc-tp-detail"></div>';
     if (stats.intakes_par_format) TC.chart('sek-fmt-chart', TC.pieOption(toMap(stats.intakes_par_format)), 240);
     if (stats.intakes_par_status) TC.chart('sek-status-chart', TC.barOption(toMap(stats.intakes_par_status), '#0A84FF'), 240);
+    sekPage.offset = 0;
     delegate(root, {
-      'sek-sub': (el) => { sekSub = el.dataset.sub; document.getElementById('sek-detail').innerHTML = ''; renderSekList(); document.querySelectorAll('.cc-subtab').forEach((b) => b.classList.toggle('active', b.dataset.sub === sekSub)); },
+      'sek-sub': (el) => { sekSub = el.dataset.sub; sekPage.offset = 0; document.getElementById('sek-detail').innerHTML = ''; renderSekList(); document.querySelectorAll('.cc-subtab').forEach((b) => b.classList.toggle('active', b.dataset.sub === sekSub)); },
       'card-filter': (el) => {
         resetSekFilters();
+        sekPage.offset = 0;
         if (el.dataset.sub) sekSub = el.dataset.sub;
         if (el.dataset.fkey) sekFilters[el.dataset.fkey] = el.dataset.fval || '';
         document.querySelectorAll('.cc-subtab').forEach((b) => b.classList.toggle('active', b.dataset.sub === sekSub));
@@ -212,9 +216,17 @@
         if (fb) fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       },
       'sek-reset': () => {
-        resetSekFilters(); const fb = document.getElementById('sek-filterbar-host');
+        resetSekFilters(); sekPage.offset = 0; const fb = document.getElementById('sek-filterbar-host');
         if (fb) fb.innerHTML = sekFilterBar();
         renderSekList(); updateSekCardActive(); refreshSekFilterHint();
+      },
+      'sek-prev': () => { sekPage.offset = Math.max(0, sekPage.offset - sekPage.limit); renderSekList(); },
+      'sek-next': () => { if (sekPage.offset + sekPage.limit < sekPage.total) { sekPage.offset += sekPage.limit; renderSekList(); } },
+      'sek-goto-btn': () => {
+        const n = Number((document.getElementById('sek-goto') || {}).value || 1);
+        const pages = Math.max(1, Math.ceil(sekPage.total / sekPage.limit));
+        sekPage.offset = (Math.min(pages, Math.max(1, n)) - 1) * sekPage.limit;
+        renderSekList();
       },
       'sek-intake': (el) => showIntakeDetail(el.dataset.id),
       'sek-conn': (el) => showConnectorDetail(el.dataset.id),
@@ -242,6 +254,7 @@
     sekFilters.module = (document.getElementById('sek-flt-module') || {}).value || '';
     sekFilters.entity = (document.getElementById('sek-flt-entity') || {}).value || '';
     sekFilters.connector = (document.getElementById('sek-flt-connector') || {}).value || '';
+    sekPage.offset = 0;
     renderSekList();
     updateSekCardActive();
     refreshSekFilterHint();
@@ -249,14 +262,38 @@
   const onSekFilterDebounced = (window.PortalPerf && window.PortalPerf.debounce)
     ? window.PortalPerf.debounce(applySekFilter, 120) : applySekFilter;
   function onSekFilter(e) {
+    if (e.target && e.target.id === 'sek-page-size') {
+      sekPage.limit = Number(e.target.value) || 100;
+      sekPage.offset = 0;
+      renderSekList();
+      return;
+    }
     const id = e.target && e.target.id; if (!id || id.indexOf('sek-flt-') !== 0) return;
     onSekFilterDebounced();
+  }
+
+  function pageSlice(rows) {
+    const all = rows || [];
+    sekPage.total = all.length;
+    if (sekPage.offset >= sekPage.total && sekPage.total > 0) {
+      sekPage.offset = Math.max(0, (Math.ceil(sekPage.total / sekPage.limit) - 1) * sekPage.limit);
+    }
+    const slice = all.slice(sekPage.offset, sekPage.offset + sekPage.limit);
+    const pager = document.getElementById('sek-pager-host');
+    if (pager && TC.pagerBar) pager.innerHTML = TC.pagerBar('sek', sekPage);
+    const cnt = document.getElementById('sek-list-count');
+    if (cnt) {
+      const from = sekPage.total ? sekPage.offset + 1 : 0;
+      const to = sekPage.offset + slice.length;
+      cnt.textContent = `${from}–${to} / ${sekPage.total}`;
+    }
+    return slice;
   }
 
   async function renderSekList() {
     const host = document.getElementById('sek-list'); if (!host) return;
     if (sekSub === 'intakes') {
-      const rows = filteredIntakes();
+      const rows = pageSlice(filteredIntakes());
       renderTpTable(host, [
         { label: 'Intake', render: (r) => TC.esc(r.intake_name || r.intake_uuid) },
         { label: 'Statut', render: (r) => badge(r.intake_status === 'enabled' ? true : r.intake_status) },
@@ -265,8 +302,6 @@
         { label: 'Connecteur', render: (r) => TC.esc(r.connector_name || '—') },
         { label: '', render: (r) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-intake" data-id="${TC.esc(r.intake_uuid)}">${i18n.t('table_cols.detail')}</button>` },
       ], rows, { empty: i18n.t('msg.aucun_intake') });
-      const cnt = document.getElementById('sek-list-count');
-      if (cnt) cnt.textContent = `${rows.length} / ${sekData.intakes.length} intake(s)`;
       return;
     }
     const txt = (list) => (sekFilters.q ? (list || []).filter((x) => TC.matchText(x, sekFilters.q)) : (list || []));
@@ -277,7 +312,7 @@
         { label: 'Type', render: (c) => TC.esc(c.connector_type || '—') },
         { label: 'Statut', render: (c) => TC.esc(c.display_status || '—') },
         { label: '', render: (c) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-conn" data-id="${TC.esc(c.uuid)}">${i18n.t('table_cols.detail')}</button>` },
-      ], txt(sekData.connectors), { empty: i18n.t('msg.aucun_connecteur') });
+      ], pageSlice(txt(sekData.connectors)), { empty: i18n.t('msg.aucun_connecteur') });
       return;
     }
     if (sekSub === 'modules') {
@@ -286,7 +321,7 @@
         { label: 'Configuration', render: (m) => TC.esc(m.name || m.uuid) },
         { label: 'Module', render: (m) => TC.esc((m.module || {}).name || m.module_uuid || '—') },
         { label: i18n.t('stats.categories'), render: (m) => TC.esc(((m.module || {}).categories || []).join(', ')) },
-      ], txt(sekData.modules), { empty: i18n.t('msg.aucun_module') });
+      ], pageSlice(txt(sekData.modules)), { empty: i18n.t('msg.aucun_module') });
       return;
     }
     if (sekSub === 'playbooks') {
@@ -294,7 +329,7 @@
       renderTpTable(host, [
         { label: 'Playbook', render: (p) => TC.esc(p.name || p.uuid) },
         { label: 'Statut', render: (p) => badge(p.status) },
-      ], txt(sekData.playbooks), { empty: i18n.t('msg.aucun_playbook') });
+      ], pageSlice(txt(sekData.playbooks)), { empty: i18n.t('msg.aucun_playbook') });
       return;
     }
     if (sekSub === 'formats') {
@@ -302,7 +337,7 @@
       renderTpTable(host, [
         { label: 'Format', render: (f) => TC.esc(f.name || '—') },
         { label: 'UUID', render: (f) => `<code>${TC.esc(f.uuid || '—')}</code>` },
-      ], txt(sekData.formats), { empty: i18n.t('msg.aucun_format') });
+      ], pageSlice(txt(sekData.formats)), { empty: i18n.t('msg.aucun_format') });
     }
   }
 
@@ -377,20 +412,46 @@
   const ruleFilters = { type: '', dialect: '', tag: '', sevMin: '', sevMax: '', q: '', datasource: '', mitre: '', cve: '', payload: '', enabled: '', lifecycle: '' };
   const ruleOrig = {}; // snapshot {uuid:{enabled,severity}} pour le Diff Viewer
   const ruleSel = new Set();
+  const rulePage = { offset: 0, limit: 100, total: 0, sizes: [50, 100, 200, 500], stats: null, facets: null };
+
+  function ruleServerQuery() {
+    const p = new URLSearchParams({
+      trim: '1',
+      limit: String(rulePage.limit),
+      offset: String(rulePage.offset),
+    });
+    if (ruleFilters.type) p.set('rule_type', ruleFilters.type);
+    if (ruleFilters.lifecycle) p.set('lifecycle', ruleFilters.lifecycle);
+    if (ruleFilters.enabled === '1' || ruleFilters.enabled === '0') {
+      p.set('enabled', ruleFilters.enabled === '1' ? 'true' : 'false');
+    }
+    if (ruleFilters.sevMin !== '') p.set('sev_min', ruleFilters.sevMin);
+    if (ruleFilters.sevMax !== '') p.set('sev_max', ruleFilters.sevMax);
+    if (ruleFilters.tag) p.set('tag', ruleFilters.tag);
+    if (ruleFilters.dialect) p.set('dialect', ruleFilters.dialect);
+    // q couvre aussi payload côté serveur — on y fusionne payload/mitre/cve
+    const qBits = [ruleFilters.q, ruleFilters.payload, ruleFilters.mitre, ruleFilters.cve]
+      .map((x) => String(x || '').trim()).filter(Boolean);
+    if (qBits.length) p.set('q', qBits.join(' '));
+    return p.toString();
+  }
 
   function ruleFilterBar() {
     const R = sekData.rules;
-    const tags = uniq([].concat(...R.map((r) => (r.rule_tags || '').split(',').map((t) => t.trim()).filter(Boolean))));
-    const dialects = uniq([].concat(...R.map((r) => (r.rule_dialect_names || '').split(',').map((t) => t.trim()).filter(Boolean))));
-    const datasources = uniq([].concat(...R.map((r) => (r.rule_datasources || '').split(',').map((t) => t.trim()).filter(Boolean))));
+    const fac = rulePage.facets || {};
+    const tags = fac.tags || uniq([].concat(...R.map((r) => (r.rule_tags || '').split(',').map((t) => t.trim()).filter(Boolean))));
+    const dialects = fac.dialects || uniq([].concat(...R.map((r) => (r.rule_dialect_names || '').split(',').map((t) => t.trim()).filter(Boolean))));
+    const datasources = fac.datasources || uniq([].concat(...R.map((r) => (r.rule_datasources || '').split(',').map((t) => t.trim()).filter(Boolean))));
+    const types = fac.types || R.map((r) => r.rule_type);
+    const lifecycles = fac.lifecycles || R.map((r) => r.rule_lifecycle);
     const enSel = (v, l) => `<option value="${v}"${ruleFilters.enabled === v ? ' selected' : ''}>${l}</option>`;
     return `<div class="cc-tp-filterbar">
       <input class="fp-input fp-input-sm" id="rule-flt-q" placeholder="🔎 Recherche libre…" value="${TC.esc(ruleFilters.q)}">
-      <select class="fp-select fp-input-sm" id="rule-flt-type" title="Type">${opts(R.map((r) => r.rule_type), ruleFilters.type)}</select>
+      <select class="fp-select fp-input-sm" id="rule-flt-type" title="Type">${opts(types, ruleFilters.type)}</select>
       <select class="fp-select fp-input-sm" id="rule-flt-enabled" title="État">
         ${enSel('', '— état : tous —')}${enSel('1', 'Activées')}${enSel('0', 'Désactivées')}
       </select>
-      <select class="fp-select fp-input-sm" id="rule-flt-lifecycle" title="Lifecycle">${opts(R.map((r) => r.rule_lifecycle), ruleFilters.lifecycle)}</select>
+      <select class="fp-select fp-input-sm" id="rule-flt-lifecycle" title="Lifecycle">${opts(lifecycles, ruleFilters.lifecycle)}</select>
       <select class="fp-select fp-input-sm" id="rule-flt-dialect" title="Dialect">${opts(dialects, ruleFilters.dialect)}</select>
       <select class="fp-select fp-input-sm" id="rule-flt-tag" title="Tag">${opts(tags, ruleFilters.tag)}</select>
       <select class="fp-select fp-input-sm" id="rule-flt-datasource" title="Datasource">${opts(datasources, ruleFilters.datasource)}</select>
@@ -400,6 +461,7 @@
       <input class="fp-input fp-input-sm" id="rule-flt-mitre" placeholder="MITRE (T1059…)" value="${TC.esc(ruleFilters.mitre)}">
       <input class="fp-input fp-input-sm" id="rule-flt-cve" placeholder="CVE-2024-…" value="${TC.esc(ruleFilters.cve)}">
       <span class="cc-tp-filter-actions">
+        <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="rule-apply">Filtrer</button>
         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="rule-reset">${i18n.t('ui.reset')}</button>
         ${TC.exportButtons()}</span>
     </div>`;
@@ -469,47 +531,35 @@
     host.innerHTML = `<span class="fp-muted">Filtre actif :</span> ${sum}`;
   }
 
-  // Cartes de règles cliquables → filtre par tranche de sévérité / état.
+  // Cartes : totaux issus des stats serveur (pas seulement la page courante).
   function ruleDashCards() {
+    const st = rulePage.stats || {};
+    const bySev = toMap(st.rules_par_severity || []);
+    const sumSev = (lo, hi) => Object.keys(bySev).reduce((acc, k) => {
+      const n = Number(k); return (n >= lo && n <= hi) ? acc + Number(bySev[k] || 0) : acc;
+    }, 0);
+    const total = rulePage.total || sekData.rules.length;
+    // Fallback page courante si stats absentes
     const R = sekData.rules;
     const inRange = (lo, hi) => R.filter((r) => { const s = Number(r.rule_severity); return s >= lo && s <= hi; }).length;
-    const on = R.filter((r) => r.rule_enabled).length;
-    const off = R.length - on;
+    const on = (st.rules_enabled != null) ? st.rules_enabled : R.filter((r) => r.rule_enabled).length;
+    const off = (st.rules_disabled != null) ? st.rules_disabled : Math.max(0, total - on);
     const C = (label, val, tone, ds) => clickCard(label, val, tone, ds, ruleCardActive(ds));
     return `<div class="cc-tp-dashgrid">
-      ${C(i18n.t('msg.total_regles'), R.length, '', { smin: '', smax: '' })}
+      ${C(i18n.t('msg.total_regles'), total, '', { smin: '', smax: '' })}
       ${C('Activées', on, 'accent', { enabled: '1' })}
       ${C('Désactivées', off, 'warn', { enabled: '0' })}
-      ${C('Critiques (≥80)', inRange(80, 1000), 'danger', { smin: '80', smax: '' })}
-      ${C(i18n.t('msg.elevees_6079'), inRange(60, 79), 'warn', { smin: '60', smax: '79' })}
-      ${C('Moyennes (40–59)', inRange(40, 59), 'accent', { smin: '40', smax: '59' })}
-      ${C('Faibles (<40)', inRange(0, 39), '', { smin: '', smax: '39' })}
+      ${C('Critiques (≥80)', Object.keys(bySev).length ? sumSev(80, 1000) : inRange(80, 1000), 'danger', { smin: '80', smax: '' })}
+      ${C(i18n.t('msg.elevees_6079'), Object.keys(bySev).length ? sumSev(60, 79) : inRange(60, 79), 'warn', { smin: '60', smax: '79' })}
+      ${C('Moyennes (40–59)', Object.keys(bySev).length ? sumSev(40, 59) : inRange(40, 59), 'accent', { smin: '40', smax: '59' })}
+      ${C('Faibles (<40)', Object.keys(bySev).length ? sumSev(0, 39) : inRange(0, 39), '', { smin: '', smax: '39' })}
     </div>`;
   }
 
   function filteredRules() {
-    const ci = (s) => String(s || '').toLowerCase();
+    // Filtres principaux serveur ; datasource reste local à la page.
     return sekData.rules.filter((r) => {
-      if (ruleFilters.type && (r.rule_type || '') !== ruleFilters.type) return false;
-      if (ruleFilters.lifecycle && (r.rule_lifecycle || '') !== ruleFilters.lifecycle) return false;
-      if (ruleFilters.enabled === '1' && !r.rule_enabled) return false;
-      if (ruleFilters.enabled === '0' && r.rule_enabled) return false;
-      if (ruleFilters.dialect && (r.rule_dialect_names || '').indexOf(ruleFilters.dialect) === -1) return false;
-      if (ruleFilters.tag && (r.rule_tags || '').indexOf(ruleFilters.tag) === -1) return false;
       if (ruleFilters.datasource && (r.rule_datasources || '').indexOf(ruleFilters.datasource) === -1) return false;
-      const sev = Number(r.rule_severity);
-      if (ruleFilters.sevMin !== '' && !(sev >= Number(ruleFilters.sevMin))) return false;
-      if (ruleFilters.sevMax !== '' && !(sev <= Number(ruleFilters.sevMax))) return false;
-      if (ruleFilters.payload && ci(r.rule_payload).indexOf(ci(ruleFilters.payload)) === -1) return false;
-      if (ruleFilters.mitre) {
-        const hay = ci(r.rule_tags) + ' ' + ci(r.rule_payload) + ' ' + ci(r.rule_description);
-        if (hay.indexOf(ci(ruleFilters.mitre)) === -1) return false;
-      }
-      if (ruleFilters.cve) {
-        const hay = ci(r.rule_payload) + ' ' + ci(r.rule_description) + ' ' + ci(r.rule_tags);
-        if (hay.indexOf(ci(ruleFilters.cve)) === -1) return false;
-      }
-      if (ruleFilters.q && !TC.matchText(r, ruleFilters.q)) return false;
       return true;
     });
   }
@@ -531,7 +581,15 @@
       { label: '', render: (r) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-rule" data-id="${TC.esc(r.rule_uuid)}">${i18n.t('table_cols.detail')}</button>` },
     ], rows, { empty: i18n.t('msg.aucune_regle') });
     const cnt = document.getElementById('sek-rules-count');
-    if (cnt) cnt.textContent = `${rows.length} / ${sekData.rules.length} règle(s) · ${ruleSel.size} sélectionnée(s)`;
+    const from = rulePage.total ? (rulePage.offset + 1) : 0;
+    const to = rulePage.offset + rows.length;
+    if (cnt) {
+      cnt.textContent = rulePage.total
+        ? `${from}–${to} / ${rulePage.total} règle(s) · page · ${ruleSel.size} sélectionnée(s)`
+        : `${rows.length} règle(s) · ${ruleSel.size} sélectionnée(s)`;
+    }
+    const pager = document.getElementById('rule-pager-host');
+    if (pager && TC.pagerBar) pager.innerHTML = TC.pagerBar('rule', rulePage);
     syncRuleSelCount();
   }
 
@@ -562,25 +620,52 @@
     }
   }
 
-  async function loadSekoiaRules() {
-    const root = document.getElementById('sekoia-rules-root'); if (!root) return; loading(root);
-    let env = await TC.api('/sekoia/rules?limit=500&trim=1');
+  async function fetchRulesPage(paintChrome) {
+    const root = document.getElementById('sekoia-rules-root'); if (!root) return;
+    if (paintChrome) loading(root);
+    let env = await TC.api(`/sekoia/rules?${ruleServerQuery()}`);
     if (!env.token_expired || (env.items && env.items.length)) {
       sekData.rules = env.items || [];
-      TC.offlineCacheSet('assets-rules', { items: sekData.rules, stats: env.stats });
+      rulePage.total = env.total != null ? Number(env.total) : sekData.rules.length;
+      rulePage.offset = env.offset != null ? Number(env.offset) : rulePage.offset;
+      rulePage.limit = env.limit != null ? Number(env.limit) : rulePage.limit;
+      rulePage.stats = env.stats || rulePage.stats;
+      rulePage.facets = env.facets || rulePage.facets;
+      TC.offlineCacheSet('assets-rules', {
+        items: sekData.rules, stats: env.stats, total: rulePage.total,
+        facets: rulePage.facets,
+      });
       sekData.rules.forEach((r) => {
         if (!(r.rule_uuid in ruleOrig)) ruleOrig[r.rule_uuid] = { enabled: !!r.rule_enabled, severity: r.rule_severity };
       });
     } else {
       const cached = TC.offlineCacheGet('assets-rules');
       if (cached && cached.items && cached.items.length) {
-        env = Object.assign({}, env, { items: cached.items, stats: cached.stats, _from_cache: true });
+        env = Object.assign({}, env, {
+          items: cached.items, stats: cached.stats, total: cached.total,
+          facets: cached.facets, _from_cache: true,
+        });
         sekData.rules = cached.items;
+        rulePage.total = cached.total || cached.items.length;
+        rulePage.stats = cached.stats;
+        rulePage.facets = cached.facets;
       }
     }
+    if (!paintChrome && root.querySelector('#sek-rules-list')) {
+      const dash = root.querySelector('.cc-tp-dashgrid');
+      if (dash) dash.outerHTML = ruleDashCards();
+      const fb = document.getElementById('rule-filterbar-host');
+      if (fb) fb.innerHTML = ruleFilterBar();
+      renderRulesList();
+      updateRuleCardActive();
+      refreshRuleFilterHint();
+      return env;
+    }
     const stats = env.stats || {};
-    const byType = {};
-    sekData.rules.forEach((r) => { const t = r.rule_type || '—'; byType[t] = (byType[t] || 0) + 1; });
+    const byType = toMap(stats.rules_par_type || []);
+    if (!Object.keys(byType).length) {
+      sekData.rules.forEach((r) => { const t = r.rule_type || '—'; byType[t] = (byType[t] || 0) + 1; });
+    }
     root.innerHTML = TC.configBanner(env) + (env.token_expired ? TC.offlineBanner(env) : TC.errBanner(env))
       + toolbar('ThreatPlatforms.loadSekoiaRules()')
       + ruleDashCards()
@@ -588,79 +673,131 @@
       + `<div class="cc-tp-grid"><div id="sek-rules-fmt" class="cc-tp-chart"></div><div id="sek-rules-sev" class="cc-tp-chart"></div><div id="sek-rules-type" class="cc-tp-chart"></div></div>`
       + `<div id="rule-filterbar-host">${ruleFilterBar()}</div>`
       + ruleBulkBar()
+      + `<div id="rule-pager-host">${TC.pagerBar ? TC.pagerBar('rule', rulePage) : ''}</div>`
       + `<p class="fp-ds-muted" id="sek-rules-count" aria-live="polite"></p>`
       + '<div id="sek-rules-list"></div><div id="sek-rule-detail" class="cc-tp-detail"></div>';
     if (stats.rules_par_format) TC.chart('sek-rules-fmt', TC.pieOption(toMap(stats.rules_par_format)), 220);
     if (stats.rules_par_severity) TC.chart('sek-rules-sev', TC.barOption(toMap(stats.rules_par_severity), '#EF4444'), 220);
     TC.chart('sek-rules-type', TC.pieOption(byType), 220);
     renderRulesList();
-    delegate(root, {
-      'sek-rule': (el) => showRuleDetail(el.dataset.id),
-      'sek-rule-save': () => saveRule(),
-      'sek-rule-copy': (el) => { const r = sekData.rules.find((x) => x.rule_uuid === el.dataset.id); if (r) TC.copy(r.rule_payload || ''); },
-      'sek-rule-impact': (el) => showRuleImpact(el.dataset.id),
-      'sek-rule-diff': (el) => showRuleDiff(el.dataset.id),
-      'rule-sel-toggle': (el) => {
-        const id = el.dataset.id;
-        if (el.checked) ruleSel.add(id); else ruleSel.delete(id);
-        syncRuleSelCount();
-        const cnt = document.getElementById('sek-rules-count');
-        if (cnt) cnt.textContent = `${filteredRules().length} / ${sekData.rules.length} règle(s) · ${ruleSel.size} sélectionnée(s)`;
-      },
-      'rule-sel-page': () => {
-        filteredRules().slice(0, 100).forEach((r) => ruleSel.add(r.rule_uuid));
-        renderRulesList();
-      },
-      'rule-sel-filtered': () => {
-        filteredRules().forEach((r) => ruleSel.add(r.rule_uuid));
-        renderRulesList();
-      },
-      'rule-sel-clear': () => { ruleSel.clear(); renderRulesList(); },
-      'rule-bulk-enable': () => ruleBulkApply('enable'),
-      'rule-bulk-disable': () => ruleBulkApply('disable'),
-      'rule-bulk-sev': async () => {
-        const sev = await askText('Sévérité en lot', 'Nouvelle sévérité (0–100)', '80');
-        if (sev == null || sev === '') return;
-        const n = Number(sev);
-        if (Number.isNaN(n) || n < 0 || n > 100) { TC.toast('Sévérité invalide', 'warn'); return; }
-        ruleBulkApply('set-severity', { severity: n });
-      },
-      'rule-export-sel': () => {
-        const rows = sekData.rules.filter((r) => ruleSel.has(r.rule_uuid));
-        if (!rows.length) { TC.toast('Aucune sélection', 'warn'); return; }
-        TC.exportJSON('sekoia-rules-selection.json', rows);
-      },
-      'card-filter': (el) => {
-        resetRuleFilters();
-        ruleFilters.sevMin = el.dataset.smin || '';
-        ruleFilters.sevMax = el.dataset.smax || '';
-        if (el.dataset.enabled != null) ruleFilters.enabled = el.dataset.enabled || '';
-        const fb = document.getElementById('rule-filterbar-host'); if (fb) { fb.innerHTML = ruleFilterBar(); fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-        document.getElementById('sek-rule-detail').innerHTML = '';
-        renderRulesList();
-        updateRuleCardActive();
-        refreshRuleFilterHint();
-      },
-      'rule-reset': () => {
-        resetRuleFilters(); const fb = document.getElementById('rule-filterbar-host');
-        if (fb) fb.innerHTML = ruleFilterBar();
-        renderRulesList(); updateRuleCardActive(); refreshRuleFilterHint();
-      },
-      'export-csv': () => TC.exportCSV('sekoia-rules.csv', filteredRules(), [
-        { key: 'rule_name', label: 'name' }, { key: 'rule_type', label: 'type' },
-        { key: 'rule_severity', label: 'severity' }, { key: 'rule_enabled', label: 'enabled' },
-        { key: 'rule_dialect_names', label: 'dialect' }, { key: 'rule_tags', label: 'tags' },
-        { key: 'rule_lifecycle', label: 'lifecycle' }, { key: 'rule_uuid', label: 'uuid' },
-      ]),
-      'export-json': () => TC.exportJSON('sekoia-rules.json', filteredRules()),
-    });
-    root.addEventListener('input', onRuleFilter);
-    root.addEventListener('change', onRuleFilter);
+    if (!root._rulesBound) {
+      root._rulesBound = true;
+      delegate(root, {
+        'sek-rule': (el) => showRuleDetail(el.dataset.id),
+        'sek-rule-save': () => saveRule(),
+        'sek-rule-copy': (el) => { const r = sekData.rules.find((x) => x.rule_uuid === el.dataset.id); if (r) TC.copy(r.rule_payload || ''); },
+        'sek-rule-impact': (el) => showRuleImpact(el.dataset.id),
+        'sek-rule-diff': (el) => showRuleDiff(el.dataset.id),
+        'rule-sel-toggle': (el) => {
+          const id = el.dataset.id;
+          if (el.checked) ruleSel.add(id); else ruleSel.delete(id);
+          syncRuleSelCount();
+          renderRulesList();
+        },
+        'rule-sel-page': () => {
+          filteredRules().forEach((r) => ruleSel.add(r.rule_uuid));
+          renderRulesList();
+        },
+        'rule-sel-filtered': () => {
+          filteredRules().forEach((r) => ruleSel.add(r.rule_uuid));
+          renderRulesList();
+        },
+        'rule-sel-clear': () => { ruleSel.clear(); renderRulesList(); },
+        'rule-bulk-enable': () => ruleBulkApply('enable'),
+        'rule-bulk-disable': () => ruleBulkApply('disable'),
+        'rule-bulk-sev': async () => {
+          const sev = await askText('Sévérité en lot', 'Nouvelle sévérité (0–100)', '80');
+          if (sev == null || sev === '') return;
+          const n = Number(sev);
+          if (Number.isNaN(n) || n < 0 || n > 100) { TC.toast('Sévérité invalide', 'warn'); return; }
+          ruleBulkApply('set-severity', { severity: n });
+        },
+        'rule-export-sel': () => {
+          const rows = sekData.rules.filter((r) => ruleSel.has(r.rule_uuid));
+          if (!rows.length) { TC.toast('Aucune sélection', 'warn'); return; }
+          TC.exportJSON('sekoia-rules-selection.json', rows);
+        },
+        'card-filter': (el) => {
+          resetRuleFilters();
+          ruleFilters.sevMin = el.dataset.smin || '';
+          ruleFilters.sevMax = el.dataset.smax || '';
+          if (el.dataset.enabled != null) ruleFilters.enabled = el.dataset.enabled || '';
+          rulePage.offset = 0;
+          const fb = document.getElementById('rule-filterbar-host');
+          if (fb) { fb.innerHTML = ruleFilterBar(); fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+          const det = document.getElementById('sek-rule-detail'); if (det) det.innerHTML = '';
+          fetchRulesPage(false);
+        },
+        'rule-apply': () => { syncRuleFiltersFromDom(); rulePage.offset = 0; fetchRulesPage(false); },
+        'rule-reset': () => {
+          resetRuleFilters(); rulePage.offset = 0;
+          const fb = document.getElementById('rule-filterbar-host');
+          if (fb) fb.innerHTML = ruleFilterBar();
+          fetchRulesPage(false);
+        },
+        'rule-prev': () => {
+          rulePage.offset = Math.max(0, rulePage.offset - rulePage.limit);
+          fetchRulesPage(false);
+        },
+        'rule-next': () => {
+          if (rulePage.offset + rulePage.limit < rulePage.total) {
+            rulePage.offset += rulePage.limit;
+            fetchRulesPage(false);
+          }
+        },
+        'rule-goto-btn': () => {
+          const n = Number((document.getElementById('rule-goto') || {}).value || 1);
+          const pages = Math.max(1, Math.ceil(rulePage.total / rulePage.limit));
+          const page = Math.min(pages, Math.max(1, n));
+          rulePage.offset = (page - 1) * rulePage.limit;
+          fetchRulesPage(false);
+        },
+        'export-csv': async () => {
+          const all = await TC.apiPaged('/sekoia/rules', {
+            pageSize: 500, maxItems: 50000, params: Object.fromEntries(new URLSearchParams(ruleServerQuery())),
+          });
+          // Retirer limit/offset des params dupliqués
+          TC.exportCSV('sekoia-rules.csv', all.items || [], [
+            { key: 'rule_name', label: 'name' }, { key: 'rule_type', label: 'type' },
+            { key: 'rule_severity', label: 'severity' }, { key: 'rule_enabled', label: 'enabled' },
+            { key: 'rule_dialect_names', label: 'dialect' }, { key: 'rule_tags', label: 'tags' },
+            { key: 'rule_lifecycle', label: 'lifecycle' }, { key: 'rule_uuid', label: 'uuid' },
+          ]);
+        },
+        'export-json': async () => {
+          const all = await TC.apiPaged('/sekoia/rules', {
+            pageSize: 500, maxItems: 50000, params: Object.fromEntries(new URLSearchParams(ruleServerQuery())),
+          });
+          TC.exportJSON('sekoia-rules.json', all.items || []);
+        },
+      });
+      root.addEventListener('change', (e) => {
+        if (e.target && e.target.id === 'rule-page-size') {
+          rulePage.limit = Number(e.target.value) || 100;
+          rulePage.offset = 0;
+          fetchRulesPage(false);
+          return;
+        }
+        onRuleFilter(e);
+      });
+      root.addEventListener('input', onRuleFilter);
+      root.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target && e.target.id && e.target.id.indexOf('rule-flt-') === 0) {
+          syncRuleFiltersFromDom(); rulePage.offset = 0; fetchRulesPage(false);
+        }
+      });
+    }
     updateRuleCardActive();
     refreshRuleFilterHint();
+    return env;
   }
 
-  function applyRuleFilter() {
+  async function loadSekoiaRules() {
+    rulePage.offset = 0;
+    await fetchRulesPage(true);
+  }
+
+  function syncRuleFiltersFromDom() {
     ruleFilters.q = (document.getElementById('rule-flt-q') || {}).value || '';
     ruleFilters.type = (document.getElementById('rule-flt-type') || {}).value || '';
     ruleFilters.enabled = (document.getElementById('rule-flt-enabled') || {}).value || '';
@@ -673,6 +810,11 @@
     ruleFilters.payload = (document.getElementById('rule-flt-payload') || {}).value || '';
     ruleFilters.mitre = (document.getElementById('rule-flt-mitre') || {}).value || '';
     ruleFilters.cve = (document.getElementById('rule-flt-cve') || {}).value || '';
+  }
+
+  function applyRuleFilter() {
+    // Datasource : filtre local page ; le reste passe par « Filtrer » / Enter
+    ruleFilters.datasource = (document.getElementById('rule-flt-datasource') || {}).value || '';
     renderRulesList();
     updateRuleCardActive();
     refreshRuleFilterHint();
@@ -826,7 +968,8 @@
   const keyData = { items: [], tags: {} };
   const keyFilters = { bucket: '', q: '', tag: '', perms: '' };
   const keySel = new Set();
-  function resetKeyFilters() { keyFilters.bucket = ''; keyFilters.q = ''; keyFilters.tag = ''; keyFilters.perms = ''; }
+  const keyPage = { offset: 0, limit: 50, total: 0, sizes: [25, 50, 100, 200] };
+  function resetKeyFilters() { keyFilters.bucket = ''; keyFilters.q = ''; keyFilters.tag = ''; keyFilters.perms = ''; keyPage.offset = 0; }
   const KEY_TAGS = ['CERT', 'DEV', 'PROD', 'TEST'];
   function syncKeySelCount() {
     const n = document.getElementById('key-sel-n');
@@ -919,7 +1062,12 @@
   }
   function renderKeysList() {
     const host = document.getElementById('sek-keys-list'); if (!host) return;
-    const rows = filteredKeys();
+    const all = filteredKeys();
+    keyPage.total = all.length;
+    if (keyPage.offset >= keyPage.total && keyPage.total > 0) {
+      keyPage.offset = Math.max(0, (Math.ceil(keyPage.total / keyPage.limit) - 1) * keyPage.limit);
+    }
+    const rows = all.slice(keyPage.offset, keyPage.offset + keyPage.limit);
     renderTpTable(host, [
       { label: '', render: (k) => {
         if (keyData.unavailable) return '';
@@ -940,8 +1088,12 @@
           <button type="button" class="fp-btn fp-btn-danger-ghost fp-btn-sm" data-act="del-key" data-id="${id}">${i18n.t('ui.disable')}</button>`;
       } },
     ], rows, { empty: i18n.t('msg.aucune_cle_api') });
+    const pager = document.getElementById('key-pager-host');
+    if (pager && TC.pagerBar) pager.innerHTML = TC.pagerBar('key', keyPage);
     const cnt = document.getElementById('sek-keys-count');
-    if (cnt) cnt.textContent = `${rows.length} / ${keyData.items.length} clé(s) · ${keySel.size} sélectionnée(s)`;
+    const from = keyPage.total ? keyPage.offset + 1 : 0;
+    const to = keyPage.offset + rows.length;
+    if (cnt) cnt.textContent = `${from}–${to} / ${keyPage.total} clé(s) · ${keySel.size} sélectionnée(s)`;
     syncKeySelCount();
   }
 
@@ -995,10 +1147,12 @@
       + `<div class="cc-tp-grid"><div id="sek-keys-chart" class="cc-tp-chart"></div><div id="sek-keys-exp" class="cc-tp-chart"></div></div>`
       + `<div id="key-filterbar-host">${keyFilterBar()}</div>`
       + (keysUnavail ? '' : keyBulkBar())
+      + `<div id="key-pager-host">${TC.pagerBar ? TC.pagerBar('key', keyPage) : ''}</div>`
       + `<p class="fp-ds-muted" id="sek-keys-count" aria-live="polite"></p>`
       + '<div id="sek-keys-list"></div>';
     TC.chart('sek-keys-chart', TC.pieOption({ Actives: mon.active, Inactives: mon.inactive }), 220);
     TC.chart('sek-keys-exp', TC.barOption(expBuckets, '#F59E0B'), 220);
+    keyPage.offset = 0;
     renderKeysList();
     delegate(root, {
       'card-filter': (el) => {
@@ -1010,12 +1164,20 @@
         });
       },
       'key-reset': () => { resetKeyFilters(); const fb = document.getElementById('key-filterbar-host'); if (fb) fb.innerHTML = keyFilterBar(); renderKeysList(); },
+      'key-prev': () => { keyPage.offset = Math.max(0, keyPage.offset - keyPage.limit); renderKeysList(); },
+      'key-next': () => { if (keyPage.offset + keyPage.limit < keyPage.total) { keyPage.offset += keyPage.limit; renderKeysList(); } },
+      'key-goto-btn': () => {
+        const n = Number((document.getElementById('key-goto') || {}).value || 1);
+        const pages = Math.max(1, Math.ceil(keyPage.total / keyPage.limit));
+        keyPage.offset = (Math.min(pages, Math.max(1, n)) - 1) * keyPage.limit;
+        renderKeysList();
+      },
       'key-sel-toggle': (el) => {
         const id = el.dataset.id;
         if (el.checked) keySel.add(id); else keySel.delete(id);
         syncKeySelCount();
       },
-      'key-sel-page': () => { filteredKeys().forEach((k) => keySel.add(k.uuid)); renderKeysList(); },
+      'key-sel-page': () => { filteredKeys().slice(keyPage.offset, keyPage.offset + keyPage.limit).forEach((k) => keySel.add(k.uuid)); renderKeysList(); },
       'key-sel-clear': () => { keySel.clear(); renderKeysList(); },
       'key-bulk-disable': () => keyBulkApply('disable'),
       'key-bulk-regen': () => keyBulkApply('regenerate'),
@@ -1064,16 +1226,25 @@
     root.addEventListener('change', onKeyFilter);
   }
   function applyKeyFilter() {
+    if (arguments[0] && arguments[0].target && arguments[0].target.id === 'key-page-size') {
+      keyPage.limit = Number(arguments[0].target.value) || 50;
+      keyPage.offset = 0;
+      renderKeysList();
+      return;
+    }
     keyFilters.q = (document.getElementById('key-flt-q') || {}).value || '';
     keyFilters.bucket = (document.getElementById('key-flt-bucket') || {}).value || '';
     keyFilters.tag = (document.getElementById('key-flt-tag') || {}).value || '';
     keyFilters.perms = (document.getElementById('key-flt-perms') || {}).value || '';
+    keyPage.offset = 0;
     renderKeysList();
   }
   const onKeyFilterDebounced = (window.PortalPerf && window.PortalPerf.debounce)
     ? window.PortalPerf.debounce(applyKeyFilter, 120) : applyKeyFilter;
   function onKeyFilter(e) {
-    const id = e.target && e.target.id; if (!id || id.indexOf('key-flt-') !== 0) return;
+    const id = e.target && e.target.id;
+    if (id === 'key-page-size') { applyKeyFilter(e); return; }
+    if (!id || id.indexOf('key-flt-') !== 0) return;
     onKeyFilterDebounced();
   }
 

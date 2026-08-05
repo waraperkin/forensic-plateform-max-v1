@@ -215,17 +215,33 @@
       [T("col_message"), (r) => pick(r, ['message'])], [T("col_statut"), (r) => pick(r, ['status'])]],
   };
 
+  function ccSyncUrl() {
+    try {
+      const u = new URL(location.href);
+      if (u.searchParams.get('tab') !== 'sekoia-cc' && !document.body.classList.contains('cc-mode-sekoia')) return;
+      if (u.searchParams.get('tab') !== 'sekoia-cc') u.searchParams.set('tab', 'sekoia-cc');
+      if (u.searchParams.get('cc') !== cc.sub) {
+        u.searchParams.set('cc', cc.sub);
+        history.replaceState({}, '', u);
+      }
+    } catch (_) { /* ignore */ }
+  }
+
   async function loadSekoiaCC() {
     const root = document.getElementById('sekoia-cc-root'); if (!root) return;
-    // Deep-link sidebar /sekoia : data-cc-sub="sol|overview|…" ou ?cc=
-    const pending = window.__pendingCcSub
-      || new URLSearchParams(location.search).get('cc')
-      || null;
+    // Priorité : clic sidebar (__pendingCcSub) > sous-onglet déjà actif >
+    // query ?cc= (deep-link initial uniquement). Ne JAMAIS laisser ?cc=overview
+    // écraser un basculement explicite vers sol/hosts (bug : Synthèse ≡ Queries).
+    const pending = window.__pendingCcSub || null;
     if (pending) {
       cc.sub = pending;
       window.__pendingCcSub = null;
+    } else if (!window.__activeCcSub) {
+      const fromUrl = new URLSearchParams(location.search).get('cc');
+      if (fromUrl) cc.sub = fromUrl;
     }
     window.__activeCcSub = cc.sub;
+    ccSyncUrl();
     if (!root.__ccBound) {
       root.__ccBound = true;
       delegate(root, {
@@ -363,12 +379,15 @@
     if (lead) lead.hidden = false;
   }
   function ccSwitch(sub) {
+    window.__pendingCcSub = sub;
     cc.sub = sub;
     // Sol / hosts / overview / sortie du shell léger → reconstruire le chrome
     const light = new Set(['sol', 'querybuilder', 'hosts', 'overview']);
     if (light.has(sub) || document.querySelector('#sekoia-cc-root .cc-cc-shell--qb')) {
       return loadSekoiaCC();
     }
+    window.__activeCcSub = sub;
+    ccSyncUrl();
     document.querySelectorAll('#sekoia-cc-root .cc-cc-subnav .cc-subtab').forEach((b) => b.classList.toggle('active', b.dataset.sub === sub));
     ccRenderBody();
   }
@@ -431,6 +450,11 @@
         const r = await fetch(map[key], { credentials: 'include', cache: 'no-store' });
         env = await r.json();
       } catch (_) { env = { items: [], error: 'Endpoint indisponible' }; }
+    } else if (key === 'rules' && TC.apiPaged) {
+      // Rules : pagination serveur obligatoire (prod ≫ 500).
+      env = await TC.apiPaged('/sekoia/rules', {
+        pageSize: 500, maxItems: 50000, params: { trim: '1' },
+      });
     } else {
       env = await TC.api(map[key]);
     }
@@ -495,6 +519,8 @@
   function ccRenderOverview() {
     const body = document.getElementById('cc-body'); if (!body) return;
     const t = cc.counts || {};
+    const link = (label, tab, sub, meta) =>
+      `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-ov-go" data-tab="${esc(tab)}"${sub ? ` data-sub="${esc(sub)}"` : ''} title="${esc(meta || label)}">${esc(label)}</button>`;
     const cards = `<div class="cc-tp-dashgrid">
       ${TC.statCard('Intakes', t.intakes || cc.inv.length, 'accent')}
       ${TC.statCard('Connecteurs', t.connectors || 0)}
@@ -505,12 +531,30 @@
       ${TC.statCard(i18n.t('msg.sans_connecteur'), t.without_connector || 0, 'warn')}
       ${TC.statCard('Windows intakes', t.windows_intakes || 0)}</div>`;
     body.innerHTML = TC.configBanner(cc.env) + (cc.env.token_expired ? TC.offlineBanner(cc.env) : TC.errBanner(cc.env))
+      + `<div class="cc-ov-hero">
+          <h3 class="fp-section-sub">${esc(i18n.t('sidebar.sek_overview'))}</h3>
+          <p class="fp-muted">Tableau de bord de couverture Sekoia — distinct de Queries (SOL).</p>
+          <div class="cc-tp-toolbar">${link('Ouvrir Queries (SOL)', 'sekoia-cc', 'sol', 'Query Builder')}
+            ${link('Intakes', 'sekoia-assets', '', 'Inventaire intakes')}
+            ${link('Rules', 'sekoia-rules', '', 'Inventaire règles')}
+            ${link('Assets', 'gov-assets', '', 'Inventaire assets')}
+            ${link('API keys', 'sekoia-apikeys', '', 'Clés API')}
+            ${link('Hosts', 'sekoia-cc', 'hosts', 'Hosts observés')}</div>
+        </div>`
       + cards
       + `<div class="cc-tp-grid"><div id="cc-ov-status" class="cc-tp-chart"></div><div id="cc-ov-module" class="cc-tp-chart"></div></div>`;
     if (cc.stats) {
       TC.chart('cc-ov-status', TC.pieOption(listToMap(cc.stats.intakes_par_status)), 240);
       TC.chart('cc-ov-module', TC.pieOption(listToMap((cc.stats.intakes_par_module || []).slice(0, 12))), 240);
     }
+    // Navigation rapide depuis la synthèse (sans passer par la sous-nav CC).
+    body.querySelectorAll('[data-act="cc-ov-go"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.sub) window.__pendingCcSub = btn.dataset.sub;
+        if (typeof window.tab === 'function') window.tab(btn.dataset.tab);
+        if (btn.dataset.tab === 'sekoia-cc') loadSekoiaCC();
+      });
+    });
   }
 
   function ccFiltered(key, items) {

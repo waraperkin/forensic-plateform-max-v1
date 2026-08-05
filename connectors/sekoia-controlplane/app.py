@@ -876,31 +876,90 @@ async def formats():
     return envelope(full["inventory"]["ingest_formats"], source="sekoia-formats")
 
 
+def _safe_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 @app.get("/control/sekoia/rules", dependencies=[Depends(require_internal_token)])
 async def rules(trim: str = "1", limit: Optional[int] = None, offset: int = 0,
                 severity: Optional[str] = None, rule_type: Optional[str] = None,
-                q: Optional[str] = None):
+                q: Optional[str] = None, enabled: Optional[str] = None,
+                sev_min: Optional[int] = None, sev_max: Optional[int] = None,
+                lifecycle: Optional[str] = None, tag: Optional[str] = None,
+                dialect: Optional[str] = None):
     full = await get_full()
     rules_list = list(full["rules"] or [])
-    # Filtres serveur (recherche avancée)
+    # Filtres serveur (recherche avancée) — appliqués AVANT offset pour
+    # que chaque page reflète le jeu filtré complet (prod : milliers de règles).
     if severity:
         rules_list = [r for r in rules_list if str(r.get("rule_severity")) == severity]
     if rule_type:
         rules_list = [r for r in rules_list if (r.get("rule_type") or "") == rule_type]
+    if lifecycle:
+        rules_list = [r for r in rules_list if (r.get("rule_lifecycle") or "") == lifecycle]
+    if tag:
+        tl = tag.lower()
+        rules_list = [r for r in rules_list if tl in (r.get("rule_tags") or "").lower()]
+    if dialect:
+        dl = dialect.lower()
+        rules_list = [r for r in rules_list if dl in (r.get("rule_dialect_names") or "").lower()]
+    if enabled is not None and str(enabled) != "":
+        want = str(enabled).lower() in ("1", "true", "yes", "on")
+        rules_list = [r for r in rules_list if bool(r.get("rule_enabled")) is want]
+    if sev_min is not None:
+        rules_list = [r for r in rules_list
+                      if _safe_int(r.get("rule_severity"), -1) >= sev_min]
+    if sev_max is not None:
+        rules_list = [r for r in rules_list
+                      if _safe_int(r.get("rule_severity"), 10**9) <= sev_max]
     if q:
         ql = q.lower()
         rules_list = [r for r in rules_list
                       if ql in (r.get("rule_name") or "").lower()
                       or ql in (r.get("rule_description") or "").lower()
-                      or ql in (r.get("rule_tags") or "").lower()]
+                      or ql in (r.get("rule_tags") or "").lower()
+                      or ql in (r.get("rule_payload") or "").lower()]
+    # Facettes sur le jeu filtré (avant découpage) pour peupler les listes UI.
+    def _split_field(rows, key):
+        out = set()
+        for r in rows:
+            for part in str(r.get(key) or "").split(","):
+                p = part.strip()
+                if p:
+                    out.add(p)
+        return sorted(out)
+
+    facets = {
+        "types": sorted({(r.get("rule_type") or "") for r in rules_list if r.get("rule_type")}),
+        "lifecycles": sorted({(r.get("rule_lifecycle") or "") for r in rules_list if r.get("rule_lifecycle")}),
+        "tags": _split_field(rules_list, "rule_tags")[:400],
+        "dialects": _split_field(rules_list, "rule_dialect_names")[:400],
+        "datasources": _split_field(rules_list, "rule_datasources")[:400],
+    }
+    enabled_n = sum(1 for r in rules_list if r.get("rule_enabled"))
+    stats = dict(full.get("stats") or {})
+    stats["rules_enabled"] = enabled_n
+    stats["rules_disabled"] = max(0, len(rules_list) - enabled_n)
+
     if trim not in ("0", "false", "no"):
         rules_list = [{k: v for k, v in r.items() if k != "rule_payload"} for r in rules_list]
     total = len(rules_list)
+    offset = max(0, int(offset or 0))
     if limit is not None and limit > 0:
+        limit = min(int(limit), 500)
+        rules_list = rules_list[offset:offset + limit]
+    else:
+        # Sans limit explicite : renvoyer une page par défaut (évite de
+        # saturer le navigateur en prod) tout en exposant total.
+        limit = 100
         rules_list = rules_list[offset:offset + limit]
     return envelope(rules_list, error=full.get("rules_err"), source="sekoia-rules",
-                    extra={"stats": full["stats"], "total": total,
-                           "offset": offset, "limit": limit or None})
+                    extra={"stats": stats, "facets": facets, "total": total,
+                           "offset": offset, "limit": limit,
+                           "has_more": (offset + len(rules_list)) < total})
 
 
 @app.get("/control/sekoia/stats", dependencies=[Depends(require_internal_token)])

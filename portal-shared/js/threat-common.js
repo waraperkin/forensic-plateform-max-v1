@@ -214,7 +214,17 @@
         });
       });
       const initial = new URLSearchParams(location.search).get('tab');
-      if (initial && map[initial]) setTimeout(() => { try { map[initial](); } catch (_) {} }, 350);
+      // Ne recharger l'onglet initial qu'une fois, et seulement s'il n'a pas
+      // déjà été ouvert (évite d'écraser un basculement overview→sol via ?cc=).
+      if (initial && map[initial] && !window.__tcBoundInitial) {
+        window.__tcBoundInitial = true;
+        setTimeout(() => {
+          try {
+            if (window.__activeCcSub && initial === 'sekoia-cc') return;
+            map[initial]();
+          } catch (_) {}
+        }, 350);
+      }
     };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', attach);
@@ -337,6 +347,63 @@
       + '<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="export-json">⬇ JSON</button>';
   }
 
+  /**
+   * Charge toutes les pages d'un endpoint envelope {items,total,offset,limit}.
+   * Pour exports / facettes — borné (maxItems) pour la prod.
+   */
+  async function apiPaged(path, opts) {
+    const o = Object.assign({ pageSize: 200, maxItems: 50000, params: {} }, opts || {});
+    const all = [];
+    let offset = 0;
+    let total = Infinity;
+    let last = { items: [] };
+    const base = String(path || '');
+    while (offset < total && all.length < o.maxItems) {
+      const sp = new URLSearchParams();
+      Object.keys(o.params || {}).forEach((k) => {
+        const v = o.params[k];
+        if (v != null && v !== '') sp.set(k, String(v));
+      });
+      sp.set('limit', String(o.pageSize));
+      sp.set('offset', String(offset));
+      const sep = base.indexOf('?') >= 0 ? '&' : '?';
+      // eslint-disable-next-line no-await-in-loop
+      last = await api(`${base}${sep}${sp.toString()}`);
+      const items = (last && last.items) || [];
+      all.push.apply(all, items);
+      if (last && last.total != null) total = Number(last.total);
+      else total = offset + items.length;
+      if (!items.length || items.length < o.pageSize) break;
+      offset += items.length;
+    }
+    return Object.assign({}, last || {}, {
+      items: all,
+      count: all.length,
+      total: (last && last.total != null) ? last.total : all.length,
+      truncated: all.length >= o.maxItems && all.length < total,
+    });
+  }
+
+  /** Barre de pagination générique (offset / limit / total). */
+  function pagerBar(idPrefix, page) {
+    const limit = Math.max(1, Number(page.limit) || 50);
+    const offset = Math.max(0, Number(page.offset) || 0);
+    const total = Math.max(0, Number(page.total) || 0);
+    const pageNum = Math.floor(offset / limit) + 1;
+    const pages = Math.max(1, Math.ceil(total / limit) || 1);
+    const sizes = page.sizes || [50, 100, 200, 500];
+    const sizeOpts = sizes.map((n) =>
+      `<option value="${n}"${n === limit ? ' selected' : ''}>${n}/page</option>`).join('');
+    return `<div class="cc-tp-toolbar cc-pager-bar" id="${idPrefix}-pager">
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="${idPrefix}-prev" ${offset <= 0 ? 'disabled' : ''}>← Préc.</button>
+      <span class="fp-muted" id="${idPrefix}-page-meta">Page ${pageNum} / ${pages} — ${total} total</span>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="${idPrefix}-next" ${(offset + limit) >= total ? 'disabled' : ''}>Suiv. →</button>
+      <select class="fp-select fp-input-sm" id="${idPrefix}-page-size" data-act="${idPrefix}-pagesize" title="Taille de page">${sizeOpts}</select>
+      <label class="fp-muted">Aller <input class="fp-input fp-input-sm cc-flt-num" id="${idPrefix}-goto" type="number" min="1" max="${pages}" value="${pageNum}" style="width:4.5rem"></label>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="${idPrefix}-goto-btn">OK</button>
+    </div>`;
+  }
+
   // ── Envoi des events collectés (déjà en mémoire) → Timesketch / OpenSearch ──
   function sendBar() {
     return '<div class="fp-actions-row cc-send-bar">'
@@ -375,6 +442,7 @@
     api, esc, toast, copy, table, chart, countBy, barOption, pieOption,
     statCard, configBanner, errBanner, infoBanner, bind, fetchForm, readFetchForm, deep,
     staleBanner, offlineBanner, offlineCacheSet, offlineCacheGet, tableLoading, clearThreatOffline,
+    apiPaged, pagerBar,
     matchText, download, exportCSV, exportJSON, exportButtons,
     sendBar, sendEvents, bindSend,
   };

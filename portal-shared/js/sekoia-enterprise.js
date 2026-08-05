@@ -254,9 +254,12 @@
         return;
       }
       if (w.source === 'rules') {
-        const env = await TC.api('/sekoia/rules');
+        const env = TC.apiPaged
+          ? await TC.apiPaged('/sekoia/rules', { pageSize: 500, maxItems: 50000, params: { trim: '1' } })
+          : await TC.api('/sekoia/rules?trim=1&limit=500');
         const items = env.items || [];
-        if (w.type === 'counter') host.innerHTML = `<div class="fp-stat-value">${items.length}</div><div class="fp-stat-label">${i18n.t('sekoia.rules_label')}</div>`;
+        const total = env.total != null ? env.total : items.length;
+        if (w.type === 'counter') host.innerHTML = `<div class="fp-stat-value">${total}</div><div class="fp-stat-label">${i18n.t('sekoia.rules_label')}</div>`;
         else if (w.type === 'bar') { host.innerHTML = `<div id="dash-chart-${i}" class="cc-tp-chart"></div>`; TC.chart(`dash-chart-${i}`, TC.barOption(TC.countBy(items, (r) => String(r.rule_type || '?')), '#0A84FF'), 180); }
         else host.innerHTML = TC.table([{ label: i18n.t('msg.regle'), render: (r) => esc(r.rule_name || '—') }], items.slice(0, 10), { empty: '—' });
         return;

@@ -632,6 +632,19 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
+[data-edition="cybercorp"] .cc-pager-bar {
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.35rem 0 0.85rem;
+}
+[data-edition="cybercorp"] .cc-ov-hero {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+[data-edition="cybercorp"] .cc-ov-hero .fp-section-sub { margin: 0 0 0.35rem; }
 [data-edition="cybercorp"] .cc-tp-banner { margin-bottom: 1rem; }
 [data-edition="cybercorp"] .cc-tp-grid {
   display: grid; grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);

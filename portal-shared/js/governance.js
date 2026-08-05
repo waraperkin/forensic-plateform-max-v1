@@ -499,7 +499,9 @@
   async function loadRules() {
     const root = document.getElementById('gov-rules-root'); if (!root) return; loading(root);
     const preset = pendingRulePreset; pendingRulePreset = null;
-    const sek = await TC.api('/sekoia/rules?limit=500&trim=1');
+    const sek = TC.apiPaged
+      ? await TC.apiPaged('/sekoia/rules', { pageSize: 500, maxItems: 50000, params: { trim: '1' } })
+      : await TC.api('/sekoia/rules?limit=500&trim=1');
     govRules = (sek.items || []).map((r) => ({ name: pick(r, ['rule_name', 'name', 'title', 'uuid', 'id']), source: 'Sekoia', state: pick(r, ['rule_enabled', 'enabled', 'is_active', 'active']), sev: String(pick(r, ['rule_severity', 'severity', 'level']) || '—'), type: pick(r, ['rule_type', 'type']) || '—', raw: r }));
     if (preset) Object.assign(ruleFilters, { source: '', sev: '', type: '', q: '', preset: '' }, preset);
 

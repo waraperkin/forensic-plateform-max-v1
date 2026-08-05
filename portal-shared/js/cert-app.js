@@ -170,6 +170,7 @@ function tab(raw) {
   if (t === 'cases' && window.PortalHub) PortalHub.loadCasesHub();
   if (t === 'kb' && window.PortalHub) PortalHub.loadKbHub();
   if (t === 'sekoia-cc' && window.PortalHub) PortalHub.loadSekoiaHub();
+  if (t === 'sekoia-kheish' && window.SekoiaKheish) SekoiaKheish.mount();
   // La console des cas d'usage ne charge son catalogue qu'à l'ouverture : le
   // faire au chargement de la page coûterait une requête à chaque visite du
   // portail, pour un onglet que l'analyste n'ouvre pas toujours.

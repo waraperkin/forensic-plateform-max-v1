@@ -33,7 +33,8 @@
     "sek_intakes": "SEKOIA — Intakes",
     "sek_rules": "SEKOIA — Rules",
     "sek_apikeys": "SEKOIA — API keys",
-    "sek_assets": "SEKOIA — Assets"
+    "sek_assets": "SEKOIA — Assets",
+    "sek_kheish": "SEKOIA — Kheish"
   },
   "units": {
     "bytes_b": "B",
@@ -149,7 +150,8 @@
     "sek_intakes_events": "Events",
     "sek_rules_inv": "Inventory",
     "sek_apikeys_inv": "Inventory",
-    "sek_assets_inv": "Inventory"
+    "sek_assets_inv": "Inventory",
+    "sek_kheish": "Kheish"
   },
   "header": {
     "brand_sub": "CERT / forensic operations center",
@@ -398,6 +400,7 @@
     "s1_fetch_lead": "Targeted threats & activities for a host / IP / agentId.",
     "config_secrets_lead": "Connector secrets (encrypted server-side, never in .env).",
     "sekoia_cc_lead": "SEP operational overview: KPIs, volume and quick access to builders.",
+    "sekoia_kheish_lead": "CERT/SOC agent console — mockup ready to bind to the Kheish daemon and SageMaker.",
     "xdr_lead": "Merged asset view: Sekoia intakes & events, SentinelOne threats & activities, unified timeline, Timesketch / OpenSearch export.",
     "api_key_help": "API key used to authenticate calls to this connector.",
     "delete_secrets": "Delete secrets",

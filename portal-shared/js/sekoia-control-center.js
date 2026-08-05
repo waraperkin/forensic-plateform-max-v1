@@ -164,7 +164,10 @@
     events: [], evQuery: {}, iocResult: null, coverage: null, volum: null,
     sante: null, anomalies: null, hosts: null, efficacite: null,
     watchlists: null, snapshots: null, digest: null, snapDiff: null,
-    sol: null, solLib: null, solExamples: null };
+    sol: null, solLib: null, solExamples: null,
+    solMode: 'code', solLabel: '',
+    solForm: { intakeUuid: '', hostname: '', ip: '', eventCategory: '', timeRange: '24h', limit: 1000 },
+    solRunMeta: null, solExpandIdx: null };
   let ccRenderGen = 0;
   function ccRenderStale(gen) { return gen !== ccRenderGen || !document.getElementById('cc-body'); }
   const CC_SUB_LABELS = {
@@ -271,19 +274,47 @@
         'cc-snap-diff': (el) => ccSnapDiff(el.dataset.id),
         'cc-snap-restore': (el) => ccSnapRestore(el.dataset.id),
         'cc-run-digest': () => ccRunDigest(true),
-        // ── v2.3 : workspace SOL (Sekoia Operating Language) ──
+        // ── v2.3 / Query Builder SOL (aligné console Sekoia) ──
         'cc-sol-validate': () => ccSolValidate(),
         'cc-sol-run': () => ccSolRun(),
         'cc-sol-save': () => ccSolSave(),
         'cc-sol-load': (el) => ccSolLoad(el.dataset.id),
         'cc-sol-del': (el) => ccSolDel(el.dataset.id),
         'cc-sol-example': (el) => ccSolExample(parseInt(el.dataset.idx, 10)),
+        'cc-sol-mode': (el) => ccSolSetMode(el.dataset.mode || 'code'),
+        'cc-sol-export': () => ccSolExport(),
+        'cc-sol-expand': (el) => ccSolExpand(parseInt(el.dataset.idx, 10)),
+        'cc-sol-apply-form': () => { ccSolReadForm(); cc.solQuery = ccSolFormToQuery(); cc.solMode = 'code'; ccRenderSol(); },
+        'cc-sol-back': () => { cc.sub = 'overview'; loadSekoiaCC(); },
       });
       const debouncedCcList = (window.PortalPerf && window.PortalPerf.debounce)
         ? window.PortalPerf.debounce(() => ccRenderList(), 120) : () => ccRenderList();
+      const onQbForm = (e) => {
+        if (!(e.target && e.target.classList && e.target.classList.contains('cc-qb-form-field'))) return;
+        ccSolReadForm();
+        const prev = document.getElementById('cc-qb-form-preview');
+        if (prev) prev.innerHTML = `<code>${esc(ccSolFormToQuery())}</code>`;
+      };
       root.addEventListener('input', (e) => {
         if (e.target && e.target.id === 'cc-q') { cc.filt[cc.sub] = e.target.value; debouncedCcList(); }
+        onQbForm(e);
       });
+      root.addEventListener('change', onQbForm);
+    }
+    // Queries (sidebar) → shell focalisé Query Builder (sans sous-nav CC)
+    if (cc.sub === 'querybuilder') { cc.sub = 'sol'; if (!cc.solMode) cc.solMode = 'form'; }
+    const qbFocused = cc.sub === 'sol';
+    ccSyncPanelChrome(qbFocused);
+    if (qbFocused) {
+      root.innerHTML = `<div class="cc-cc-shell cc-cc-shell--qb">
+        <div class="cc-cc-toolbar fp-actions-row">
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sol-back">${esc(T('qb_back_cc'))}</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-refresh-sub">${esc(T('act_refresh'))}</button>
+        </div>
+        <div id="cc-body" class="cc-cc-body"><p class="fp-muted">Chargement…</p></div>
+      </div>`;
+      ccRenderSol();
+      return;
     }
     root.innerHTML = `<div class="cc-cc-shell">
       <div class="cc-cc-toolbar fp-actions-row">
@@ -295,8 +326,26 @@
     </div>`;
     ccRenderBody();
   }
+  function ccSyncPanelChrome(qbFocused) {
+    const title = document.querySelector('#tab-sekoia-cc .fp-section-title');
+    const lead = document.querySelector('#tab-sekoia-cc > .fp-card > .fp-muted');
+    if (!title) return;
+    if (qbFocused) {
+      title.removeAttribute('data-i18n');
+      title.textContent = T('qb_title');
+      if (lead) lead.hidden = true;
+    } else {
+      title.setAttribute('data-i18n', 'sidebar.sekoia_cc');
+      title.textContent = i18n.t('sidebar.sekoia_cc');
+      if (lead) lead.hidden = false;
+    }
+  }
   function ccSwitch(sub) {
     cc.sub = sub;
+    // Sol / sortie du shell QB focalisé → reconstruire le chrome
+    if (sub === 'sol' || sub === 'querybuilder' || document.querySelector('#sekoia-cc-root .cc-cc-shell--qb')) {
+      return loadSekoiaCC();
+    }
     document.querySelectorAll('#sekoia-cc-root .cc-cc-subnav .cc-subtab').forEach((b) => b.classList.toggle('active', b.dataset.sub === sub));
     ccRenderBody();
   }
@@ -307,6 +356,7 @@
     ccRenderBody();
   }
   async function ccRefreshSub() {
+    if (cc.sub === 'sol') return ccRenderSol();
     if (['querybuilder', 'dashboard', 'assetprofile'].includes(cc.sub)) return ccRenderBody();
     if (['overview', 'inventaire', 'stats'].includes(cc.sub)) {
       cc.loaded.inv = false;
@@ -371,8 +421,11 @@
     const body = document.getElementById('cc-body'); if (!body) return;
     body.innerHTML = TC.tableLoading(4, i18n.t('ui.loading'));
     const ent = SE();
-    if (sub === 'querybuilder' && ent) {
-      if (!ccRenderStale(gen)) ent.renderQueryBuilder();
+    // Query Builder unifié (Code SOL + Form) — remplace l'ancien builder Lucene
+    if (sub === 'querybuilder') {
+      cc.sub = 'sol';
+      cc.solMode = 'form';
+      if (!ccRenderStale(gen)) return loadSekoiaCC();
       return;
     }
     if (sub === 'dashboard' && ent) {
@@ -1012,34 +1065,155 @@
     if (cc.sub === 'digest') ccRenderDigest();
   }
 
-  /* ═══════════════════ v2.3 — Workspace SOL (Sekoia Operating Language) ═══ */
-  function ccRenderSol() {
-    const body = document.getElementById('cc-body'); if (!body) return;
-    body.innerHTML = `<div class="cc-tp-fetchform">
-      <div class="fp-form-row"><label class="fp-label" style="flex:1">${esc(T("lbl_sol_editor"))}
-        <textarea class="fp-input cc-sol-editor" id="cc-sol-query" rows="7" spellcheck="false"
-          placeholder="${esc(T("ph_sol_query"))}">${esc(cc.solQuery || '')}</textarea></label></div>
-      <div class="fp-form-row fp-grid-3">
-        <label class="fp-label">${esc(T("lbl_sol_limit"))}
-          <input class="fp-input" id="cc-sol-limit" type="number" min="1" max="10000" value="${cc.solLimit || 100}"></label>
-        <label class="fp-label">&nbsp;<span class="fp-muted">${esc(T("msg_sol_limits"))}</span></label>
+  /* ═══════════════════ Query Builder SOL (aligné console Sekoia) ═══════════ */
+  function ccSolDefaultQuery() {
+    return `events
+| where timestamp >= ago(24h)
+| limit 1000`;
+  }
+  function ccSolQuote(v) {
+    return String(v || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+  function ccSolFormToQuery() {
+    const f = cc.solForm || {};
+    const ago = f.timeRange || '24h';
+    const clauses = [`timestamp >= ago(${ago})`];
+    if (f.intakeUuid) clauses.push(`sekoia.io.intake.uuid == "${ccSolQuote(f.intakeUuid)}"`);
+    if (f.hostname) clauses.push(`host.hostname == "${ccSolQuote(f.hostname)}"`);
+    if (f.ip) clauses.push(`source.ip == "${ccSolQuote(f.ip)}"`);
+    if (f.eventCategory) clauses.push(`event.category == "${ccSolQuote(f.eventCategory)}"`);
+    const lim = parseInt(f.limit, 10) || 1000;
+    return `events\n| where ${clauses.join(' and ')}\n| limit ${Math.min(Math.max(lim, 1), 10000)}`;
+  }
+  function ccSolReadForm() {
+    cc.solForm = {
+      intakeUuid: val('cc-qb-intake'),
+      hostname: val('cc-qb-hostname'),
+      ip: val('cc-qb-ip'),
+      eventCategory: val('cc-qb-category'),
+      timeRange: val('cc-qb-range') || '24h',
+      limit: parseInt(val('cc-qb-limit') || '1000', 10) || 1000,
+    };
+  }
+  function ccSolSetMode(mode) {
+    if (mode === 'form') {
+      const ta = document.getElementById('cc-sol-query');
+      if (ta) cc.solQuery = ta.value;
+      cc.solMode = 'form';
+    } else {
+      ccSolReadForm();
+      cc.solQuery = ccSolFormToQuery();
+      cc.solMode = 'code';
+    }
+    ccRenderSol();
+  }
+  function ccSolEditorBlock() {
+    const q = cc.solQuery != null && cc.solQuery !== '' ? cc.solQuery : ccSolDefaultQuery();
+    return `<div class="cc-qb-code-wrap">
+      <textarea class="fp-input cc-sol-editor" id="cc-sol-query" rows="12" spellcheck="false"
+        placeholder="${esc(T('ph_sol_query'))}">${esc(q)}</textarea>
+      <p class="fp-muted cc-qb-hint">${esc(T('msg_sol_limits'))}</p>
+    </div>`;
+  }
+  function ccSolFormBlock() {
+    const f = cc.solForm || {};
+    const ranges = [['1h', '1h'], ['24h', '24h'], ['7d', '7d'], ['30d', '30d']];
+    return `<div class="cc-qb-form">
+      <div class="fp-form-row fp-grid-2">
+        <label class="fp-label">${esc(T('qb_field_intake'))}
+          <input class="fp-input cc-qb-form-field" id="cc-qb-intake" value="${esc(f.intakeUuid || '')}"
+            placeholder="8c5a242d-e949-46b0-b50c-d5c4b8b21ab6" autocomplete="off"></label>
+        <label class="fp-label">${esc(T('qb_field_hostname'))}
+          <input class="fp-input cc-qb-form-field" id="cc-qb-hostname" value="${esc(f.hostname || '')}"
+            placeholder="SRV-DC" autocomplete="off"></label>
+      </div>
+      <div class="fp-form-row fp-grid-2">
+        <label class="fp-label">${esc(T('qb_field_ip'))}
+          <input class="fp-input cc-qb-form-field" id="cc-qb-ip" value="${esc(f.ip || '')}"
+            placeholder="10.0.0.4" autocomplete="off"></label>
+        <label class="fp-label">${esc(T('qb_field_category'))}
+          <input class="fp-input cc-qb-form-field" id="cc-qb-category" value="${esc(f.eventCategory || '')}"
+            placeholder="authentication" autocomplete="off"></label>
+      </div>
+      <div class="fp-form-row fp-grid-2">
+        <label class="fp-label">${esc(T('qb_field_range'))}
+          <select class="fp-select cc-qb-form-field" id="cc-qb-range">${ranges.map(([k, l]) =>
+            `<option value="${k}"${(f.timeRange || '24h') === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="fp-label">${esc(T('lbl_sol_limit'))}
+          <input class="fp-input cc-qb-form-field" id="cc-qb-limit" type="number" min="1" max="10000"
+            value="${esc(String(f.limit || 1000))}"></label>
+      </div>
+      <div class="cc-tp-querybox fp-section-spaced">
+        <strong>${esc(T('qb_preview'))}</strong>
+        <div id="cc-qb-form-preview" class="cc-qb-preview"><code>${esc(ccSolFormToQuery())}</code></div>
       </div>
       <div class="fp-actions-row">
-        <button type="button" class="fp-btn fp-btn-ghost" data-act="cc-sol-validate">${esc(T("act_validate"))}</button>
-        <button type="button" class="fp-btn fp-btn-primary" data-act="cc-sol-run">${esc(T("act_sol_run"))}</button>
-        <button type="button" class="fp-btn fp-btn-ghost" data-act="cc-sol-save">${esc(T("act_sol_save"))}</button>
-      </div></div>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sol-apply-form">${esc(T('qb_to_code'))}</button>
+      </div>
+    </div>`;
+  }
+  function ccSolStatusHtml() {
+    const m = cc.solRunMeta;
+    if (!m) return `<span class="fp-muted">${esc(T('qb_status_idle'))}</span>`;
+    if (m.running) return `<span class="fp-tag">${esc(T('qb_status_running'))}</span>`;
+    const when = m.finishedAt ? new Date(m.finishedAt).toLocaleString() : '';
+    const dur = m.ms != null ? `${(m.ms / 1000).toFixed(3)} s` : '';
+    return `<span class="fp-muted">${esc(T('qb_status_finished'))}${when ? ` · ${esc(when)}` : ''}${dur ? ` · ${esc(dur)}` : ''}</span>`;
+  }
+  function ccRenderSol() {
+    const body = document.getElementById('cc-body'); if (!body) return;
+    if (cc.solQuery == null || cc.solQuery === '') cc.solQuery = ccSolDefaultQuery();
+    const mode = cc.solMode === 'form' ? 'form' : 'code';
+    const label = cc.solLabel || T('qb_untitled');
+    body.innerHTML = `<div class="cc-qb-shell">
+      <header class="cc-qb-head">
+        <div class="cc-qb-head-main">
+          <h3 class="cc-qb-title">${esc(T('qb_title'))}</h3>
+          <p class="cc-qb-label"><span class="fp-tag">${esc(label)}</span></p>
+        </div>
+        <div class="fp-actions-row cc-qb-head-actions">
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sol-export">${esc(T('qb_export'))}</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="cc-sol-save">${esc(T('act_sol_save'))}</button>
+          <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="cc-sol-run">${esc(T('act_sol_run'))}</button>
+        </div>
+      </header>
+      <div class="cc-qb-tabs" role="tablist">
+        <button type="button" class="cc-qb-tab${mode === 'code' ? ' active' : ''}" data-act="cc-sol-mode" data-mode="code" role="tab">${esc(T('qb_tab_code'))}</button>
+        <button type="button" class="cc-qb-tab${mode === 'form' ? ' active' : ''}" data-act="cc-sol-mode" data-mode="form" role="tab">${esc(T('qb_tab_form'))}</button>
+        <a class="cc-qb-doc" href="https://docs.sekoia.io/xdr/features/investigate/query_builder/" target="_blank" rel="noopener">${esc(T('qb_doc'))}</a>
+      </div>
+      <div class="cc-qb-editor">${mode === 'form' ? ccSolFormBlock() : ccSolEditorBlock()}</div>
+      <div class="cc-qb-runbar">
+        <button type="button" class="fp-btn fp-btn-primary" data-act="cc-sol-run">${esc(T('act_sol_run'))}</button>
+        <button type="button" class="fp-btn fp-btn-ghost" data-act="cc-sol-validate">${esc(T('act_validate'))}</button>
+        <div class="cc-qb-status" id="cc-sol-status">${ccSolStatusHtml()}</div>
+      </div>
       <div id="cc-sol-feedback" class="fp-section-spaced"></div>
-      <div id="cc-sol-result" class="fp-section-spaced"></div>
-      <h4 class="fp-section-sub fp-section-spaced">${esc(T("lbl_sol_examples"))}</h4>
-      <div id="cc-sol-examples">${cc.solExamples ? '' : TC.tableLoading(3, i18n.t('ui.loading'))}</div>
-      <h4 class="fp-section-sub fp-section-spaced">${esc(T("lbl_sol_library"))}</h4>
-      <div id="cc-sol-library">${cc.solLib ? '' : TC.tableLoading(3, i18n.t('ui.loading'))}</div>`;
+      <section class="cc-qb-results">
+        <div class="cc-qb-results-bar">
+          <strong>${esc(T('qb_results'))}</strong>
+          <span class="fp-muted" id="cc-sol-result-meta"></span>
+        </div>
+        <div id="cc-sol-result"></div>
+      </section>
+      <details class="cc-qb-aside fp-section-spaced">
+        <summary>${esc(T('lbl_sol_examples'))} · ${esc(T('lbl_sol_library'))}</summary>
+        <h4 class="fp-section-sub fp-section-spaced">${esc(T('lbl_sol_examples'))}</h4>
+        <div id="cc-sol-examples">${cc.solExamples ? '' : TC.tableLoading(3, i18n.t('ui.loading'))}</div>
+        <h4 class="fp-section-sub fp-section-spaced">${esc(T('lbl_sol_library'))}</h4>
+        <div id="cc-sol-library">${cc.solLib ? '' : TC.tableLoading(3, i18n.t('ui.loading'))}</div>
+      </details>
+    </div>`;
     if (cc.sol) ccRenderSolFeedback();
     if (cc.solResult) ccRenderSolResult();
+    else {
+      const host = document.getElementById('cc-sol-result');
+      if (host) host.innerHTML = `<p class="fp-muted">${esc(T('qb_results_empty'))}</p>`;
+    }
     if (cc.solExamples) ccRenderSolExamples();
     if (cc.solLib) ccRenderSolLibrary();
     if (!cc.solExamples) ccSolLoadExamples();
+    if (!cc.solLib) ccSolLoadLib();
   }
 
   function ccRenderSolFeedback() {
@@ -1047,32 +1221,61 @@
     const v = cc.sol; if (!v) { host.innerHTML = ''; return; }
     const errs = (v.errors || []).map((e) => `<li>${esc(e)}</li>`).join('');
     const warns = (v.warnings || []).map((w) => `<li>${esc(w)}</li>`).join('');
-    host.innerHTML = (v.ok
-      ? `<span class="fp-tag fp-tag-ok">${esc(T("msg_sol_valid"))}</span>`
-      : `<span class="fp-tag fp-tag-danger">${esc(T("msg_sol_invalid"))}</span>`)
+    host.innerHTML = (v.ok !== false && !v.error
+      ? `<span class="fp-tag fp-tag-ok">${esc(T('msg_sol_valid'))}</span>`
+      : `<span class="fp-tag fp-tag-danger">${esc(T('msg_sol_invalid'))}</span>`)
       + (errs ? `<ul class="cc-sol-errlist">${errs}</ul>` : '')
       + (warns ? `<ul class="cc-sol-warnlist">${warns}</ul>` : '')
-      + (v.hint ? `<p class="fp-muted">${esc(v.hint)}</p>` : '');
+      + (v.hint ? `<p class="fp-muted">${esc(v.hint)}</p>` : '')
+      + (v.error ? `<p class="fp-muted">${esc(v.error)}</p>` : '');
   }
 
   function ccRenderSolResult() {
     const host = document.getElementById('cc-sol-result'); if (!host) return;
-    const r = cc.solResult; if (!r) { host.innerHTML = ''; return; }
+    const meta = document.getElementById('cc-sol-result-meta');
+    const status = document.getElementById('cc-sol-status');
+    if (status) status.innerHTML = ccSolStatusHtml();
+    const r = cc.solResult; if (!r) { host.innerHTML = `<p class="fp-muted">${esc(T('qb_results_empty'))}</p>`; return; }
     if (r.error || r.ok === false) {
+      if (meta) meta.textContent = '';
       host.innerHTML = `<p><span class="fp-tag fp-tag-danger">${esc(r.error || (r.errors || []).join(' · ') || i18n.t('msg.echec'))}</span></p>`;
       return;
     }
     const rows = r.rows;
     if (!rows || !rows.length) {
-      host.innerHTML = `<p class="fp-muted">${esc(T("msg_sol_no_rows"))}${r.row_count != null ? ` (${r.row_count})` : ''}</p>`
+      if (meta) meta.textContent = r.row_count != null ? String(r.row_count) : '0';
+      host.innerHTML = `<p class="fp-muted">${esc(T('msg_sol_no_rows'))}${r.row_count != null ? ` (${r.row_count})` : ''}</p>`
         + (r.raw ? `<details class="fp-section-spaced"><summary>JSON</summary><pre class="cc-pre">${esc(JSON.stringify(r.raw, null, 1)).slice(0, 8000)}</pre></details>` : '');
       return;
     }
-    // Table dynamique : union des clés des 50 premières lignes
     const cols = [...new Set(rows.slice(0, 50).flatMap((row) => Object.keys(row || {})))].slice(0, 12);
-    host.innerHTML = `<p class="fp-muted">${r.row_count ?? rows.length} ${esc(T("col_results"))}</p>`
-      + TC.table(cols.map((c) => ({ label: c, render: (row) => esc(typeof row[c] === 'object' ? JSON.stringify(row[c]) : row[c] ?? '—') })),
-        rows.slice(0, 200), { empty: T("msg_sol_no_rows") });
+    if (meta) meta.textContent = `${r.row_count ?? rows.length} ${T('col_results')}`;
+    const expandIdx = cc.solExpandIdx;
+    host.innerHTML = TC.table([
+      { label: '', render: (_row, idx) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm cc-qb-expand" data-act="cc-sol-expand" data-idx="${idx}" title="${esc(T('qb_expand'))}" aria-label="${esc(T('qb_expand'))}">⤢</button>` },
+      ...cols.map((c) => ({
+        label: c,
+        render: (row) => {
+          const v = row[c];
+          if (v == null) return '<span class="fp-muted">null</span>';
+          if (typeof v === 'object') return `<code class="cc-qb-cell">${esc(JSON.stringify(v)).slice(0, 120)}</code>`;
+          return esc(String(v));
+        },
+      })),
+    ], rows.slice(0, 200), { empty: T('msg_sol_no_rows') })
+      + (expandIdx != null && rows[expandIdx]
+        ? `<details class="cc-qb-rowdetail" open><summary>${esc(T('qb_row_detail'))} #${expandIdx + 1}</summary>
+            <pre class="cc-pre">${esc(JSON.stringify(rows[expandIdx], null, 2)).slice(0, 12000)}</pre></details>`
+        : '');
+  }
+  function ccSolExpand(idx) {
+    cc.solExpandIdx = Number.isFinite(idx) ? idx : null;
+    ccRenderSolResult();
+  }
+  function ccSolExport() {
+    const rows = (cc.solResult && cc.solResult.rows) || [];
+    if (!rows.length) { TC.toast(T('msg_sol_no_rows'), 'warn'); return; }
+    TC.exportJSON('query-builder.json', rows);
   }
 
   function ccRenderSolExamples() {
@@ -1098,30 +1301,54 @@
     ], items, { empty: T("msg_sol_lib_empty") });
   }
 
+  function ccSolCurrentQuery() {
+    if (cc.solMode === 'form') {
+      ccSolReadForm();
+      return ccSolFormToQuery();
+    }
+    const ta = val('cc-sol-query');
+    if (ta) cc.solQuery = ta;
+    return cc.solQuery || ccSolDefaultQuery();
+  }
   async function ccSolValidate() {
-    cc.solQuery = val('cc-sol-query');
+    cc.solQuery = ccSolCurrentQuery();
     cc.sol = await TC.api('/sekoia/sol/validate', { method: 'POST', body: { query: cc.solQuery } });
     ccRenderSolFeedback();
   }
   async function ccSolRun() {
-    cc.solQuery = val('cc-sol-query');
-    cc.solLimit = parseInt(val('cc-sol-limit') || '100', 10) || 100;
-    cc.solResult = { rows: null, raw: null };
-    ccRenderSolResult();
+    cc.solQuery = ccSolCurrentQuery();
+    const lim = cc.solMode === 'form'
+      ? (parseInt((cc.solForm || {}).limit, 10) || 1000)
+      : (parseInt(val('cc-sol-limit') || String(cc.solLimit || 1000), 10) || 1000);
+    cc.solLimit = Math.min(Math.max(lim, 1), 10000);
+    cc.solExpandIdx = null;
+    cc.solRunMeta = { running: true, startedAt: Date.now() };
+    cc.solResult = null;
+    const status = document.getElementById('cc-sol-status');
+    if (status) status.innerHTML = ccSolStatusHtml();
+    const host = document.getElementById('cc-sol-result');
+    if (host) host.innerHTML = TC.tableLoading(5, i18n.t('ui.loading'));
+    const t0 = performance.now();
     const r = await TC.api('/sekoia/sol/run', { method: 'POST', body: { query: cc.solQuery, limit: cc.solLimit } });
-    cc.sol = r; // erreurs de validation + warnings remontés par run
+    cc.solRunMeta = { running: false, finishedAt: Date.now(), ms: Math.round(performance.now() - t0) };
+    cc.sol = r;
     cc.solResult = r;
     ccRenderSolFeedback();
     ccRenderSolResult();
   }
   async function ccSolSave() {
-    const query = val('cc-sol-query') || cc.solQuery || '';
-    if (!query.trim()) { TC.toast(T("msg_sol_empty_first"), 'warn'); return; }
-    const name = await askText(T("act_sol_save"), T("col_nom"), '');
+    const query = ccSolCurrentQuery();
+    if (!query.trim()) { TC.toast(T('msg_sol_empty_first'), 'warn'); return; }
+    const name = await askText(T('act_sol_save'), T('col_nom'), cc.solLabel || '');
     if (!name) return;
+    cc.solLabel = name;
     const r = await TC.api('/sekoia/sol/library', { method: 'POST', body: { name, query, tags: [] } });
-    if (r && r.ok) { TC.toast(T("msg_sol_saved"), 'ok'); ccSolLoadLib(); }
-    else TC.toast((r && (r.error || (r.errors || []).join(' · '))) || i18n.t('msg.echec'), 'warn');
+    if (r && r.ok) {
+      TC.toast(T('msg_sol_saved'), 'ok');
+      const lab = document.querySelector('.cc-qb-label .fp-tag');
+      if (lab) lab.textContent = name;
+      ccSolLoadLib();
+    } else TC.toast((r && (r.error || (r.errors || []).join(' · '))) || i18n.t('msg.echec'), 'warn');
   }
   async function ccSolLoadLib() {
     cc.solLib = await TC.api('/sekoia/sol/library');
@@ -1137,8 +1364,10 @@
     const entry = items.find((e) => e.id === id);
     if (!entry) return;
     cc.solQuery = entry.query;
-    const ta = document.getElementById('cc-sol-query'); if (ta) { ta.value = entry.query; ta.focus(); }
-    TC.toast(T("msg_sol_loaded"), 'ok');
+    cc.solLabel = entry.name || '';
+    cc.solMode = 'code';
+    ccRenderSol();
+    TC.toast(T('msg_sol_loaded'), 'ok');
   }
   async function ccSolDel(id) {
     const r = await TC.api(`/sekoia/sol/library/${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -1149,8 +1378,10 @@
     const ex = ((cc.solExamples || {}).items || [])[idx];
     if (!ex) return;
     cc.solQuery = ex.query;
-    const ta = document.getElementById('cc-sol-query'); if (ta) { ta.value = ex.query; ta.focus(); }
-    TC.toast(T("msg_sol_loaded"), 'ok');
+    cc.solLabel = ex.name || '';
+    cc.solMode = 'code';
+    ccRenderSol();
+    TC.toast(T('msg_sol_loaded'), 'ok');
   }
 
   function ccRenderStats() {

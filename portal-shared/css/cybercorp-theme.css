@@ -1094,7 +1094,103 @@
 [data-edition="cybercorp"] .cc-healthbar-warn { background: var(--warning); }
 [data-edition="cybercorp"] .cc-healthbar-crit { background: var(--danger); }
 
-/* ── v2.3 : workspace SOL + onglet Incident SOAR ─────────────────────────── */
+/* ── Query Builder SOL (aligné console Sekoia) ───────────────────────────── */
+[data-edition="cybercorp"] .cc-cc-shell--qb { gap: 0.5rem; }
+[data-edition="cybercorp"] .cc-qb-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+[data-edition="cybercorp"] .cc-qb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+[data-edition="cybercorp"] .cc-qb-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+[data-edition="cybercorp"] .cc-qb-label { margin: 0.35rem 0 0; }
+[data-edition="cybercorp"] .cc-qb-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.35rem;
+}
+[data-edition="cybercorp"] .cc-qb-tab {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted, var(--muted));
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.45rem 0.75rem;
+  margin-bottom: -1px;
+}
+[data-edition="cybercorp"] .cc-qb-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+[data-edition="cybercorp"] .cc-qb-doc {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+[data-edition="cybercorp"] .cc-qb-doc:hover { text-decoration: underline; }
+[data-edition="cybercorp"] .cc-qb-editor {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated, var(--bg-surface));
+  padding: 0.75rem;
+}
+[data-edition="cybercorp"] .cc-qb-code-wrap { display: flex; flex-direction: column; gap: 0.4rem; }
+[data-edition="cybercorp"] .cc-qb-hint { margin: 0; font-size: 0.8rem; }
+[data-edition="cybercorp"] .cc-qb-runbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+[data-edition="cybercorp"] .cc-qb-status { font-size: 0.85rem; }
+[data-edition="cybercorp"] .cc-qb-results {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated, var(--bg-surface));
+  padding: 0.75rem;
+  min-height: 12rem;
+}
+[data-edition="cybercorp"] .cc-qb-results-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+[data-edition="cybercorp"] .cc-qb-cell {
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 0.78rem;
+}
+[data-edition="cybercorp"] .cc-qb-rowdetail { margin-top: 0.75rem; }
+[data-edition="cybercorp"] .cc-qb-aside {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.65rem 0.85rem;
+  background: var(--bg);
+}
+[data-edition="cybercorp"] .cc-qb-aside > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
 [data-edition="cybercorp"] .cc-sol-editor {
   font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
   font-size: 0.86rem;
@@ -1102,6 +1198,8 @@
   tab-size: 2;
   white-space: pre;
   resize: vertical;
+  min-height: 14rem;
+  background: var(--bg);
 }
 [data-edition="cybercorp"] .cc-sol-errlist,
 [data-edition="cybercorp"] .cc-sol-warnlist {

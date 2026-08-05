@@ -848,10 +848,7 @@ async def intakes():
                     source="sekoia-intakes", extra={"stats": full["stats"]})
 
 
-@app.get("/control/sekoia/assets", dependencies=[Depends(require_internal_token)])
-async def assets():
-    full = await get_full()
-    return envelope(full["inventory"]["main_inventory"], source="sekoia-assets")
+# Inventaire Assets réel : voir assets.py (API Asset Management v2).
 
 
 @app.get("/control/sekoia/connectors", dependencies=[Depends(require_internal_token)])
@@ -1507,11 +1504,60 @@ async def bulk_intakes(request: Request):
 
 @app.post("/control/sekoia/rules/bulk", dependencies=[Depends(require_internal_token)])
 async def bulk_rules(request: Request):
-    ids, action, bad = _parse_bulk(await request.json())
-    if bad:
-        return bad
-    return await _bulk_apply(ids, action, "/api/v1/sic/conf/rules/{id}",
-                             {"enabled": action == "enable"})
+    body = await request.json()
+    ids = [str(x) for x in (body.get("ids") or []) if x][:200]
+    action = str(body.get("action") or "").lower()
+    if not ids:
+        return JSONResponse({"ok": False, "error": "ids[] requis (max 200)"}, status_code=400)
+    if action in ("enable", "disable"):
+        return await _bulk_apply(ids, action, "/api/v1/sic/conf/rules/{id}",
+                                 {"enabled": action == "enable"})
+    if action == "set-severity":
+        try:
+            sev = int(body.get("severity"))
+        except (TypeError, ValueError):
+            return JSONResponse({"ok": False, "error": "severity entier requis"}, status_code=400)
+        if not 0 <= sev <= 100:
+            return JSONResponse({"ok": False, "error": "severity 0–100"}, status_code=400)
+        results = []
+        for i in ids:
+            _, err = await sek_request("PATCH", f"/api/v1/sic/conf/rules/{i}",
+                                       json_body={"severity": sev})
+            results.append({"id": i, "ok": err is None, "error": err})
+        invalidate_cache()
+        return {"ok": all(r["ok"] for r in results), "action": action, "severity": sev,
+                "done": sum(1 for r in results if r["ok"]),
+                "failed": sum(1 for r in results if not r["ok"]), "results": results}
+    return JSONResponse({"ok": False, "error": "action enable|disable|set-severity requis"},
+                        status_code=400)
+
+
+@app.post("/control/sekoia/apikeys/bulk", dependencies=[Depends(require_internal_token)])
+async def bulk_apikeys(request: Request):
+    """Lots : disable (DELETE), regenerate, rename prefix — max 50."""
+    body = await request.json()
+    ids = [str(x) for x in (body.get("ids") or []) if x][:50]
+    action = str(body.get("action") or "").lower()
+    if not ids:
+        return JSONResponse({"ok": False, "error": "ids[] requis (max 50)"}, status_code=400)
+    cid, err = await _community()
+    if err:
+        return {"ok": False, "error": err}
+    results = []
+    for kid in ids:
+        base = f"/api/v1/communities/{cid}/api-keys/{kid}"
+        if action in ("disable", "delete", "revoke"):
+            _, e = await sek_request("DELETE", base)
+            results.append({"id": kid, "ok": e is None, "error": e})
+        elif action == "regenerate":
+            _, e = await sek_request("POST", f"{base}/regenerate")
+            results.append({"id": kid, "ok": e is None, "error": e})
+        else:
+            return JSONResponse({"ok": False, "error": "action disable|regenerate requis"},
+                                status_code=400)
+    return {"ok": all(r["ok"] for r in results), "action": action,
+            "done": sum(1 for r in results if r["ok"]),
+            "failed": sum(1 for r in results if not r["ok"]), "results": results}
 
 
 # ── Volumétrie locale temps réel (indices sekoia-monitor) ────────────────────

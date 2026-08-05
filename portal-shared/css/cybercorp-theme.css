@@ -624,6 +624,14 @@
 [data-edition="cybercorp"] .cc-tp-toolbar {
   display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.25rem 0 1rem;
 }
+[data-edition="cybercorp"] .cc-bulk-bar {
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  margin: 0 0 0.75rem;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
 [data-edition="cybercorp"] .cc-tp-banner { margin-bottom: 1rem; }
 [data-edition="cybercorp"] .cc-tp-grid {
   display: grid; grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);

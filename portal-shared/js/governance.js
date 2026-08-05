@@ -76,7 +76,12 @@
     return x.type || 'Autre';
   }
 
-  const assetFilters = { kind: '', crit: '', source: '', q: '', preset: '' };
+  const assetFilters = {
+    type: '', category: '', source: '', tags: '', q: '', preset: '',
+    criticality: '', reviewed: '', sort: 'criticality', direction: 'desc',
+    limit: 50, offset: 0,
+  };
+  const assetState = { items: [], total: 0, stats: null, sel: new Set() };
   const ruleFilters = { source: '', sev: '', type: '', q: '', preset: '' };
   let govAssets = [];
   let govRules = [];
@@ -85,17 +90,24 @@
   let pendingRulePreset = null;
 
   function resetAssetFilters() {
-    Object.assign(assetFilters, { kind: '', crit: '', source: '', q: '', preset: '' });
+    Object.assign(assetFilters, {
+      type: '', category: '', source: '', tags: '', q: '', preset: '',
+      criticality: '', reviewed: '', sort: 'criticality', direction: 'desc',
+      limit: 50, offset: 0,
+    });
+    assetState.sel.clear();
   }
   function resetRuleFilters() {
     Object.assign(ruleFilters, { source: '', sev: '', type: '', q: '', preset: '' });
   }
 
   function assetCardActive(ds) {
-    if (ds.preset) return assetFilters.preset === ds.preset;
+    if (ds.preset === 'critical') return assetFilters.criticality === '80' && !assetFilters.type && !assetFilters.q;
+    if (ds.preset === 'dc') return assetFilters.preset === 'dc';
+    if (ds.fkey === 'type') return assetFilters.type === (ds.fval || '') && !assetFilters.criticality;
     if (ds.fkey) return String(assetFilters[ds.fkey] || '') === String(ds.fval || '');
-    return !assetFilters.preset && !assetFilters.kind && !assetFilters.crit
-      && !assetFilters.source && !assetFilters.q;
+    return !assetFilters.preset && !assetFilters.type && !assetFilters.category
+      && !assetFilters.source && !assetFilters.q && !assetFilters.criticality && !assetFilters.tags;
   }
   function ruleCardActive(ds) {
     if (ds.preset) return ruleFilters.preset === ds.preset;
@@ -111,21 +123,51 @@
 
   function assetFilterSummary() {
     const p = [];
-    if (assetFilters.preset === 'critical') p.push('<strong>assets critiques</strong>');
-    if (assetFilters.preset === 'vuln') p.push('<strong>assets à risque</strong>');
-    if (assetFilters.kind) p.push(`type <strong>${TC.esc(assetFilters.kind)}</strong>`);
-    if (assetFilters.crit) p.push(`criticité <strong>${TC.esc(assetFilters.crit)}</strong>`);
+    if (assetFilters.preset === 'critical' || assetFilters.criticality === '80') p.push('<strong>critiques (≥80)</strong>');
+    if (assetFilters.preset === 'dc') p.push('<strong>DC (estimation)</strong>');
+    if (assetFilters.type) p.push(`type <strong>${TC.esc(assetFilters.type)}</strong>`);
+    if (assetFilters.category) p.push(`catégorie <strong>${TC.esc(assetFilters.category)}</strong>`);
     if (assetFilters.source) p.push(`source <strong>${TC.esc(assetFilters.source)}</strong>`);
+    if (assetFilters.tags) p.push(`tags <strong>${TC.esc(assetFilters.tags)}</strong>`);
+    if (assetFilters.criticality && assetFilters.criticality !== '80') p.push(`criticité ≥ <strong>${TC.esc(assetFilters.criticality)}</strong>`);
+    if (assetFilters.reviewed) p.push(`reviewed <strong>${TC.esc(assetFilters.reviewed)}</strong>`);
     if (assetFilters.q) p.push(`recherche « ${TC.esc(assetFilters.q)} »`);
     return p.join(' · ');
   }
 
   function syncAssetFiltersFromDom() {
     assetFilters.q = (document.getElementById('ga-flt-q') || {}).value || '';
-    assetFilters.kind = (document.getElementById('ga-flt-kind') || {}).value || '';
-    assetFilters.crit = (document.getElementById('ga-flt-crit') || {}).value || '';
+    assetFilters.type = (document.getElementById('ga-flt-type') || {}).value || '';
+    assetFilters.category = (document.getElementById('ga-flt-cat') || {}).value || '';
     assetFilters.source = (document.getElementById('ga-flt-source') || {}).value || '';
-    if (assetFilters.kind || assetFilters.crit || assetFilters.source || assetFilters.q) assetFilters.preset = '';
+    assetFilters.tags = (document.getElementById('ga-flt-tags') || {}).value || '';
+    assetFilters.criticality = (document.getElementById('ga-flt-crit') || {}).value || '';
+    assetFilters.reviewed = (document.getElementById('ga-flt-rev') || {}).value || '';
+    assetFilters.sort = (document.getElementById('ga-flt-sort') || {}).value || 'criticality';
+    assetFilters.direction = (document.getElementById('ga-flt-dir') || {}).value || 'desc';
+    if (assetFilters.type || assetFilters.category || assetFilters.source || assetFilters.q
+        || assetFilters.tags || assetFilters.criticality) {
+      if (assetFilters.preset !== 'dc') assetFilters.preset = '';
+    }
+  }
+
+  function assetQuery() {
+    const p = new URLSearchParams();
+    p.set('limit', String(assetFilters.limit || 50));
+    p.set('offset', String(assetFilters.offset || 0));
+    let search = assetFilters.q || '';
+    if (assetFilters.preset === 'dc' && !search) search = '*DC*';
+    if (search) p.set('search', search);
+    if (assetFilters.type) p.set('type', assetFilters.type);
+    if (assetFilters.category) p.set('category', assetFilters.category);
+    if (assetFilters.source) p.set('source', assetFilters.source);
+    if (assetFilters.tags) p.set('tags', assetFilters.tags);
+    if (assetFilters.criticality) p.set('criticality', assetFilters.criticality);
+    if (assetFilters.reviewed) p.set('reviewed', assetFilters.reviewed);
+    if (assetFilters.sort) p.set('sort', assetFilters.sort);
+    if (assetFilters.direction) p.set('direction', assetFilters.direction);
+    if (assetFilters.tags || assetFilters.q) p.set('also_search_in_tags', '1');
+    return p.toString();
   }
 
   function syncRuleFiltersFromDom() {
@@ -142,105 +184,315 @@
     if (keyFiltersG.source || keyFiltersG.q) keyFiltersG.preset = '';
   }
 
-  // ── Assets Inventory + dashboards + filtres + export ────────────────────────
+  // ── Assets Inventory v2 — dashboard + filtres serveur + édition + lots ──────
   async function loadAssets() {
     const root = document.getElementById('gov-assets-root'); if (!root) return; loading(root);
     const preset = pendingAssetPreset; pendingAssetPreset = null;
-    const sek = await TC.api('/sekoia/assets');
-    const sekItems = (sek.items || []).map((a) => ({
-      name: pick(a, ['name', 'hostname', 'intake_name', 'uuid', 'id']), source: 'Sekoia',
-      type: pick(a, ['type', 'asset_type', 'category', 'intake_format_name_via_script']) || '—',
-      crit: pick(a, ['criticality', 'risk', 'severity']) || '—', raw: a,
+    if (preset) {
+      resetAssetFilters();
+      Object.assign(assetFilters, preset);
+    }
+    await fetchAssetsPage(root, true);
+  }
+
+  async function fetchAssetsPage(root, withStats) {
+    if (!root) root = document.getElementById('gov-assets-root');
+    if (!root) return;
+    if (!root.querySelector('#gov-assets-list')) loading(root);
+    const [sek, st] = await Promise.all([
+      TC.api(`/sekoia/assets?${assetQuery()}`),
+      withStats ? TC.api('/sekoia/assets/stats') : Promise.resolve(assetState.stats),
+    ]);
+    assetState.items = sek.items || [];
+    assetState.total = sek.total != null ? sek.total : assetState.items.length;
+    if (st && st.available) assetState.stats = st;
+    const stats = assetState.stats || {};
+    govAssets = assetState.items.map((a) => ({
+      name: a.name, source: a.source || 'Sekoia', type: a.type, kind: a.type,
+      crit: a.criticality_display || a.criticality, raw: a, uuid: a.uuid,
     }));
-    govAssets = sekItems.map((x) => Object.assign(x, { kind: kindOf(x) }));
-    if (preset) Object.assign(assetFilters, { kind: '', crit: '', source: '', q: '', preset: '' }, preset);
 
-    const dcs = govAssets.filter((x) => x.kind === 'DC').length;
-    const critical = govAssets.filter((x) => isCritical(x.raw)).length;
     const C = (label, val, tone, ds) => clickCard(label, val, tone, ds, assetCardActive(ds));
+    const total = stats.total != null ? stats.total : assetState.total;
+    const page = Math.floor((assetFilters.offset || 0) / (assetFilters.limit || 50)) + 1;
+    const pages = Math.max(1, Math.ceil(total / (assetFilters.limit || 50)));
 
-    root.innerHTML = TC.configBanner(sek.configured ? null : sek) + (sek.token_expired ? TC.staleBanner(sek) : '')
-      + toolbar('Governance.loadAssets()', `<button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="save-view">${i18n.t('msg.creer_une_vue')}</button>`)
+    root.innerHTML = TC.configBanner(sek.configured === false ? sek : null)
+      + (sek.token_expired ? TC.staleBanner(sek) : TC.errBanner(sek))
+      + toolbar('Governance.loadAssets()',
+        `<button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="ga-create">+ Asset</button>
+         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="save-view">${i18n.t('msg.creer_une_vue')}</button>`)
       + `<div class="cc-tp-dashgrid">
-          ${C('Domain Controllers', dcs, '', { fkey: 'kind', fval: 'DC' })}
-          ${C('Assets critiques', critical, 'danger', { preset: 'critical' })}
-          ${C('Total assets', govAssets.length, '', { preset: '' })}
+          ${C('Total assets', total, '', { preset: '' })}
+          ${C('Hosts', stats.hosts || 0, 'accent', { fkey: 'type', fval: 'host' })}
+          ${C('Accounts', stats.accounts || 0, '', { fkey: 'type', fval: 'account' })}
+          ${C('Networks', stats.networks || 0, '', { fkey: 'type', fval: 'network' })}
+          ${C('Critiques (≥80)', stats.critical || 0, 'danger', { preset: 'critical' })}
+          ${C('DC (estim.)', stats.dc_estimate || 0, 'warn', { preset: 'dc' })}
         </div>`
-      + `<div class="cc-tp-grid"><div id="gov-assets-chart" class="cc-tp-chart"></div>
-         <div class="cc-tp-stats">${C('Sekoia', sekItems.length, 'accent', { fkey: 'source', fval: 'Sekoia' })}</div></div>`
+      + `<div class="cc-tp-grid">
+          <div id="gov-assets-chart-type" class="cc-tp-chart"></div>
+          <div id="gov-assets-chart-crit" class="cc-tp-chart"></div>
+        </div>`
       + '<div id="ga-flt-hint"></div>'
       + `<div id="ga-filterbar-host">${assetFilterBar()}</div>`
-      + '<div id="gov-assets-list"></div>';
-    TC.chart('gov-assets-chart', TC.pieOption(TC.countBy(govAssets, (x) => x.source)), 240);
-    applyAssetFilters();
+      + `<div class="cc-tp-toolbar cc-bulk-bar">
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-sel-page">☑ Page</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-sel-clear">✗</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-bulk-crit">Criticité lot… (<span id="ga-sel-n">0</span>)</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-bulk-tags">Tags lot…</button>
+          <button type="button" class="fp-btn fp-btn-danger-ghost fp-btn-sm" data-act="ga-bulk-revoke">Révoquer lot</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-export-sel">Export sélection</button>
+        </div>`
+      + `<p class="fp-ds-muted" id="ga-page-meta">Page ${page} / ${pages} — ${assetState.items.length} affiché(s) / ${total}</p>`
+      + '<div id="gov-assets-list"></div>'
+      + `<div class="cc-tp-toolbar">
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-prev" ${assetFilters.offset <= 0 ? 'disabled' : ''}>← Préc.</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-next" ${(assetFilters.offset + assetFilters.limit) >= total ? 'disabled' : ''}>Suiv. →</button>
+        </div>`
+      + '<div id="gov-asset-detail" class="cc-tp-detail"></div>';
+
+    const byType = stats.by_type || {};
+    const byCrit = stats.by_criticality || {};
+    TC.chart('gov-assets-chart-type', TC.pieOption({
+      host: byType.host || 0, account: byType.account || 0, network: byType.network || 0,
+    }), 220);
+    TC.chart('gov-assets-chart-crit', TC.barOption({
+      '≥80': byCrit.high_80 || 0,
+      '50–79': byCrit.medium_only || 0,
+      '20–49': byCrit.low_only || 0,
+      '<20': byCrit.info || 0,
+    }, '#EF4444'), 220);
+
+    renderAssetsList();
+    filterHint('ga-flt-hint', assetFilterSummary(), total, assetState.items.length);
+    updateCardActive(root, assetCardActive);
+    syncGaSel();
+
+    if (root._gaBound) return;
+    root._gaBound = true;
     delegate(root, {
       'card-filter': (el) => {
         resetAssetFilters();
-        if (el.dataset.preset != null) assetFilters.preset = el.dataset.preset;
-        if (el.dataset.fkey) assetFilters[el.dataset.fkey] = el.dataset.fval || '';
-        const fb = document.getElementById('ga-filterbar-host'); if (fb) fb.innerHTML = assetFilterBar();
-        applyAssetFilters();
-        if (fb) fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (el.dataset.preset === 'critical') assetFilters.criticality = '80';
+        else if (el.dataset.preset === 'dc') { assetFilters.preset = 'dc'; assetFilters.type = 'host'; }
+        else if (el.dataset.fkey === 'type') assetFilters.type = el.dataset.fval || '';
+        fetchAssetsPage(root, false);
       },
-      'ga-reset': () => {
-        resetAssetFilters();
-        const fb = document.getElementById('ga-filterbar-host'); if (fb) fb.innerHTML = assetFilterBar();
-        applyAssetFilters();
+      'ga-reset': () => { resetAssetFilters(); fetchAssetsPage(root, true); },
+      'ga-apply': () => { syncAssetFiltersFromDom(); assetFilters.offset = 0; fetchAssetsPage(root, false); },
+      'ga-prev': () => {
+        assetFilters.offset = Math.max(0, (assetFilters.offset || 0) - (assetFilters.limit || 50));
+        fetchAssetsPage(root, false);
       },
-      'export-csv': () => TC.exportCSV('governance-assets.csv', filteredAssets(), [
-        { key: 'name', label: 'asset' }, { key: 'source', label: 'source' }, { key: 'kind', label: 'type' }, { key: 'crit', label: 'criticite' }]),
-      'export-json': () => TC.exportJSON('governance-assets.json', filteredAssets()),
-      'save-view': () => saveView('gov-assets', assetFilters),
+      'ga-next': () => {
+        assetFilters.offset = (assetFilters.offset || 0) + (assetFilters.limit || 50);
+        fetchAssetsPage(root, false);
+      },
+      'ga-sel-toggle': (el) => {
+        const id = el.dataset.id;
+        if (el.checked) assetState.sel.add(id); else assetState.sel.delete(id);
+        syncGaSel();
+      },
+      'ga-sel-page': () => { assetState.items.forEach((a) => assetState.sel.add(a.uuid)); renderAssetsList(); syncGaSel(); },
+      'ga-sel-clear': () => { assetState.sel.clear(); renderAssetsList(); syncGaSel(); },
+      'ga-bulk-crit': async () => {
+        const ids = Array.from(assetState.sel);
+        if (!ids.length) return TC.toast('Aucune sélection', 'warn');
+        const v = window.prompt('Nouvelle criticité (0–100)', '80');
+        if (v == null || v === '') return;
+        const n = Number(v);
+        if (Number.isNaN(n) || n < 0 || n > 100) return TC.toast('Valeur invalide', 'warn');
+        if (!confirm(`Criticité ${n} sur ${ids.length} asset(s) ?`)) return;
+        const r = await TC.api('/sekoia/assets/bulk', { method: 'POST', body: { ids, action: 'criticality', criticality: n } });
+        TC.toast(r && r.ok ? 'Lot criticité OK' : ((r && r.error) || 'Échec'), r && r.ok ? 'ok' : 'warn');
+        if (r && r.ok) { assetState.sel.clear(); fetchAssetsPage(root, true); }
+      },
+      'ga-bulk-tags': async () => {
+        const ids = Array.from(assetState.sel);
+        if (!ids.length) return TC.toast('Aucune sélection', 'warn');
+        const tags = window.prompt('Tags à ajouter (virgules)', 'cert,review');
+        if (!tags) return;
+        if (!confirm(`Ajouter tags « ${tags} » à ${ids.length} asset(s) ?`)) return;
+        const r = await TC.api('/sekoia/assets/bulk', { method: 'POST', body: { ids, action: 'tags', new_tags: tags } });
+        TC.toast(r && r.ok ? 'Lot tags OK' : ((r && r.error) || 'Échec'), r && r.ok ? 'ok' : 'warn');
+        if (r && r.ok) { assetState.sel.clear(); fetchAssetsPage(root, false); }
+      },
+      'ga-bulk-revoke': async () => {
+        const ids = Array.from(assetState.sel);
+        if (!ids.length) return TC.toast('Aucune sélection', 'warn');
+        if (!confirm(`RÉVOQUER ${ids.length} asset(s) ?`)) return;
+        const r = await TC.api('/sekoia/assets/bulk', { method: 'POST', body: { ids, action: 'revoke' } });
+        TC.toast(r && r.ok ? 'Lot révocation OK' : ((r && r.error) || 'Échec'), r && r.ok ? 'ok' : 'warn');
+        if (r && r.ok) { assetState.sel.clear(); fetchAssetsPage(root, true); }
+      },
+      'ga-export-sel': () => {
+        const rows = assetState.items.filter((a) => assetState.sel.has(a.uuid));
+        if (!rows.length) return TC.toast('Aucune sélection', 'warn');
+        TC.exportJSON('sekoia-assets-selection.json', rows);
+      },
+      'ga-detail': (el) => showAssetDetail(el.dataset.id),
+      'ga-save': () => saveAssetEdit(),
+      'ga-create': async () => {
+        const name = window.prompt('Nom du nouvel asset', '');
+        if (!name || name.length < 2) return;
+        const type = window.prompt('Type (host|account|network)', 'host') || 'host';
+        const r = await TC.api('/sekoia/assets', { method: 'POST', body: { name, type, criticality: 0, source: 'manual' } });
+        TC.toast(r && r.ok ? 'Asset créé' : ((r && r.error) || 'Échec création'), r && r.ok ? 'ok' : 'warn');
+        if (r && r.ok) fetchAssetsPage(root, true);
+      },
+      'export-csv': () => TC.exportCSV('governance-assets.csv', assetState.items, [
+        { key: 'name', label: 'asset' }, { key: 'type', label: 'type' }, { key: 'category', label: 'category' },
+        { key: 'criticality', label: 'criticite' }, { key: 'source', label: 'source' },
+        { key: 'tags_str', label: 'tags' }, { key: 'uuid', label: 'uuid' }]),
+      'export-json': () => TC.exportJSON('governance-assets.json', assetState.items),
+      'save-view': () => saveView('gov-assets', {
+        type: assetFilters.type, category: assetFilters.category, source: assetFilters.source,
+        tags: assetFilters.tags, q: assetFilters.q, criticality: assetFilters.criticality,
+        preset: assetFilters.preset, sort: assetFilters.sort, direction: assetFilters.direction,
+      }),
     });
-    const onFltDebounced = debounceRender(applyAssetFilters);
     const onFlt = (e) => {
       if (!e.target.id || e.target.id.indexOf('ga-flt-') !== 0) return;
-      syncAssetFiltersFromDom();
-      onFltDebounced();
+      if (e.type === 'change' || (e.type === 'keydown' && e.key === 'Enter')) {
+        syncAssetFiltersFromDom();
+        assetFilters.offset = 0;
+        fetchAssetsPage(root, false);
+      }
     };
-    root.addEventListener('input', onFlt);
     root.addEventListener('change', onFlt);
+    root.addEventListener('keydown', onFlt);
+  }
+
+  function syncGaSel() {
+    const n = document.getElementById('ga-sel-n');
+    if (n) n.textContent = String(assetState.sel.size);
   }
 
   function assetFilterBar() {
+    const critOpts = [
+      ['', '— criticité : toutes —'], ['80', '≥ 80 (high)'], ['50', '≥ 50'], ['20', '≥ 20'], ['0', '≥ 0'],
+    ].map(([v, l]) => `<option value="${v}"${assetFilters.criticality === v ? ' selected' : ''}>${l}</option>`).join('');
+    const typeOpts = ['', 'host', 'account', 'network'].map((v) =>
+      `<option value="${v}"${assetFilters.type === v ? ' selected' : ''}>${v || '— type : tous —'}</option>`).join('');
+    const catOpts = ['', 'server', 'desktop', 'user', 'technical'].map((v) =>
+      `<option value="${v}"${assetFilters.category === v ? ' selected' : ''}>${v || '— catégorie —'}</option>`).join('');
+    const srcOpts = ['', 'manual', 'automatic', 'import'].map((v) =>
+      `<option value="${v}"${assetFilters.source === v ? ' selected' : ''}>${v || '— source —'}</option>`).join('');
+    const revOpts = [
+      ['', '— reviewed —'], ['true', 'Reviewed'], ['false', 'Non reviewed'],
+    ].map(([v, l]) => `<option value="${v}"${assetFilters.reviewed === v ? ' selected' : ''}>${l}</option>`).join('');
+    const sortOpts = ['criticality', 'name', 'updated_at', 'created_at', 'type'].map((v) =>
+      `<option value="${v}"${assetFilters.sort === v ? ' selected' : ''}>tri : ${v}</option>`).join('');
     return `<div class="cc-tp-filterbar">
-      <input class="fp-input fp-input-sm" id="ga-flt-q" placeholder="🔎 Recherche libre…" value="${TC.esc(assetFilters.q)}" autocomplete="off">
-      <select class="fp-select fp-input-sm" id="ga-flt-kind" title="Type">${opts(govAssets.map((x) => x.kind), assetFilters.kind)}</select>
-      <select class="fp-select fp-input-sm" id="ga-flt-crit" title="${TC.esc(i18n.t('msg.criticite'))}">${opts(govAssets.map((x) => x.crit), assetFilters.crit)}</select>
-      <select class="fp-select fp-input-sm" id="ga-flt-source" title="Source">${opts(govAssets.map((x) => x.source), assetFilters.source)}</select>
+      <input class="fp-input fp-input-sm" id="ga-flt-q" placeholder="🔎 Recherche nom…" value="${TC.esc(assetFilters.q)}" autocomplete="off">
+      <select class="fp-select fp-input-sm" id="ga-flt-type">${typeOpts}</select>
+      <select class="fp-select fp-input-sm" id="ga-flt-cat">${catOpts}</select>
+      <select class="fp-select fp-input-sm" id="ga-flt-crit">${critOpts}</select>
+      <select class="fp-select fp-input-sm" id="ga-flt-source">${srcOpts}</select>
+      <select class="fp-select fp-input-sm" id="ga-flt-rev">${revOpts}</select>
+      <input class="fp-input fp-input-sm" id="ga-flt-tags" placeholder="tags (virgules)" value="${TC.esc(assetFilters.tags)}">
+      <select class="fp-select fp-input-sm" id="ga-flt-sort">${sortOpts}</select>
+      <select class="fp-select fp-input-sm" id="ga-flt-dir">
+        <option value="desc"${assetFilters.direction === 'desc' ? ' selected' : ''}>desc</option>
+        <option value="asc"${assetFilters.direction === 'asc' ? ' selected' : ''}>asc</option>
+      </select>
       <span class="cc-tp-filter-actions">
-        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-reset">↺ Réinitialiser</button>
+        <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="ga-apply">Filtrer</button>
+        <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-reset">↺</button>
         ${TC.exportButtons()}</span>
     </div>`;
   }
 
-  function filteredAssets() {
-    return govAssets.filter((x) => {
-      if (assetFilters.preset === 'critical' && !isCritical(x.raw)) return false;
-      if (assetFilters.kind && x.kind !== assetFilters.kind) return false;
-      if (assetFilters.crit && x.crit !== assetFilters.crit) return false;
-      if (assetFilters.source && x.source !== assetFilters.source) return false;
-      if (assetFilters.q && !TC.matchText(x, assetFilters.q)) return false;
-      return true;
-    });
-  }
+  function filteredAssets() { return assetState.items; }
 
   function applyAssetFilters() {
     syncAssetFiltersFromDom();
-    renderAssetsList();
-    updateCardActive(document.getElementById('gov-assets-root'), assetCardActive);
-    filterHint('ga-flt-hint', assetFilterSummary(), govAssets.length, filteredAssets().length);
+    assetFilters.offset = 0;
+    fetchAssetsPage(document.getElementById('gov-assets-root'), false);
   }
 
   function renderAssetsList() {
     const host = document.getElementById('gov-assets-list'); if (!host) return;
-    const rows = filteredAssets();
+    const rows = assetState.items;
     renderGovTable(host, [
+      { label: '', render: (x) => `<input type="checkbox" data-act="ga-sel-toggle" data-id="${TC.esc(x.uuid)}"${assetState.sel.has(x.uuid) ? ' checked' : ''}>` },
       { label: 'Asset', render: (x) => TC.esc(x.name) },
-      { label: 'Source', render: (x) => `<span class="fp-tag">${TC.esc(x.source)}</span>` },
-      { label: 'Type', render: (x) => TC.esc(x.kind) },
-      { label: i18n.t('msg.criticite'), render: (x) => TC.esc(x.crit) },
+      { label: 'Type', render: (x) => `<span class="fp-tag">${TC.esc(x.type)}</span>` },
+      { label: 'Catégorie', render: (x) => TC.esc(x.category || '—') },
+      { label: i18n.t('msg.criticite'), render: (x) => {
+        const n = Number(x.criticality) || 0;
+        const tone = n >= 80 ? 'danger' : n >= 50 ? 'warn' : '';
+        return `<span class="fp-tag${tone ? ' fp-tag-' + tone : ''}">${TC.esc(String(n))} (${TC.esc(x.criticality_display || '—')})</span>`;
+      } },
+      { label: 'OS', render: (x) => TC.esc(x.os || (x.props && x.props.os) || '—') },
+      { label: 'Tags', render: (x) => TC.esc(x.tags_str || (x.tags || []).join(', ') || '—') },
+      { label: 'Source', render: (x) => TC.esc(x.source || '—') },
+      { label: '', render: (x) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="ga-detail" data-id="${TC.esc(x.uuid)}">${i18n.t('table_cols.detail')}</button>` },
     ], rows, { empty: i18n.t('msg.aucun_asset_connecteurs_non_configures') });
+  }
+
+  async function showAssetDetail(id) {
+    const d = document.getElementById('gov-asset-detail'); if (!d) return;
+    d.innerHTML = `<p class="fp-muted">${i18n.t('ui.loading')}</p>`;
+    const r = await TC.api(`/sekoia/assets/${encodeURIComponent(id)}`);
+    if (!r || !r.ok || !r.item) {
+      d.innerHTML = `<p class="fp-muted">${TC.esc((r && r.error) || 'Asset introuvable')}</p>`;
+      return;
+    }
+    const a = r.item;
+    const propsJson = TC.esc(JSON.stringify(a.props || {}, null, 2));
+    d.innerHTML = `<div class="cc-tp-detail-card">
+      <h3 class="fp-section-sub">Asset — ${TC.esc(a.name)}</h3>
+      <div class="fp-table-wrap"><table class="fp-table cc-kv">
+        <tr><th>UUID</th><td>${TC.esc(a.uuid)}</td></tr>
+        <tr><th>Type</th><td>${TC.esc(a.type)}</td></tr>
+        <tr><th>Catégorie</th><td>${TC.esc(a.category)}</td></tr>
+        <tr><th>Criticité</th><td>${TC.esc(String(a.criticality))} (${TC.esc(a.criticality_display)})</td></tr>
+        <tr><th>Tags</th><td>${TC.esc(a.tags_str || '—')}</td></tr>
+        <tr><th>Source</th><td>${TC.esc(a.source)}</td></tr>
+        <tr><th>Reviewed</th><td>${a.reviewed ? 'oui' : 'non'}</td></tr>
+        <tr><th>Créé</th><td>${TC.esc(a.created_at || '—')}</td></tr>
+        <tr><th>Modifié</th><td>${TC.esc(a.updated_at || '—')}</td></tr>
+      </table></div>
+      <h4 class="fp-section-sub fp-section-spaced">Propriétés</h4>
+      <pre class="cc-payload"><code>${propsJson}</code></pre>
+      <h4 class="fp-section-sub fp-section-spaced">Modifier</h4>
+      <input type="hidden" id="ga-edit-id" value="${TC.esc(a.uuid)}">
+      <div class="fp-form-row fp-grid-2">
+        <label class="fp-label">Nom<input class="fp-input" id="ga-edit-name" value="${TC.esc(a.name || '')}"></label>
+        <label class="fp-label">Criticité (0–100)<input class="fp-input" id="ga-edit-crit" type="number" min="0" max="100" value="${TC.esc(String(a.criticality != null ? a.criticality : 0))}"></label>
+      </div>
+      <div class="fp-form-row fp-grid-2">
+        <label class="fp-label">Catégorie<input class="fp-input" id="ga-edit-cat" value="${TC.esc(a.category || '')}"></label>
+        <label class="fp-label">Tags (virgules)<input class="fp-input" id="ga-edit-tags" value="${TC.esc((a.tags || []).join(', '))}"></label>
+      </div>
+      <label class="fp-label">Description<textarea class="fp-input" id="ga-edit-desc" rows="2">${TC.esc(a.description || '')}</textarea></label>
+      <label class="fp-label fp-checkbox-inline"><input type="checkbox" id="ga-edit-rev"${a.reviewed ? ' checked' : ''}> Reviewed</label>
+      <div class="fp-actions-row"><button type="button" class="fp-btn fp-btn-primary" data-act="ga-save">Enregistrer</button></div>
+    </div>`;
+    d.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function saveAssetEdit() {
+    const id = (document.getElementById('ga-edit-id') || {}).value;
+    if (!id) return;
+    const tags = String((document.getElementById('ga-edit-tags') || {}).value || '')
+      .split(',').map((t) => t.trim()).filter(Boolean);
+    const body = {
+      name: (document.getElementById('ga-edit-name') || {}).value,
+      description: (document.getElementById('ga-edit-desc') || {}).value,
+      category: (document.getElementById('ga-edit-cat') || {}).value || null,
+      criticality: Number((document.getElementById('ga-edit-crit') || {}).value || 0),
+      tags,
+      reviewed: !!(document.getElementById('ga-edit-rev') || {}).checked,
+    };
+    const r = await TC.api(`/sekoia/assets/${encodeURIComponent(id)}`, { method: 'PUT', body });
+    if (r && r.ok) {
+      TC.toast(i18n.t('msg.action_appliquee'), 'ok');
+      fetchAssetsPage(document.getElementById('gov-assets-root'), false);
+      showAssetDetail(id);
+    } else TC.toast((r && r.error) || i18n.t('msg.action_refusee_verifier_configuration_api'), 'warn');
   }
 
   // ── Rules Inventory + filtres + export ──────────────────────────────────────

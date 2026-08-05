@@ -374,17 +374,23 @@
   }
 
   // ── Sekoia : Rule Explorer avancé ───────────────────────────────────────────
-  const ruleFilters = { type: '', dialect: '', tag: '', sevMin: '', sevMax: '', q: '', datasource: '', mitre: '', cve: '', payload: '' };
+  const ruleFilters = { type: '', dialect: '', tag: '', sevMin: '', sevMax: '', q: '', datasource: '', mitre: '', cve: '', payload: '', enabled: '', lifecycle: '' };
   const ruleOrig = {}; // snapshot {uuid:{enabled,severity}} pour le Diff Viewer
+  const ruleSel = new Set();
 
   function ruleFilterBar() {
     const R = sekData.rules;
     const tags = uniq([].concat(...R.map((r) => (r.rule_tags || '').split(',').map((t) => t.trim()).filter(Boolean))));
     const dialects = uniq([].concat(...R.map((r) => (r.rule_dialect_names || '').split(',').map((t) => t.trim()).filter(Boolean))));
     const datasources = uniq([].concat(...R.map((r) => (r.rule_datasources || '').split(',').map((t) => t.trim()).filter(Boolean))));
+    const enSel = (v, l) => `<option value="${v}"${ruleFilters.enabled === v ? ' selected' : ''}>${l}</option>`;
     return `<div class="cc-tp-filterbar">
       <input class="fp-input fp-input-sm" id="rule-flt-q" placeholder="🔎 Recherche libre…" value="${TC.esc(ruleFilters.q)}">
       <select class="fp-select fp-input-sm" id="rule-flt-type" title="Type">${opts(R.map((r) => r.rule_type), ruleFilters.type)}</select>
+      <select class="fp-select fp-input-sm" id="rule-flt-enabled" title="État">
+        ${enSel('', '— état : tous —')}${enSel('1', 'Activées')}${enSel('0', 'Désactivées')}
+      </select>
+      <select class="fp-select fp-input-sm" id="rule-flt-lifecycle" title="Lifecycle">${opts(R.map((r) => r.rule_lifecycle), ruleFilters.lifecycle)}</select>
       <select class="fp-select fp-input-sm" id="rule-flt-dialect" title="Dialect">${opts(dialects, ruleFilters.dialect)}</select>
       <select class="fp-select fp-input-sm" id="rule-flt-tag" title="Tag">${opts(tags, ruleFilters.tag)}</select>
       <select class="fp-select fp-input-sm" id="rule-flt-datasource" title="Datasource">${opts(datasources, ruleFilters.datasource)}</select>
@@ -398,26 +404,52 @@
         ${TC.exportButtons()}</span>
     </div>`;
   }
+  function ruleBulkBar() {
+    return `<div class="cc-tp-toolbar cc-bulk-bar" id="rule-bulk-bar">
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="rule-sel-page">☑ Page</button>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="rule-sel-filtered">☑ Filtrées</button>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="rule-sel-clear">✗</button>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="rule-bulk-enable">Activer (<span id="rule-sel-n">0</span>)</button>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="rule-bulk-disable">Désactiver</button>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="rule-bulk-sev">Sévérité lot…</button>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="rule-export-sel">Export sélection</button>
+    </div>`;
+  }
+  function syncRuleSelCount() {
+    const n = document.getElementById('rule-sel-n');
+    if (n) n.textContent = String(ruleSel.size);
+  }
   function resetRuleFilters() {
     ruleFilters.type = ''; ruleFilters.dialect = ''; ruleFilters.tag = ''; ruleFilters.sevMin = '';
     ruleFilters.sevMax = ''; ruleFilters.q = ''; ruleFilters.datasource = ''; ruleFilters.mitre = '';
-    ruleFilters.cve = ''; ruleFilters.payload = '';
+    ruleFilters.cve = ''; ruleFilters.payload = ''; ruleFilters.enabled = ''; ruleFilters.lifecycle = '';
   }
 
   function ruleCardActive(ds) {
+    if (ds.enabled != null && ds.enabled !== '') {
+      return ruleFilters.enabled === String(ds.enabled) && !ruleFilters.type && !ruleFilters.q
+        && ruleFilters.sevMin === '' && ruleFilters.sevMax === '';
+    }
     const hasOther = ruleFilters.type || ruleFilters.dialect || ruleFilters.tag || ruleFilters.q
-      || ruleFilters.datasource || ruleFilters.payload || ruleFilters.mitre || ruleFilters.cve;
+      || ruleFilters.datasource || ruleFilters.payload || ruleFilters.mitre || ruleFilters.cve
+      || ruleFilters.enabled || ruleFilters.lifecycle;
     const smin = ds.smin != null ? String(ds.smin) : '';
     const smax = ds.smax != null ? String(ds.smax) : '';
-    if (smin === '' && smax === '') return !hasOther && ruleFilters.sevMin === '' && ruleFilters.sevMax === '';
-    return !hasOther && String(ruleFilters.sevMin) === smin && String(ruleFilters.sevMax) === smax;
+    if (smin === '' && smax === '' && (ds.enabled == null || ds.enabled === '')) {
+      return !hasOther && ruleFilters.sevMin === '' && ruleFilters.sevMax === '';
+    }
+    return !ruleFilters.enabled && !ruleFilters.lifecycle && !ruleFilters.type
+      && String(ruleFilters.sevMin) === smin && String(ruleFilters.sevMax) === smax;
   }
   function ruleFilterSummary() {
     const p = [];
     if (ruleFilters.sevMin !== '' || ruleFilters.sevMax !== '') {
       p.push(`${i18n.t('msg.severite')} <strong>${TC.esc(ruleFilters.sevMin || '0')}–${TC.esc(ruleFilters.sevMax || '100')}</strong>`);
     }
+    if (ruleFilters.enabled === '1') p.push('<strong>activées</strong>');
+    if (ruleFilters.enabled === '0') p.push('<strong>désactivées</strong>');
     if (ruleFilters.type) p.push(`type <strong>${TC.esc(ruleFilters.type)}</strong>`);
+    if (ruleFilters.lifecycle) p.push(`lifecycle <strong>${TC.esc(ruleFilters.lifecycle)}</strong>`);
     if (ruleFilters.dialect) p.push(`dialect <strong>${TC.esc(ruleFilters.dialect)}</strong>`);
     if (ruleFilters.tag) p.push(`tag <strong>${TC.esc(ruleFilters.tag)}</strong>`);
     if (ruleFilters.q) p.push(`recherche « ${TC.esc(ruleFilters.q)} »`);
@@ -437,13 +469,17 @@
     host.innerHTML = `<span class="fp-muted">Filtre actif :</span> ${sum}`;
   }
 
-  // Cartes de règles cliquables → filtre par tranche de sévérité.
+  // Cartes de règles cliquables → filtre par tranche de sévérité / état.
   function ruleDashCards() {
     const R = sekData.rules;
     const inRange = (lo, hi) => R.filter((r) => { const s = Number(r.rule_severity); return s >= lo && s <= hi; }).length;
+    const on = R.filter((r) => r.rule_enabled).length;
+    const off = R.length - on;
     const C = (label, val, tone, ds) => clickCard(label, val, tone, ds, ruleCardActive(ds));
     return `<div class="cc-tp-dashgrid">
       ${C(i18n.t('msg.total_regles'), R.length, '', { smin: '', smax: '' })}
+      ${C('Activées', on, 'accent', { enabled: '1' })}
+      ${C('Désactivées', off, 'warn', { enabled: '0' })}
       ${C('Critiques (≥80)', inRange(80, 1000), 'danger', { smin: '80', smax: '' })}
       ${C(i18n.t('msg.elevees_6079'), inRange(60, 79), 'warn', { smin: '60', smax: '79' })}
       ${C('Moyennes (40–59)', inRange(40, 59), 'accent', { smin: '40', smax: '59' })}
@@ -455,6 +491,9 @@
     const ci = (s) => String(s || '').toLowerCase();
     return sekData.rules.filter((r) => {
       if (ruleFilters.type && (r.rule_type || '') !== ruleFilters.type) return false;
+      if (ruleFilters.lifecycle && (r.rule_lifecycle || '') !== ruleFilters.lifecycle) return false;
+      if (ruleFilters.enabled === '1' && !r.rule_enabled) return false;
+      if (ruleFilters.enabled === '0' && r.rule_enabled) return false;
       if (ruleFilters.dialect && (r.rule_dialect_names || '').indexOf(ruleFilters.dialect) === -1) return false;
       if (ruleFilters.tag && (r.rule_tags || '').indexOf(ruleFilters.tag) === -1) return false;
       if (ruleFilters.datasource && (r.rule_datasources || '').indexOf(ruleFilters.datasource) === -1) return false;
@@ -479,15 +518,48 @@
     const host = document.getElementById('sek-rules-list'); if (!host) return;
     const rows = filteredRules();
     renderTpTable(host, [
+      { label: '', render: (r) => {
+        const id = r.rule_uuid;
+        return `<input type="checkbox" data-act="rule-sel-toggle" data-id="${TC.esc(id)}"${ruleSel.has(id) ? ' checked' : ''} aria-label="Sélection">`;
+      } },
       { label: i18n.t('msg.regle'), render: (r) => TC.esc(r.rule_name || r.rule_uuid) },
       { label: 'Type', render: (r) => TC.esc(r.rule_type || '—') },
       { label: i18n.t('table.severity'), render: (r) => TC.esc(r.rule_severity != null ? r.rule_severity : '—') },
+      { label: 'Lifecycle', render: (r) => TC.esc(r.rule_lifecycle || '—') },
       { label: 'Dialect', render: (r) => TC.esc(r.rule_dialect_names || '—') },
       { label: i18n.t('table.status'), render: (r) => badge(r.rule_enabled) },
       { label: '', render: (r) => `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="sek-rule" data-id="${TC.esc(r.rule_uuid)}">${i18n.t('table_cols.detail')}</button>` },
     ], rows, { empty: i18n.t('msg.aucune_regle') });
     const cnt = document.getElementById('sek-rules-count');
-    if (cnt) cnt.textContent = `${rows.length} / ${sekData.rules.length} règle(s)`;
+    if (cnt) cnt.textContent = `${rows.length} / ${sekData.rules.length} règle(s) · ${ruleSel.size} sélectionnée(s)`;
+    syncRuleSelCount();
+  }
+
+  async function ruleBulkApply(action, extra) {
+    const ids = Array.from(ruleSel);
+    if (!ids.length) { TC.toast('Aucune règle sélectionnée', 'warn'); return; }
+    if (!confirm(`${action} sur ${ids.length} règle(s) ?`)) return;
+    const body = Object.assign({ ids, action }, extra || {});
+    const r = await TC.api('/sekoia/rules/bulk', { method: 'POST', body });
+    TC.toast(r && r.ok
+      ? `Lot OK — ${r.done || 0} réussi(s), ${r.failed || 0} échec(s)`
+      : ((r && r.error) || 'Échec lot'), r && r.ok && !r.failed ? 'ok' : 'warn');
+    if (r && (r.ok || r.done)) {
+      ids.forEach((id) => {
+        const rule = sekData.rules.find((x) => x.rule_uuid === id);
+        if (!rule) return;
+        if (action === 'enable') rule.rule_enabled = true;
+        if (action === 'disable') rule.rule_enabled = false;
+        if (action === 'set-severity' && extra && extra.severity != null) rule.rule_severity = extra.severity;
+      });
+      ruleSel.clear();
+      renderRulesList();
+      const root = document.getElementById('sekoia-rules-root');
+      if (root) {
+        const dash = root.querySelector('.cc-tp-dashgrid');
+        if (dash) dash.outerHTML = ruleDashCards();
+      }
+    }
   }
 
   async function loadSekoiaRules() {
@@ -507,16 +579,20 @@
       }
     }
     const stats = env.stats || {};
+    const byType = {};
+    sekData.rules.forEach((r) => { const t = r.rule_type || '—'; byType[t] = (byType[t] || 0) + 1; });
     root.innerHTML = TC.configBanner(env) + (env.token_expired ? TC.offlineBanner(env) : TC.errBanner(env))
       + toolbar('ThreatPlatforms.loadSekoiaRules()')
       + ruleDashCards()
       + '<div id="rule-flt-hint"></div>'
-      + `<div class="cc-tp-grid"><div id="sek-rules-fmt" class="cc-tp-chart"></div><div id="sek-rules-sev" class="cc-tp-chart"></div></div>`
+      + `<div class="cc-tp-grid"><div id="sek-rules-fmt" class="cc-tp-chart"></div><div id="sek-rules-sev" class="cc-tp-chart"></div><div id="sek-rules-type" class="cc-tp-chart"></div></div>`
       + `<div id="rule-filterbar-host">${ruleFilterBar()}</div>`
+      + ruleBulkBar()
       + `<p class="fp-ds-muted" id="sek-rules-count" aria-live="polite"></p>`
       + '<div id="sek-rules-list"></div><div id="sek-rule-detail" class="cc-tp-detail"></div>';
-    if (stats.rules_par_format) TC.chart('sek-rules-fmt', TC.pieOption(toMap(stats.rules_par_format)), 240);
-    if (stats.rules_par_severity) TC.chart('sek-rules-sev', TC.barOption(toMap(stats.rules_par_severity), '#EF4444'), 240);
+    if (stats.rules_par_format) TC.chart('sek-rules-fmt', TC.pieOption(toMap(stats.rules_par_format)), 220);
+    if (stats.rules_par_severity) TC.chart('sek-rules-sev', TC.barOption(toMap(stats.rules_par_severity), '#EF4444'), 220);
+    TC.chart('sek-rules-type', TC.pieOption(byType), 220);
     renderRulesList();
     delegate(root, {
       'sek-rule': (el) => showRuleDetail(el.dataset.id),
@@ -524,10 +600,41 @@
       'sek-rule-copy': (el) => { const r = sekData.rules.find((x) => x.rule_uuid === el.dataset.id); if (r) TC.copy(r.rule_payload || ''); },
       'sek-rule-impact': (el) => showRuleImpact(el.dataset.id),
       'sek-rule-diff': (el) => showRuleDiff(el.dataset.id),
+      'rule-sel-toggle': (el) => {
+        const id = el.dataset.id;
+        if (el.checked) ruleSel.add(id); else ruleSel.delete(id);
+        syncRuleSelCount();
+        const cnt = document.getElementById('sek-rules-count');
+        if (cnt) cnt.textContent = `${filteredRules().length} / ${sekData.rules.length} règle(s) · ${ruleSel.size} sélectionnée(s)`;
+      },
+      'rule-sel-page': () => {
+        filteredRules().slice(0, 100).forEach((r) => ruleSel.add(r.rule_uuid));
+        renderRulesList();
+      },
+      'rule-sel-filtered': () => {
+        filteredRules().forEach((r) => ruleSel.add(r.rule_uuid));
+        renderRulesList();
+      },
+      'rule-sel-clear': () => { ruleSel.clear(); renderRulesList(); },
+      'rule-bulk-enable': () => ruleBulkApply('enable'),
+      'rule-bulk-disable': () => ruleBulkApply('disable'),
+      'rule-bulk-sev': async () => {
+        const sev = await askText('Sévérité en lot', 'Nouvelle sévérité (0–100)', '80');
+        if (sev == null || sev === '') return;
+        const n = Number(sev);
+        if (Number.isNaN(n) || n < 0 || n > 100) { TC.toast('Sévérité invalide', 'warn'); return; }
+        ruleBulkApply('set-severity', { severity: n });
+      },
+      'rule-export-sel': () => {
+        const rows = sekData.rules.filter((r) => ruleSel.has(r.rule_uuid));
+        if (!rows.length) { TC.toast('Aucune sélection', 'warn'); return; }
+        TC.exportJSON('sekoia-rules-selection.json', rows);
+      },
       'card-filter': (el) => {
         resetRuleFilters();
         ruleFilters.sevMin = el.dataset.smin || '';
         ruleFilters.sevMax = el.dataset.smax || '';
+        if (el.dataset.enabled != null) ruleFilters.enabled = el.dataset.enabled || '';
         const fb = document.getElementById('rule-filterbar-host'); if (fb) { fb.innerHTML = ruleFilterBar(); fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
         document.getElementById('sek-rule-detail').innerHTML = '';
         renderRulesList();
@@ -556,6 +663,8 @@
   function applyRuleFilter() {
     ruleFilters.q = (document.getElementById('rule-flt-q') || {}).value || '';
     ruleFilters.type = (document.getElementById('rule-flt-type') || {}).value || '';
+    ruleFilters.enabled = (document.getElementById('rule-flt-enabled') || {}).value || '';
+    ruleFilters.lifecycle = (document.getElementById('rule-flt-lifecycle') || {}).value || '';
     ruleFilters.dialect = (document.getElementById('rule-flt-dialect') || {}).value || '';
     ruleFilters.tag = (document.getElementById('rule-flt-tag') || {}).value || '';
     ruleFilters.datasource = (document.getElementById('rule-flt-datasource') || {}).value || '';
@@ -715,9 +824,24 @@
   }
 
   const keyData = { items: [], tags: {} };
-  const keyFilters = { bucket: '', q: '', tag: '' };
-  function resetKeyFilters() { keyFilters.bucket = ''; keyFilters.q = ''; keyFilters.tag = ''; }
+  const keyFilters = { bucket: '', q: '', tag: '', perms: '' };
+  const keySel = new Set();
+  function resetKeyFilters() { keyFilters.bucket = ''; keyFilters.q = ''; keyFilters.tag = ''; keyFilters.perms = ''; }
   const KEY_TAGS = ['CERT', 'DEV', 'PROD', 'TEST'];
+  function syncKeySelCount() {
+    const n = document.getElementById('key-sel-n');
+    if (n) n.textContent = String(keySel.size);
+  }
+  function keyBulkBar() {
+    return `<div class="cc-tp-toolbar cc-bulk-bar" id="key-bulk-bar">
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="key-sel-page">☑ Page</button>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="key-sel-clear">✗</button>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="key-bulk-disable">Désactiver (<span id="key-sel-n">0</span>)</button>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="key-bulk-regen">Régénérer lot</button>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="key-bulk-tag">Tag lot…</button>
+      <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="key-export-sel">Export sélection</button>
+    </div>`;
+  }
 
   // Mini-modal de saisie texte (rename / création) — fiable en webview Electron.
   function askText(title, label, initial) {
@@ -756,7 +880,10 @@
       if (b === 'inactive' && k.enabled) return false;
       if (b === 'expired' && !(k.expires_in_days != null && k.expires_in_days < 0)) return false;
       if (b === 'near' && !(k.expires_in_days != null && k.expires_in_days >= 0 && k.expires_in_days <= 30)) return false;
+      if (b === 'never' && k.expires_in_days != null) return false;
+      if (b === 'week' && !(k.expires_in_days != null && k.expires_in_days >= 0 && k.expires_in_days <= 7)) return false;
       if (keyFilters.tag && keyTagsOf(k.uuid).indexOf(keyFilters.tag) === -1) return false;
+      if (keyFilters.perms && String(k.permissions || '').toLowerCase().indexOf(keyFilters.perms.toLowerCase()) === -1) return false;
       if (keyFilters.q && !TC.matchText(k, keyFilters.q)) return false;
       return true;
     });
@@ -768,9 +895,10 @@
     return `<div class="cc-tp-filterbar">
       <input class="fp-input fp-input-sm" id="key-flt-q" placeholder="🔎 Recherche libre…" value="${TC.esc(keyFilters.q)}">
       <select class="fp-select fp-input-sm" id="key-flt-bucket" title="${i18n.t('table.status')}">
-        ${sel('', '— toutes —')}${sel('active', 'Actives')}${sel('inactive', 'Inactives')}${sel('expired', i18n.t('msg.expirees'))}${sel('near', 'Proche expiration (≤30j)')}
+        ${sel('', '— toutes —')}${sel('active', 'Actives')}${sel('inactive', 'Inactives')}${sel('expired', i18n.t('msg.expirees'))}${sel('week', 'Expire ≤7j')}${sel('near', 'Proche expiration (≤30j)')}${sel('never', 'Sans expiration')}
       </select>
       <select class="fp-select fp-input-sm" id="key-flt-tag" title="Tag">${tagOpts}</select>
+      <input class="fp-input fp-input-sm" id="key-flt-perms" placeholder="Scope / permission…" value="${TC.esc(keyFilters.perms)}">
       <span class="cc-tp-filter-actions">
         <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-act="key-reset">${i18n.t('ui.reset')}</button>
         ${TC.exportButtons()}</span>
@@ -793,6 +921,10 @@
     const host = document.getElementById('sek-keys-list'); if (!host) return;
     const rows = filteredKeys();
     renderTpTable(host, [
+      { label: '', render: (k) => {
+        if (keyData.unavailable) return '';
+        return `<input type="checkbox" data-act="key-sel-toggle" data-id="${TC.esc(k.uuid)}"${keySel.has(k.uuid) ? ' checked' : ''} aria-label="Sélection">`;
+      } },
       { label: 'Nom', render: (k) => TC.esc(k.name || k.uuid) },
       { label: i18n.t('table.status'), render: (k) => badge(k.enabled, k.state) },
       { label: 'Tags', render: (k) => keyTagChips(k.uuid) },
@@ -809,7 +941,19 @@
       } },
     ], rows, { empty: i18n.t('msg.aucune_cle_api') });
     const cnt = document.getElementById('sek-keys-count');
-    if (cnt) cnt.textContent = `${rows.length} / ${keyData.items.length} clé(s)`;
+    if (cnt) cnt.textContent = `${rows.length} / ${keyData.items.length} clé(s) · ${keySel.size} sélectionnée(s)`;
+    syncKeySelCount();
+  }
+
+  async function keyBulkApply(action) {
+    const ids = Array.from(keySel);
+    if (!ids.length) { TC.toast('Aucune clé sélectionnée', 'warn'); return; }
+    if (!confirm(`${action} sur ${ids.length} clé(s) ?`)) return;
+    const r = await TC.api('/sekoia/apikeys/bulk', { method: 'POST', body: { ids, action } });
+    TC.toast(r && r.ok
+      ? `Lot OK — ${r.done || 0} réussi(s), ${r.failed || 0} échec(s)`
+      : ((r && r.error) || 'Échec lot'), r && r.ok && !r.failed ? 'ok' : 'warn');
+    if (r && (r.ok || r.done)) { keySel.clear(); loadSekoiaApiKeys(); }
   }
 
   async function loadSekoiaApiKeys() {
@@ -827,23 +971,34 @@
       }
     }
     const mon = env.monitoring || { total: keyData.items.length, active: 0, near_expiry: 0, inactive: 0 };
+    const week = keyData.items.filter((k) => k.expires_in_days != null && k.expires_in_days >= 0 && k.expires_in_days <= 7).length;
+    const never = keyData.items.filter((k) => k.expires_in_days == null).length;
+    const expired = keyData.items.filter((k) => k.expires_in_days != null && k.expires_in_days < 0).length;
     const keysUnavail = apiKeysUnavailable(env);
     keyData.unavailable = keysUnavail;
     const keyCard = (label, val, tone, bucket) => clickCard(label, val, tone, { bucket }, keyFilters.bucket === bucket);
     const keyActions = keysUnavail ? '' : `<button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-act="create-key">${i18n.t('msg.nouvelle_cle')}</button>`;
+    const expBuckets = {
+      '≤7j': week, '8–30j': Math.max(0, mon.near_expiry - week),
+      'Expirées': expired, 'Sans expiration': never,
+    };
     root.innerHTML = TC.configBanner(env) + apiKeysBanner(env)
       + toolbar('ThreatPlatforms.loadSekoiaApiKeys()', keyActions)
       + `<div class="cc-tp-dashgrid">
          ${keyCard(i18n.t('msg.cles'), mon.total, '', '')}
          ${keyCard('Actives', mon.active, 'accent', 'active')}
+         ${keyCard('Expire ≤7j', week, 'danger', 'week')}
          ${keyCard('Proches expiration (≤30j)', mon.near_expiry, 'warn', 'near')}
+         ${keyCard('Sans expiration', never, '', 'never')}
          ${keyCard(i18n.t('msg.inactives_expirees'), mon.inactive, 'warn', 'inactive')}</div>`
       + (keysUnavail ? `<p class="cc-cfg-help fp-section-spaced">Compteurs à 0 — ${TC.esc(API_KEYS_NA_MSG)}</p>` : '')
-      + `<div class="cc-tp-grid"><div id="sek-keys-chart" class="cc-tp-chart"></div><div class="cc-tp-stats"></div></div>`
+      + `<div class="cc-tp-grid"><div id="sek-keys-chart" class="cc-tp-chart"></div><div id="sek-keys-exp" class="cc-tp-chart"></div></div>`
       + `<div id="key-filterbar-host">${keyFilterBar()}</div>`
+      + (keysUnavail ? '' : keyBulkBar())
       + `<p class="fp-ds-muted" id="sek-keys-count" aria-live="polite"></p>`
       + '<div id="sek-keys-list"></div>';
-    TC.chart('sek-keys-chart', TC.pieOption({ Actives: mon.active, Inactives: mon.inactive, 'Proche expiration': mon.near_expiry }), 240);
+    TC.chart('sek-keys-chart', TC.pieOption({ Actives: mon.active, Inactives: mon.inactive }), 220);
+    TC.chart('sek-keys-exp', TC.barOption(expBuckets, '#F59E0B'), 220);
     renderKeysList();
     delegate(root, {
       'card-filter': (el) => {
@@ -855,6 +1010,33 @@
         });
       },
       'key-reset': () => { resetKeyFilters(); const fb = document.getElementById('key-filterbar-host'); if (fb) fb.innerHTML = keyFilterBar(); renderKeysList(); },
+      'key-sel-toggle': (el) => {
+        const id = el.dataset.id;
+        if (el.checked) keySel.add(id); else keySel.delete(id);
+        syncKeySelCount();
+      },
+      'key-sel-page': () => { filteredKeys().forEach((k) => keySel.add(k.uuid)); renderKeysList(); },
+      'key-sel-clear': () => { keySel.clear(); renderKeysList(); },
+      'key-bulk-disable': () => keyBulkApply('disable'),
+      'key-bulk-regen': () => keyBulkApply('regenerate'),
+      'key-bulk-tag': async () => {
+        const tag = await askText('Tag en lot', 'Tag à appliquer (CERT/DEV/PROD/TEST)', 'CERT');
+        if (!tag || KEY_TAGS.indexOf(tag) === -1) { TC.toast('Tag invalide', 'warn'); return; }
+        const ids = Array.from(keySel);
+        if (!ids.length) { TC.toast('Aucune clé sélectionnée', 'warn'); return; }
+        for (const id of ids) {
+          const cur = Array.from(new Set(keyTagsOf(id).concat([tag])));
+          await TC.api('/apikey-tags', { method: 'POST', body: { id, tags: cur } });
+          keyData.tags[id] = cur;
+        }
+        TC.toast(`Tag ${tag} appliqué à ${ids.length} clé(s)`, 'ok');
+        renderKeysList();
+      },
+      'key-export-sel': () => {
+        const rows = keyData.items.filter((k) => keySel.has(k.uuid));
+        if (!rows.length) { TC.toast('Aucune sélection', 'warn'); return; }
+        TC.exportJSON('sekoia-apikeys-selection.json', rows.map((k) => Object.assign({}, k, { tags: keyTagsOf(k.uuid) })));
+      },
       'export-csv': () => TC.exportCSV('sekoia-apikeys.csv', filteredKeys().map((k) => Object.assign({}, k, { tags: keyTagsOf(k.uuid).join('|') })), [
         { key: 'name', label: 'name' }, { key: 'state', label: 'state' }, { key: 'tags', label: 'tags' },
         { key: 'created_at', label: 'created' }, { key: 'expires_at', label: 'expires' },
@@ -885,6 +1067,7 @@
     keyFilters.q = (document.getElementById('key-flt-q') || {}).value || '';
     keyFilters.bucket = (document.getElementById('key-flt-bucket') || {}).value || '';
     keyFilters.tag = (document.getElementById('key-flt-tag') || {}).value || '';
+    keyFilters.perms = (document.getElementById('key-flt-perms') || {}).value || '';
     renderKeysList();
   }
   const onKeyFilterDebounced = (window.PortalPerf && window.PortalPerf.debounce)

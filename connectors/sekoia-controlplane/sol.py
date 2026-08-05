@@ -8,6 +8,9 @@ Ce module apporte ce que la console Sekoia ne propose pas :
   → feedback immédiat sans consommer le quota API (10 requêtes/min côté Sekoia).
 - Exécution via l'API Sekoia (endpoint configurable SEKOIA_SOL_API_PATH —
   l'endpoint exact peut varier selon les tenants ; ajuster si 404).
+- Fallback Run : si le REST SOL renvoie 404, traduction des requêtes `events`
+  simples (where / limit / distinct / select) vers le pipeline Dork
+  `/v1/sic/conf/events/search/jobs` déjà utilisé par /fetch.
 - Bibliothèque de requêtes réutilisable (sauvegarde, tags, chargement 1-clic).
 - Exemples officiels commentés pour l'apprentissage.
 
@@ -30,8 +33,28 @@ import app as cp
 LIBRARY_PATH = os.environ.get("SOL_LIBRARY_PATH", "/data/sekoia-sol-library.json")
 LIBRARY_CAP = 100
 SOL_API_PATH = os.environ.get("SEKOIA_SOL_API_PATH", "/api/v1/sic/query")
+SEARCH_JOBS_PATH = "/api/v1/sic/conf/events/search/jobs"
 RUN_LIMIT_MAX = 10_000  # limite documentée du Query Builder Sekoia
 QUERY_MAX_LEN = 20_000
+# Opérateurs pipe incompatibles avec le fallback Dork (agrégats / jointures).
+DORK_UNSUPPORTED_OPS = {
+    "aggregate", "join", "lookup", "render", "extend", "top", "summarize",
+    "count", "sort", "rename",
+}
+AGO_RE = re.compile(r"\bago\(\s*(\d+)\s*([hHdDmM])\s*\)")
+FIELD_CMP_RE = re.compile(
+    r"([A-Za-z_][A-Za-z0-9_.]*)\s*(==|!=)\s*"
+    r"(null|'[^']*'|\"[^\"]*\")",
+    re.IGNORECASE,
+)
+FIELD_IN_RE = re.compile(
+    r"([A-Za-z_][A-Za-z0-9_.]*)\s+in\s+\[([^\]]+)\]",
+    re.IGNORECASE,
+)
+LIMIT_RE = re.compile(r"^\s*limit\s+(\d+)\s*$", re.IGNORECASE)
+DISTINCT_RE = re.compile(r"^\s*distinct\s*\(?\s*(.+?)\s*\)?\s*$", re.IGNORECASE)
+SELECT_RE = re.compile(r"^\s*(?:select|project)\s+(.+)\s*$", re.IGNORECASE)
+ORDER_RE = re.compile(r"^\s*order\s+by\b", re.IGNORECASE)
 
 # Tables SOL documentées (docs.sekoia.io — Query Builder / SOL Data Sources)
 TABLES = {
@@ -225,6 +248,290 @@ def validate_sol(query: str) -> dict:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# Fallback Run — SOL events simple → Dork search jobs
+# ═════════════════════════════════════════════════════════════════════════════
+def _strip_quotes(val: str) -> str:
+    v = (val or "").strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in ("'", '"'):
+        return v[1:-1]
+    return v
+
+
+def _ago_to_range(match: re.Match) -> str:
+    n = int(match.group(1))
+    unit = match.group(2).lower()
+    if unit == "d":
+        return f"{n}d"
+    if unit == "m":
+        return f"{n}m"
+    return f"{n}h"
+
+
+def _field_dork(field: str, value: str, negate: bool = False) -> str:
+    """Construit une clause Dork ; élargit les alias hostname comme /fetch."""
+    v = value.replace('"', '\\"')
+    if field in ("host.name", "host.hostname", "log.hostname"):
+        clause = f'(host.name:"{v}" OR host.hostname:"{v}" OR log.hostname:"{v}")'
+    elif field in ("source.ip", "destination.ip") and field == "source.ip":
+        clause = f'source.ip:"{v}"'
+    else:
+        clause = f'{field}:"{v}"'
+    return f"NOT ({clause})" if negate else clause
+
+
+def _deep_get(obj: Any, dotted: str) -> Any:
+    if not isinstance(obj, dict):
+        return None
+    if dotted in obj:
+        return obj.get(dotted)
+    cur: Any = obj
+    for part in dotted.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return None
+        cur = cur[part]
+    return cur
+
+
+def _parse_where_conditions(expr: str) -> tuple[list[str], Optional[str], list[str]]:
+    """Extrait clauses Dork + time_range depuis un `where …`.
+
+    Retourne (dork_parts, time_range|None, errors).
+    """
+    errors: list[str] = []
+    parts: list[str] = []
+    time_range: Optional[str] = None
+
+    # Fenêtre temporelle (retirée du term Dork — portée par earliest/latest)
+    ago_m = AGO_RE.search(expr)
+    if ago_m:
+        time_range = _ago_to_range(ago_m)
+    elif "?time.start" in expr or "?time.end" in expr:
+        time_range = "24h"
+
+    work = expr
+    # Retirer les prédicats timestamp pour ne pas les pousser en Dork
+    work = re.sub(
+        r"\btimestamp\b\s*(?:>=|>|<=|<)\s*ago\(\s*\d+\s*[hHdDmM]\s*\)",
+        " ", work, flags=re.IGNORECASE)
+    work = re.sub(
+        r"\btimestamp\b\s+between\s*\([^)]*\)",
+        " ", work, flags=re.IGNORECASE)
+    work = re.sub(r"\b(?:and|or)\b", " and ", work, flags=re.IGNORECASE)
+
+    for m in FIELD_IN_RE.finditer(work):
+        field = m.group(1)
+        if field.lower() == "timestamp":
+            continue
+        raw_vals = [x.strip() for x in m.group(2).split(",") if x.strip()]
+        lit_vals: list[str] = []
+        for raw in raw_vals:
+            if raw.lower() == "null":
+                continue
+            if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in ("'", '"'):
+                lit_vals.append(_strip_quotes(raw))
+            else:
+                errors.append(
+                    f"fallback Dork : `in` sur variable/identifiant non littéral "
+                    f"({field}) — résoudre l'UUID dans le Form/Code")
+                return parts, time_range, errors
+        if lit_vals:
+            parts.append("(" + " OR ".join(_field_dork(field, v) for v in lit_vals) + ")")
+
+    # Masquer les `in […]` déjà traités avant les ==
+    work_cmp = FIELD_IN_RE.sub(" ", work)
+    for m in FIELD_CMP_RE.finditer(work_cmp):
+        field, op, raw = m.group(1), m.group(2), m.group(3)
+        if field.lower() == "timestamp":
+            continue
+        if raw.lower() == "null":
+            errors.append(f"fallback Dork : `{field} {op} null` non supporté")
+            continue
+        val = _strip_quotes(raw)
+        parts.append(_field_dork(field, val, negate=(op == "!=")))
+
+    # Prédicats résiduels (startswith, contains, …)
+    residual = FIELD_CMP_RE.sub(" ", work_cmp)
+    residual = re.sub(r"\b(?:and|or|not)\b", " ", residual, flags=re.IGNORECASE)
+    residual = re.sub(r"[()\s]+", " ", residual).strip()
+    tokens = re.findall(r"[A-Za-z_][A-Za-z0-9_.]*", residual)
+    if tokens:
+        errors.append(
+            "fallback Dork : prédicat non traduit "
+            f"({' '.join(tokens)[:60]}) — utiliser == / != / in [littéraux]")
+
+    return parts, time_range, errors
+
+
+def sol_to_dork(query: str) -> dict:
+    """Traduit une requête SOL *events* simple vers un plan Dork search-jobs.
+
+    Supporté : where (==, !=, in [littéraux]), limit, distinct, select/project.
+    Non supporté : aggregate, join, lookup, render, let multi-tables, alerts/cases…
+    """
+    warnings: list[str] = []
+    cleaned = COMMENT_RE.sub("", query or "")
+    if "let " in cleaned.lower():
+        return {"ok": False,
+                "reason": "fallback Dork : `let` / sous-requêtes non supportés "
+                          "(utiliser un Intake UUID littéral)"}
+
+    segments = [s.strip() for s in cleaned.split("|") if s.strip()]
+    if not segments:
+        return {"ok": False, "reason": "requête vide"}
+
+    source = segments[0].split()[0] if segments[0].split() else ""
+    if source != "events":
+        return {"ok": False,
+                "reason": f"fallback Dork limité à la table `events` (reçu « {source} »)"}
+
+    dork_parts: list[str] = []
+    time_range = "24h"
+    limit = 1000
+    distinct_fields: list[str] = []
+    select_fields: list[str] = []
+
+    for seg in segments[1:]:
+        low = seg.lower()
+        first = (PIPE_RE.match(seg).group(1).lower() if PIPE_RE.match(seg) else "")
+        if first in ("inner", "left"):
+            first = "join"
+        if first in DORK_UNSUPPORTED_OPS:
+            return {"ok": False,
+                    "reason": f"fallback Dork : opérateur `{first}` non supporté "
+                              "(aggregate/join/lookup/render/…)"}
+        if ORDER_RE.match(seg):
+            warnings.append("`order by` ignoré par le fallback Dork "
+                            "(tri côté client non appliqué)")
+            continue
+        m_lim = LIMIT_RE.match(seg)
+        if m_lim:
+            limit = max(1, min(int(m_lim.group(1)), RUN_LIMIT_MAX))
+            continue
+        m_dist = DISTINCT_RE.match(seg)
+        if m_dist:
+            distinct_fields = [f.strip() for f in m_dist.group(1).split(",") if f.strip()]
+            continue
+        m_sel = SELECT_RE.match(seg)
+        if m_sel:
+            # `select a = b` non supporté — garder les identifiants simples
+            cols = []
+            for piece in m_sel.group(1).split(","):
+                piece = piece.strip()
+                if "=" in piece:
+                    piece = piece.split("=")[0].strip()
+                if re.match(r"^[A-Za-z_][A-Za-z0-9_.]*$", piece):
+                    cols.append(piece)
+            select_fields = cols
+            continue
+        if first == "where" or low.startswith("where "):
+            expr = seg[5:].strip() if low.startswith("where") else seg
+            parts, tr, errs = _parse_where_conditions(expr)
+            if errs:
+                return {"ok": False, "reason": errs[0]}
+            dork_parts.extend(parts)
+            if tr:
+                time_range = tr
+            continue
+        return {"ok": False,
+                "reason": f"fallback Dork : segment non supporté « {seg[:50]} »"}
+
+    if "?time.start" in cleaned or "?time.end" in cleaned:
+        warnings.append("filtres ?time.start/?time.end → fenêtre par défaut 24h")
+
+    term = " AND ".join(dork_parts) if dork_parts else "*"
+    return {
+        "ok": True,
+        "term": term,
+        "time_range": time_range,
+        "limit": limit,
+        "distinct_fields": distinct_fields,
+        "select_fields": select_fields,
+        "warnings": warnings,
+    }
+
+
+def _project_rows(events: list, select_fields: list[str],
+                  distinct_fields: list[str]) -> list[dict]:
+    fields = distinct_fields or select_fields
+    if not fields:
+        return events if all(isinstance(e, dict) for e in events) else list(events)
+
+    rows: list[dict] = []
+    seen: set[tuple] = set()
+    for ev in events:
+        if not isinstance(ev, dict):
+            continue
+        row = {f: _deep_get(ev, f) for f in fields}
+        if distinct_fields:
+            key = tuple(json.dumps(row.get(f), sort_keys=True, default=str)
+                        for f in distinct_fields)
+            if key in seen:
+                continue
+            seen.add(key)
+        rows.append(row)
+    return rows
+
+
+async def run_via_search_jobs(plan: dict, check: dict,
+                              limit_override: Optional[int] = None) -> dict:
+    """Exécute un plan Dork via /events/search/jobs + pagination."""
+    limit = limit_override or plan.get("limit") or 1000
+    try:
+        limit = max(1, min(int(limit), RUN_LIMIT_MAX))
+    except (TypeError, ValueError):
+        limit = 1000
+    # Aligner sur le cap /fetch
+    limit = min(limit, getattr(cp, "EVENTS_MAX_CAP", RUN_LIMIT_MAX))
+
+    earliest, latest = cp._iso_range(plan.get("time_range") or "24h")
+    term = plan.get("term") or "*"
+    query_info = {"term": term, "earliest_time": earliest, "latest_time": latest}
+
+    job, err = await cp.sek_request("POST", SEARCH_JOBS_PATH, json_body=query_info)
+    if err:
+        return {"ok": False, "stage": "execution", "error": err,
+                "backend": "search-jobs-dork", "query": query_info,
+                "warnings": (check.get("warnings") or []) + (plan.get("warnings") or [])}
+    job_id = (job or {}).get("uuid") or (job or {}).get("id")
+    if not job_id:
+        return {"ok": False, "stage": "execution", "error": "job sans identifiant",
+                "backend": "search-jobs-dork", "query": query_info}
+
+    events, total, err = await cp._collect_events(job_id, limit)
+    if err and not events:
+        return {"ok": False, "stage": "execution", "error": err,
+                "backend": "search-jobs-dork", "query": query_info, "job_id": job_id}
+
+    rows = _project_rows(
+        events or [],
+        plan.get("select_fields") or [],
+        plan.get("distinct_fields") or [],
+    )
+    warnings = list(check.get("warnings") or []) + list(plan.get("warnings") or [])
+    warnings.append(
+        "Exécuté via fallback Dork (/events/search/jobs) — REST SOL indisponible")
+    if err:
+        warnings.append(err)
+    if total and total > len(events or []):
+        warnings.append(f"résultat tronqué : {len(events or [])}/{total} événements")
+
+    return {
+        "ok": True,
+        "backend": "search-jobs-dork",
+        "query_tables": check.get("tables") or ["events"],
+        "warnings": warnings,
+        "rows": rows,
+        "columns": None,
+        "row_count": len(rows),
+        "total": total,
+        "job_id": job_id,
+        "query": query_info,
+        "endpoint": SEARCH_JOBS_PATH,
+        "dork_term": term,
+    }
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # Exemples officiels commentés (documentation Sekoia SOL)
 # ═════════════════════════════════════════════════════════════════════════════
 EXAMPLES = [
@@ -363,7 +670,7 @@ def register(sol_app) -> None:
         if limit:
             payload["limit"] = limit
 
-        # Essai app host puis api host (certains tenants n'exposent SOL que sur l'un).
+        # Essai REST SOL (app puis api host).
         data, err = await cp.sek_request("POST", SOL_API_PATH, json_body=payload)
         if err and "404" in str(err):
             data2, err2 = await cp.sek_request(
@@ -372,21 +679,32 @@ def register(sol_app) -> None:
                 data, err = data2, None
             else:
                 err = err2 or err
-        if err:
-            hint = None
-            if "404" in str(err):
-                hint = (
-                    "Endpoint SOL introuvable (404). La doc publique Sekoia expose "
-                    "le Query Builder en UI et l'export events via "
-                    "/v1/sic/conf/events/search/jobs (langage Dork), pas un REST SOL "
-                    "stable. Ajuster SEKOIA_SOL_API_PATH si le tenant documente un "
-                    "chemin interne (défaut: /api/v1/sic/query)."
-                )
-            return {"ok": False, "stage": "execution", "error": err,
-                    "endpoint": SOL_API_PATH, "hint": hint,
-                    "warnings": check["warnings"]}
 
-        # Normalisation souple du résultat (la forme exacte dépend du tenant)
+        # Fallback Dork si REST SOL absent (cas tenant documenté).
+        if err and "404" in str(err):
+            plan = sol_to_dork(query)
+            if plan.get("ok"):
+                return await run_via_search_jobs(plan, check, limit_override=limit)
+            return {
+                "ok": False,
+                "stage": "execution",
+                "error": err,
+                "endpoint": SOL_API_PATH,
+                "fallback": plan.get("reason"),
+                "hint": (
+                    "REST SOL introuvable (404). Fallback Dork disponible pour les "
+                    "requêtes `events` simples (where == / != / in [littéraux], "
+                    "limit, distinct, select) — simplifier la requête ou poser "
+                    "SEKOIA_SOL_API_PATH si le tenant expose un endpoint SOL."
+                ),
+                "warnings": check["warnings"],
+            }
+
+        if err:
+            return {"ok": False, "stage": "execution", "error": err,
+                    "endpoint": SOL_API_PATH, "warnings": check["warnings"]}
+
+        # Normalisation souple du résultat REST SOL
         rows = None
         columns = None
         if isinstance(data, dict):
@@ -401,7 +719,8 @@ def register(sol_app) -> None:
         elif isinstance(data, list):
             rows = data
 
-        return {"ok": True, "query_tables": check["tables"],
+        return {"ok": True, "backend": "sol-api",
+                "query_tables": check["tables"],
                 "warnings": check["warnings"],
                 "rows": rows, "columns": columns,
                 "row_count": len(rows) if rows is not None else None,

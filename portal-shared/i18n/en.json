@@ -866,7 +866,9 @@
     "qb_field_hostname": "Hostname",
     "qb_field_ip": "Source IP",
     "qb_field_category": "event.category",
-    "qb_field_range": "Time range"
+    "qb_field_range": "Time range",
+    "qb_backend_dork": "Dork fallback",
+    "qb_backend_sol": "SOL API"
   },
   "hubs": {
     "cert_overview": {

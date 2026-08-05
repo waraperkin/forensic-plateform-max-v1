@@ -1159,7 +1159,10 @@
     if (m.running) return `<span class="fp-tag">${esc(T('qb_status_running'))}</span>`;
     const when = m.finishedAt ? new Date(m.finishedAt).toLocaleString() : '';
     const dur = m.ms != null ? `${(m.ms / 1000).toFixed(3)} s` : '';
-    return `<span class="fp-muted">${esc(T('qb_status_finished'))}${when ? ` · ${esc(when)}` : ''}${dur ? ` · ${esc(dur)}` : ''}</span>`;
+    const backend = m.backend === 'search-jobs-dork'
+      ? ` · <span class="fp-tag">${esc(T('qb_backend_dork'))}</span>`
+      : (m.backend === 'sol-api' ? ` · <span class="fp-tag fp-tag-ok">${esc(T('qb_backend_sol'))}</span>` : '');
+    return `<span class="fp-muted">${esc(T('qb_status_finished'))}${when ? ` · ${esc(when)}` : ''}${dur ? ` · ${esc(dur)}` : ''}${backend}</span>`;
   }
   function ccRenderSol() {
     const body = document.getElementById('cc-body'); if (!body) return;
@@ -1331,7 +1334,12 @@
     if (host) host.innerHTML = TC.tableLoading(5, i18n.t('ui.loading'));
     const t0 = performance.now();
     const r = await TC.api('/sekoia/sol/run', { method: 'POST', body: { query: cc.solQuery, limit: cc.solLimit } });
-    cc.solRunMeta = { running: false, finishedAt: Date.now(), ms: Math.round(performance.now() - t0) };
+    cc.solRunMeta = {
+      running: false,
+      finishedAt: Date.now(),
+      ms: Math.round(performance.now() - t0),
+      backend: (r && r.backend) || null,
+    };
     cc.sol = r;
     cc.solResult = r;
     ccRenderSolFeedback();

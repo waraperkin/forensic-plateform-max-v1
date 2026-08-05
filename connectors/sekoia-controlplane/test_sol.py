@@ -119,6 +119,7 @@ def test_run_success(monkeypatch):
 
 
 def test_run_api_error_404_hint(monkeypatch):
+    """Aggregate → REST 404 + fallback Dork refusé (opérateur non supporté)."""
     async def fake_sek(method, path, json_body=None, params=None, use_api_host=False):
         return None, "Sekoia HTTP 404"
 
@@ -128,7 +129,76 @@ def test_run_api_error_404_hint(monkeypatch):
     body = r.json()
     assert body["ok"] is False
     assert body["stage"] == "execution"
-    assert body["hint"]  # hint SEKOIA_SOL_API_PATH présent sur 404
+    assert body["hint"]
+    assert "aggregate" in (body.get("fallback") or "")
+
+
+def test_sol_to_dork_simple_intake():
+    q = ("events\n"
+         "| where timestamp >= ago(24h)\n"
+         "| where sekoiaio.intake.uuid == "
+         "\"8c5a242d-e949-46b0-b50c-d5c4b8b21ab6\"\n"
+         "| where host.name == \"SRV-DC\"\n"
+         "| limit 50")
+    plan = sol.sol_to_dork(q)
+    assert plan["ok"] is True, plan
+    assert plan["time_range"] == "24h"
+    assert plan["limit"] == 50
+    assert 'sekoiaio.intake.uuid:"8c5a242d-e949-46b0-b50c-d5c4b8b21ab6"' in plan["term"]
+    assert "host.name" in plan["term"]
+
+
+def test_sol_to_dork_rejects_aggregate():
+    plan = sol.sol_to_dork(VALID_QUERY)
+    assert plan["ok"] is False
+    assert "aggregate" in plan["reason"]
+
+
+def test_sol_to_dork_distinct_and_in_literals():
+    q = ("events\n"
+         "| where timestamp >= ago(7d)\n"
+         "| where event.category in [\"authentication\", \"network\"]\n"
+         "| distinct host.name, source.ip\n"
+         "| limit 100")
+    plan = sol.sol_to_dork(q)
+    assert plan["ok"] is True, plan
+    assert plan["time_range"] == "7d"
+    assert plan["distinct_fields"] == ["host.name", "source.ip"]
+    assert "event.category" in plan["term"] and "OR" in plan["term"]
+
+
+def test_run_fallback_dork_on_404(monkeypatch):
+    simple = ("events\n| where timestamp >= ago(1h)\n"
+              "| where sekoiaio.intake.uuid == \"abc-123\"\n| limit 10")
+    calls = []
+
+    async def fake_sek(method, path, json_body=None, params=None, use_api_host=False):
+        calls.append((method, path))
+        if path.endswith("/sic/query") or path == sol.SOL_API_PATH or path.endswith(sol.SOL_API_PATH):
+            return None, "HTTP 404: T404"
+        if path.endswith("/events/search/jobs") and method == "POST":
+            assert "sekoiaio.intake.uuid:\"abc-123\"" in json_body["term"]
+            return {"uuid": "job-fallback-1", "status": 1}, None
+        if path.endswith("/events/search/jobs/job-fallback-1") and method == "GET":
+            return {"uuid": "job-fallback-1", "status": 2, "total": 2}, None
+        if path.endswith("/events"):
+            return {"items": [
+                {"@timestamp": "2026-08-05T10:00:00Z", "host.name": "lab-win01",
+                 "sekoiaio.intake.uuid": "abc-123"},
+                {"@timestamp": "2026-08-05T10:01:00Z", "host.name": "lab-win01",
+                 "sekoiaio.intake.uuid": "abc-123"},
+            ]}, None
+        return None, f"unexpected {method} {path}"
+
+    monkeypatch.setattr(cp, "sek_request", fake_sek)
+    r = client.post("/control/sekoia/sol/run",
+                    json={"query": simple, "limit": 10}, headers=AUTH)
+    body = r.json()
+    assert body["ok"] is True, body
+    assert body["backend"] == "search-jobs-dork"
+    assert body["row_count"] == 2
+    assert body["job_id"] == "job-fallback-1"
+    assert any("search/jobs" in p for _, p in calls)
 
 
 # ── Bibliothèque ──────────────────────────────────────────────────────────────

@@ -27,6 +27,47 @@ SECRETS_KEY = "LLM_BRIDGE"
 
 PROVIDERS = ("openai", "openai_compatible", "anthropic", "ollama")
 
+# Extended Intelligence : par défaut, interdiction de toute IA cloud
+# (prompts / alertes / forensic restent sur l'hôte → Ollama local).
+EI_LOCAL_ONLY = os.environ.get("EI_LOCAL_ONLY", "true").strip().lower() in (
+    "1", "true", "yes", "on",
+)
+_CLOUD_HOST_MARKERS = (
+    "openai.com", "anthropic.com", "api.openai", "googleapis.com",
+    "azure.com", "openai.azure", "mistral.ai", "groq.com", "together.xyz",
+    "fireworks.ai", "deepseek.com", "cohere.com", "perplexity.ai",
+)
+
+
+def _host_is_local(url: str) -> bool:
+    from urllib.parse import urlparse
+    host = (urlparse(url or "").hostname or "").lower()
+    if not host:
+        return False
+    if host in ("localhost", "127.0.0.1", "::1", "oc-gateway", "ollama",
+                "oc-ollama", "ollama-cybercorp", "host.docker.internal"):
+        return True
+    if host.endswith(".local") or host.endswith(".internal"):
+        return True
+    parts = host.split(".")
+    if len(parts) == 4 and all(p.isdigit() for p in parts):
+        a, b = int(parts[0]), int(parts[1])
+        if a == 10 or a == 127 or (a == 192 and b == 168) or (a == 172 and 16 <= b <= 31):
+            return True
+    return False
+
+
+def _provider_is_local(kind: str, base_url: str) -> bool:
+    k = (kind or "").lower()
+    if k in ("openai", "anthropic"):
+        return False
+    base = (base_url or "").strip()
+    if any(m in base.lower() for m in _CLOUD_HOST_MARKERS):
+        return False
+    if k == "ollama" and not base:
+        return True  # défaut oc-gateway local
+    return _host_is_local(base)
+
 EI_SYSTEM = (
     "Tu es Extended Intelligence (EI), copilote SOC/CERT SEP × Sekoia. "
     "Français, très concis, opérationnel. "
@@ -514,20 +555,29 @@ async def _chat_anthropic(api_key: str, model: str, messages: list[dict],
 
 
 def _pick_default_provider_id() -> Optional[str]:
-    """Préférer une IA locale (ollama) aux clouds quand aucun id n'est fourni."""
+    """Préférer Ollama local ; jamais un cloud si EI_LOCAL_ONLY."""
     items = [p for p in _public_providers() if p.get("enabled") is not False]
     if not items:
         return None
+    local_items = [
+        p for p in items
+        if _provider_is_local(str(p.get("kind") or ""), str(p.get("base_url") or ""))
+    ]
+    pool = local_items if (EI_LOCAL_ONLY or local_items) else items
+    if EI_LOCAL_ONLY and not local_items:
+        return None
     for prefer in ("ollama", "openai_compatible"):
-        hit = next((p for p in items if p.get("kind") == prefer), None)
+        hit = next((p for p in pool if p.get("kind") == prefer), None)
         if hit:
             return hit["id"]
-    return items[0]["id"]
+    return pool[0]["id"] if pool else None
 
 
 async def chat_with_provider(provider_id: str, messages: list[dict],
                              temperature: float = 0.2,
-                             max_tokens: int = 512) -> dict[str, Any]:
+                             max_tokens: int = 512,
+                             *,
+                             enforce_local: Optional[bool] = None) -> dict[str, Any]:
     meta = _load_meta()
     p = next((x for x in (meta.get("providers") or []) if x.get("id") == provider_id), None)
     if not p or not p.get("enabled", True):
@@ -538,27 +588,39 @@ async def chat_with_provider(provider_id: str, messages: list[dict],
     model = p.get("model") or "gpt-4o-mini"
     api_key = str(sec.get("api_key") or "")
     base = str(p.get("base_url") or "")
+    if kind == "ollama" and not base:
+        base = os.environ.get(
+            "OLLAMA_DEFAULT_BASE_URL",
+            "http://oc-gateway:8080/v1",
+        )
+    if kind == "openai" and not base:
+        base = "https://api.openai.com/v1"
+
+    must_local = EI_LOCAL_ONLY if enforce_local is None else enforce_local
+    if must_local and not _provider_is_local(kind, base):
+        return {
+            "ok": False,
+            "error": "EI_LOCAL_ONLY: fournisseur cloud interdit — "
+                     "utilisez Ollama Cybercorp (http://oc-gateway:8080/v1). "
+                     "Aucune donnée ne doit quitter l’hôte.",
+            "local_only": True,
+        }
+
     if kind == "anthropic":
         ok, res = await _chat_anthropic(api_key, model, messages, base)
     else:
-        # openai / openai_compatible / ollama
-        if kind == "ollama" and not base:
-            # Défaut : gateway Ollama Cybercorp sur le réseau Docker SEP
-            base = os.environ.get(
-                "OLLAMA_DEFAULT_BASE_URL",
-                "http://oc-gateway:8080/v1",
-            )
-        if kind == "openai" and not base:
-            base = "https://api.openai.com/v1"
         if not base:
             return {"ok": False, "error": "base_url requise"}
-        # Locaux : plafonner pour éviter les runs de plusieurs minutes
         mt = max_tokens if kind != "ollama" else min(max_tokens, 280)
         ok, res = await _chat_openai_compatible(
             base, api_key, model, messages, temperature, max_tokens=mt)
     if not ok:
         return {"ok": False, "error": res}
-    return {"ok": True, "provider_id": provider_id, "kind": kind, "model": model, **res}
+    return {
+        "ok": True, "provider_id": provider_id, "kind": kind, "model": model,
+        "local_only": must_local, "data_residency": "host-local" if must_local else "provider",
+        **res,
+    }
 
 
 async def probe_mcp_http(url: str, token: str = "") -> dict[str, Any]:
@@ -599,6 +661,8 @@ def register(lb_app) -> None:
         return {
             "ok": True,
             "product": "Extended Intelligence",
+            "local_only": EI_LOCAL_ONLY,
+            "data_residency": "host-local" if EI_LOCAL_ONLY else "mixed",
             "providers": _public_providers(),
             "mcp_servers": _public_mcp(),
             "default_provider_id": _pick_default_provider_id(),
@@ -610,7 +674,7 @@ def register(lb_app) -> None:
             "inbound_mcp": {
                 "stdio": "connectors/sekoia-mcp/server.py",
                 "note": "Extended Intelligence + Cursor : .cursor/mcp.json (serveur sep) "
-                        "· Ollama Cybercorp recommandé (http://oc-gateway:8080/v1)",
+                        "· Ollama Cybercorp 100% local (http://oc-gateway:8080/v1)",
             },
             "secrets_store": "ready" if cp._fernet() else "unavailable",
             "kinds": list(PROVIDERS),

@@ -25,6 +25,7 @@
     { id: 'journal', label: 'Journal' },
   ];
 
+  /** Presets 100 % locaux uniquement — aucun cloud. */
   const LOCAL_PRESETS = [
     {
       id: 'ollama-cybercorp',
@@ -32,31 +33,23 @@
       kind: 'ollama',
       base_url: 'http://oc-gateway:8080/v1',
       model: 'llama3.2:3b',
-      hint: 'Stack recommandée · même réseau Docker SEP',
+      hint: '100 % local · réseau Docker SEP (recommandé)',
     },
     {
-      id: 'ollama',
-      name: 'Ollama (hôte)',
+      id: 'ollama-loopback',
+      name: 'Ollama gateway (localhost)',
       kind: 'ollama',
-      base_url: 'http://172.26.0.1:11435/v1',
+      base_url: 'http://127.0.0.1:11435/v1',
       model: 'llama3.2:3b',
-      hint: 'Gateway via IP bridge hôte',
+      hint: 'Depuis l’hôte uniquement — bind 127.0.0.1',
     },
     {
       id: 'lmstudio',
-      name: 'LM Studio',
+      name: 'LM Studio (local)',
       kind: 'openai_compatible',
       base_url: 'http://host.docker.internal:1234/v1',
       model: 'local-model',
-      hint: 'Local Server → Enable CORS',
-    },
-    {
-      id: 'vllm',
-      name: 'vLLM',
-      kind: 'openai_compatible',
-      base_url: 'http://host.docker.internal:8000/v1',
-      model: 'local',
-      hint: 'OpenAI-compatible API',
+      hint: 'On-prem uniquement',
     },
   ];
 
@@ -214,6 +207,7 @@
     return `
       <span class="rl-chip ${aiCls}"><span class="rl-dot"></span>
         ${p ? esc(p.name) : 'IA offline'}</span>
+      <span class="rl-chip is-ok">100% local</span>
       <span class="rl-chip">SIEM ${nSic}${ctx.sic_total != null ? '/' + esc(ctx.sic_total) : ''}</span>
       <span class="rl-chip">Ingest ${nSep}</span>
       <span class="rl-chip">${st.cfg.injectContext ? 'Contexte ON' : 'Contexte OFF'}</span>
@@ -497,11 +491,16 @@
     </tr>`).join('');
     return `
       <div class="rl-panel">
-        <div class="rl-panel-head"><h3>Moteur IA — Ollama d’abord</h3></div>
+        <div class="rl-panel-head"><h3>Moteur IA — 100 % local</h3></div>
+        <div class="ei-banner" style="margin-bottom:.75rem">
+          <strong>Aucune donnée ne quitte l’hôte.</strong>
+          Inférence Ollama on-prem uniquement — OpenAI / Anthropic / clouds refusés
+          (<code>EI_LOCAL_ONLY</code>). Accès SEP → <code>http://oc-gateway:8080/v1</code>
+          (gateway bind <code>127.0.0.1</code>).
+        </div>
         <p class="fp-muted ei-lead">
-          Extended Intelligence est conçu pour <strong>Ollama Cybercorp</strong>
-          (<code>http://oc-gateway:8080/v1</code> (après <code>join-sep-network.sh</code>).
-          Clés chiffrées Fernet côté control-plane.
+          Stack : <strong>Ollama Cybercorp</strong> · après <code>join-sep-network.sh</code> ·
+          clés Fernet control-plane.
         </p>
         <div class="rl-card">
           <h4>Fenêtre & focus</h4>
@@ -526,10 +525,8 @@
             <label class="fp-label">Nom<input class="fp-input" id="rl-llm-name" placeholder="Ollama Cybercorp"></label>
             <label class="fp-label">Kind
               <select class="fp-select" id="rl-llm-kind">
-                <option value="ollama">Ollama</option>
-                <option value="openai_compatible">OpenAI-compatible</option>
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic</option>
+                <option value="ollama">Ollama (local)</option>
+                <option value="openai_compatible">OpenAI-compatible (local)</option>
               </select>
             </label>
             <label class="fp-label">Base URL<input class="fp-input" id="rl-llm-url" placeholder="http://oc-gateway:8080/v1"></label>

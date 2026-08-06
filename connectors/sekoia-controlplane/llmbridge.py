@@ -111,13 +111,19 @@ def _public_mcp() -> list[dict[str, Any]]:
 
 
 async def _chat_openai_compatible(base_url: str, api_key: str, model: str,
-                                  messages: list[dict], temperature: float = 0.2
+                                  messages: list[dict], temperature: float = 0.2,
+                                  max_tokens: int = 512,
                                   ) -> tuple[bool, Any]:
     url = base_url.rstrip("/") + "/chat/completions"
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
-    payload = {"model": model, "messages": messages, "temperature": temperature}
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max(16, min(int(max_tokens or 512), 4096)),
+    }
     try:
         # IA locale (Ollama…) : cold-start modèle peut dépasser 60s
         timeout = httpx.Timeout(connect=15, read=300, write=60, pool=15)
@@ -164,8 +170,21 @@ async def _chat_anthropic(api_key: str, model: str, messages: list[dict],
         return False, f"{type(exc).__name__}: {exc}"
 
 
+def _pick_default_provider_id() -> Optional[str]:
+    """Préférer une IA locale (ollama) aux clouds quand aucun id n'est fourni."""
+    items = [p for p in _public_providers() if p.get("enabled") is not False]
+    if not items:
+        return None
+    for prefer in ("ollama", "openai_compatible"):
+        hit = next((p for p in items if p.get("kind") == prefer), None)
+        if hit:
+            return hit["id"]
+    return items[0]["id"]
+
+
 async def chat_with_provider(provider_id: str, messages: list[dict],
-                             temperature: float = 0.2) -> dict[str, Any]:
+                             temperature: float = 0.2,
+                             max_tokens: int = 512) -> dict[str, Any]:
     meta = _load_meta()
     p = next((x for x in (meta.get("providers") or []) if x.get("id") == provider_id), None)
     if not p or not p.get("enabled", True):
@@ -181,12 +200,19 @@ async def chat_with_provider(provider_id: str, messages: list[dict],
     else:
         # openai / openai_compatible / ollama
         if kind == "ollama" and not base:
-            base = "http://host.docker.internal:11434/v1"
+            # Défaut : gateway Ollama Cybercorp sur le réseau Docker SEP
+            base = os.environ.get(
+                "OLLAMA_DEFAULT_BASE_URL",
+                "http://oc-gateway:8080/v1",
+            )
         if kind == "openai" and not base:
             base = "https://api.openai.com/v1"
         if not base:
             return {"ok": False, "error": "base_url requise"}
-        ok, res = await _chat_openai_compatible(base, api_key, model, messages, temperature)
+        # Locaux : plafonner pour éviter les runs de plusieurs minutes
+        mt = max_tokens if kind != "ollama" else min(max_tokens, 768)
+        ok, res = await _chat_openai_compatible(
+            base, api_key, model, messages, temperature, max_tokens=mt)
     if not ok:
         return {"ok": False, "error": res}
     return {"ok": True, "provider_id": provider_id, "kind": kind, "model": model, **res}
@@ -318,12 +344,10 @@ def register(lb_app) -> None:
         provider_id = str(body.get("provider_id") or "").strip()
         messages = body.get("messages") or []
         if not provider_id:
-            # premier provider enabled
-            items = [p for p in _public_providers() if p.get("enabled")]
-            if not items:
+            provider_id = _pick_default_provider_id() or ""
+            if not provider_id:
                 return JSONResponse({"ok": False, "error": "aucun fournisseur LLM"},
                                     status_code=400)
-            provider_id = items[0]["id"]
         if not isinstance(messages, list) or not messages:
             return JSONResponse({"ok": False, "error": "messages[] requis"}, status_code=400)
         # sécurité : tronquer
@@ -335,8 +359,15 @@ def register(lb_app) -> None:
                 "role": str(m.get("role") or "user")[:20],
                 "content": str(m.get("content") or "")[:12000],
             })
+        try:
+            max_tokens = int(body.get("max_tokens") or 512)
+        except (TypeError, ValueError):
+            max_tokens = 512
         return await chat_with_provider(
-            provider_id, safe, float(body.get("temperature") or 0.2))
+            provider_id, safe,
+            temperature=float(body.get("temperature") or 0.2),
+            max_tokens=max_tokens,
+        )
 
     @lb_app.get("/control/sekoia/mcp/servers", dependencies=dep)
     async def list_mcp():

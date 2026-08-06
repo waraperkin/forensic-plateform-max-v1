@@ -200,6 +200,10 @@ vLLM, LocalAI, llama.cpp…) via MCP / OpenAI-compatible. Missions CERT
 serveur MCP stdio : [`connectors/sekoia-mcp/README.md`](connectors/sekoia-mcp/README.md)
 et [`.cursor/mcp.json`](.cursor/mcp.json). Control-plane : `127.0.0.1:8901`.
 
+Stack Ollama autonome recommandée (même hôte Docker) :
+[`waraperkin/ollama-cybercorp`](https://github.com/waraperkin/ollama-cybercorp) —
+`./scripts/join-sep-network.sh` puis Relais → Base URL `http://oc-gateway:8080/v1`.
+
 Détail : [`docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md`](docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md),
 audit : [`docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md`](docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md).
 

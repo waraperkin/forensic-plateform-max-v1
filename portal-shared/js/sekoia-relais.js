@@ -530,6 +530,7 @@
         method: 'POST',
         body: {
           provider_id: p.id,
+          max_tokens: 512,
           messages: [
             { role: 'system', content: st.cfg.systemPrompt || DEFAULT_CFG.systemPrompt },
             ...st.chat.filter((m) => m.role === 'user' || m.role === 'assistant').slice(-12).map((m) => ({
@@ -657,6 +658,7 @@
           method: 'POST',
           body: {
             provider_id: id,
+            max_tokens: 128,
             messages: [{ role: 'user', content: 'Réponds en une phrase : Relais CERT OK ?' }],
           },
         }).then((r) => {

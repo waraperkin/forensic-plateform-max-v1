@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "sep": {
+      "command": "connectors/sekoia-mcp/.venv/bin/python",
+      "args": [
+        "connectors/sekoia-mcp/server.py"
+      ],
+      "cwd": "/opt/forensic-plateform-max-v1",
+      "env": {
+        "SEKOIA_CONTROLPLANE_URL": "http://127.0.0.1:8901"
+      }
+    }
+  }
+}

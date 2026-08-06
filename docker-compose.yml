@@ -1174,6 +1174,9 @@ services:
       - MAIL_NOTIFY_PATH=/data/sekoia-mail-notify.json
     volumes:
       - sekoia-cp-data:/data
+    # Localhost only — clients MCP (Cursor) / outils host
+    ports:
+      - "127.0.0.1:${FP_SEKOIA_CP_PORT:-8901}:8901"
     networks:
       forensic-net:
         ipv4_address: 172.26.0.97

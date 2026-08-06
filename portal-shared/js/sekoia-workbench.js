@@ -1374,6 +1374,43 @@
       </tr></thead><tbody>${rows
         || '<tr><td colspan="2"><p class="swb-hint" style="padding:.6rem">Aucun destinataire — ajoutez admin@cyberdefense.ml</p></td></tr>'}</tbody></table></div>
       ${(m.last_sent && m.last_sent.length) ? `<p class="swb-hint" style="margin:.5rem 0 0">Dernier envoi : ${esc(m.last_sent[0].ts || '')} — ${esc(m.last_sent[0].subject || '')}</p>` : ''}
+    </div>
+    ${channelsNotifyPanel(st.data.notifyChannels)}`;
+  }
+
+  function channelsNotifyPanel(ch) {
+    const data = ch || {};
+    const items = data.items || [];
+    const rows = items.map((c) => `<tr>
+      <td><strong>${esc(c.name || c.id)}</strong><br><span class="swb-hint">${esc(c.type)} · ${c.enabled === false ? 'off' : 'on'}</span></td>
+      <td><code class="swb-hint">${esc(c.url_preview || '—')}</code></td>
+      <td>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="ch-test" data-id="${esc(c.id)}">Test</button>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-danger-ghost" data-swb-act="ch-del" data-id="${esc(c.id)}">Retirer</button>
+      </td>
+    </tr>`).join('');
+    return `<div class="swb-panel" style="margin-top:.75rem">
+      <div class="swb-panel-head">
+        <h3 class="swb-panel-title">Canaux (webhook · Slack · Mattermost · Teams · Discord)</h3>
+        <span class="swb-hint">${items.length} canal(aux) · URLs chiffrées Fernet</span>
+      </div>
+      <p class="swb-hint" style="margin:0 0 .6rem">Mêmes événements que l’e-mail. Collez l’URL Incoming Webhook du canal ; le secret reste chiffré.</p>
+      <div class="swb-filters" style="margin-bottom:.55rem;flex-wrap:wrap;gap:.4rem">
+        <input class="swb-input" id="swb-ch-name" style="max-width:10rem" placeholder="Nom (SOC Slack)">
+        <select class="swb-input" id="swb-ch-type" style="max-width:10rem">
+          <option value="slack">Slack</option>
+          <option value="mattermost">Mattermost</option>
+          <option value="teams">Microsoft Teams</option>
+          <option value="discord">Discord</option>
+          <option value="webhook">Webhook JSON</option>
+        </select>
+        <input class="swb-input" id="swb-ch-url" style="max-width:28rem" placeholder="https://hooks.slack.com/services/…">
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-swb-act="ch-add">Ajouter canal</button>
+      </div>
+      <div class="swb-tablewrap" style="max-height:18vh"><table class="swb-table"><thead><tr>
+        <th>Canal</th><th>URL</th><th></th>
+      </tr></thead><tbody>${rows
+        || '<tr><td colspan="3"><p class="swb-hint" style="padding:.6rem">Aucun canal — ajoutez un webhook Slack/Teams/Mattermost</p></td></tr>'}</tbody></table></div>
     </div>`;
   }
 
@@ -2003,9 +2040,11 @@
           api('/alerting/rules'),
           api('/alerting/alerts?hours=24&dedupe=1&size=200').catch(() => null),
           api('/notify/mail').catch(() => null),
+          api('/notify/channels').catch(() => null),
         ]);
         st.data.arules = r[0]; st.data.alerts = r[1];
         st.data.mailNotify = r[2];
+        st.data.notifyChannels = r[3];
         st.data.artypes = await api('/alerting/rule-types').catch(() => null);
         if (r[1] && r[1].total) st.badges.alerting = { text: String(r[1].total), tone: 'danger' };
       } else if (st.view === 'hosts') {
@@ -2486,6 +2525,32 @@
           const r = await api('/notify/mail/test', { method: 'POST', body: email ? { email } : {} });
           if (r && r.ok) toast(`Test envoyé → ${(r.recipients || []).join(', ')}`, 'ok');
           else toast((r && r.error) || 'Échec envoi (configurer SMTP dans SEP)', 'err');
+          return;
+        }
+        if (act === 'ch-add') {
+          const name = ((document.getElementById('swb-ch-name') || {}).value || '').trim();
+          const type = ((document.getElementById('swb-ch-type') || {}).value || 'webhook').trim();
+          const url = ((document.getElementById('swb-ch-url') || {}).value || '').trim();
+          if (!url || url.indexOf('http') !== 0) { toast('URL http(s) requise', 'err'); return; }
+          const r = await api('/notify/channels', {
+            method: 'POST',
+            body: { name: name || type, type, url, events: [] },
+          });
+          if (r && r.ok) { toast(`Canal ${type} ajouté`, 'ok'); load(); }
+          else toast((r && r.error) || 'Échec ajout canal', 'err');
+          return;
+        }
+        if (act === 'ch-del') {
+          if (!confirm('Retirer ce canal ?')) return;
+          const r = await api(`/notify/channels/${encodeURIComponent(b.dataset.id)}`, { method: 'DELETE' });
+          if (r && r.ok) { toast('Canal retiré', 'ok'); load(); }
+          else toast((r && r.error) || 'Échec', 'err');
+          return;
+        }
+        if (act === 'ch-test') {
+          const r = await api(`/notify/channels/${encodeURIComponent(b.dataset.id)}/test`, { method: 'POST' });
+          if (r && r.ok) toast('Test canal envoyé', 'ok');
+          else toast((r && r.error) || 'Échec test canal', 'err');
           return;
         }
         if (act === 'toggle-rule') {

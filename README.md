@@ -183,19 +183,22 @@ Sur `/sekoia`, la barre latérale n'affiche plus le préfixe « SEKOIA — » /
 « Sekoia.IO — » : l'en-tête annonce déjà la plateforme. Les mêmes clés i18n
 gardent le préfixe sur le portail CERT, où Sekoia côtoie SentinelOne.
 
-**Notifications e-mail SEP** (`mailnotify.py`) — Alerting & drops expose un
-panneau pour configurer le **serveur SMTP** (hôte, port, utilisateur, mot de
-passe, from, TLS/SSL), les **destinataires** (ex. `admin@cyberdefense.ml`) et
-les événements : intake silencieux, baisse de volume, clé API créée, compte
-utilisateur créé/invité.
+**Notifications SEP** — Alerting & drops configure :
 
-Les identifiants SMTP sont chiffrés Fernet dans le même store que la clé API
-Sekoia (`SEKOIA_SECRETS_KEY` → `/data/sekoia-secrets.enc`) — **pas en clair dans
-`.env`**. Les variables `SMTP_*` restent un bootstrap optionnel (migration) ;
-la config UI prime dès qu’un hôte SMTP y est enregistré.
+- **E-mail** (`mailnotify.py`) : SMTP + destinataires
+- **Canaux** (`notifychannels.py`) : webhook JSON, Slack, Mattermost,
+  Microsoft Teams, Discord — URLs chiffrées Fernet
 
-Prérequis : `SEKOIA_SECRETS_KEY` générée (`generate-secrets`). Tester depuis
-SEP → Alerting & drops → « Enregistrer SMTP » puis « Envoyer un test ».
+Événements : intake silencieux, baisse de volume, clé API créée, compte
+utilisateur. Les secrets (SMTP, webhooks) vivent dans
+`SEKOIA_SECRETS_KEY` → `/data/sekoia-secrets.enc` — pas en clair dans `.env`.
+
+**LLM & MCP** (`llmbridge.py` + `connectors/sekoia-mcp/`) — Kheish → onglet
+**LLM & MCP** pour brancher OpenAI / Anthropic / Ollama (ou endpoint compatible).
+Cursor parle à SEP via le serveur MCP stdio : voir
+[`connectors/sekoia-mcp/README.md`](connectors/sekoia-mcp/README.md) et
+[`.cursor/mcp.json`](.cursor/mcp.json). Control-plane exposé en local sur
+`127.0.0.1:8901`.
 
 Détail : [`docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md`](docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md),
 audit : [`docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md`](docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md).

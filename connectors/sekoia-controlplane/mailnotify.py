@@ -251,32 +251,55 @@ def _send_smtp(to_addrs: list[str], subject: str, body: str) -> tuple[bool, Opti
 
 def notify_event(event: str, subject: str, body: str,
                  fingerprint: str = "") -> dict[str, Any]:
-    """Envoie un e-mail si l'événement est activé et qu'il y a des destinataires."""
+    """E-mail + canaux (webhook/Slack/Mattermost/Teams) si l'événement est activé."""
     store = load_store()
     if not store.get("enabled", True):
         return {"ok": True, "skipped": "disabled"}
     if not store.get("events", {}).get(event, False):
         return {"ok": True, "skipped": f"event {event} off"}
     recipients = list(store.get("recipients") or [])
-    if not recipients:
-        return {"ok": False, "error": "aucun destinataire configuré"}
     fp = fingerprint or f"{event}:{subject}:{body[:80]}"
     if fp in _sent_fps:
         return {"ok": True, "skipped": "cooldown"}
-    ok, err = _send_smtp(recipients, subject, body)
-    if ok:
+
+    mail_ok, mail_err = True, None
+    if recipients:
+        mail_ok, mail_err = _send_smtp(recipients, subject, body)
+        if mail_ok:
+            hist = list(store.get("last_sent") or [])
+            hist.insert(0, {"ts": _now(), "event": event, "subject": subject,
+                            "to": recipients, "ok": True})
+            store["last_sent"] = hist[:30]
+            save_store(store)
+            cp.log.info("mailnotify: envoyé « %s » → %s", subject, recipients)
+        else:
+            cp.log.warning("mailnotify: échec « %s »: %s", subject, mail_err)
+    else:
+        mail_ok, mail_err = False, "aucun destinataire e-mail"
+
+    channels: dict[str, Any] = {"sent": 0, "results": []}
+    try:
+        import notifychannels  # noqa: WPS433
+        channels = notifychannels.dispatch(event, subject, body)
+    except Exception as exc:  # noqa: BLE001
+        cp.log.warning("mailnotify channels: %s", exc)
+        channels = {"sent": 0, "error": str(exc)}
+
+    any_ok = mail_ok or bool(channels.get("sent"))
+    if any_ok:
         _sent_fps.add(fp)
         if len(_sent_fps) > 5000:
             _sent_fps.clear()
-        hist = list(store.get("last_sent") or [])
-        hist.insert(0, {"ts": _now(), "event": event, "subject": subject,
-                        "to": recipients, "ok": True})
-        store["last_sent"] = hist[:30]
-        save_store(store)
-        cp.log.info("mailnotify: envoyé « %s » → %s", subject, recipients)
-    else:
-        cp.log.warning("mailnotify: échec « %s »: %s", subject, err)
-    return {"ok": ok, "error": err, "recipients": recipients, "event": event}
+    err = None if any_ok else (mail_err or channels.get("error")
+                               or "aucun canal / destinataire")
+    return {
+        "ok": any_ok,
+        "error": err,
+        "recipients": recipients,
+        "mail_ok": mail_ok,
+        "channels": channels,
+        "event": event,
+    }
 
 
 async def notify_alerts(alerts: list[dict]) -> dict[str, Any]:

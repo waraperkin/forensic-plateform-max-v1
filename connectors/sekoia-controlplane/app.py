@@ -1850,6 +1850,10 @@ alerting.register(app)
 
 import mailnotify  # noqa: E402
 mailnotify.register(app)
+import notifychannels  # noqa: E402
+notifychannels.register(app)
+import llmbridge  # noqa: E402
+llmbridge.register(app)
 
 # ── Sekoia Extended Platform — Bulk Operations Engine.
 #    Opérations en lot par filtre, dry-run, export/import, rollback.

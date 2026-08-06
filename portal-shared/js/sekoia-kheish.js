@@ -17,9 +17,12 @@
     { id: 'approvals', label: 'Approvals' },
     { id: 'skills', label: 'Skills' },
     { id: 'connectors', label: 'Connecteurs' },
+    { id: 'llm', label: 'LLM & MCP' },
     { id: 'config', label: 'Configuration' },
     { id: 'audit', label: 'Audit' },
   ];
+
+  const API = '/api/threat/sekoia';
 
   const TOOL_PRESETS = [
     { id: 'sekoia', name: 'Sekoia.IO', kind: 'sekoia', baseUrl: 'https://app.sekoia.io', hint: 'UI token / API key SEP' },
@@ -101,7 +104,29 @@
     chat: loadJson(LS_CHAT, []) || [],
     editSkillId: null,
     editConnId: null,
+    llmStatus: null,
+    llmBusy: false,
   };
+
+  async function sepApi(path, opts) {
+    const o = Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {});
+    if (o.body && typeof o.body !== 'string') {
+      o.body = JSON.stringify(o.body);
+      o.headers = Object.assign({ 'Content-Type': 'application/json' }, o.headers || {});
+    }
+    const r = await fetch(API + path, o);
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok && d && d.error) throw new Error(d.error);
+    return d;
+  }
+
+  async function refreshLlm() {
+    try {
+      st.llmStatus = await sepApi('/llm/status');
+    } catch (e) {
+      st.llmStatus = { ok: false, error: String(e.message || e), providers: [], mcp_servers: [] };
+    }
+  }
   if (!Array.isArray(st.cfg.connectors)) st.cfg.connectors = DEFAULT_CFG.connectors.slice();
 
   function esc(s) {
@@ -424,11 +449,89 @@
       <div class="kh-stream" id="kh-stream">${streamHtml()}</div>`;
   }
 
+  function llmHtml() {
+    const s = st.llmStatus || {};
+    const providers = s.providers || [];
+    const mcps = s.mcp_servers || [];
+    const pRows = providers.map((p) => `<tr>
+      <td><strong>${esc(p.name)}</strong><br><span class="fp-muted">${esc(p.kind)} · ${esc(p.model || '—')}</span></td>
+      <td><code class="fp-muted">${esc(p.base_url || '—')}</code></td>
+      <td>${p.has_api_key ? 'clé ✓' : '—'} · ${p.enabled === false ? 'off' : 'on'}</td>
+      <td><button type="button" class="fp-btn fp-btn-sm fp-btn-danger-ghost" data-kh="llm-del" data-id="${esc(p.id)}">Retirer</button></td>
+    </tr>`).join('');
+    const mRows = mcps.map((m) => `<tr>
+      <td><strong>${esc(m.name)}</strong><br><span class="fp-muted">${esc(m.transport)}</span></td>
+      <td><code class="fp-muted">${esc(m.url || m.command || '—')}</code></td>
+      <td>${(m.last_tools || []).slice(0, 4).map((t) => esc(t)).join(', ') || '—'}</td>
+      <td>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-kh="mcp-probe" data-id="${esc(m.id)}">Probe</button>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-danger-ghost" data-kh="mcp-del" data-id="${esc(m.id)}">Retirer</button>
+      </td>
+    </tr>`).join('');
+    return `
+      <div class="kh-panel">
+        <div class="kh-panel-head"><h3>LLM & MCP</h3></div>
+        <p class="fp-muted" style="margin:0 0 .75rem;font-size:.82rem">
+          Branchez OpenAI, Anthropic, Ollama ou tout endpoint compatible OpenAI.
+          Les clés API sont chiffrées Fernet (comme la clé Sekoia).
+          Cursor peut aussi piloter SEP via le serveur MCP stdio
+          <code>connectors/sekoia-mcp/server.py</code>.
+        </p>
+        <div class="kh-card">
+          <h4>Ajouter un fournisseur LLM</h4>
+          <div class="kh-form-grid">
+            <label class="fp-label">Nom<input class="fp-input" id="kh-llm-name" placeholder="OpenAI prod"></label>
+            <label class="fp-label">Kind
+              <select class="fp-select" id="kh-llm-kind">
+                <option value="openai">OpenAI</option>
+                <option value="openai_compatible">OpenAI-compatible</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="ollama">Ollama</option>
+              </select>
+            </label>
+            <label class="fp-label">Base URL<input class="fp-input" id="kh-llm-url" placeholder="https://api.openai.com/v1"></label>
+            <label class="fp-label">Modèle<input class="fp-input" id="kh-llm-model" placeholder="gpt-4o-mini"></label>
+            <label class="fp-label">API key<input class="fp-input" id="kh-llm-key" type="password" placeholder="sk-…" autocomplete="off"></label>
+          </div>
+          <div class="kh-toolbar" style="margin-top:.55rem">
+            <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-kh="llm-add">Enregistrer LLM</button>
+            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-kh="llm-test">Tester chat</button>
+            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-kh="llm-refresh">Rafraîchir</button>
+          </div>
+          <div class="fp-table-wrap" style="margin-top:.6rem"><table class="kh-table fp-table">
+            <thead><tr><th>Fournisseur</th><th>URL</th><th>Auth</th><th></th></tr></thead>
+            <tbody>${pRows || '<tr><td colspan="4" class="fp-muted">Aucun fournisseur</td></tr>'}</tbody>
+          </table></div>
+        </div>
+        <div class="kh-card" style="margin-top:.75rem">
+          <h4>Serveurs MCP distants (HTTP)</h4>
+          <div class="kh-form-grid">
+            <label class="fp-label">Nom<input class="fp-input" id="kh-mcp-name" placeholder="tools-interne"></label>
+            <label class="fp-label">URL MCP<input class="fp-input" id="kh-mcp-url" placeholder="https://mcp.example.com/mcp"></label>
+            <label class="fp-label">Bearer (opt.)<input class="fp-input" id="kh-mcp-token" type="password" placeholder="token" autocomplete="off"></label>
+          </div>
+          <div class="kh-toolbar" style="margin-top:.55rem">
+            <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-kh="mcp-add">Ajouter MCP</button>
+          </div>
+          <div class="fp-table-wrap" style="margin-top:.6rem"><table class="kh-table fp-table">
+            <thead><tr><th>Serveur</th><th>Endpoint</th><th>Tools</th><th></th></tr></thead>
+            <tbody>${mRows || '<tr><td colspan="4" class="fp-muted">Aucun serveur MCP distant</td></tr>'}</tbody>
+          </table></div>
+          <p class="fp-muted" style="margin:.55rem 0 0;font-size:.78rem">
+            MCP inbound Cursor : voir <code>connectors/sekoia-mcp/README.md</code>
+            et <code>.cursor/mcp.json</code> (serveur <code>sep</code>).
+          </p>
+        </div>
+        <div id="kh-llm-msg" style="margin-top:.55rem"></div>
+      </div>`;
+  }
+
   function mainHtml() {
     if (st.view === 'mission') return missionHtml();
     if (st.view === 'chat') return chatHtml();
     if (st.view === 'skills') return skillsHtml();
     if (st.view === 'connectors') return connectorsHtml();
+    if (st.view === 'llm') return llmHtml();
     if (st.view === 'config') return configHtml();
     if (st.view === 'approvals') return approvalsHtml();
     if (st.view === 'audit') return auditHtml();
@@ -524,7 +627,7 @@
     });
   }
 
-  function chatReply(userText) {
+  function chatReplyMock(userText) {
     const on = (st.cfg.connectors || []).filter((c) => c.enabled).map((c) => c.tool);
     let reply;
     const q = userText.toLowerCase();
@@ -537,7 +640,7 @@
     } else if (q.indexOf('servicenow') >= 0 || q.indexOf('ticket') >= 0) {
       reply = 'Je peux préparer un incident ServiceNow (dry-run) après triage Sekoia. Activez le connecteur SN puis lancez le skill « ServiceNow Ticket ».';
     } else {
-      reply = `Compris : « ${userText.slice(0, 180)} ». En mode mock je simule le raisonnement ; en live le daemon Kheish / SageMaker exécutera les tools (${on.join(', ') || 'aucun connecteur'}).`;
+      reply = `Compris : « ${userText.slice(0, 180)} ». Mode mock — configurez un LLM dans l’onglet LLM & MCP pour des réponses live.`;
     }
     st.chat.push({ role: 'assistant', text: reply, t: nowStamp() });
     persistChat();
@@ -549,7 +652,36 @@
     st.chat.push({ role: 'user', text: msg, t: nowStamp() });
     persistChat();
     paint();
-    setTimeout(() => { chatReply(msg); paint(); }, 350);
+    const hasLlm = st.llmStatus && (st.llmStatus.providers || []).some((p) => p.enabled !== false && p.has_api_key);
+    const tryLive = () => sepApi('/llm/chat', {
+      method: 'POST',
+      body: {
+        messages: [
+          { role: 'system', content: 'Tu es Kheish, assistant CERT/SOC de la Sekoia Extended Platform. Réponses courtes et actionnables.' },
+          { role: 'user', content: msg },
+        ],
+      },
+    }).then((r) => {
+      if (r && r.ok && r.text) {
+        st.chat.push({ role: 'assistant', text: r.text, t: nowStamp() });
+        persistChat();
+        paint();
+        return;
+      }
+      chatReplyMock(msg);
+      paint();
+    }).catch(() => { chatReplyMock(msg); paint(); });
+
+    if (hasLlm) {
+      tryLive();
+      return;
+    }
+    // tenter quand même (premier provider) puis fallback mock
+    refreshLlm().then(() => {
+      const ok = (st.llmStatus.providers || []).some((p) => p.enabled !== false);
+      if (ok) tryLive();
+      else { chatReplyMock(msg); paint(); }
+    }).catch(() => { chatReplyMock(msg); paint(); });
   }
 
   const PRESETS = {
@@ -562,7 +694,83 @@
       const b = ev.target.closest('[data-kh]'); if (!b) return;
       const act = b.dataset.kh;
 
-      if (act === 'view') { st.view = b.dataset.view || 'mission'; paint(); return; }
+      if (act === 'view') {
+        st.view = b.dataset.view || 'mission';
+        if (st.view === 'llm') {
+          paint();
+          refreshLlm().then(() => paint());
+          return;
+        }
+        paint();
+        return;
+      }
+      if (act === 'llm-refresh') {
+        refreshLlm().then(() => { toast('LLM/MCP rafraîchi', 'ok'); paint(); });
+        return;
+      }
+      if (act === 'llm-add') {
+        const name = ((document.getElementById('kh-llm-name') || {}).value || '').trim();
+        const kind = ((document.getElementById('kh-llm-kind') || {}).value || 'openai').trim();
+        const base_url = ((document.getElementById('kh-llm-url') || {}).value || '').trim();
+        const model = ((document.getElementById('kh-llm-model') || {}).value || '').trim();
+        const api_key = ((document.getElementById('kh-llm-key') || {}).value || '').trim();
+        sepApi('/llm/providers', {
+          method: 'POST',
+          body: { name: name || kind, kind, base_url, model, api_key },
+        }).then(() => refreshLlm()).then(() => { toast('LLM enregistré', 'ok'); paint(); })
+          .catch((e) => toast(e.message || 'Échec LLM', 'err'));
+        return;
+      }
+      if (act === 'llm-del') {
+        if (!confirm('Retirer ce fournisseur LLM ?')) return;
+        sepApi(`/llm/providers/${encodeURIComponent(b.dataset.id)}`, { method: 'DELETE' })
+          .then(() => refreshLlm()).then(() => { toast('LLM retiré', 'ok'); paint(); })
+          .catch((e) => toast(e.message || 'Échec', 'err'));
+        return;
+      }
+      if (act === 'llm-test') {
+        const msgEl = document.getElementById('kh-llm-msg');
+        if (msgEl) msgEl.textContent = 'Test chat…';
+        sepApi('/llm/chat', {
+          method: 'POST',
+          body: { messages: [{ role: 'user', content: 'Réponds en une phrase : SEP MCP OK ?' }] },
+        }).then((r) => {
+          if (msgEl) msgEl.textContent = r.ok ? (r.text || 'OK') : (r.error || 'échec');
+          toast(r.ok ? 'Chat LLM OK' : (r.error || 'échec'), r.ok ? 'ok' : 'err');
+        }).catch((e) => {
+          if (msgEl) msgEl.textContent = e.message || String(e);
+          toast(e.message || 'Échec chat', 'err');
+        });
+        return;
+      }
+      if (act === 'mcp-add') {
+        const name = ((document.getElementById('kh-mcp-name') || {}).value || '').trim();
+        const url = ((document.getElementById('kh-mcp-url') || {}).value || '').trim();
+        const token = ((document.getElementById('kh-mcp-token') || {}).value || '').trim();
+        if (!url) { toast('URL MCP requise', 'warn'); return; }
+        sepApi('/mcp/servers', {
+          method: 'POST',
+          body: { name: name || 'mcp', transport: 'http', url, token },
+        }).then(() => refreshLlm()).then(() => { toast('MCP ajouté', 'ok'); paint(); })
+          .catch((e) => toast(e.message || 'Échec MCP', 'err'));
+        return;
+      }
+      if (act === 'mcp-del') {
+        if (!confirm('Retirer ce serveur MCP ?')) return;
+        sepApi(`/mcp/servers/${encodeURIComponent(b.dataset.id)}`, { method: 'DELETE' })
+          .then(() => refreshLlm()).then(() => { toast('MCP retiré', 'ok'); paint(); })
+          .catch((e) => toast(e.message || 'Échec', 'err'));
+        return;
+      }
+      if (act === 'mcp-probe') {
+        sepApi(`/mcp/servers/${encodeURIComponent(b.dataset.id)}/probe`, { method: 'POST' })
+          .then((r) => {
+            toast(r.ok ? `${r.count || 0} tool(s)` : (r.error || 'probe échoué'), r.ok ? 'ok' : 'err');
+            return refreshLlm();
+          }).then(() => paint())
+          .catch((e) => toast(e.message || 'Échec probe', 'err'));
+        return;
+      }
       if (act === 'session') { st.sessionId = b.dataset.id; st.view = 'stream'; paint(); return; }
       if (act === 'new-session') {
         const id = `sess-${Date.now().toString(36).slice(-6)}`;

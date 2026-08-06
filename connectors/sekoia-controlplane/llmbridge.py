@@ -1,8 +1,8 @@
-"""Pont LLM + MCP pour SEP / Kheish.
+"""Pont LLM + MCP pour SEP / Relais (copilote CERT · IA locale).
 
-- Fournisseurs LLM (OpenAI-compatible, Anthropic, Ollama) : secrets Fernet
-- Serveurs MCP distants (HTTP/SSE) enregistrés pour que SEP/Kheish les appelle
-- Chat proxy OpenAI-compatible pour brancher facilement un modèle
+- Fournisseurs LLM locaux (Ollama, LM Studio, vLLM…) ou distants : secrets Fernet
+- Serveurs MCP distants (HTTP) enregistrés pour que Relais les sonde
+- Chat proxy OpenAI-compatible — cœur de Relais
 
 Le serveur MCP *exposé* à Cursor est dans connectors/sekoia-mcp/ (stdio).
 """
@@ -231,7 +231,8 @@ def register(lb_app) -> None:
             "mcp_servers": _public_mcp(),
             "inbound_mcp": {
                 "stdio": "connectors/sekoia-mcp/server.py",
-                "note": "Configurer Cursor via .cursor/mcp.json (serveur sep)",
+                "note": "Relais + Cursor : .cursor/mcp.json (serveur sep) "
+                        "· presets Ollama/LM Studio dans l’UI Relais",
             },
             "secrets_store": "ready" if cp._fernet() else "unavailable",
             "kinds": list(PROVIDERS),

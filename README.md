@@ -193,12 +193,12 @@ gardent le préfixe sur le portail CERT, où Sekoia côtoie SentinelOne.
 utilisateur. Les secrets (SMTP, webhooks) vivent dans
 `SEKOIA_SECRETS_KEY` → `/data/sekoia-secrets.enc` — pas en clair dans `.env`.
 
-**LLM & MCP** (`llmbridge.py` + `connectors/sekoia-mcp/`) — Kheish → onglet
-**LLM & MCP** pour brancher OpenAI / Anthropic / Ollama (ou endpoint compatible).
-Cursor parle à SEP via le serveur MCP stdio : voir
-[`connectors/sekoia-mcp/README.md`](connectors/sekoia-mcp/README.md) et
-[`.cursor/mcp.json`](.cursor/mcp.json). Control-plane exposé en local sur
-`127.0.0.1:8901`.
+**Relais** (`sekoia-relais.js` + `llmbridge.py` + `connectors/sekoia-mcp/`) —
+copilote CERT branché sur **n’importe quelle IA locale** (Ollama, LM Studio,
+vLLM, LocalAI, llama.cpp…) via MCP / OpenAI-compatible. Missions CERT
+(triage silencieux, baisses, clés API, escalades). Cursor parle à SEP via le
+serveur MCP stdio : [`connectors/sekoia-mcp/README.md`](connectors/sekoia-mcp/README.md)
+et [`.cursor/mcp.json`](.cursor/mcp.json). Control-plane : `127.0.0.1:8901`.
 
 Détail : [`docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md`](docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md),
 audit : [`docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md`](docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md).

@@ -28,7 +28,7 @@
 <link rel="stylesheet" href="shared/css/forensic-report.css">
 <link rel="stylesheet" href="shared/css/portal-ai.css">
 <link rel="stylesheet" href="shared/css/sekoia-tool-mode.css">
-<link rel="stylesheet" href="shared/css/sekoia-kheish.css">
+<link rel="stylesheet" href="shared/css/sekoia-relais.css">
 <script src="shared/vendor/echarts.min.js" defer></script>
 </head>
 <body class="app-shell portal-v6 portal-cybercorp-stable">
@@ -128,9 +128,9 @@
         </ul>
       </div>
       <div class="cc-nav-section cc-nav-section--sekoia">
-        <p class="cc-nav-section-title" data-i18n="nav.sek_kheish"></p>
+        <p class="cc-nav-section-title" data-i18n="nav.sek_relais"></p>
         <ul class="fp-sidebar-nav">
-          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-kheish" data-cc-icon="auto"><span data-i18n="sidebar.sek_kheish"></span></button></li>
+          <li><button type="button" class="cc-nav-btn" data-tab-btn="sekoia-relais" data-cc-icon="auto"><span data-i18n="sidebar.sek_relais"></span></button></li>
         </ul>
       </div>
       <div class="cc-nav-section">
@@ -686,12 +686,12 @@
         <p class="fp-muted" data-i18n="tp.sekoia_cc_lead"></p>
         <div id="sekoia-cc-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
     </section>
-    <!-- Kheish — console agent SEP (multi-outils, config dédiée, chat) -->
-    <section id="tab-sekoia-kheish" class="fp-panel">
+    <!-- Relais — copilote CERT · IA locale via MCP -->
+    <section id="tab-sekoia-relais" class="fp-panel">
       <div class="fp-card cc-pro-panel">
-        <h2 class="fp-section-title" data-i18n="sidebar.sek_kheish">Kheish</h2>
-        <p class="fp-muted" data-i18n="tp.sekoia_kheish_lead">Agent multi-outils CERT/SOC — chat, skills, config dédiée.</p>
-        <div id="sekoia-kheish-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
+        <h2 class="fp-section-title" data-i18n="sidebar.sek_relais">Relais</h2>
+        <p class="fp-muted" data-i18n="tp.sekoia_relais_lead">Copilote CERT branché sur n’importe quelle IA locale via MCP.</p>
+        <div id="sekoia-relais-root" class="cc-tp-root"><p class="fp-muted" data-i18n="ui.loading"></p></div></div>
     </section>
     <!-- ═══ PSOAR — plateforme SOAR ═══ -->
     <section id="tab-psoar" class="fp-panel">
@@ -776,7 +776,7 @@
 <script src="shared/js/panel-kb-detail.js"></script>
 <script src="shared/js/portal-hub-premium.js"></script>
 <script src="shared/js/sekoia-workbench.js"></script>
-<script src="shared/js/sekoia-kheish.js"></script>
+<script src="shared/js/sekoia-relais.js"></script>
 <script src="shared/js/sagf-console.js"></script>
 <script src="shared/js/analyst-console.js"></script>
 <script src="shared/js/sekoia-sep.js"></script>

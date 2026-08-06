@@ -34,7 +34,8 @@
     "sek_rules": "SEKOIA — Rules",
     "sek_apikeys": "SEKOIA — API keys",
     "sek_assets": "SEKOIA — Assets",
-    "sek_kheish": "SEKOIA — Kheish"
+    "sek_kheish": "SEKOIA — Relais",
+    "sek_relais": "SEKOIA — Relais"
   },
   "units": {
     "bytes_b": "B",
@@ -151,7 +152,8 @@
     "sek_rules_inv": "Inventory",
     "sek_apikeys_inv": "Inventory",
     "sek_assets_inv": "Inventory",
-    "sek_kheish": "Kheish"
+    "sek_kheish": "Relais",
+    "sek_relais": "Relais"
   },
   "header": {
     "brand_sub": "CERT / forensic operations center",
@@ -400,7 +402,8 @@
     "s1_fetch_lead": "Targeted threats & activities for a host / IP / agentId.",
     "config_secrets_lead": "Connector secrets (encrypted server-side, never in .env).",
     "sekoia_cc_lead": "SEP operational overview: KPIs, volume and quick access to builders.",
-    "sekoia_kheish_lead": "Multi-tool CERT/SOC agent (Sekoia, SentinelOne, XSOAR, ServiceNow…) — chat, skills, dedicated config.",
+    "sekoia_kheish_lead": "CERT copilot connected to any local AI via MCP (Ollama, LM Studio, vLLM…).",
+    "sekoia_relais_lead": "CERT copilot connected to any local AI via MCP (Ollama, LM Studio, vLLM…).",
     "xdr_lead": "Merged asset view: Sekoia intakes & events, SentinelOne threats & activities, unified timeline, Timesketch / OpenSearch export.",
     "api_key_help": "API key used to authenticate calls to this connector.",
     "delete_secrets": "Delete secrets",

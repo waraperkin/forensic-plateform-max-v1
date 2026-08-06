@@ -12,6 +12,7 @@ COPY lib/service-registry.js ./lib/service-registry.js
 COPY lib/platform-secrets.js ./lib/platform-secrets.js
 COPY lib/upload-limits.js ./lib/upload-limits.js
 COPY lib/ui-error-log.js ./lib/ui-error-log.js
+COPY portal-cert/lib/os-intakes-scan.js ./lib/os-intakes-scan.js
 COPY portal-cert/routes/master-intakes.js ./routes/master-intakes.js
 COPY portal-cert/routes/master-ingest-errors.js ./routes/master-ingest-errors.js
 COPY portal-shared/ ./public/shared/

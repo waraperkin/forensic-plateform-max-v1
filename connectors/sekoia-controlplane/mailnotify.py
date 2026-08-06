@@ -1,7 +1,9 @@
 """Notifications e-mail SEP — intakes silencieux, clés API, comptes utilisateurs.
 
-Destinataires persistés sur disque (/data). SMTP via variables d'environnement.
-Envoi via smtplib (stdlib) — pas de dépendance supplémentaire.
+Destinataires persistés sur disque (/data/sekoia-mail-notify.json).
+SMTP (hôte, port, user, mot de passe, from, TLS/SSL) stocké dans le store
+Fernet partagé avec la clé API Sekoia (`SEKOIA_SECRETS_KEY` → sekoia-secrets.enc).
+Fallback optionnel : variables d'environnement SMTP_* (bootstrap / migration).
 """
 from __future__ import annotations
 
@@ -24,13 +26,16 @@ import app as cp
 STORE_PATH = Path(os.environ.get(
     "MAIL_NOTIFY_PATH", "/data/sekoia-mail-notify.json"))
 
-SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("SMTP_USER", "").strip()
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "").strip()
-SMTP_FROM = os.environ.get("SMTP_FROM", "noreply@cyberdefense.ml").strip()
-SMTP_TLS = os.environ.get("SMTP_TLS", "true").lower() in ("1", "true", "yes")
-SMTP_SSL = os.environ.get("SMTP_SSL", "false").lower() in ("1", "true", "yes")
+# Bootstrap / migration uniquement — la config UI (Fernet) prime.
+_ENV_SMTP = {
+    "host": os.environ.get("SMTP_HOST", "").strip(),
+    "port": int(os.environ.get("SMTP_PORT", "587") or "587"),
+    "user": os.environ.get("SMTP_USER", "").strip(),
+    "password": os.environ.get("SMTP_PASSWORD", "").strip(),
+    "from": os.environ.get("SMTP_FROM", "noreply@cyberdefense.ml").strip(),
+    "tls": os.environ.get("SMTP_TLS", "true").lower() in ("1", "true", "yes"),
+    "ssl": os.environ.get("SMTP_SSL", "false").lower() in ("1", "true", "yes"),
+}
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -45,6 +50,8 @@ DEFAULT_STORE: dict[str, Any] = {
     "enabled": True,
     "last_sent": [],
 }
+
+SMTP_OVERRIDE_KEY = "SMTP"
 
 _lock = threading.Lock()
 _sent_fps: set[str] = set()  # cooldown mémoire process
@@ -90,41 +97,153 @@ def save_store(data: dict[str, Any]) -> tuple[bool, Optional[str]]:
             return False, str(exc)
 
 
+def _smtp_from_overrides() -> dict[str, Any]:
+    ov = cp.load_overrides()
+    raw = ov.get(SMTP_OVERRIDE_KEY)
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, Any] = {}
+    if raw.get("host") is not None:
+        out["host"] = str(raw.get("host") or "").strip()
+    if raw.get("port") is not None:
+        try:
+            out["port"] = int(raw["port"])
+        except (TypeError, ValueError):
+            out["port"] = 587
+    if raw.get("user") is not None:
+        out["user"] = str(raw.get("user") or "").strip()
+    if "password" in raw:
+        out["password"] = str(raw.get("password") or "")
+    if raw.get("from") is not None:
+        out["from"] = str(raw.get("from") or "").strip()
+    if "tls" in raw:
+        out["tls"] = bool(raw["tls"])
+    if "ssl" in raw:
+        out["ssl"] = bool(raw["ssl"])
+    return out
+
+
+def resolve_smtp() -> dict[str, Any]:
+    """Config SMTP effective : store Fernet (UI) puis fallback .env."""
+    enc = _smtp_from_overrides()
+    source = "encrypted" if enc.get("host") else ("env" if _ENV_SMTP["host"] else "none")
+    cfg = {
+        "host": enc.get("host") or _ENV_SMTP["host"],
+        "port": int(enc.get("port") if enc.get("port") is not None else _ENV_SMTP["port"]),
+        "user": enc.get("user") if "user" in enc else _ENV_SMTP["user"],
+        "password": enc.get("password") if "password" in enc else _ENV_SMTP["password"],
+        "from": enc.get("from") or _ENV_SMTP["from"] or "noreply@cyberdefense.ml",
+        "tls": enc.get("tls") if "tls" in enc else _ENV_SMTP["tls"],
+        "ssl": enc.get("ssl") if "ssl" in enc else _ENV_SMTP["ssl"],
+        "source": source,
+    }
+    return cfg
+
+
 def smtp_status() -> dict[str, Any]:
+    """Statut public — jamais le mot de passe en clair."""
+    cfg = resolve_smtp()
+    user = cfg.get("user") or ""
+    masked = ""
+    if user:
+        if "@" in user:
+            local, _, domain = user.partition("@")
+            masked = (local[:2] + "***@" + domain) if local else ("***@" + domain)
+        else:
+            masked = user[:2] + "***" if len(user) > 2 else "***"
     return {
-        "configured": bool(SMTP_HOST),
-        "host": SMTP_HOST or None,
-        "port": SMTP_PORT,
-        "from": SMTP_FROM,
-        "tls": SMTP_TLS,
-        "ssl": SMTP_SSL,
-        "auth": bool(SMTP_USER),
+        "configured": bool(cfg.get("host")),
+        "host": cfg.get("host") or None,
+        "port": cfg.get("port") or 587,
+        "user": masked or None,
+        "from": cfg.get("from"),
+        "tls": bool(cfg.get("tls")),
+        "ssl": bool(cfg.get("ssl")),
+        "auth": bool(cfg.get("user")),
+        "has_password": bool(cfg.get("password")),
+        "source": cfg.get("source") or "none",
+        "secrets_store": "ready" if cp._fernet() else "unavailable",
     }
 
 
+def save_smtp_config(body: dict[str, Any]) -> tuple[bool, Optional[str], dict[str, Any]]:
+    """Persiste SMTP dans le store Fernet. Password vide = conserver l'existant."""
+    if not cp._fernet():
+        return False, "SEKOIA_SECRETS_KEY absente — store chiffré indisponible", smtp_status()
+    ov = dict(cp.load_overrides())
+    cur = dict(ov.get(SMTP_OVERRIDE_KEY) or {}) if isinstance(ov.get(SMTP_OVERRIDE_KEY), dict) else {}
+
+    if "host" in body:
+        host = str(body.get("host") or "").strip()
+        if host:
+            cur["host"] = host
+        else:
+            cur.pop("host", None)
+    if "port" in body and body.get("port") is not None and str(body.get("port")).strip() != "":
+        try:
+            cur["port"] = int(body["port"])
+        except (TypeError, ValueError):
+            return False, "port SMTP invalide", smtp_status()
+    if "user" in body:
+        cur["user"] = str(body.get("user") or "").strip()
+    if "password" in body:
+        pwd = body.get("password")
+        if pwd is not None and str(pwd) != "":
+            cur["password"] = str(pwd)
+        # vide / null → ne pas écraser le secret déjà stocké
+    if "from" in body:
+        frm = str(body.get("from") or "").strip()
+        if frm:
+            cur["from"] = frm
+    if "tls" in body:
+        cur["tls"] = bool(body["tls"])
+    if "ssl" in body:
+        cur["ssl"] = bool(body["ssl"])
+
+    if body.get("clear") is True:
+        ov.pop(SMTP_OVERRIDE_KEY, None)
+        ok, err = cp.save_overrides(ov)
+        return ok, err or None, smtp_status()
+
+    if not cur.get("host"):
+        return False, "hôte SMTP requis", smtp_status()
+
+    ov[SMTP_OVERRIDE_KEY] = cur
+    ok, err = cp.save_overrides(ov)
+    return ok, err or None, smtp_status()
+
+
 def _send_smtp(to_addrs: list[str], subject: str, body: str) -> tuple[bool, Optional[str]]:
-    if not SMTP_HOST:
-        return False, "SMTP_HOST non configuré"
+    cfg = resolve_smtp()
+    host = cfg.get("host") or ""
+    if not host:
+        return False, "SMTP non configuré (SEP → Alerting → serveur SMTP)"
     if not to_addrs:
         return False, "aucun destinataire"
+    port = int(cfg.get("port") or 587)
+    frm = cfg.get("from") or "noreply@cyberdefense.ml"
+    user = cfg.get("user") or ""
+    password = cfg.get("password") or ""
+    use_ssl = bool(cfg.get("ssl"))
+    use_tls = bool(cfg.get("tls"))
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = SMTP_FROM
+    msg["From"] = frm
     msg["To"] = ", ".join(to_addrs)
     msg.attach(MIMEText(body, "plain", "utf-8"))
     try:
-        if SMTP_SSL:
-            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as s:
-                if SMTP_USER:
-                    s.login(SMTP_USER, SMTP_PASSWORD)
-                s.sendmail(SMTP_FROM, to_addrs, msg.as_string())
+        if use_ssl:
+            with smtplib.SMTP_SSL(host, port, timeout=20) as s:
+                if user:
+                    s.login(user, password)
+                s.sendmail(frm, to_addrs, msg.as_string())
         else:
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
-                if SMTP_TLS:
+            with smtplib.SMTP(host, port, timeout=20) as s:
+                if use_tls:
                     s.starttls()
-                if SMTP_USER:
-                    s.login(SMTP_USER, SMTP_PASSWORD)
-                s.sendmail(SMTP_FROM, to_addrs, msg.as_string())
+                if user:
+                    s.login(user, password)
+                s.sendmail(frm, to_addrs, msg.as_string())
         return True, None
     except Exception as exc:  # noqa: BLE001
         return False, f"{type(exc).__name__}: {exc}"
@@ -176,7 +295,6 @@ async def notify_alerts(alerts: list[dict]) -> dict[str, Any]:
                 interesting.append(a)
     if not interesting:
         return {"ok": True, "sent": 0}
-    # Un mail par alerte (cooldown fingerprint) pour lisibilité
     sent = 0
     errors = []
     for a in interesting[:25]:
@@ -239,7 +357,27 @@ def register(notify_app) -> None:
             store["recipients"] = recs
         ok, err = save_store(store)
         return {"ok": ok, "error": err, "recipients": store["recipients"],
-                "events": store["events"], "enabled": store["enabled"]}
+                "events": store["events"], "enabled": store["enabled"],
+                "smtp": smtp_status()}
+
+    @notify_app.put("/control/sekoia/notify/mail/smtp", dependencies=dep)
+    @notify_app.post("/control/sekoia/notify/mail/smtp", dependencies=dep)
+    async def put_smtp_config(request: Request):
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "corps JSON invalide"},
+                                status_code=400)
+        ok, err, status = save_smtp_config(body)
+        code = 200 if ok else (503 if err and "SEKOIA_SECRETS_KEY" in err else 400)
+        return JSONResponse(
+            {"ok": ok, "error": err, "smtp": status},
+            status_code=code,
+        )
+
+    @notify_app.delete("/control/sekoia/notify/mail/smtp", dependencies=dep)
+    async def delete_smtp_config():
+        ok, err, status = save_smtp_config({"clear": True})
+        return {"ok": ok, "error": err, "smtp": status}
 
     @notify_app.post("/control/sekoia/notify/mail/recipients", dependencies=dep)
     async def add_recipient(request: Request):

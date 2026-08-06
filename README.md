@@ -184,23 +184,18 @@ Sur `/sekoia`, la barre latérale n'affiche plus le préfixe « SEKOIA — » /
 gardent le préfixe sur le portail CERT, où Sekoia côtoie SentinelOne.
 
 **Notifications e-mail SEP** (`mailnotify.py`) — Alerting & drops expose un
-panneau pour ajouter des destinataires (ex. `admin@cyberdefense.ml`) et activer
+panneau pour configurer le **serveur SMTP** (hôte, port, utilisateur, mot de
+passe, from, TLS/SSL), les **destinataires** (ex. `admin@cyberdefense.ml`) et
 les événements : intake silencieux, baisse de volume, clé API créée, compte
-utilisateur créé/invité. SMTP via variables `.env` (jamais committer les secrets) :
+utilisateur créé/invité.
 
-```bash
-SMTP_HOST=mail.example.com
-SMTP_PORT=587
-SMTP_USER=...
-SMTP_PASSWORD=...
-SMTP_FROM=noreply@example.com
-SMTP_TLS=true
-SMTP_SSL=false
-```
+Les identifiants SMTP sont chiffrés Fernet dans le même store que la clé API
+Sekoia (`SEKOIA_SECRETS_KEY` → `/data/sekoia-secrets.enc`) — **pas en clair dans
+`.env`**. Les variables `SMTP_*` restent un bootstrap optionnel (migration) ;
+la config UI prime dès qu’un hôte SMTP y est enregistré.
 
-Le control-plane (`sekoia-controlplane`) envoie les mails ; le monitor déclenche
-périodiquement le scan des nouvelles clés API. Tester depuis SEP → Alerting &
-drops → « Envoyer un test ».
+Prérequis : `SEKOIA_SECRETS_KEY` générée (`generate-secrets`). Tester depuis
+SEP → Alerting & drops → « Enregistrer SMTP » puis « Envoyer un test ».
 
 Détail : [`docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md`](docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md),
 audit : [`docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md`](docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md).

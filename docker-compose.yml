@@ -1401,12 +1401,13 @@ services:
         ipv4_address: 172.26.0.100
       helk_net:
       velociraptor_net:
-    # Modes partiels : nginx ne dépend que des portails (upstreams outils en DNS dynamique)
+    # Modes partiels : nginx ne dépend que des portails (upstreams outils en DNS dynamique).
+    # it-portal healthy : évite 503 /it au boot (race nginx avant que le portail réponde).
     depends_on:
       cert-portal:
         condition: service_started
       it-portal:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/nginx-health || exit 1"]
       interval: 30s

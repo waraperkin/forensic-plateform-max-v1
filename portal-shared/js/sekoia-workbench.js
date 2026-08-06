@@ -1323,14 +1323,39 @@
     </tr>`).join('');
     const chk = (key, label) => `<label class="swb-hint" style="display:inline-flex;align-items:center;gap:.35rem;margin-right:1rem">
       <input type="checkbox" data-mail-ev="${esc(key)}"${ev[key] !== false ? ' checked' : ''}> ${esc(label)}</label>`;
+    const srcLabel = smtp.source === 'encrypted'
+      ? 'chiffré (Fernet)'
+      : (smtp.source === 'env' ? 'bootstrap .env' : 'non configuré');
     return `<div class="swb-panel" style="margin-top:.75rem">
       <div class="swb-panel-head">
         <h3 class="swb-panel-title">Notifications e-mail</h3>
         <span class="swb-hint">${smtp.configured
-          ? `SMTP ${esc(smtp.host || '')}:${esc(String(smtp.port || ''))}`
-          : 'SMTP non configuré (variables SMTP_* dans .env)'}</span>
+          ? `SMTP ${esc(smtp.host || '')}:${esc(String(smtp.port || ''))} · ${esc(srcLabel)}`
+          : 'SMTP non configuré — saisir le serveur ci-dessous'}</span>
       </div>
-      <p class="swb-hint" style="margin:0 0 .6rem">Recevoir un mail si un intake n’envoie plus de logs, si une clé API est créée, ou si un compte utilisateur est créé / invité. Exemple : <code>admin@cyberdefense.ml</code>.</p>
+      <p class="swb-hint" style="margin:0 0 .6rem">Identifiants SMTP chiffrés comme la clé API Sekoia (<code>SEKOIA_SECRETS_KEY</code>). Destinataires et événements ci-dessous.</p>
+      <div class="swb-filters" style="margin-bottom:.55rem;flex-wrap:wrap;gap:.4rem">
+        <input class="swb-input" id="swb-smtp-host" style="max-width:14rem" placeholder="smtp.example.com"
+          value="${esc(smtp.host || '')}">
+        <input class="swb-input" id="swb-smtp-port" style="max-width:5rem" placeholder="587"
+          value="${esc(String(smtp.port != null ? smtp.port : 587))}">
+        <input class="swb-input" id="swb-smtp-user" style="max-width:12rem"
+          placeholder="${smtp.user ? 'utilisateur (inchangé si vide)' : 'utilisateur'}"
+          value="" autocomplete="off">
+        <input class="swb-input" id="swb-smtp-pass" type="password" style="max-width:12rem"
+          placeholder="${smtp.has_password ? '•••••••• (inchangé si vide)' : 'mot de passe'}"
+          value="" autocomplete="new-password">
+        <input class="swb-input" id="swb-smtp-from" style="max-width:16rem" placeholder="noreply@example.com"
+          value="${esc(smtp.from || '')}">
+        <label class="swb-hint" style="display:inline-flex;align-items:center;gap:.3rem">
+          <input type="checkbox" id="swb-smtp-tls"${smtp.tls !== false ? ' checked' : ''}> STARTTLS</label>
+        <label class="swb-hint" style="display:inline-flex;align-items:center;gap:.3rem">
+          <input type="checkbox" id="swb-smtp-ssl"${smtp.ssl ? ' checked' : ''}> SSL</label>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-swb-act="mail-save-smtp">Enregistrer SMTP</button>
+      </div>
+      ${smtp.has_password || smtp.user
+        ? `<p class="swb-hint" style="margin:0 0 .55rem">Auth : ${esc(smtp.user || '—')}${smtp.has_password ? ' · mot de passe enregistré' : ''}</p>`
+        : ''}
       <div style="margin-bottom:.55rem">
         ${chk('intake_silent', 'Intake silencieux')}
         ${chk('volume_drop', 'Baisse de volume')}
@@ -1340,7 +1365,7 @@
       <div class="swb-filters" style="margin-bottom:.55rem">
         <input class="swb-input" id="swb-mail-email" style="max-width:22rem" placeholder="admin@cyberdefense.ml"
           value="">
-        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-swb-act="mail-add">Ajouter</button>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-swb-act="mail-add">Ajouter destinataire</button>
         <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="mail-save-ev">Enregistrer événements</button>
         <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="mail-test">Envoyer un test</button>
       </div>
@@ -2434,8 +2459,25 @@
             events[el.dataset.mailEv] = !!el.checked;
           });
           const r = await api('/notify/mail', { method: 'PUT', body: { events } });
-          if (r && r.ok) { toast('Événements enregistrés', 'ok'); st.data.mailNotify = r; paint(); }
+          if (r && r.ok) { toast('Événements enregistrés', 'ok'); load(); }
           else toast((r && r.error) || 'Échec', 'err');
+          return;
+        }
+        if (act === 'mail-save-smtp') {
+          const host = (document.getElementById('swb-smtp-host') || {}).value || '';
+          const port = (document.getElementById('swb-smtp-port') || {}).value || '587';
+          const user = (document.getElementById('swb-smtp-user') || {}).value || '';
+          const password = (document.getElementById('swb-smtp-pass') || {}).value || '';
+          const from = (document.getElementById('swb-smtp-from') || {}).value || '';
+          const tls = !!(document.getElementById('swb-smtp-tls') || {}).checked;
+          const ssl = !!(document.getElementById('swb-smtp-ssl') || {}).checked;
+          if (!host.trim()) { toast('Hôte SMTP requis', 'err'); return; }
+          const body = { host: host.trim(), port: parseInt(port, 10) || 587, from: from.trim(), tls, ssl };
+          if (user.trim()) body.user = user.trim();
+          if (password) body.password = password;
+          const r = await api('/notify/mail/smtp', { method: 'PUT', body });
+          if (r && r.ok) { toast('SMTP enregistré (chiffré)', 'ok'); load(); }
+          else toast((r && r.error) || 'Échec enregistrement SMTP', 'err');
           return;
         }
         if (act === 'mail-test') {
@@ -2443,7 +2485,7 @@
           const email = ((inp && inp.value) || '').trim();
           const r = await api('/notify/mail/test', { method: 'POST', body: email ? { email } : {} });
           if (r && r.ok) toast(`Test envoyé → ${(r.recipients || []).join(', ')}`, 'ok');
-          else toast((r && r.error) || 'Échec envoi (SMTP_HOST ?)', 'err');
+          else toast((r && r.error) || 'Échec envoi (configurer SMTP dans SEP)', 'err');
           return;
         }
         if (act === 'toggle-rule') {

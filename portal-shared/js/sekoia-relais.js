@@ -2,36 +2,45 @@
 'use strict';
 
 /**
- * Relais — copilote CERT branché sur n'importe quelle IA locale via MCP.
+ * Extended Intelligence (EI) — copilote SOC/CERT × Ollama × SEP.
  *
- * Vision : l'analyste CERT branche Ollama, LM Studio, vLLM, LocalAI…
- * (endpoint OpenAI-compatible ou serveur MCP). Relais dialogue avec cette IA
- * et lui donne accès aux outils SEP (intakes, alertes, notifications…).
+ * Accélère le triage des alertes SIEM Sekoia et le forensic en injectant
+ * le contexte SEP live dans l’IA locale (Ollama Cybercorp recommandé).
+ * Alias historique : Relais / Kheish (onglets sekoia-relais / sekoia-kheish).
  */
 (function () {
-  const LS_CFG = 'sep-relais-config';
-  const LS_MISSIONS = 'sep-relais-missions';
-  const LS_CHAT = 'sep-relais-chat';
+  const LS_CFG = 'sep-ei-config';
+  const LS_CHAT = 'sep-ei-chat';
+  const LS_LEGACY_CFG = 'sep-relais-config';
+  const LS_LEGACY_CHAT = 'sep-relais-chat';
   const API = '/api/threat/sekoia';
 
   const VIEWS = [
-    { id: 'home', label: 'Accueil' },
-    { id: 'chat', label: 'Chat CERT' },
-    { id: 'ai', label: 'IA locale' },
-    { id: 'missions', label: 'Missions CERT' },
-    { id: 'tools', label: 'Outils SEP' },
+    { id: 'command', label: 'Command Center' },
+    { id: 'triage', label: 'Triage Alertes' },
+    { id: 'forensic', label: 'Forensic Desk' },
+    { id: 'playbooks', label: 'Playbooks' },
+    { id: 'warroom', label: 'War Room' },
+    { id: 'engine', label: 'Moteur IA' },
     { id: 'journal', label: 'Journal' },
   ];
 
-  /** Presets d'IA déployables en local (MCP / OpenAI-compatible). */
   const LOCAL_PRESETS = [
     {
-      id: 'ollama',
-      name: 'Ollama',
+      id: 'ollama-cybercorp',
+      name: 'Ollama Cybercorp',
       kind: 'ollama',
-      base_url: 'http://host.docker.internal:11434/v1',
-      model: 'llama3.2',
-      hint: 'ollama serve · modèles locaux',
+      base_url: 'http://oc-gateway:8080/v1',
+      model: 'llama3.2:3b',
+      hint: 'Stack recommandée · même réseau Docker SEP',
+    },
+    {
+      id: 'ollama',
+      name: 'Ollama (hôte)',
+      kind: 'ollama',
+      base_url: 'http://172.26.0.1:11435/v1',
+      model: 'llama3.2:3b',
+      hint: 'Gateway via IP bridge hôte',
     },
     {
       id: 'lmstudio',
@@ -49,90 +58,48 @@
       model: 'local',
       hint: 'OpenAI-compatible API',
     },
-    {
-      id: 'localai',
-      name: 'LocalAI',
-      kind: 'openai_compatible',
-      base_url: 'http://host.docker.internal:8080/v1',
-      model: 'gpt-4',
-      hint: 'drop-in OpenAI local',
-    },
-    {
-      id: 'llamacpp',
-      name: 'llama.cpp server',
-      kind: 'openai_compatible',
-      base_url: 'http://host.docker.internal:8080/v1',
-      model: 'local',
-      hint: 'server --api',
-    },
   ];
 
-  const CERT_MISSIONS = [
-    {
-      id: 'silent-triage',
-      name: 'Triage intakes silencieux',
-      desc: 'Identifier les sources muettes, proposer enable / escalade / ticket.',
-      prompt: 'En tant qu’analyste CERT, trie les intakes silencieux SEP des dernières 24h. Liste les plus critiques et propose une action (réactiver, escalader, ignorer) avec justification courte.',
-      tags: ['alerting', 'intakes'],
-    },
-    {
-      id: 'volume-drop',
-      name: 'Baisses de volume',
-      desc: 'Corréler drops ≥50 % et impacts détection.',
-      prompt: 'Analyse les baisses de volume d’ingestion SEP. Quels intakes menacent la détection ? Priorise et propose des checks (agent, réseau, parsing).',
-      tags: ['alerting', 'telemetry'],
-    },
-    {
-      id: 'apikey-watch',
-      name: 'Veille clés API',
-      desc: 'Détecter créations / anomalies de clés API Sekoia.',
-      prompt: 'Résume les nouvelles clés API détectées et les risques (trop permissives, comptes partagés). Propose un contrôle d’accès CERT.',
-      tags: ['iam', 'api'],
-    },
-    {
-      id: 'ioc-pivot',
-      name: 'Pivot IOC',
-      desc: 'Croiser IOC entre SEP, MISP, TheHive.',
-      prompt: 'À partir d’un IOC fourni par l’analyste, explique comment pivoter via les outils SEP/MCP (alertes, intakes, notifications). Demande l’IOC si absent.',
-      tags: ['cti', 'dfir'],
-    },
-    {
-      id: 'draft-escalation',
-      name: 'Draft escalade',
-      desc: 'Rédiger une note d’escalade CERT actionnable.',
-      prompt: 'Rédige une note d’escalade CERT (contexte, impact, actions déjà faites, demande). Style concis, prêt à coller dans TheHive / ticket.',
-      tags: ['response', 'comms'],
-    },
-    {
-      id: 'notify-channels',
-      name: 'Test canaux SOC',
-      desc: 'Vérifier mail / Slack / Teams / Mattermost.',
-      prompt: 'Explique comment tester les canaux de notification SEP (mail + webhook Slack/Teams/Mattermost) et quoi vérifier côté SOC.',
-      tags: ['notify'],
-    },
+  const FALLBACK_PLAYBOOKS = [
+    { id: 'alert-triage', name: 'Triage file d’alertes', mode: 'triage',
+      desc: 'Prioriser les alertes SIEM ouvertes.', tags: ['siem', 'triage'] },
+    { id: 'alert-deep', name: 'Analyse approfondie alerte', mode: 'triage',
+      desc: 'Décortiquer une alerte Sekoia.', tags: ['siem', 'deep'] },
+    { id: 'silent-sources', name: 'Sources silencieuses', mode: 'telemetry',
+      desc: 'Intakes / hôtes muets.', tags: ['telemetry'] },
+    { id: 'forensic-first-hour', name: 'Forensic — première heure', mode: 'forensic',
+      desc: 'Plan DFIR H+1.', tags: ['dfir'] },
+    { id: 'ioc-hunt', name: 'Chasse IOC', mode: 'forensic',
+      desc: 'Pivots IOC depuis alertes.', tags: ['cti'] },
+    { id: 'escalation-pack', name: 'Pack escalade CERT', mode: 'response',
+      desc: 'Note d’escalade actionnable.', tags: ['response'] },
+    { id: 'fp-coach', name: 'Coach faux positifs', mode: 'triage',
+      desc: 'Réduire le bruit.', tags: ['tuning'] },
+    { id: 'mitre-map', name: 'Cartographie MITRE', mode: 'forensic',
+      desc: 'Techniques ATT&CK plausibles.', tags: ['mitre'] },
   ];
 
   const DEFAULT_CFG = {
     activeProviderId: '',
-    systemPrompt:
-      'Tu es Relais, copilote CERT/SOC de la Sekoia Extended Platform. '
-      + 'Tu aides l’analyste : triage, télémétrie, clés API, escalades. '
-      + 'Réponses courtes, actionnables, en français. '
-      + 'Tu peux t’appuyer sur les outils SEP exposés via MCP.',
+    injectContext: true,
+    hours: 24,
+    focusAlertId: '',
   };
 
   function loadJson(key, fallback) {
     try {
       const raw = localStorage.getItem(key);
-      if (!raw) {
-        // migration depuis l’ancienne console Kheish
-        if (key === LS_CHAT) {
-          const legacy = localStorage.getItem('sep-kheish-chat');
-          if (legacy) return JSON.parse(legacy);
-        }
-        return fallback;
+      if (raw) return JSON.parse(raw);
+      if (key === LS_CFG) {
+        const leg = localStorage.getItem(LS_LEGACY_CFG);
+        if (leg) return JSON.parse(leg);
       }
-      return JSON.parse(raw);
+      if (key === LS_CHAT) {
+        const leg = localStorage.getItem(LS_LEGACY_CHAT)
+          || localStorage.getItem('sep-kheish-chat');
+        if (leg) return JSON.parse(leg);
+      }
+      return fallback;
     } catch (_) {
       return fallback;
     }
@@ -142,13 +109,15 @@
   }
 
   const st = {
-    view: 'home',
+    view: 'command',
     cfg: Object.assign({}, DEFAULT_CFG, loadJson(LS_CFG, {})),
-    missions: loadJson(LS_MISSIONS, null) || CERT_MISSIONS.map((m) => Object.assign({}, m)),
     chat: loadJson(LS_CHAT, []) || [],
     llmStatus: null,
+    context: null,
+    lastRun: null,
     busy: false,
     msg: '',
+    triageFilter: '',
   };
 
   function esc(s) {
@@ -162,8 +131,24 @@
   }
   function nowStamp() { return new Date().toTimeString().slice(0, 8); }
   function persistCfg() { saveJson(LS_CFG, st.cfg); }
-  function persistChat() { saveJson(LS_CHAT, st.chat.slice(-80)); }
-  function persistMissions() { saveJson(LS_MISSIONS, st.missions); }
+  function persistChat() { saveJson(LS_CHAT, st.chat.slice(-100)); }
+
+  function mdLite(text) {
+    const raw = String(text || '');
+    const parts = raw.split(/```/);
+    return parts.map((chunk, i) => {
+      if (i % 2 === 1) {
+        return `<pre class="ei-code">${esc(chunk)}</pre>`;
+      }
+      return esc(chunk)
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/^### (.+)$/gm, '<div class="ei-h3">$1</div>')
+        .replace(/^## (.+)$/gm, '<div class="ei-h2">$1</div>')
+        .replace(/^- (.+)$/gm, '<div class="ei-li">• $1</div>')
+        .replace(/^\d+\) (.+)$/gm, '<div class="ei-li"><strong>$&</strong></div>')
+        .replace(/\n/g, '<br>');
+    }).join('');
+  }
 
   async function sepApi(path, opts) {
     const o = Object.assign({ credentials: 'include', cache: 'no-store' }, opts || {});
@@ -185,99 +170,297 @@
         ok: false,
         error: String(e.message || e),
         providers: [],
+        playbooks: FALLBACK_PLAYBOOKS,
         mcp_servers: [],
       };
     }
   }
 
+  async function refreshContext() {
+    try {
+      const q = new URLSearchParams({
+        hours: String(st.cfg.hours || 24),
+      });
+      if (st.cfg.focusAlertId) q.set('alert_id', st.cfg.focusAlertId);
+      const r = await sepApi(`/llm/ei/context?${q}`);
+      st.context = (r && r.context) || null;
+    } catch (e) {
+      st.context = { errors: [String(e.message || e)], sic_alerts: [], sep_ingestion_alerts: [] };
+    }
+  }
+
+  function playbooks() {
+    const fromApi = (st.llmStatus && st.llmStatus.playbooks) || [];
+    return fromApi.length ? fromApi : FALLBACK_PLAYBOOKS;
+  }
+
   function activeProvider() {
     const items = (st.llmStatus && st.llmStatus.providers) || [];
-    const id = st.cfg.activeProviderId;
+    const id = st.cfg.activeProviderId || (st.llmStatus && st.llmStatus.default_provider_id);
     if (id) {
       const hit = items.find((p) => p.id === id && p.enabled !== false);
       if (hit) return hit;
     }
-    return items.find((p) => p.enabled !== false) || null;
+    const ollama = items.find((p) => p.kind === 'ollama' && p.enabled !== false);
+    return ollama || items.find((p) => p.enabled !== false) || null;
   }
 
   function statusChips() {
     const p = activeProvider();
-    const nProv = ((st.llmStatus && st.llmStatus.providers) || []).length;
-    const nMcp = ((st.llmStatus && st.llmStatus.mcp_servers) || []).length;
+    const ctx = st.context || {};
+    const nSic = (ctx.sic_alerts || []).length;
+    const nSep = (ctx.sep_ingestion_alerts || []).length;
     const aiCls = p ? 'is-ok is-live' : 'is-off';
     return `
       <span class="rl-chip ${aiCls}"><span class="rl-dot"></span>
-        IA ${p ? esc(p.name) : 'non branchée'}</span>
-      <span class="rl-chip">${nProv} fournisseur(s)</span>
-      <span class="rl-chip">${nMcp} MCP distant(s)</span>
-      <span class="rl-chip">SEP MCP · stdio</span>`;
+        ${p ? esc(p.name) : 'IA offline'}</span>
+      <span class="rl-chip">SIEM ${nSic}${ctx.sic_total != null ? '/' + esc(ctx.sic_total) : ''}</span>
+      <span class="rl-chip">Ingest ${nSep}</span>
+      <span class="rl-chip">${st.cfg.injectContext ? 'Contexte ON' : 'Contexte OFF'}</span>
+      <span class="rl-chip">${esc(st.cfg.hours || 24)}h</span>`;
   }
 
-  function homeHtml() {
+  function verdictStrip(text) {
+    const t = String(text || '').toLowerCase();
+    let tone = 'muted';
+    let label = 'analyse';
+    if (/critique|critical|p0/.test(t)) { tone = 'danger'; label = 'critique'; }
+    else if (/élevé|eleve|high/.test(t)) { tone = 'warn'; label = 'élevé'; }
+    else if (/moyen|medium/.test(t)) { tone = 'accent'; label = 'moyen'; }
+    else if (/faible|bruit|faux positif|fp|low/.test(t)) { tone = 'ok'; label = 'faible / bruit'; }
+    else if (/insuffisant/.test(t)) { tone = 'muted'; label = 'données insuffisantes'; }
+    return `<span class="ei-verdict is-${tone}">${esc(label)}</span>`;
+  }
+
+  /* ─── Views ─── */
+
+  function commandHtml() {
     const p = activeProvider();
+    const ctx = st.context || {};
+    const sic = ctx.sic_alerts || [];
+    const sep = ctx.sep_ingestion_alerts || [];
+    const errs = ctx.errors || [];
+    const sev = ctx.sep_by_severity || {};
     return `
-      <div class="rl-kpi-row">
-        <div class="rl-kpi"><b>${p ? 'ON' : 'OFF'}</b><span>IA locale</span></div>
-        <div class="rl-kpi"><b>${st.missions.length}</b><span>Missions CERT</span></div>
-        <div class="rl-kpi"><b>${st.chat.length}</b><span>Messages</span></div>
-        <div class="rl-kpi"><b>${((st.llmStatus && st.llmStatus.mcp_servers) || []).length}</b><span>MCP</span></div>
-      </div>
-      <div class="rl-banner">
-        <strong>Relais</strong> relie le CERT à <em>n’importe quelle IA déployée en local</em>
-        (Ollama, LM Studio, vLLM, LocalAI, llama.cpp…) via endpoint OpenAI-compatible ou MCP.
-        L’IA consomme les outils SEP (alertes, intakes, notifications) exposés par
-        <code>connectors/sekoia-mcp</code>.
-      </div>
-      <div class="rl-card">
-        <h4>Démarrage rapide CERT</h4>
-        <ol style="margin:.35rem 0 0;padding-left:1.2rem;color:var(--rl-muted);font-size:.8rem;line-height:1.5">
-          <li>Déployez une IA locale (ex. <code>ollama run llama3.2</code>).</li>
-          <li>Onglet <strong>IA locale</strong> → ajouter le preset → tester.</li>
-          <li>Ouvrez <strong>Chat CERT</strong> ou lancez une <strong>Mission</strong>.</li>
-          <li>Option Cursor : serveur MCP <code>sep</code> dans <code>.cursor/mcp.json</code>.</li>
-        </ol>
-        <div class="rl-bind" style="margin-top:.65rem">
-          <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="view" data-view="ai">Brancher une IA</button>
-          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="view" data-view="chat">Chat CERT</button>
-          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="view" data-view="missions">Missions</button>
+      <div class="ei-hero">
+        <div>
+          <div class="ei-kicker">Sekoia Extended Platform</div>
+          <h3>Extended Intelligence</h3>
+          <p>Pousse le maximum de SEP et des analystes : triage SIEM accéléré,
+          forensic guidé, contexte live injecté dans Ollama — décisions humaines.</p>
+        </div>
+        <div class="ei-hero-actions">
+          <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="pb-run" data-id="alert-triage"
+            ${st.busy || !p ? 'disabled' : ''}>Trier les alertes</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="forensic-first-hour"
+            ${st.busy || !p ? 'disabled' : ''}>Forensic H+1</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="ctx-refresh">Rafraîchir contexte</button>
         </div>
       </div>
-      <div class="rl-card">
-        <h4>Périmètre CERT</h4>
-        <p>Triage silencieux · baisses de volume · veille clés API · pivot IOC · drafts d’escalade · tests canaux SOC.
-        Relais ne remplace pas le jugement analyste : il accélère la boucle avec une IA que vous contrôlez on-prem.</p>
+      <div class="rl-kpi-row">
+        <div class="rl-kpi"><b>${p ? 'LIVE' : 'OFF'}</b><span>Moteur IA</span></div>
+        <div class="rl-kpi"><b>${esc(ctx.sic_total != null ? ctx.sic_total : sic.length)}</b><span>Alertes SIEM</span></div>
+        <div class="rl-kpi"><b>${sep.length}</b><span>Alertes ingestion</span></div>
+        <div class="rl-kpi"><b>${Object.keys(sev).length}</b><span>Sévérités ingest</span></div>
+      </div>
+      ${errs.length ? `<div class="ei-banner is-warn">Contexte partiel : ${esc(errs.slice(0, 3).join(' · '))}</div>` : ''}
+      <div class="ei-split">
+        <div class="rl-card">
+          <h4>File SIEM (échantillon)</h4>
+          <div class="ei-alert-list">
+            ${sic.slice(0, 6).map((a) => `
+              <button type="button" class="ei-alert-row" data-rl="focus-alert" data-id="${esc(a.id || '')}">
+                <span class="ei-sev">${esc(a.severity || '?')}</span>
+                <span class="ei-alert-main">
+                  <strong>${esc(a.title || 'Sans titre')}</strong>
+                  <small>${esc(a.entity || '—')} · ${esc(a.status || '')}</small>
+                </span>
+              </button>`).join('')
+              || '<p class="fp-muted">Aucune alerte SIEM dans le contexte — vérifiez le token Sekoia.</p>'}
+          </div>
+          <div class="rl-toolbar">
+            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="view" data-view="triage">Ouvrir triage</button>
+          </div>
+        </div>
+        <div class="rl-card">
+          <h4>Ingestion SEP</h4>
+          <div class="ei-sev-bars">
+            ${Object.keys(sev).length
+              ? Object.entries(sev).map(([k, v]) => `
+                <div class="ei-sev-bar"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')
+              : '<p class="fp-muted">Pas d’agrégat ingestion sur la fenêtre.</p>'}
+          </div>
+          <ul class="ei-mini-list">
+            ${sep.slice(0, 5).map((a) => `
+              <li><strong>${esc(a.rule_type || 'alert')}</strong> — ${esc(a.title || a.subject || '')}</li>`
+            ).join('') || '<li class="fp-muted">RAS ingestion</li>'}
+          </ul>
+        </div>
+      </div>
+      ${st.lastRun && st.lastRun.text ? `
+        <div class="rl-card ei-last">
+          <div class="rl-panel-head">
+            <h4>Dernière analyse EI ${verdictStrip(st.lastRun.text)}</h4>
+            <span class="rl-hint">${esc((st.lastRun.playbook && st.lastRun.playbook.name) || 'War Room')} · ${esc(st.lastRun.t || '')}</span>
+          </div>
+          <div class="ei-answer">${mdLite(st.lastRun.text)}</div>
+        </div>` : ''}`;
+  }
+
+  function triageHtml() {
+    const p = activeProvider();
+    const sic = ((st.context && st.context.sic_alerts) || []);
+    const q = (st.triageFilter || '').toLowerCase();
+    const rows = sic.filter((a) => {
+      if (!q) return true;
+      return JSON.stringify(a).toLowerCase().includes(q);
+    });
+    return `
+      <div class="rl-panel">
+        <div class="rl-panel-head">
+          <h3>Triage Alertes SIEM</h3>
+          <span class="rl-hint">${rows.length} visibles · fenêtre ${esc(st.cfg.hours)}h</span>
+        </div>
+        <p class="fp-muted ei-lead">Sélectionnez une alerte, lancez l’analyse EI (contexte injecté), puis agissez dans Sekoia.
+          EI propose verdict / actions — vous validez.</p>
+        <div class="rl-toolbar">
+          <input class="fp-input" id="ei-triage-q" placeholder="Filtrer titre, entité, règle…" value="${esc(st.triageFilter)}"
+            style="max-width:16rem">
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="triage-filter">Filtrer</button>
+          <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="pb-run" data-id="alert-triage"
+            ${st.busy || !p ? 'disabled' : ''}>Trier la file</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="ctx-refresh">Refresh</button>
+        </div>
+        <div class="ei-triage-grid">
+          <div class="ei-alert-list ei-alert-list--tall">
+            ${rows.map((a) => `
+              <button type="button" class="ei-alert-row${(st.cfg.focusAlertId === a.id) ? ' is-focus' : ''}"
+                data-rl="focus-alert" data-id="${esc(a.id || '')}">
+                <span class="ei-sev">${esc(a.severity || '?')}</span>
+                <span class="ei-alert-main">
+                  <strong>${esc(a.title || 'Sans titre')}</strong>
+                  <small>${esc(a.rule || '')} · ${esc(a.entity || '—')}</small>
+                  <small class="fp-muted">${esc(a.id || '')}</small>
+                </span>
+              </button>`).join('')
+              || '<p class="fp-muted">File vide — rafraîchir le contexte ou élargir la fenêtre.</p>'}
+          </div>
+          <div class="rl-card">
+            <h4>Focus ${st.cfg.focusAlertId ? `<code>${esc(st.cfg.focusAlertId)}</code>` : ''}</h4>
+            <textarea class="rl-chat-input" id="ei-triage-note" placeholder="Note analyste (optionnel) : hypothese FP, contexte métier…"></textarea>
+            <div class="rl-toolbar">
+              <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="pb-run" data-id="alert-deep"
+                ${st.busy || !p ? 'disabled' : ''}>Analyse EI</button>
+              <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="fp-coach"
+                ${st.busy || !p ? 'disabled' : ''}>Coach FP</button>
+              <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="escalation-pack"
+                ${st.busy || !p ? 'disabled' : ''}>Pack escalade</button>
+            </div>
+            <div class="ei-answer" id="ei-triage-out">${st.lastRun && st.lastRun.text
+              ? mdLite(st.lastRun.text) : '<span class="fp-muted">L’analyse apparaîtra ici.</span>'}</div>
+          </div>
+        </div>
       </div>`;
   }
 
-  function chatHtml() {
+  function forensicHtml() {
+    const p = activeProvider();
+    return `
+      <div class="rl-panel">
+        <div class="rl-panel-head">
+          <h3>Forensic Desk</h3>
+          <span class="rl-hint">DFIR guidé par le contexte SEP + Ollama</span>
+        </div>
+        <p class="fp-muted ei-lead">Première heure, chasse IOC, cartographie ATT&amp;CK — toujours ancré sur les alertes et la télémétrie SEP.</p>
+        <div class="rl-matrix">
+          ${playbooks().filter((pb) => pb.mode === 'forensic' || (pb.tags || []).includes('dfir')
+            || (pb.tags || []).includes('cti') || (pb.tags || []).includes('mitre')).map((pb) => `
+            <div class="rl-skill">
+              <h4>${esc(pb.name)}</h4>
+              <p>${esc(pb.desc || '')}</p>
+              <div class="rl-skill-tags">${(pb.tags || []).map((t) =>
+                `<span class="rl-pill">${esc(t)}</span>`).join('')}</div>
+              <div class="rl-skill-actions">
+                <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="pb-run" data-id="${esc(pb.id)}"
+                  ${st.busy || !p ? 'disabled' : ''}>Exécuter</button>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div class="rl-card" style="margin-top:.75rem">
+          <h4>Brief forensic libre</h4>
+          <textarea class="rl-chat-input" id="ei-forensic-note" placeholder="Ex. HOST-X suspect, hash …, besoin timeline 6h…"></textarea>
+          <div class="rl-toolbar">
+            <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="forensic-brief"
+              ${st.busy || !p ? 'disabled' : ''}>Plan forensic EI</button>
+          </div>
+          <div class="ei-answer">${st.lastRun && st.lastRun.mode === 'forensic' && st.lastRun.text
+            ? mdLite(st.lastRun.text) : '<span class="fp-muted">Résultat forensic…</span>'}</div>
+        </div>
+      </div>`;
+  }
+
+  function playbooksHtml() {
+    const p = activeProvider();
+    const groups = {};
+    playbooks().forEach((pb) => {
+      const m = pb.mode || 'ops';
+      (groups[m] = groups[m] || []).push(pb);
+    });
+    return `
+      <div class="rl-panel">
+        <div class="rl-panel-head"><h3>Playbooks Extended Intelligence</h3></div>
+        <p class="fp-muted ei-lead">Chaque playbook injecte le CONTEXTE SEP dans Ollama et impose un format verdict / actions.</p>
+        ${Object.keys(groups).map((mode) => `
+          <h4 class="ei-mode-label">${esc(mode)}</h4>
+          <div class="rl-matrix" style="margin-bottom:.85rem">
+            ${groups[mode].map((pb) => `
+              <div class="rl-skill">
+                <h4>${esc(pb.name)}</h4>
+                <p>${esc(pb.desc || '')}</p>
+                <div class="rl-skill-tags">${(pb.tags || []).map((t) =>
+                  `<span class="rl-pill">${esc(t)}</span>`).join('')}</div>
+                <div class="rl-skill-actions">
+                  <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="pb-run" data-id="${esc(pb.id)}"
+                    ${st.busy || !p ? 'disabled' : ''}>Lancer</button>
+                </div>
+              </div>`).join('')}
+          </div>`).join('')}
+      </div>`;
+  }
+
+  function warroomHtml() {
     const p = activeProvider();
     const log = (st.chat.length ? st.chat : [{
       role: 'assistant',
-      text: 'Relais prêt. Branchez une IA locale, puis posez une question CERT — ou lancez une mission.',
+      text: 'War Room EI prêt. Contexte SEP injecté à chaque message. Posez une question SOC ou collez un extrait d’alerte.',
       t: '—',
     }]).map((m) => `
       <div class="rl-chat-msg is-${esc(m.role)}">
-        <div class="rl-chat-meta">${esc(m.role)} · ${esc(m.t || '')}</div>
-        <div class="rl-chat-bubble">${esc(m.text)}</div>
+        <div class="rl-chat-meta">${esc(m.role)} · ${esc(m.t || '')}${m.meta ? ' · ' + esc(m.meta) : ''}</div>
+        <div class="rl-chat-bubble">${m.role === 'assistant' ? mdLite(m.text) : esc(m.text)}</div>
       </div>`).join('');
     return `
       <div class="rl-panel">
         <div class="rl-panel-head">
-          <h3>Chat CERT</h3>
-          <span class="rl-hint">${p ? `modèle · ${esc(p.model || p.name)}` : 'aucune IA — onglet IA locale'}</span>
+          <h3>War Room</h3>
+          <span class="rl-hint">${p ? `modèle · ${esc(p.model || p.name)}` : 'branchez Ollama'}</span>
         </div>
         <div class="rl-chat-log" id="rl-chat-log">${log}</div>
-        <textarea class="rl-chat-input" id="rl-chat-input" placeholder="Ex. Quels intakes sont silencieux ? Draft une escalade pour HOST-X…"></textarea>
+        <textarea class="rl-chat-input" id="rl-chat-input" placeholder="Ex. Priorise ces alertes pour le shift · pivots forensic sur l’entité focus…"></textarea>
         <div class="rl-toolbar">
           <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="chat-send" ${st.busy ? 'disabled' : ''}>Envoyer</button>
           <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="chat-clear">Vider</button>
+          <label class="ei-toggle">
+            <input type="checkbox" id="ei-inject" data-rl="toggle-inject" ${st.cfg.injectContext ? 'checked' : ''}>
+            Injecter contexte SEP
+          </label>
           <span class="rl-spacer"></span>
-          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="view" data-view="ai">Configurer IA</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="view" data-view="engine">Moteur IA</button>
         </div>
       </div>`;
   }
 
-  function aiHtml() {
+  function engineHtml() {
     const providers = (st.llmStatus && st.llmStatus.providers) || [];
     const mcps = (st.llmStatus && st.llmStatus.mcp_servers) || [];
     const activeId = (activeProvider() || {}).id || '';
@@ -304,7 +487,7 @@
         <code class="fp-muted" style="font-size:.7rem">${esc(pr.base_url)}</code>
       </button>`).join('');
     const mRows = mcps.map((m) => `<tr>
-      <td><strong>${esc(m.name)}</strong><br><span class="fp-muted">${esc(m.transport)}</span></td>
+      <td><strong>${esc(m.name)}</strong></td>
       <td><code class="fp-muted">${esc(m.url || m.command || '—')}</code></td>
       <td>${(m.last_tools || []).slice(0, 5).map(esc).join(', ') || '—'}</td>
       <td>
@@ -314,29 +497,44 @@
     </tr>`).join('');
     return `
       <div class="rl-panel">
-        <div class="rl-panel-head"><h3>IA locale via MCP / OpenAI-compatible</h3></div>
-        <p class="fp-muted" style="margin:0 0 .75rem;font-size:.82rem">
-          Relais ne dépend d’aucun cloud. Branchez l’IA que vous déployez on-prem.
-          Les clés (si besoin) sont chiffrées Fernet côté control-plane, comme la clé Sekoia.
-          Depuis le conteneur Docker, utilisez <code>host.docker.internal</code> pour joindre l’hôte.
+        <div class="rl-panel-head"><h3>Moteur IA — Ollama d’abord</h3></div>
+        <p class="fp-muted ei-lead">
+          Extended Intelligence est conçu pour <strong>Ollama Cybercorp</strong>
+          (<code>http://oc-gateway:8080/v1</code> (après <code>join-sep-network.sh</code>).
+          Clés chiffrées Fernet côté control-plane.
         </p>
-        <h4 style="margin:0 0 .45rem;font-size:.85rem">Presets locaux</h4>
+        <div class="rl-card">
+          <h4>Fenêtre & focus</h4>
+          <div class="rl-form-grid">
+            <label class="fp-label">Heures contexte
+              <input class="fp-input" id="ei-hours" type="number" min="1" max="168" value="${esc(st.cfg.hours || 24)}">
+            </label>
+            <label class="fp-label">Alert ID focus
+              <input class="fp-input" id="ei-focus" value="${esc(st.cfg.focusAlertId || '')}" placeholder="uuid alerte Sekoia">
+            </label>
+          </div>
+          <div class="rl-toolbar">
+            <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="cfg-save">Enregistrer</button>
+            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="ctx-refresh">Charger contexte</button>
+          </div>
+        </div>
+        <h4 style="margin:.85rem 0 .45rem;font-size:.85rem">Presets</h4>
         <div class="rl-matrix" style="margin-bottom:.85rem">${presets}</div>
         <div class="rl-card">
           <h4>Ajouter manuellement</h4>
           <div class="rl-form-grid">
-            <label class="fp-label">Nom<input class="fp-input" id="rl-llm-name" placeholder="Ollama lab"></label>
+            <label class="fp-label">Nom<input class="fp-input" id="rl-llm-name" placeholder="Ollama Cybercorp"></label>
             <label class="fp-label">Kind
               <select class="fp-select" id="rl-llm-kind">
                 <option value="ollama">Ollama</option>
                 <option value="openai_compatible">OpenAI-compatible</option>
-                <option value="openai">OpenAI (distant)</option>
-                <option value="anthropic">Anthropic (distant)</option>
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
               </select>
             </label>
-            <label class="fp-label">Base URL<input class="fp-input" id="rl-llm-url" placeholder="http://host.docker.internal:11434/v1"></label>
-            <label class="fp-label">Modèle<input class="fp-input" id="rl-llm-model" placeholder="llama3.2"></label>
-            <label class="fp-label">API key (opt.)<input class="fp-input" id="rl-llm-key" type="password" placeholder="souvent vide en local" autocomplete="off"></label>
+            <label class="fp-label">Base URL<input class="fp-input" id="rl-llm-url" placeholder="http://oc-gateway:8080/v1"></label>
+            <label class="fp-label">Modèle<input class="fp-input" id="rl-llm-model" placeholder="llama3.2:3b"></label>
+            <label class="fp-label">API key<input class="fp-input" id="rl-llm-key" type="password" autocomplete="off"></label>
           </div>
           <div class="rl-toolbar">
             <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="llm-add">Enregistrer</button>
@@ -344,16 +542,15 @@
           </div>
         </div>
         <div class="fp-table-wrap" style="margin-top:.65rem"><table class="rl-table fp-table">
-          <thead><tr><th>Fournisseur (actif = radio)</th><th>URL</th><th>Auth</th><th></th></tr></thead>
-          <tbody>${pRows || '<tr><td colspan="4" class="fp-muted">Aucune IA — choisissez un preset</td></tr>'}</tbody>
+          <thead><tr><th>Fournisseur</th><th>URL</th><th>Auth</th><th></th></tr></thead>
+          <tbody>${pRows || '<tr><td colspan="4" class="fp-muted">Aucune IA — preset Ollama Cybercorp</td></tr>'}</tbody>
         </table></div>
         <div class="rl-card" style="margin-top:.85rem">
-          <h4>Serveurs MCP distants (HTTP)</h4>
-          <p>Pour une IA qui expose déjà un endpoint MCP Streamable HTTP, enregistrez-la ici. Le serveur SEP inbound pour Cursor reste <code>connectors/sekoia-mcp/server.py</code>.</p>
-          <div class="rl-form-grid" style="margin-top:.45rem">
-            <label class="fp-label">Nom<input class="fp-input" id="rl-mcp-name" placeholder="mon-mcp-local"></label>
+          <h4>MCP distants</h4>
+          <div class="rl-form-grid">
+            <label class="fp-label">Nom<input class="fp-input" id="rl-mcp-name"></label>
             <label class="fp-label">URL<input class="fp-input" id="rl-mcp-url" placeholder="http://host.docker.internal:3001/mcp"></label>
-            <label class="fp-label">Bearer (opt.)<input class="fp-input" id="rl-mcp-token" type="password" autocomplete="off"></label>
+            <label class="fp-label">Bearer<input class="fp-input" id="rl-mcp-token" type="password" autocomplete="off"></label>
           </div>
           <div class="rl-toolbar">
             <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="mcp-add">Ajouter MCP</button>
@@ -367,73 +564,16 @@
       </div>`;
   }
 
-  function missionsHtml() {
-    return `
-      <div class="rl-panel">
-        <div class="rl-panel-head">
-          <h3>Missions CERT</h3>
-          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="missions-reset">Réinitialiser</button>
-        </div>
-        <p class="fp-muted" style="margin:0 0 .65rem;font-size:.82rem">
-          Chaque mission envoie un prompt CERT à l’IA locale active. L’analyste reste décideur.
-        </p>
-        <div class="rl-matrix">${st.missions.map((m) => `
-          <div class="rl-skill">
-            <h4>${esc(m.name)}</h4>
-            <p>${esc(m.desc)}</p>
-            <div class="rl-skill-tags">${(m.tags || []).map((t) =>
-              `<span class="rl-pill">${esc(t)}</span>`).join('')}</div>
-            <div class="rl-skill-actions">
-              <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="mission-run" data-id="${esc(m.id)}"
-                ${st.busy ? 'disabled' : ''}>Lancer</button>
-            </div>
-          </div>`).join('')}
-        </div>
-      </div>`;
-  }
-
-  function toolsHtml() {
-    return `
-      <div class="rl-panel">
-        <div class="rl-panel-head"><h3>Outils SEP (via MCP)</h3></div>
-        <p class="fp-muted" style="margin:0 0 .65rem;font-size:.82rem">
-          Relais s’appuie sur le control-plane SEP. Cursor (ou une IA MCP) peut appeler les mêmes tools
-          via le serveur stdio <code>connectors/sekoia-mcp</code>.
-        </p>
-        <div class="rl-card">
-          <h4>Tools exposés</h4>
-          <ul>
-            <li><code>sep_health</code> · santé control-plane</li>
-            <li><code>sep_alerts</code> · alertes d’ingestion</li>
-            <li><code>sep_intakes_health</code> · santé intakes</li>
-            <li><code>sep_notify_channels</code> / <code>sep_mail_config</code></li>
-            <li><code>sep_llm_status</code> / <code>sep_llm_chat</code></li>
-            <li><code>sep_gateway_catalog</code></li>
-          </ul>
-          <div class="rl-toolbar">
-            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="probe-sep">Ping SEP</button>
-          </div>
-          <div id="rl-tools-msg" class="fp-muted" style="margin-top:.45rem;font-size:.8rem"></div>
-        </div>
-        <div class="rl-card">
-          <h4>Config Cursor</h4>
-          <p>Fichier <code>.cursor/mcp.json</code> — serveur <code>sep</code>.
-          Variables : <code>SEKOIA_CONTROLPLANE_URL=http://127.0.0.1:8901</code>
-          et <code>INTERNAL_API_TOKEN</code>.</p>
-        </div>
-      </div>`;
-  }
-
   function journalHtml() {
-    const rows = st.chat.slice().reverse().slice(0, 40).map((m) => `<tr>
+    const rows = st.chat.slice().reverse().slice(0, 50).map((m) => `<tr>
       <td>${esc(m.t || '')}</td>
       <td>${esc(m.role)}</td>
-      <td>${esc((m.text || '').slice(0, 160))}</td>
+      <td>${esc((m.text || '').slice(0, 180))}</td>
     </tr>`).join('');
     return `
       <div class="rl-panel">
-        <div class="rl-panel-head"><h3>Journal de session</h3>
-          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="chat-clear">Purger chat</button>
+        <div class="rl-panel-head"><h3>Journal EI</h3>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="chat-clear">Purger</button>
         </div>
         <div class="fp-table-wrap"><table class="rl-table fp-table">
           <thead><tr><th>Heure</th><th>Rôle</th><th>Extrait</th></tr></thead>
@@ -443,59 +583,70 @@
   }
 
   function mainHtml() {
-    if (st.view === 'chat') return chatHtml();
-    if (st.view === 'ai') return aiHtml();
-    if (st.view === 'missions') return missionsHtml();
-    if (st.view === 'tools') return toolsHtml();
+    if (st.view === 'triage') return triageHtml();
+    if (st.view === 'forensic') return forensicHtml();
+    if (st.view === 'playbooks') return playbooksHtml();
+    if (st.view === 'warroom' || st.view === 'chat') return warroomHtml();
+    if (st.view === 'engine' || st.view === 'ai') return engineHtml();
     if (st.view === 'journal') return journalHtml();
-    return homeHtml();
+    return commandHtml();
   }
 
   function sideHtml() {
     const p = activeProvider();
+    const ctx = st.context || {};
     return `
-      <p class="rl-section-label">Contexte CERT</p>
+      <p class="rl-section-label">Poste analyste</p>
       <div class="rl-card">
-        <h4>IA active</h4>
+        <h4>Moteur</h4>
         <p>${p
           ? `${esc(p.name)} · <code>${esc(p.model || '—')}</code>`
-          : 'Aucune — branchez Ollama / LM Studio…'}</p>
+          : 'Offline — Moteur IA → Ollama Cybercorp'}</p>
         <div class="rl-bind">
-          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="view" data-view="ai">Configurer</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="view" data-view="engine">Configurer</button>
         </div>
       </div>
       <div class="rl-card">
-        <h4>Missions rapides</h4>
+        <h4>Contexte SEP</h4>
+        <p>${(ctx.sic_alerts || []).length} SIEM · ${(ctx.sep_ingestion_alerts || []).length} ingest
+          ${st.cfg.focusAlertId ? `<br>Focus <code>${esc(st.cfg.focusAlertId.slice(0, 13))}…</code>` : ''}</p>
         <div class="rl-bind">
-          ${st.missions.slice(0, 3).map((m) =>
-            `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="mission-run" data-id="${esc(m.id)}">${esc(m.name)}</button>`
-          ).join('')}
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="ctx-refresh">Refresh</button>
         </div>
       </div>
       <div class="rl-card">
-        <h4>Principe</h4>
-        <p>IA locale sous votre contrôle · outils SEP via MCP · décisions humaines.</p>
+        <h4>Raccourcis</h4>
+        <div class="rl-bind">
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="alert-triage">Triage</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="forensic-first-hour">Forensic</button>
+          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="escalation-pack">Escalade</button>
+        </div>
+      </div>
+      <div class="rl-card">
+        <h4>Doctrine</h4>
+        <p>Contexte SEP = vérité · Ollama = accélérateur · Analyste = décideur.</p>
       </div>`;
   }
 
   function paint() {
     const el = root();
     if (!el) return;
-    el.className = 'rl-root';
+    el.className = 'rl-root ei-root';
     el.innerHTML = `
       <header class="rl-top">
         <div class="rl-brand">
-          <h2>Relais</h2>
-          <p>Copilote CERT · branchez n’importe quelle IA locale via MCP / OpenAI-compatible — outils SEP à portée.</p>
+          <div class="ei-kicker">SEP · CYBERCORP</div>
+          <h2>Extended Intelligence</h2>
+          <p>Triage SIEM Sekoia + forensic accélérés par Ollama, ancrés sur le contexte SEP live.</p>
         </div>
-        <div class="rl-chips">${statusChips()}</div>
+        <div class="rl-chips">${statusChips()}${st.busy ? '<span class="rl-chip is-live">EI en cours…</span>' : ''}</div>
       </header>
-      <nav class="rl-subnav" aria-label="Relais">${VIEWS.map((v) =>
+      <nav class="rl-subnav" aria-label="Extended Intelligence">${VIEWS.map((v) =>
         `<button type="button" class="rl-tab${st.view === v.id ? ' is-active' : ''}" data-rl="view" data-view="${v.id}">${esc(v.label)}</button>`
       ).join('')}</nav>
       <div class="rl-body">
         <aside class="rl-rail">
-          <p class="rl-section-label">Navigation</p>
+          <p class="rl-section-label">Modules</p>
           ${VIEWS.map((v) => `
             <button type="button" class="rl-session${st.view === v.id ? ' is-active' : ''}" data-rl="view" data-view="${v.id}">
               <div class="rl-session-title"><span>${esc(v.label)}</span></div>
@@ -505,60 +656,110 @@
         <aside class="rl-side">${sideHtml()}</aside>
       </div>
       <footer class="rl-footer-bar">
-        <span>Relais × SEP · CYBERCORP</span>
-        <span>view=${esc(st.view)} · IA=${esc((activeProvider() || {}).name || 'off')}</span>
+        <span>Extended Intelligence × SEP · Ollama</span>
+        <span>${esc(st.view)} · ${esc((activeProvider() || {}).name || 'off')}</span>
       </footer>`;
     bind(el);
     const chatLog = document.getElementById('rl-chat-log');
     if (chatLog) chatLog.scrollTop = chatLog.scrollHeight;
   }
 
-  async function runChat(userText, opts) {
+  async function runPlaybook(id, note) {
+    if (st.busy) return;
+    const p = activeProvider();
+    if (!p) {
+      toast('Branchez Ollama (Moteur IA)', 'err');
+      st.view = 'engine';
+      paint();
+      return;
+    }
+    st.busy = true;
+    st.msg = 'EI analyse…';
+    paint();
+    try {
+      const body = {
+        playbook_id: id,
+        provider_id: p.id,
+        user_note: note || '',
+        alert_id: st.cfg.focusAlertId || '',
+        hours: st.cfg.hours || 24,
+        inject_context: st.cfg.injectContext !== false,
+        max_tokens: 280,
+      };
+      const r = await sepApi('/llm/ei/run', { method: 'POST', body });
+      if (r && r.ok && r.text) {
+        const pb = playbooks().find((x) => x.id === id) || {};
+        st.lastRun = {
+          text: r.text,
+          t: nowStamp(),
+          playbook: r.playbook || { name: pb.name, mode: pb.mode },
+          mode: (r.playbook && r.playbook.mode) || pb.mode || 'ops',
+        };
+        st.chat.push({
+          role: 'user',
+          text: `[Playbook ${id}] ${note || pb.name || id}`,
+          t: nowStamp(),
+        });
+        st.chat.push({
+          role: 'assistant',
+          text: r.text,
+          t: nowStamp(),
+          meta: pb.name || id,
+        });
+        persistChat();
+        toast('Analyse EI prête', 'ok');
+        if (st.view === 'command' || st.view === 'playbooks') st.view = 'warroom';
+      } else {
+        toast((r && r.error) || 'Échec EI', 'err');
+        st.msg = (r && r.error) || 'échec';
+      }
+    } catch (e) {
+      toast(e.message || String(e), 'err');
+      st.msg = e.message || String(e);
+    }
+    st.busy = false;
+    paint();
+  }
+
+  async function runChat(userText) {
     const msg = String(userText || '').trim();
     if (!msg || st.busy) return;
-    const o = opts || {};
     st.busy = true;
-    if (!o.silentUser) {
-      st.chat.push({ role: 'user', text: msg, t: nowStamp() });
-      persistChat();
-    }
+    st.chat.push({ role: 'user', text: msg, t: nowStamp() });
+    persistChat();
     paint();
     const p = activeProvider();
     try {
-      if (!p) throw new Error('Aucune IA locale configurée — onglet IA locale');
-      const r = await sepApi('/llm/chat', {
+      if (!p) throw new Error('Aucune IA — Moteur IA → Ollama Cybercorp');
+      const r = await sepApi('/llm/ei/chat', {
         method: 'POST',
         body: {
           provider_id: p.id,
-          max_tokens: 512,
-          messages: [
-            { role: 'system', content: st.cfg.systemPrompt || DEFAULT_CFG.systemPrompt },
-            ...st.chat.filter((m) => m.role === 'user' || m.role === 'assistant').slice(-12).map((m) => ({
-              role: m.role,
-              content: m.text,
-            })),
-          ],
+          inject_context: st.cfg.injectContext !== false,
+          alert_id: st.cfg.focusAlertId || '',
+          hours: st.cfg.hours || 24,
+          max_tokens: 640,
+          messages: st.chat.filter((m) => m.role === 'user' || m.role === 'assistant')
+            .slice(-10)
+            .map((m) => ({ role: m.role, content: m.text })),
         },
       });
       if (r && r.ok && r.text) {
-        st.chat.push({ role: 'assistant', text: r.text, t: nowStamp() });
+        st.chat.push({ role: 'assistant', text: r.text, t: nowStamp(), meta: 'warroom' });
+        st.lastRun = { text: r.text, t: nowStamp(), playbook: { name: 'War Room' }, mode: 'warroom' };
       } else {
         st.chat.push({
           role: 'assistant',
-          text: `Échec IA : ${(r && r.error) || 'réponse vide'}. Vérifiez que le service local écoute et que l’URL est joignable depuis le control-plane.`,
+          text: `Échec EI : ${(r && r.error) || 'réponse vide'}`,
           t: nowStamp(),
         });
       }
     } catch (e) {
-      st.chat.push({
-        role: 'assistant',
-        text: String(e.message || e),
-        t: nowStamp(),
-      });
+      st.chat.push({ role: 'assistant', text: String(e.message || e), t: nowStamp() });
     }
     persistChat();
     st.busy = false;
-    st.view = 'chat';
+    st.view = 'warroom';
     paint();
   }
 
@@ -569,29 +770,65 @@
       const act = b.dataset.rl;
 
       if (act === 'view') {
-        st.view = b.dataset.view || 'home';
-        if (st.view === 'ai') {
-          paint();
-          refreshLlm().then(() => paint());
-          return;
-        }
+        st.view = b.dataset.view || 'command';
         paint();
         return;
       }
+      if (act === 'ctx-refresh') {
+        st.busy = true; paint();
+        refreshContext().finally(() => { st.busy = false; paint(); toast('Contexte SEP à jour', 'ok'); });
+        return;
+      }
+      if (act === 'focus-alert') {
+        st.cfg.focusAlertId = b.dataset.id || '';
+        persistCfg();
+        refreshContext().then(() => paint());
+        return;
+      }
+      if (act === 'triage-filter') {
+        const inp = document.getElementById('ei-triage-q');
+        st.triageFilter = (inp && inp.value) || '';
+        paint();
+        return;
+      }
+      if (act === 'pb-run') {
+        let note = '';
+        const tn = document.getElementById('ei-triage-note');
+        const fn = document.getElementById('ei-forensic-note');
+        if (tn && tn.value) note = tn.value;
+        else if (fn && fn.value) note = fn.value;
+        runPlaybook(b.dataset.id, note);
+        return;
+      }
+      if (act === 'forensic-brief') {
+        const note = ((document.getElementById('ei-forensic-note') || {}).value || '').trim();
+        runPlaybook('forensic-first-hour', note || 'Plan forensic première heure sur le contexte courant.');
+        return;
+      }
       if (act === 'chat-send') {
-        const ta = document.getElementById('rl-chat-input');
-        runChat(ta && ta.value);
+        const inp = document.getElementById('rl-chat-input');
+        runChat(inp && inp.value);
         return;
       }
       if (act === 'chat-clear') {
-        if (!confirm('Purger l’historique Relais ?')) return;
+        if (!confirm('Purger le journal Extended Intelligence ?')) return;
         st.chat = [];
         persistChat();
         paint();
         return;
       }
-      if (act === 'llm-refresh') {
-        refreshLlm().then(() => { toast('État IA rafraîchi', 'ok'); paint(); });
+      if (act === 'toggle-inject') {
+        st.cfg.injectContext = !!b.checked;
+        persistCfg();
+        return;
+      }
+      if (act === 'cfg-save') {
+        const h = document.getElementById('ei-hours');
+        const f = document.getElementById('ei-focus');
+        st.cfg.hours = Math.max(1, Math.min(168, parseInt((h && h.value) || '24', 10) || 24));
+        st.cfg.focusAlertId = ((f && f.value) || '').trim();
+        persistCfg();
+        refreshContext().then(() => { toast('Config EI enregistrée', 'ok'); paint(); });
         return;
       }
       if (act === 'set-active') {
@@ -603,32 +840,33 @@
       if (act === 'preset') {
         const pr = LOCAL_PRESETS.find((x) => x.id === b.dataset.preset);
         if (!pr) return;
-        const nameEl = document.getElementById('rl-llm-name');
-        const kindEl = document.getElementById('rl-llm-kind');
-        const urlEl = document.getElementById('rl-llm-url');
-        const modelEl = document.getElementById('rl-llm-model');
-        if (nameEl) nameEl.value = pr.name;
-        if (kindEl) kindEl.value = pr.kind;
-        if (urlEl) urlEl.value = pr.base_url;
-        if (modelEl) modelEl.value = pr.model;
-        toast(`Preset ${pr.name} chargé — Enregistrer pour activer`, 'ok');
+        const name = document.getElementById('rl-llm-name');
+        const kind = document.getElementById('rl-llm-kind');
+        const url = document.getElementById('rl-llm-url');
+        const model = document.getElementById('rl-llm-model');
+        if (name) name.value = pr.name;
+        if (kind) kind.value = pr.kind;
+        if (url) url.value = pr.base_url;
+        if (model) model.value = pr.model;
+        toast(`Preset ${pr.name}`, 'ok');
+        return;
+      }
+      if (act === 'llm-refresh') {
+        refreshLlm().then(() => paint());
         return;
       }
       if (act === 'llm-add') {
         const name = ((document.getElementById('rl-llm-name') || {}).value || '').trim();
-        const kind = ((document.getElementById('rl-llm-kind') || {}).value || 'ollama').trim();
+        const kind = ((document.getElementById('rl-llm-kind') || {}).value || 'ollama');
         const base_url = ((document.getElementById('rl-llm-url') || {}).value || '').trim();
         const model = ((document.getElementById('rl-llm-model') || {}).value || '').trim();
         const api_key = ((document.getElementById('rl-llm-key') || {}).value || '').trim();
-        if (!base_url && kind !== 'openai' && kind !== 'anthropic') {
-          toast('Base URL requise pour une IA locale', 'err');
-          return;
-        }
+        if (!name || !base_url) { toast('Nom + Base URL requis', 'err'); return; }
         sepApi('/llm/providers', {
           method: 'POST',
-          body: { name: name || kind, kind, base_url, model, api_key },
+          body: { name, kind, base_url, model, api_key, enabled: true },
         }).then((r) => {
-          if (r && r.provider && r.provider.id) {
+          if (r && r.provider) {
             st.cfg.activeProviderId = r.provider.id;
             persistCfg();
           }
@@ -652,18 +890,21 @@
       }
       if (act === 'llm-test') {
         const id = b.dataset.id;
-        st.msg = 'Test en cours…';
+        st.msg = 'Test EI…';
         paint();
         sepApi('/llm/chat', {
           method: 'POST',
           body: {
             provider_id: id,
-            max_tokens: 128,
-            messages: [{ role: 'user', content: 'Réponds en une phrase : Relais CERT OK ?' }],
+            max_tokens: 96,
+            messages: [{
+              role: 'user',
+              content: 'Réponds en une phrase : Extended Intelligence prêt pour le triage SEP ?',
+            }],
           },
         }).then((r) => {
           st.msg = r.ok ? (r.text || 'OK') : (r.error || 'échec');
-          toast(r.ok ? 'IA locale OK' : (r.error || 'échec'), r.ok ? 'ok' : 'err');
+          toast(r.ok ? 'Moteur IA OK' : (r.error || 'échec'), r.ok ? 'ok' : 'err');
           if (r.ok) {
             st.cfg.activeProviderId = id;
             persistCfg();
@@ -680,88 +921,77 @@
         const name = ((document.getElementById('rl-mcp-name') || {}).value || '').trim();
         const url = ((document.getElementById('rl-mcp-url') || {}).value || '').trim();
         const token = ((document.getElementById('rl-mcp-token') || {}).value || '').trim();
-        if (!url) { toast('URL MCP requise', 'err'); return; }
+        if (!name || !url) { toast('Nom + URL requis', 'err'); return; }
         sepApi('/mcp/servers', {
           method: 'POST',
-          body: { name: name || 'mcp-local', transport: 'http', url, token },
-        }).then(() => refreshLlm()).then(() => { toast('MCP ajouté', 'ok'); paint(); })
+          body: { name, transport: 'http', url, token },
+        }).then(() => refreshLlm())
+          .then(() => { toast('MCP ajouté', 'ok'); paint(); })
           .catch((e) => toast(e.message || 'Échec', 'err'));
         return;
       }
       if (act === 'mcp-del') {
-        if (!confirm('Retirer ce MCP ?')) return;
         sepApi(`/mcp/servers/${encodeURIComponent(b.dataset.id)}`, { method: 'DELETE' })
-          .then(() => refreshLlm()).then(() => { toast('MCP retiré', 'ok'); paint(); })
+          .then(() => refreshLlm())
+          .then(() => paint())
           .catch((e) => toast(e.message || 'Échec', 'err'));
         return;
       }
       if (act === 'mcp-probe') {
-        sepApi(`/mcp/servers/${encodeURIComponent(b.dataset.id)}/probe`, { method: 'POST' })
+        sepApi(`/mcp/servers/${encodeURIComponent(b.dataset.id)}/probe`, { method: 'POST', body: {} })
           .then((r) => {
             toast(r.ok ? `${r.count || 0} tool(s)` : (r.error || 'probe échoué'), r.ok ? 'ok' : 'err');
             return refreshLlm();
           }).then(() => paint())
           .catch((e) => toast(e.message || 'Échec', 'err'));
-        return;
       }
-      if (act === 'mission-run') {
-        const m = st.missions.find((x) => x.id === b.dataset.id);
-        if (!m) return;
-        st.view = 'chat';
-        runChat(m.prompt);
-        return;
-      }
-      if (act === 'missions-reset') {
-        if (!confirm('Réinitialiser les missions CERT par défaut ?')) return;
-        st.missions = CERT_MISSIONS.map((m) => Object.assign({}, m));
-        persistMissions();
-        toast('Missions réinitialisées', 'ok');
-        paint();
-        return;
-      }
-      if (act === 'probe-sep') {
-        const box = document.getElementById('rl-tools-msg');
-        sepApi('/llm/status').then((r) => {
-          if (box) {
-            box.textContent = r.ok
-              ? `SEP OK · ${(r.providers || []).length} IA · store ${r.secrets_store || '?'}`
-              : (r.error || 'échec');
-          }
-          toast('Ping SEP OK', 'ok');
-        }).catch((e) => {
-          if (box) box.textContent = e.message || String(e);
-          toast('SEP injoignable', 'err');
-        });
+    });
+
+    el.addEventListener('change', (ev) => {
+      const t = ev.target;
+      if (t && t.id === 'ei-inject') {
+        st.cfg.injectContext = !!t.checked;
+        persistCfg();
       }
     });
 
     el.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) {
-        const ta = document.getElementById('rl-chat-input');
-        if (ta && el.contains(ta)) {
+        const inp = document.getElementById('rl-chat-input');
+        if (inp && document.activeElement === inp) {
           ev.preventDefault();
-          runChat(ta.value);
+          runChat(inp.value);
         }
       }
     });
   }
 
-  function mount() {
-    refreshLlm().finally(() => paint());
+  async function mount() {
+    const el = root();
+    if (!el) return;
+    el.innerHTML = '<p class="fp-muted">Chargement Extended Intelligence…</p>';
+    await refreshLlm();
+    await refreshContext();
+    // migration vues legacy
+    if (['home', 'chat', 'ai', 'missions', 'tools'].includes(st.view)) {
+      const map = { home: 'command', chat: 'warroom', ai: 'engine', missions: 'playbooks', tools: 'engine' };
+      st.view = map[st.view] || 'command';
+    }
+    paint();
   }
 
   window.SekoiaRelais = { mount, paint };
-  // compat ancien nom
+  window.SekoiaEI = window.SekoiaRelais;
   window.SekoiaKheish = window.SekoiaRelais;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      const tab = new URLSearchParams(location.search).get('tab');
-      if (tab === 'sekoia-relais' || tab === 'sekoia-kheish') mount();
+      const tab = (window.CertApp && CertApp.currentTab && CertApp.currentTab()) || '';
+      if (tab === 'sekoia-relais' || tab === 'sekoia-kheish' || tab === 'sekoia-ei') mount();
     });
-  } else if (['sekoia-relais', 'sekoia-kheish'].includes(
-    new URLSearchParams(location.search).get('tab')
+  } else if (['sekoia-relais', 'sekoia-kheish', 'sekoia-ei'].includes(
+    (window.CertApp && CertApp.currentTab && CertApp.currentTab()) || '',
   )) {
     mount();
   }
-})();
+}());

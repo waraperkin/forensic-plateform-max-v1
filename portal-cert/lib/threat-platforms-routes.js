@@ -345,7 +345,8 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   // dans le control-plane.
   const ALLOWED_SAGF_RE = /^\/sagf\/(laws|mechanisms|query|saved|debt|self-report|config|reconcile|risk|nl|journal|optimise|compliance|feedback|conflicts|dac|economics|efficacy|harness|insurance|adversary|twin)(\/|$)/;
   const ALLOWED_ANALYST_RE = /^\/analyst\/(inventory|monitor|monitoring|analytics|coverage|quality|dashboard|tags|filters|filter|alerting|views|export)(\/|$)/;
-  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|notify|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift|sep)(\/|$)/;
+  // llm|mcp : Extended Intelligence (Ollama / playbooks / War Room)
+  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|notify|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift|sep|llm|mcp)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
     const allowed = req.path.startsWith('/sagf')
@@ -374,7 +375,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     // playbooks) dépasse la minute. Le commentaire ci-dessous le prévoyait,
     // mais les routes concernées n'avaient jamais été ajoutées ici — d'où des
     // dépassements à 60 s sur un calcul parfaitement normal.
-    const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting|telemetry|intake|intakes|rules|inventory|stats|assets|connectors|modules|formats|graph|simulate|hosts|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift|sep)(\/|$)/.test(req.path)
+    const heavy = /^\/sekoia\/(fetch|events|search|volumetry|bulk|alerting|telemetry|intake|intakes|rules|inventory|stats|assets|connectors|modules|formats|graph|simulate|hosts|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift|sep|llm)(\/|$)/.test(req.path)
       // Les vues SAGF des lots 4, 5, 6 et 10 croisent satisfiabilité, couverture
       // et détections : elles dépassent les 120 s du délai ordinaire. Les omettre
       // ici ne produisait AUCUNE erreur visible — la vue restait simplement en

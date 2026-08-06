@@ -34,8 +34,8 @@
     "sek_rules": "SEKOIA — Rules",
     "sek_apikeys": "SEKOIA — API keys",
     "sek_assets": "SEKOIA — Assets",
-    "sek_kheish": "SEKOIA — Relais",
-    "sek_relais": "SEKOIA — Relais"
+    "sek_kheish": "SEKOIA — Extended Intelligence",
+    "sek_relais": "SEKOIA — Extended Intelligence"
   },
   "units": {
     "bytes_b": "o",
@@ -152,8 +152,8 @@
     "sek_rules_inv": "Inventaire",
     "sek_apikeys_inv": "Inventaire",
     "sek_assets_inv": "Inventaire",
-    "sek_kheish": "Relais",
-    "sek_relais": "Relais"
+    "sek_kheish": "Extended Intelligence",
+    "sek_relais": "Extended Intelligence"
   },
   "header": {
     "brand_sub": "Centre opérations CERT / forensic",
@@ -403,7 +403,7 @@
     "config_secrets_lead": "Secrets des connecteurs (stockés chiffrés côté backend, jamais dans .env).",
     "sekoia_cc_lead": "Synthèse opérationnelle SEP : KPI, volumétrie et accès rapide aux builders.",
     "sekoia_kheish_lead": "Copilote CERT branché sur n’importe quelle IA locale via MCP (Ollama, LM Studio, vLLM…).",
-    "sekoia_relais_lead": "Copilote CERT branché sur n’importe quelle IA locale via MCP (Ollama, LM Studio, vLLM…).",
+    "sekoia_relais_lead": "Copilote SOC/CERT × Ollama : triage SIEM Sekoia et forensic accélérés sur le contexte SEP live.",
     "xdr_lead": "Vue fusionnée d'un asset : intakes & events Sekoia, threats & activities SentinelOne, timeline unifiée, export Timesketch / OpenSearch.",
     "api_key_help": "Cle API utilisee pour authentifier les appels vers ce connecteur.",
     "delete_secrets": "Supprimer les secrets",

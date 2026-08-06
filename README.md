@@ -193,16 +193,16 @@ gardent le préfixe sur le portail CERT, où Sekoia côtoie SentinelOne.
 utilisateur. Les secrets (SMTP, webhooks) vivent dans
 `SEKOIA_SECRETS_KEY` → `/data/sekoia-secrets.enc` — pas en clair dans `.env`.
 
-**Relais** (`sekoia-relais.js` + `llmbridge.py` + `connectors/sekoia-mcp/`) —
-copilote CERT branché sur **n’importe quelle IA locale** (Ollama, LM Studio,
-vLLM, LocalAI, llama.cpp…) via MCP / OpenAI-compatible. Missions CERT
-(triage silencieux, baisses, clés API, escalades). Cursor parle à SEP via le
-serveur MCP stdio : [`connectors/sekoia-mcp/README.md`](connectors/sekoia-mcp/README.md)
+**Extended Intelligence** (`sekoia-relais.js` + `llmbridge.py` + `connectors/sekoia-mcp/`) —
+copilote SOC/CERT qui **pousse SEP au maximum** via **Ollama** : triage SIEM Sekoia,
+forensic desk, playbooks (contexte live injecté), War Room. Alias onglet historique
+`sekoia-relais`. Cursor parle à SEP via MCP stdio :
+[`connectors/sekoia-mcp/README.md`](connectors/sekoia-mcp/README.md)
 et [`.cursor/mcp.json`](.cursor/mcp.json). Control-plane : `127.0.0.1:8901`.
 
-Stack Ollama autonome recommandée (même hôte Docker) :
+Stack Ollama recommandée :
 [`waraperkin/ollama-cybercorp`](https://github.com/waraperkin/ollama-cybercorp) —
-`./scripts/join-sep-network.sh` puis Relais → Base URL `http://oc-gateway:8080/v1`.
+`./scripts/join-sep-network.sh` puis EI → Base URL `http://oc-gateway:8080/v1`.
 
 Détail : [`docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md`](docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md),
 audit : [`docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md`](docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md).

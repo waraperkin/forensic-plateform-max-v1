@@ -26,8 +26,20 @@ command -v python3 >/dev/null || die "python3 requis"
 log "Compteur forensic-windows avant test..."
 WIN_BEFORE=$(curl -sk "$OS_URL/forensic-windows*/_count" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('count',0))" 2>/dev/null || echo "0")
 
+COOKIE_JAR="$(mktemp)"
+trap 'rm -f "$COOKIE_JAR"' EXIT
+PORTAL_USER="${PORTAL_ADMIN_USER:-admin}"
+PORTAL_PASS="${PORTAL_ADMIN_PASSWORD:-${CERT_PORTAL_SECRET:-}}"
+[ -n "$PORTAL_PASS" ] || die "PORTAL_ADMIN_PASSWORD / CERT_PORTAL_SECRET absent (.env)"
+
+log "Login portail CERT ($PORTAL_USER)..."
+LOGIN_CODE=$(curl -sk -c "$COOKIE_JAR" -o /tmp/e2e-login.json -w '%{http_code}' -X POST "$CERT_URL/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"${PORTAL_USER}\",\"password\":\"${PORTAL_PASS}\"}" 2>/dev/null || echo "000")
+[ "$LOGIN_CODE" = "200" ] || die "Login portail HTTP $LOGIN_CODE — voir ensure-portal-admin"
+
 log "Génération token IT (case=$CASE_ID, os_type=windows)..."
-TOKEN_RESP=$(curl -sk -X POST "$CERT_URL/api/tokens/generate" \
+TOKEN_RESP=$(curl -sk -b "$COOKIE_JAR" -X POST "$CERT_URL/api/tokens/generate" \
   -H "Content-Type: application/json" \
   -d "{\"case_id\":\"$CASE_ID\",\"description\":\"E2E ingest test\",\"expires_in_hours\":1,\"max_uses\":5,\"os_type\":\"windows\",\"analyst\":\"e2e-bot\"}" 2>/dev/null) || true
 TOKEN=$(echo "$TOKEN_RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('token',''))" 2>/dev/null || echo "")

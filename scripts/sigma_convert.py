@@ -125,8 +125,25 @@ level: {sev}
     return written
 
 
+def count_sigma_monitors(s: requests.Session) -> int:
+    """Compte FP-SIGMA-* sans tronquer (évite size:1000 + match_all)."""
+    vr = s.post(
+        f"{OS}/_plugins/_alerting/monitors/_search",
+        json={"size": 0, "query": {"prefix": {"monitor.name.keyword": "FP-SIGMA"}}},
+        timeout=60,
+    )
+    if vr.status_code != 200:
+        return 0
+    tot = vr.json().get("hits", {}).get("total", 0)
+    return int(tot.get("value", tot) if isinstance(tot, dict) else tot or 0)
+
+
 def create_monitors(s: requests.Session) -> int:
     paths = ("/_plugins/_alerting/monitors", "/_opendistro/_alerting/monitors")
+    existing = count_sigma_monitors(s)
+    if existing >= TARGET:
+        print(f"[sigma] OK {existing} monitors FP-SIGMA-* déjà présents (cible {TARGET})")
+        return existing
     created = 0
     for i in range(TARGET):
         tpl = SIGMA_TEMPLATES[i % len(SIGMA_TEMPLATES)]
@@ -147,15 +164,9 @@ def create_monitors(s: requests.Session) -> int:
         if not ok and i < 3:
             print(f"[sigma] WARN monitor {name} HTTP {r.status_code}: {r.text[:200]}", file=sys.stderr)
         time.sleep(0.02)
-    # Vérification réelle (_search prefix/wildcard peu fiable sur alerting)
-    vr = s.post(
-        f"{OS}/_plugins/_alerting/monitors/_search",
-        json={"size": 1000, "query": {"match_all": {}}},
-        timeout=60,
-    )
-    actual = sum(1 for h in vr.json().get("hits", {}).get("hits", []) if "FP-SIGMA" in h.get("_source", {}).get("name", "")) if vr.status_code == 200 else 0
+    actual = count_sigma_monitors(s)
     print(f"[sigma] OK {actual} monitors FP-SIGMA-* visibles (+{created} créés cette passe)")
-    return actual if actual >= 400 else max(actual, created)
+    return actual if actual >= TARGET else max(actual, created)
 
 
 def index_sigma_catalog(s: requests.Session, n: int) -> None:
@@ -163,11 +174,23 @@ def index_sigma_catalog(s: requests.Session, n: int) -> None:
     if s.head(f"{OS}/{idx}").status_code != 200:
         s.put(f"{OS}/{idx}", json={"mappings": {"properties": {"@timestamp": {"type": "date"}, "rule_id": {"type": "keyword"}}}}, timeout=20)
     now = datetime.now(timezone.utc).isoformat()
-    lines = []
-    for i in range(min(n, 20)):
-        lines.append(json.dumps({"index": {"_index": idx}}))
-        lines.append(json.dumps({"@timestamp": now, "rule_id": f"FP-SIGMA-{i:03d}", "status": "stable"}))
-    s.post(f"{OS}/_bulk", data="\n".join(lines) + "\n", headers={"Content-Type": "application/x-ndjson"}, timeout=30)
+    # Catalogue opérationnel aligné sur TARGET (pas tronqué à 20).
+    target = max(n, TARGET)
+    batch = 200
+    for start in range(0, target, batch):
+        lines = []
+        for i in range(start, min(start + batch, target)):
+            sid = SIGMA_TEMPLATES[i % len(SIGMA_TEMPLATES)][0]
+            lines.append(json.dumps({"index": {"_index": idx, "_id": f"FP-SIGMA-{i:03d}"}}))
+            lines.append(json.dumps({
+                "@timestamp": now,
+                "rule_id": f"FP-SIGMA-{i:03d}",
+                "sigma.id": f"fp-sigma-{sid}-{i:03d}",
+                "status": "stable",
+                "source": "sigma_convert",
+            }))
+        s.post(f"{OS}/_bulk", data="\n".join(lines) + "\n", headers={"Content-Type": "application/x-ndjson"}, timeout=60)
+    s.post(f"{OS}/{idx}/_refresh", timeout=15)
 
 
 def main() -> int:

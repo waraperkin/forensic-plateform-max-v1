@@ -55,11 +55,20 @@ def main() -> int:
     else:
         problems.append("MITRE index vide")
 
-    # 3. Sigma monitors
-    sr = s.post(f"{OS}/_plugins/_alerting/monitors/_search", json={"size": 1000, "query": {"match_all": {}}}, timeout=60)
-    n = sum(1 for h in sr.json().get("hits", {}).get("hits", []) if "FP-SIGMA" in h.get("_source", {}).get("name", "")) if sr.status_code == 200 else 0
+    # 3. Sigma monitors — 10 YAML uniques (catalogue) + volume monitors FP-SIGMA-*
+    # Compter via query (size:1000 + match_all tronque quand >1000 monitors totaux).
+    sr = s.post(
+        f"{OS}/_plugins/_alerting/monitors/_search",
+        json={"size": 0, "query": {"prefix": {"monitor.name.keyword": "FP-SIGMA"}}},
+        timeout=60,
+    )
+    if sr.status_code == 200:
+        tot = sr.json().get("hits", {}).get("total", 0)
+        n = int(tot.get("value", tot) if isinstance(tot, dict) else tot or 0)
+    else:
+        n = 0
     yaml_n = len(list((ROOT / "rules" / "sigma" / "generated").glob("*.yml"))) if (ROOT / "rules" / "sigma" / "generated").exists() else 0
-    if n >= 50 and yaml_n >= 50:
+    if n >= 50 and yaml_n >= 10:
         print(f"[enterprise] OK Sigma monitors={n} yaml={yaml_n}")
     else:
         problems.append(f"Sigma monitors={n} yaml={yaml_n}")

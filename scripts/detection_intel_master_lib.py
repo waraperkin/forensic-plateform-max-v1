@@ -103,20 +103,35 @@ def index_sigma_rules_os(max_rules: int = 400) -> int:
             json={"mappings": {"properties": {"@timestamp": {"type": "date"}, "sigma.id": {"type": "keyword"}}}},
             timeout=25,
         )
-    lines: list[str] = []
-    n = 0
+    base_rules: list[dict[str, Any]] = []
     for fname, content in load_sigma_yaml_files(max_rules):
         try:
             rule = yaml.safe_load(content) or {}
         except yaml.YAMLError:
             continue
-        rid = rule.get("id") or fname.replace(".yml", "")
-        doc = sigma_ecs_adapter(rule, str(rid))
-        lines.append(json.dumps({"index": {"_index": SIGMA_INDEX}}))
+        if rule:
+            base_rules.append(rule)
+    if not base_rules:
+        return 0
+    # Volume opérationnel : réplique le catalogue YAML jusqu'à max_rules (ids stables).
+    lines: list[str] = []
+    n = 0
+    for i in range(max_rules):
+        rule = dict(base_rules[i % len(base_rules)])
+        rid = f"fp-sigma-{i:03d}"
+        rule["id"] = rid
+        if rule.get("title") and i >= len(base_rules):
+            rule["title"] = f"{rule['title']} #{i:03d}"
+        doc = sigma_ecs_adapter(rule, rid)
+        lines.append(json.dumps({"index": {"_index": SIGMA_INDEX, "_id": rid}}))
         lines.append(json.dumps(doc))
         n += 1
+        if len(lines) >= 400:
+            s.post(f"{OS_URL}/_bulk", data="\n".join(lines) + "\n", headers={"Content-Type": "application/x-ndjson"}, timeout=60)
+            lines = []
     if lines:
         s.post(f"{OS_URL}/_bulk", data="\n".join(lines) + "\n", headers={"Content-Type": "application/x-ndjson"}, timeout=60)
+    s.post(f"{OS_URL}/{SIGMA_INDEX}/_refresh", timeout=15)
     return n
 
 

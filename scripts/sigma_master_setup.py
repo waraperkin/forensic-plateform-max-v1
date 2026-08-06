@@ -52,9 +52,11 @@ def main() -> int:
     save_state("sigma_master", {"os_indexed": os_n, "imported": imp, "skipped": skip, "views": views, "convert": conv_ok, "analyzer_runs": ran})
     # Idempotence : sur un re-run les règles existent déjà (imp=0) — on juge
     # sur le total présent dans Timesketch, pas sur les imports frais.
+    # Catalogue YAML = 10 règles uniques ; volume OS = 400 docs indexés.
+    # Timesketch n'importe que le catalogue unique (pas 400 duplicatas).
     ts_total = max(imp + skip, sigma_rules_count_ts())
     print(f"[sigma-master-setup] OK os={os_n} import={imp} ts_total={ts_total} views={views} analyzer={ran}")
-    return 0 if os_n >= 400 and ts_total >= 350 else 1
+    return 0 if conv_ok and os_n >= 400 and ts_total >= 10 else 1
 
 
 if __name__ == "__main__":

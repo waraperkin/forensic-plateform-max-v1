@@ -322,18 +322,21 @@ app.get('/api/endpoints/velociraptor-artifacts', async (req, res) => {
 });
 
 app.post('/api/helk/sync', async (_req, res) => {
+  // Appel direct bridge (évite 401 CERT session sur proxy IT → CERT).
+  const bridge = (process.env.HELK_BRIDGE_URL || 'http://helk-bridge:8095').replace(/\/$/, '');
   try {
-    const { data } = await axios.post(`${CERT_URL()}/api/helk/sync`, {}, { timeout: 120000 });
-    res.json(data);
+    const { data, status } = await axios.post(`${bridge}/sync`, {}, { timeout: 120000, validateStatus: () => true });
+    res.status(status >= 400 ? status : 200).json(data);
   } catch (e) {
     res.status(502).json({ ok: false, error: e.message });
   }
 });
 
 app.post('/api/helk/lab/ingest', async (_req, res) => {
+  const bridge = (process.env.HELK_BRIDGE_URL || 'http://helk-bridge:8095').replace(/\/$/, '');
   try {
-    const { data } = await axios.post(`${CERT_URL()}/api/helk/lab/ingest`, {}, { timeout: 180000 });
-    res.json(data);
+    const { data, status } = await axios.post(`${bridge}/lab/ingest`, {}, { timeout: 180000, validateStatus: () => true });
+    res.status(status >= 400 ? status : 200).json(data);
   } catch (e) {
     res.status(502).json({ ok: false, error: e.message });
   }

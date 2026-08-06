@@ -15,8 +15,10 @@ CTX = ssl.create_default_context()
 CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
 
+# Aligné sur /api/health/global (16 services — portails = cert + it).
 SERVICES = (
     "opensearch",
+    "dashboards",
     "helk",
     "velociraptor",
     "timesketch",
@@ -26,7 +28,11 @@ SERVICES = (
     "thehive",
     "cortex",
     "nginx",
-    "portal",
+    "cert",
+    "it",
+    "minio",
+    "logstash",
+    "ingest-worker",
 )
 
 SUB_ENDPOINTS = (
@@ -80,10 +86,12 @@ def main() -> int:
 
     summary = gh.get("summary") or {}
     if summary:
+        total = int(summary.get("total") or 0)
+        down = int(summary.get("down") or 0)
         check(
             "Summary agrégé",
-            summary.get("total") == len(SERVICES),
-            f"ok={summary.get('ok')} degraded={summary.get('degraded')} down={summary.get('down')} total={summary.get('total')}",
+            total >= len(SERVICES) and down == 0,
+            f"ok={summary.get('ok')} degraded={summary.get('degraded')} down={down} total={total}",
         )
 
     for svc in SERVICES:

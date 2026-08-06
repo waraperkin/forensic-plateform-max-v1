@@ -293,7 +293,11 @@ def ensure_ti_aliases(session: requests.Session) -> None:
 
 
 def seed_test_iocs(source: str) -> list[dict[str, Any]]:
-    """IOC de test alignés MISP E2E + ti/indicators.json."""
+    """IOC de test alignés MISP E2E + ti/indicators.json.
+
+    Au moins 15 IOC par source pour atteindre FP_TI_MIN_IOC=30 (opencti+misp)
+    dès le premier sync seed sur une plateforme vierge.
+    """
     now = utc_now()
     base = [
         ("ip", "203.0.113.50", ["misp", "test", "wara"]),
@@ -301,6 +305,16 @@ def seed_test_iocs(source: str) -> list[dict[str, Any]]:
         ("hash", "d41d8cd98f00b204e9800998ecf8427e", ["misp", "test"]),
         ("domain", "malicious.example.com", ["apt", "c2", "test"]),
         ("ip", "10.10.10.10", ["botnet", "test"]),
+        ("ip", "198.51.100.77", ["c2", "test"]),
+        ("ip", "192.0.2.44", ["phishing", "test"]),
+        ("domain", "c2-beacon-test.example", ["c2", "test"]),
+        ("domain", "phish-login-test.example", ["phishing", "test"]),
+        ("hash", "e3b0c44298fc1c149afbf4c8996fb924", ["malware", "test"]),
+        ("hash", "5d41402abc4b2a76b9719d911017c592", ["malware", "test"]),
+        ("url", "https://evil-wara-test.example/payload", ["url", "test"]),
+        ("url", "http://malicious.example.com/dropper", ["url", "test"]),
+        ("ip", "203.0.113.200", ["scanner", "test"]),
+        ("domain", "apt-staging-test.example", ["apt", "test"]),
     ]
     return [
         ioc_doc(t, v, source, tags=tags, first_seen=now, last_seen=now, feed="fp-seed")

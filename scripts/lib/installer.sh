@@ -1462,7 +1462,11 @@ fp_start_tests() {
   local portal_user portal_pass portal_code portal_host
   portal_host=$(fp_url_identity 2>/dev/null || fp_detect_public_ip 2>/dev/null || echo "127.0.0.1")
   portal_user=$(grep -E '^PORTAL_ADMIN_USER=' "${DIR:-.}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || echo "admin")
-  portal_pass=$(grep -E '^CERT_PORTAL_SECRET=' "${DIR:-.}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || echo "")
+  # Aligné sur ensure-portal-admin.sh : PORTAL_ADMIN_PASSWORD puis CERT_PORTAL_SECRET
+  portal_pass=$(grep -E '^PORTAL_ADMIN_PASSWORD=' "${DIR:-.}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || echo "")
+  if [ -z "$portal_pass" ]; then
+    portal_pass=$(grep -E '^CERT_PORTAL_SECRET=' "${DIR:-.}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || echo "")
+  fi
   portal_code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 12 \
     -X POST "http://127.0.0.1:${FP_CERT_PORTAL_PORT:-3000}/api/auth/login" \
     -H 'Content-Type: application/json' \

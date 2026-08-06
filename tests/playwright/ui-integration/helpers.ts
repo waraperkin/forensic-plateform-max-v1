@@ -15,7 +15,8 @@ const SOC = {
   },
   cortex: {
     login: 'admin',
-    password: process.env.CORTEX_SECRET || process.env.CORTEX_ADMIN_PASSWORD || 'forensic-cortex-secret-2024-changeme-in-prod',
+    // CORTEX_SECRET = secret applicatif Play, pas le mot de passe UI admin
+    password: process.env.CORTEX_ADMIN_PASSWORD || process.env.CORTEX_PASSWORD || 'secret',
   },
 };
 

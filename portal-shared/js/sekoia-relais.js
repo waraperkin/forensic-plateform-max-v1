@@ -19,7 +19,7 @@
     { id: 'command', label: 'Command Center' },
     { id: 'triage', label: 'Triage Alertes' },
     { id: 'forensic', label: 'Forensic Desk' },
-    { id: 'playbooks', label: 'Playbooks' },
+    { id: 'playbooks', label: 'Skills SIEM' },
     { id: 'warroom', label: 'War Room' },
     { id: 'engine', label: 'Moteur IA' },
     { id: 'journal', label: 'Journal' },
@@ -54,22 +54,32 @@
   ];
 
   const FALLBACK_PLAYBOOKS = [
-    { id: 'alert-triage', name: 'Triage file d’alertes', mode: 'triage',
-      desc: 'Prioriser les alertes SIEM ouvertes.', tags: ['siem', 'triage'] },
-    { id: 'alert-deep', name: 'Analyse approfondie alerte', mode: 'triage',
-      desc: 'Décortiquer une alerte Sekoia.', tags: ['siem', 'deep'] },
-    { id: 'silent-sources', name: 'Sources silencieuses', mode: 'telemetry',
-      desc: 'Intakes / hôtes muets.', tags: ['telemetry'] },
-    { id: 'forensic-first-hour', name: 'Forensic — première heure', mode: 'forensic',
-      desc: 'Plan DFIR H+1.', tags: ['dfir'] },
-    { id: 'ioc-hunt', name: 'Chasse IOC', mode: 'forensic',
-      desc: 'Pivots IOC depuis alertes.', tags: ['cti'] },
-    { id: 'escalation-pack', name: 'Pack escalade CERT', mode: 'response',
-      desc: 'Note d’escalade actionnable.', tags: ['response'] },
-    { id: 'fp-coach', name: 'Coach faux positifs', mode: 'triage',
-      desc: 'Réduire le bruit.', tags: ['tuning'] },
-    { id: 'mitre-map', name: 'Cartographie MITRE', mode: 'forensic',
-      desc: 'Techniques ATT&CK plausibles.', tags: ['mitre'] },
+    { id: 'alert-triage', name: 'Triage file d’alertes', mode: 'triage', desc: 'Prioriser les alertes SIEM.', tags: ['siem', 'triage'], alert_kinds: ['*'] },
+    { id: 'alert-deep', name: 'Analyse approfondie alerte', mode: 'triage', desc: 'Décortiquer une alerte Sekoia.', tags: ['siem', 'deep'], alert_kinds: ['*'] },
+    { id: 'fp-coach', name: 'Coach faux positifs', mode: 'triage', desc: 'Réduire le bruit SIEM.', tags: ['tuning'], alert_kinds: ['*'] },
+    { id: 'malware-alert', name: 'Malware / AV / EDR', mode: 'siem', desc: 'Malware, hash, quarantine.', tags: ['malware', 'edr'], alert_kinds: ['malware', 'edr'] },
+    { id: 'ransomware-early', name: 'Ransomware (signaux précoces)', mode: 'siem', desc: 'Chiffrement, VSS, notes.', tags: ['ransomware'], alert_kinds: ['ransomware'] },
+    { id: 'phishing-credential', name: 'Phishing / credentials', mode: 'siem', desc: 'Mail, lien, vol d’identifiants.', tags: ['phishing'], alert_kinds: ['phishing'] },
+    { id: 'bruteforce-auth', name: 'Brute-force / auth anormale', mode: 'siem', desc: 'Spray, lockouts, géo.', tags: ['auth'], alert_kinds: ['bruteforce'] },
+    { id: 'account-takeover', name: 'Account takeover / ATO', mode: 'siem', desc: 'Sessions, MFA, OAuth.', tags: ['identity'], alert_kinds: ['account', 'mfa'] },
+    { id: 'lateral-movement', name: 'Mouvement latéral', mode: 'siem', desc: 'PsExec, WMI, RDP, SMB.', tags: ['lateral'], alert_kinds: ['lateral'] },
+    { id: 'privilege-escalation', name: 'Élévation de privilèges', mode: 'siem', desc: 'UAC, token, sudo, Kerberos.', tags: ['privesc'], alert_kinds: ['privilege'] },
+    { id: 'persistence', name: 'Persistance', mode: 'siem', desc: 'Run keys, services, tasks.', tags: ['persistence'], alert_kinds: ['persistence'] },
+    { id: 'c2-beacon', name: 'C2 / beacon / proxy sortant', mode: 'siem', desc: 'Callback, beaconing.', tags: ['c2'], alert_kinds: ['c2', 'beacon'] },
+    { id: 'dns-tunnel', name: 'DNS tunneling / exfil DNS', mode: 'siem', desc: 'DNS long / entropie.', tags: ['dns'], alert_kinds: ['dns'] },
+    { id: 'data-exfil', name: 'Exfiltration de données', mode: 'siem', desc: 'Upload massif, cloud, USB.', tags: ['exfil'], alert_kinds: ['exfiltration'] },
+    { id: 'defense-evasion', name: 'Defense evasion', mode: 'siem', desc: 'Disable AV, clear logs.', tags: ['evasion'], alert_kinds: ['evasion'] },
+    { id: 'cloud-aws-abuse', name: 'Cloud AWS / IAM abuse', mode: 'siem', desc: 'CloudTrail, clés, IAM.', tags: ['aws', 'cloud'], alert_kinds: ['aws'] },
+    { id: 'azure-m365-abuse', name: 'Azure / M365 abuse', mode: 'siem', desc: 'Entra ID, Exchange, OAuth.', tags: ['azure', 'm365'], alert_kinds: ['azure', 'm365'] },
+    { id: 'endpoint-lolbins', name: 'LOLBins / living-off-the-land', mode: 'siem', desc: 'PowerShell, certutil, mshta.', tags: ['lolbin'], alert_kinds: ['powershell', 'lolbin'] },
+    { id: 'network-ids', name: 'IDS/IPS / réseau', mode: 'siem', desc: 'Signatures, scan, exploit.', tags: ['ids'], alert_kinds: ['ids', 'ips'] },
+    { id: 'supply-chain', name: 'Supply chain / package abuse', mode: 'siem', desc: 'Package, update hijack.', tags: ['supply-chain'], alert_kinds: ['supply'] },
+    { id: 'web-exploit', name: 'Web exploit / WAF', mode: 'siem', desc: 'SQLi, RCE, path traversal.', tags: ['web'], alert_kinds: ['web', 'waf'] },
+    { id: 'silent-sources', name: 'Sources silencieuses', mode: 'telemetry', desc: 'Intakes / hôtes muets.', tags: ['telemetry'], alert_kinds: ['intake_silent'] },
+    { id: 'forensic-first-hour', name: 'Forensic — première heure', mode: 'forensic', desc: 'Plan DFIR H+1.', tags: ['dfir'], alert_kinds: ['*'] },
+    { id: 'ioc-hunt', name: 'Chasse IOC', mode: 'forensic', desc: 'Pivots IOC depuis alertes.', tags: ['cti'], alert_kinds: ['*'] },
+    { id: 'mitre-map', name: 'Cartographie MITRE', mode: 'forensic', desc: 'Techniques ATT&CK.', tags: ['mitre'], alert_kinds: ['*'] },
+    { id: 'escalation-pack', name: 'Pack escalade CERT', mode: 'response', desc: 'Note d’escalade.', tags: ['response'], alert_kinds: ['*'] },
   ];
 
   const DEFAULT_CFG = {
@@ -253,6 +263,7 @@
       </div>
       <div class="rl-kpi-row">
         <div class="rl-kpi"><b>${p ? 'LIVE' : 'OFF'}</b><span>Moteur IA</span></div>
+        <div class="rl-kpi"><b>${playbooks().length}</b><span>Skills EI</span></div>
         <div class="rl-kpi"><b>${esc(ctx.sic_total != null ? ctx.sic_total : sic.length)}</b><span>Alertes SIEM</span></div>
         <div class="rl-kpi"><b>${sep.length}</b><span>Alertes ingestion</span></div>
         <div class="rl-kpi"><b>${Object.keys(sev).length}</b><span>Sévérités ingest</span></div>
@@ -350,6 +361,16 @@
               <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="escalation-pack"
                 ${st.busy || !p ? 'disabled' : ''}>Pack escalade</button>
             </div>
+            ${(() => {
+              const focus = ((st.context && st.context.sic_alerts) || [])
+                .find((a) => a.id === st.cfg.focusAlertId) || ((st.context && st.context.target_alert) || null);
+              const sug = suggestSkillsForAlert(focus || { title: st.triageFilter });
+              if (!sug.length) return '';
+              return `<div class="ei-suggest"><span class="rl-hint">Skills suggérés pour cette alerte :</span>
+                <div class="rl-bind">${sug.map((s) =>
+                  `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="${esc(s.id)}"
+                    ${st.busy || !p ? 'disabled' : ''}>${esc(s.name)}</button>`).join('')}</div></div>`;
+            })()}
             <div class="ei-answer" id="ei-triage-out">${st.lastRun && st.lastRun.text
               ? mdLite(st.lastRun.text) : '<span class="fp-muted">L’analyse apparaîtra ici.</span>'}</div>
           </div>
@@ -393,19 +414,46 @@
       </div>`;
   }
 
+  const MODE_LABELS = {
+    siem: 'Alertes SIEM Sekoia',
+    triage: 'Triage',
+    forensic: 'Forensic',
+    response: 'Réponse CERT',
+    telemetry: 'Télémétrie / ingestion',
+  };
+
+  function suggestSkillsForAlert(alert) {
+    const blob = JSON.stringify(alert || {}).toLowerCase();
+    const scored = playbooks().filter((pb) => pb.mode === 'siem').map((pb) => {
+      const kinds = pb.alert_kinds || [];
+      let score = 0;
+      kinds.forEach((k) => { if (k !== '*' && blob.includes(String(k).toLowerCase())) score += 2; });
+      (pb.tags || []).forEach((k) => { if (blob.includes(String(k).toLowerCase())) score += 1; });
+      return { pb, score };
+    }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
+    return scored.slice(0, 4).map((x) => x.pb);
+  }
+
   function playbooksHtml() {
     const p = activeProvider();
     const groups = {};
+    const order = ['siem', 'triage', 'forensic', 'response', 'telemetry'];
     playbooks().forEach((pb) => {
       const m = pb.mode || 'ops';
       (groups[m] = groups[m] || []).push(pb);
     });
+    const modes = order.filter((m) => groups[m] && groups[m].length)
+      .concat(Object.keys(groups).filter((m) => !order.includes(m)));
     return `
       <div class="rl-panel">
-        <div class="rl-panel-head"><h3>Playbooks Extended Intelligence</h3></div>
-        <p class="fp-muted ei-lead">Chaque playbook injecte le CONTEXTE SEP dans Ollama et impose un format verdict / actions.</p>
-        ${Object.keys(groups).map((mode) => `
-          <h4 class="ei-mode-label">${esc(mode)}</h4>
+        <div class="rl-panel-head">
+          <h3>Skills Extended Intelligence</h3>
+          <span class="rl-hint">${playbooks().length} skills · Ollama local</span>
+        </div>
+        <p class="fp-muted ei-lead">Chaque skill injecte le CONTEXTE SEP (alertes SIEM Sekoia) dans Ollama
+          et impose le format verdict / actions. Choisissez le skill adapté au type d’alerte.</p>
+        ${modes.map((mode) => `
+          <h4 class="ei-mode-label">${esc(MODE_LABELS[mode] || mode)} · ${groups[mode].length}</h4>
           <div class="rl-matrix" style="margin-bottom:.85rem">
             ${groups[mode].map((pb) => `
               <div class="rl-skill">

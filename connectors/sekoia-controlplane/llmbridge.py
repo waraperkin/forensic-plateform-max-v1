@@ -77,100 +77,343 @@ EI_SYSTEM = (
 )
 
 EI_PLAYBOOKS: dict[str, dict[str, Any]] = {
+    # ── Triage transverse ────────────────────────────────────────────
     "alert-triage": {
         "name": "Triage file d’alertes",
         "mode": "triage",
-        "desc": "Prioriser les alertes SIEM ouvertes et proposer un plan P0/P1.",
+        "desc": "Prioriser les alertes SIEM ouvertes (P0/P1) et signaler les FP.",
         "prompt": (
-            "À partir du CONTEXTE SEP (alertes SIEM + ingestion), trie les alertes "
-            "par urgence métier. Pour les 5 plus critiques : verdict, pourquoi maintenant, "
-            "première action (5 min). Signale les possibles faux positifs."
+            "À partir du CONTEXTE SEP (alertes SIEM Sekoia), trie par urgence métier. "
+            "Pour les 5 plus critiques : type d’alerte, verdict, pourquoi maintenant, "
+            "action 5 min. Signale les possibles faux positifs."
         ),
-        "max_tokens": 320,
+        "max_tokens": 300,
         "tags": ["siem", "triage"],
+        "alert_kinds": ["*"],
     },
     "alert-deep": {
         "name": "Analyse approfondie alerte",
         "mode": "triage",
         "desc": "Décortiquer une alerte Sekoia (entité, règle, hypothèses).",
         "prompt": (
-            "Analyse l’alerte cible (ou la plus urgente du contexte). "
-            "Hypothèses d’attaque, artefacts à collecter, requêtes Sekoia/SOL utiles, "
-            "critères de clôture FP vs vrai positif."
+            "Analyse l’alerte FOCUS (ou la plus urgente). Hypothèses d’attaque, "
+            "artefacts à collecter, requêtes Sekoia/SOL, critères FP vs vrai positif."
         ),
-        "max_tokens": 320,
+        "max_tokens": 300,
         "tags": ["siem", "deep"],
-    },
-    "silent-sources": {
-        "name": "Sources silencieuses",
-        "mode": "telemetry",
-        "desc": "Intakes / hôtes muets — impact détection.",
-        "prompt": (
-            "Exploite les alertes d’ingestion et la santé intakes. "
-            "Liste les silences critiques, impact sur la détection, checks agent/réseau/parsing, "
-            "et qui prévenir."
-        ),
-        "max_tokens": 280,
-        "tags": ["telemetry", "intakes"],
-    },
-    "forensic-first-hour": {
-        "name": "Forensic — première heure",
-        "mode": "forensic",
-        "desc": "Playbook DFIR H+1 aligné sur les alertes SEP.",
-        "prompt": (
-            "Construis un plan forensic première heure à partir du contexte SEP : "
-            "périmètre (hôtes/users), préservation preuves, timeline initiale, "
-            "IOC à extraire, outils SEP/Timesketch/MISP à mobiliser. Checklist exécutable."
-        ),
-        "max_tokens": 320,
-        "tags": ["dfir", "forensic"],
-    },
-    "ioc-hunt": {
-        "name": "Chasse IOC",
-        "mode": "forensic",
-        "desc": "Pivots IOC depuis alertes / note analyste.",
-        "prompt": (
-            "À partir des entités/IOC du contexte (et de la note analyste si fournie), "
-            "propose une chasse : où chercher dans Sekoia, corrélations, "
-            "faux positifs classiques, export CTI."
-        ),
-        "max_tokens": 280,
-        "tags": ["cti", "hunt"],
-    },
-    "escalation-pack": {
-        "name": "Pack escalade CERT",
-        "mode": "response",
-        "desc": "Note d’escalade + comment Sekoia + actions containment.",
-        "prompt": (
-            "Rédige un pack d’escalade CERT prêt à coller : résumé exécutif (5 lignes), "
-            "timeline, impact, actions déjà faites, demande, commentaire Sekoia court. "
-            "Basé uniquement sur le contexte."
-        ),
-        "max_tokens": 320,
-        "tags": ["response", "comms"],
+        "alert_kinds": ["*"],
     },
     "fp-coach": {
         "name": "Coach faux positifs",
         "mode": "triage",
-        "desc": "Réduire le bruit sans aveugler la détection.",
+        "desc": "Réduire le bruit SIEM sans aveugler la détection.",
         "prompt": (
-            "Identifie dans le contexte les alertes probablement bruyantes. "
-            "Pour chacune : signes FP, risque si on ignore, réglage règle/intake recommandé, "
-            "alternative de détection."
+            "Parmi les alertes du contexte, lesquelles sont probablement du bruit ? "
+            "Signes FP, risque si ignore, réglage rule/intake Sekoia recommandé."
+        ),
+        "max_tokens": 260,
+        "tags": ["tuning", "triage"],
+        "alert_kinds": ["*"],
+    },
+    # ── Skills par type d’alerte SIEM Sekoia (≥15) ───────────────────
+    "malware-alert": {
+        "name": "Malware / AV / EDR",
+        "mode": "siem",
+        "desc": "Alerte malware, hash, quarantine, pivots hôte.",
+        "prompt": (
+            "Traite comme une alerte MALWARE Sekoia (AV/EDR/hash). "
+            "Vérifie : hash/fichier, process parent, user, latéralisation. "
+            "Actions : isolement hôte, collecte binaire, hunt hash dans le tenant, "
+            "commentaire Sekoia. FP classiques (outil légitime, sandbox)."
         ),
         "max_tokens": 280,
-        "tags": ["tuning", "triage"],
+        "tags": ["malware", "edr", "siem"],
+        "alert_kinds": ["malware", "antivirus", "edr", "hash"],
+    },
+    "ransomware-early": {
+        "name": "Ransomware (signaux précoces)",
+        "mode": "siem",
+        "desc": "Chiffrement massif, shadow copy, notes de rançon.",
+        "prompt": (
+            "Contexte alerte RANSOMWARE / pré-ransomware Sekoia. "
+            "Cherche : suppression VSS, mass file rename/encrypt, note de rançon, "
+            "admin tools anormaux. Plan containment immédiat + préservation preuves."
+        ),
+        "max_tokens": 280,
+        "tags": ["ransomware", "siem", "p0"],
+        "alert_kinds": ["ransomware", "encryption", "vss"],
+    },
+    "phishing-credential": {
+        "name": "Phishing / credentials",
+        "mode": "siem",
+        "desc": "Mail malveillant, lien, vol d’identifiants.",
+        "prompt": (
+            "Alerte PHISHING / credential theft Sekoia. "
+            "Pivot : expéditeur, URL/domaine, pièces jointes, user ciblé, "
+            "connexions post-clic. Actions : bloquer IOC, reset MDP/MFA, "
+            "hunt boîtes similaires, commentaire Sekoia."
+        ),
+        "max_tokens": 280,
+        "tags": ["phishing", "email", "siem"],
+        "alert_kinds": ["phishing", "email", "credential"],
+    },
+    "bruteforce-auth": {
+        "name": "Brute-force / auth anormale",
+        "mode": "siem",
+        "desc": "Échecs auth massifs, password spray, lockouts.",
+        "prompt": (
+            "Alerte BRUTE-FORCE / password spray / auth anormale Sekoia. "
+            "Analyse source IP, comptes ciblés, succès après échecs, géo. "
+            "Actions : bloquer IP/user, forcer MFA, corréler VPN/Cloud."
+        ),
+        "max_tokens": 260,
+        "tags": ["auth", "bruteforce", "siem"],
+        "alert_kinds": ["bruteforce", "authentication", "login"],
+    },
+    "account-takeover": {
+        "name": "Account takeover / ATO",
+        "mode": "siem",
+        "desc": "Prise de compte, MFA bypass, sessions suspectes.",
+        "prompt": (
+            "Alerte ACCOUNT TAKEOVER / session anormale Sekoia. "
+            "Vérifie : nouvel appareil, impossible travel, MFA fatigue, "
+            "OAuth consent, mailbox rules. Actions : kill sessions, reset, "
+            "audit boîte mail, pivots IAM."
+        ),
+        "max_tokens": 280,
+        "tags": ["identity", "ato", "siem"],
+        "alert_kinds": ["account", "mfa", "session", "identity"],
+    },
+    "lateral-movement": {
+        "name": "Mouvement latéral",
+        "mode": "siem",
+        "desc": "PsExec, WMI, RDP, SMB admin, pass-the-hash.",
+        "prompt": (
+            "Alerte LATERAL MOVEMENT Sekoia (PsExec/WMI/RDP/SMB/PtH). "
+            "Cartographie source→cible, comptes privilégiés, horaires. "
+            "Actions : isoler hop, révoquer tickets/creds, hunt même technique."
+        ),
+        "max_tokens": 280,
+        "tags": ["lateral", "siem", "attack"],
+        "alert_kinds": ["lateral", "psexec", "wmi", "rdp", "smb"],
+    },
+    "privilege-escalation": {
+        "name": "Élévation de privilèges",
+        "mode": "siem",
+        "desc": "UAC bypass, token, local admin, sudo abusif.",
+        "prompt": (
+            "Alerte PRIVILEGE ESCALATION Sekoia. "
+            "Identifie technique (UAC, token, sudo, kerberoast/AS-REP), "
+            "compte avant/après, persistance liée. Actions containment + audit AD."
+        ),
+        "max_tokens": 260,
+        "tags": ["privesc", "siem"],
+        "alert_kinds": ["privilege", "uac", "sudo", "kerberos"],
+    },
+    "persistence": {
+        "name": "Persistance",
+        "mode": "siem",
+        "desc": "Run keys, services, scheduled tasks, WMI, cron.",
+        "prompt": (
+            "Alerte PERSISTENCE Sekoia (run key, service, task, WMI, cron). "
+            "Vérifie légitimité binaire/chemin, parent, user. "
+            "Actions : désactiver mécanisme, collecter artefact, hunt flotte."
+        ),
+        "max_tokens": 260,
+        "tags": ["persistence", "siem"],
+        "alert_kinds": ["persistence", "scheduled", "service", "autorun"],
+    },
+    "c2-beacon": {
+        "name": "C2 / beacon / proxy sortant",
+        "mode": "siem",
+        "desc": "Callback C2, beaconing, proxy/tunnel suspect.",
+        "prompt": (
+            "Alerte C2 / beaconing / connexion sortante suspecte Sekoia. "
+            "Analyse destination, périodicité, user-agent, process. "
+            "Actions : bloquer egress, isoler hôte, extrait IOC, hunt DNS/HTTP."
+        ),
+        "max_tokens": 280,
+        "tags": ["c2", "network", "siem"],
+        "alert_kinds": ["c2", "beacon", "proxy", "outbound"],
+    },
+    "dns-tunnel": {
+        "name": "DNS tunneling / exfil DNS",
+        "mode": "siem",
+        "desc": "Requêtes DNS longues, sous-domaines aléatoires, volume.",
+        "prompt": (
+            "Alerte DNS TUNNELING / anomalie DNS Sekoia. "
+            "Signes : labels longs, entropie, volume, résolveurs inhabituels. "
+            "Actions : bloquer domaine/zone, isoler client, corréler process."
+        ),
+        "max_tokens": 260,
+        "tags": ["dns", "exfil", "siem"],
+        "alert_kinds": ["dns", "tunnel"],
+    },
+    "data-exfil": {
+        "name": "Exfiltration de données",
+        "mode": "siem",
+        "desc": "Upload massif, cloud sync anormal, USB, archives.",
+        "prompt": (
+            "Alerte DATA EXFILTRATION Sekoia. "
+            "Volume, destination (cloud/SaaS/IP), user, horaires, archives. "
+            "Actions : couper partage, préserver logs, estimer impact données."
+        ),
+        "max_tokens": 280,
+        "tags": ["exfil", "dlp", "siem"],
+        "alert_kinds": ["exfiltration", "dlp", "upload"],
+    },
+    "defense-evasion": {
+        "name": "Defense evasion",
+        "mode": "siem",
+        "desc": "Disable AV, clear logs, timestomp, LOLBins.",
+        "prompt": (
+            "Alerte DEFENSE EVASION Sekoia (disable AV/EDR, clear logs, LOLBin). "
+            "Impact sur la détection, hôte concerné, suite d’attaque probable. "
+            "Actions : réactiver protections, snapshot, hunt LOLBins associés."
+        ),
+        "max_tokens": 260,
+        "tags": ["evasion", "siem"],
+        "alert_kinds": ["evasion", "tamper", "lolbin", "clear-log"],
+    },
+    "cloud-aws-abuse": {
+        "name": "Cloud AWS / IAM abuse",
+        "mode": "siem",
+        "desc": "CloudTrail : console anormale, clés, privilege escalation cloud.",
+        "prompt": (
+            "Alerte CLOUD AWS / IAM abuse Sekoia (CloudTrail). "
+            "Vérifie identity, IP, API calls sensibles (CreateAccessKey, "
+            "AttachPolicy, console login). Actions : révoquer clés, MFA, "
+            "audit trail 24h."
+        ),
+        "max_tokens": 280,
+        "tags": ["cloud", "aws", "siem"],
+        "alert_kinds": ["aws", "cloudtrail", "iam", "cloud"],
+    },
+    "azure-m365-abuse": {
+        "name": "Azure / M365 abuse",
+        "mode": "siem",
+        "desc": "Entra ID, Exchange, SharePoint, consent OAuth.",
+        "prompt": (
+            "Alerte AZURE / M365 Sekoia (Entra ID, Exchange, OAuth consent). "
+            "Pivot user, appId, IP, mailbox rules, share links. "
+            "Actions : révoquer sessions/apps, audit Unified Audit Log."
+        ),
+        "max_tokens": 280,
+        "tags": ["cloud", "azure", "m365", "siem"],
+        "alert_kinds": ["azure", "m365", "entra", "oauth", "exchange"],
+    },
+    "endpoint-lolbins": {
+        "name": "LOLBins / living-off-the-land",
+        "mode": "siem",
+        "desc": "powershell, certutil, bitsadmin, mshta, wscript.",
+        "prompt": (
+            "Alerte LOLBIN / living-off-the-land Sekoia. "
+            "Command-line, parent/child, encoded commands, network follow-up. "
+            "Distingue admin légitime vs attaque. Actions + hunt pattern."
+        ),
+        "max_tokens": 260,
+        "tags": ["endpoint", "lolbin", "siem"],
+        "alert_kinds": ["powershell", "lolbin", "script", "cmd"],
+    },
+    "network-ids": {
+        "name": "IDS/IPS / réseau",
+        "mode": "siem",
+        "desc": "Signatures réseau, scan, exploit kit, anomalous traffic.",
+        "prompt": (
+            "Alerte IDS/IPS / réseau Sekoia. "
+            "Signature, src/dst, protocole, répétition. "
+            "FP courants (scan légitime, misconfig). Actions firewall + hunt host."
+        ),
+        "max_tokens": 260,
+        "tags": ["network", "ids", "siem"],
+        "alert_kinds": ["ids", "ips", "firewall", "scan"],
+    },
+    "supply-chain": {
+        "name": "Supply chain / package abuse",
+        "mode": "siem",
+        "desc": "Package manager, update hijack, signed binary abuse.",
+        "prompt": (
+            "Alerte SUPPLY CHAIN / package / update abuse Sekoia. "
+            "Source package, publisher, hash, process d’install. "
+            "Actions : isoler build/host, révoquer artefact, hunt flotte."
+        ),
+        "max_tokens": 260,
+        "tags": ["supply-chain", "siem"],
+        "alert_kinds": ["supply", "package", "update"],
+    },
+    "web-exploit": {
+        "name": "Web exploit / WAF",
+        "mode": "siem",
+        "desc": "Exploitation web, SQLi, RCE, path traversal, WAF.",
+        "prompt": (
+            "Alerte WEB EXPLOIT / WAF Sekoia. "
+            "URL, payload, status code, user-agent, IP. "
+            "Actions : bloquer IP/URI, patching, hunt logs app, check webshell."
+        ),
+        "max_tokens": 260,
+        "tags": ["web", "waf", "siem"],
+        "alert_kinds": ["web", "waf", "sqli", "rce", "exploit"],
+    },
+    # ── Forensic / réponse / télémétrie ───────────────────────────────
+    "silent-sources": {
+        "name": "Sources silencieuses",
+        "mode": "telemetry",
+        "desc": "Intakes / hôtes muets — impact détection SIEM.",
+        "prompt": (
+            "Alertes d’ingestion + santé intakes. Silences critiques, "
+            "impact détection Sekoia, checks agent/réseau/parsing."
+        ),
+        "max_tokens": 260,
+        "tags": ["telemetry", "intakes"],
+        "alert_kinds": ["intake_silent", "volume_drop"],
+    },
+    "forensic-first-hour": {
+        "name": "Forensic — première heure",
+        "mode": "forensic",
+        "desc": "Plan DFIR H+1 aligné sur les alertes SIEM.",
+        "prompt": (
+            "Plan forensic H+1 depuis alertes Sekoia du contexte : périmètre, "
+            "preuves, timeline, IOC, outils SEP/Timesketch/MISP. Checklist."
+        ),
+        "max_tokens": 300,
+        "tags": ["dfir", "forensic"],
+        "alert_kinds": ["*"],
+    },
+    "ioc-hunt": {
+        "name": "Chasse IOC",
+        "mode": "forensic",
+        "desc": "Pivots IOC depuis alertes Sekoia / note analyste.",
+        "prompt": (
+            "Chasse IOC depuis le contexte/note : où chercher dans Sekoia, "
+            "corrélations, FP classiques, export CTI."
+        ),
+        "max_tokens": 260,
+        "tags": ["cti", "hunt"],
+        "alert_kinds": ["*"],
     },
     "mitre-map": {
         "name": "Cartographie MITRE",
         "mode": "forensic",
-        "desc": "Techniques ATT&CK plausibles + gaps de couverture.",
+        "desc": "Techniques ATT&CK plausibles depuis les alertes.",
         "prompt": (
-            "Mappe les alertes/contexte sur ATT&CK (techniques plausibles seulement). "
-            "Indique preuves manquantes et contrôles SEP à vérifier (règles, intakes)."
+            "Mappe les alertes Sekoia du contexte sur ATT&CK (plausible only). "
+            "Preuves manquantes + contrôles/règles à vérifier."
         ),
-        "max_tokens": 280,
+        "max_tokens": 260,
         "tags": ["mitre", "coverage"],
+        "alert_kinds": ["*"],
+    },
+    "escalation-pack": {
+        "name": "Pack escalade CERT",
+        "mode": "response",
+        "desc": "Note d’escalade + commentaire Sekoia + containment.",
+        "prompt": (
+            "Pack escalade CERT prêt à coller (contexte alertes Sekoia) : "
+            "résumé 5 lignes, timeline, impact, actions, demande, comment SIEM."
+        ),
+        "max_tokens": 300,
+        "tags": ["response", "comms"],
+        "alert_kinds": ["*"],
     },
 }
 
@@ -668,9 +911,11 @@ def register(lb_app) -> None:
             "default_provider_id": _pick_default_provider_id(),
             "playbooks": [
                 {"id": k, "name": v["name"], "mode": v["mode"],
-                 "desc": v["desc"], "tags": v.get("tags") or []}
+                 "desc": v["desc"], "tags": v.get("tags") or [],
+                 "alert_kinds": v.get("alert_kinds") or []}
                 for k, v in EI_PLAYBOOKS.items()
             ],
+            "skills_count": len(EI_PLAYBOOKS),
             "inbound_mcp": {
                 "stdio": "connectors/sekoia-mcp/server.py",
                 "note": "Extended Intelligence + Cursor : .cursor/mcp.json (serveur sep) "

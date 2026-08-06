@@ -561,3 +561,12 @@
   user-select: none;
 }
 .ei-last .rl-panel-head { margin-bottom: 0.35rem; }
+
+.ei-suggest {
+  margin-top: 0.55rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--rl-radius);
+  border: 1px dashed var(--rl-line);
+  background: var(--rl-surface);
+}
+.ei-suggest .rl-bind { margin-top: 0.35rem; }

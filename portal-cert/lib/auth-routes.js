@@ -30,6 +30,30 @@ function activationBaseUrl(req) {
   return `${proto}://${host}`.replace(/\/$/, '');
 }
 
+/** Notifie SEP par e-mail (création / invitation compte portail). */
+async function notifyUserCreated(username, kind) {
+  const base = (process.env.SEKOIA_CONTROLPLANE_URL || 'http://sekoia-controlplane:8901').replace(/\/$/, '');
+  const token = (process.env.INTERNAL_API_TOKEN || '').trim();
+  if (!token) return;
+  try {
+    await fetch(`${base}/control/sekoia/notify/event`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Token': token,
+      },
+      body: JSON.stringify({
+        event: 'user_created',
+        subject: `[SEP] Compte utilisateur ${kind || 'créé'} — ${username}`,
+        body: `Un compte utilisateur a été ${kind || 'créé'} sur le portail.\n`
+          + `Login : ${username}\n`
+          + `Horodatage : ${new Date().toISOString()}\n`,
+        fingerprint: `user:${kind || 'create'}:${username}`,
+      }),
+    });
+  } catch (_) { /* non bloquant */ }
+}
+
 function createAuthRouter() {
   const router = express.Router();
   const loginLimiter = rateLimit({
@@ -240,6 +264,7 @@ function createAuthRouter() {
         role,
         portalScope,
       });
+      notifyUserCreated(u.username, 'créé').catch(() => {});
       res.status(201).json({ user: u });
     } catch (e) {
       res.status(400).json({ error: e.message });
@@ -264,6 +289,7 @@ function createAuthRouter() {
         message: `Invitation ${user.username}`,
         context: { invited: user.username, portalScope: user.portalScope },
       });
+      notifyUserCreated(user.username, 'invité').catch(() => {});
       res.status(201).json({ user, activationUrl, activationToken });
     } catch (e) {
       res.status(400).json({ error: e.message });

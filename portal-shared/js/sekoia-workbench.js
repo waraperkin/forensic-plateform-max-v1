@@ -1307,7 +1307,49 @@
       <div class="swb-panel" style="padding:0">
         <div class="swb-tablewrap"><table class="swb-table"><thead><tr>
           <th>Sévérité</th><th>Type</th><th>Source</th><th>Message</th><th>Groupe</th><th>Quand</th>
-        </tr></thead><tbody>${body || '<tr><td colspan="6"><p class="swb-hint" style="padding:1rem">Aucune alerte sur la période.</p></td></tr>'}</tbody></table></div></div>`;
+        </tr></thead><tbody>${body || '<tr><td colspan="6"><p class="swb-hint" style="padding:1rem">Aucune alerte sur la période.</p></td></tr>'}</tbody></table></div></div>
+      ${mailNotifyPanel(st.data.mailNotify)}`;
+  }
+
+  function mailNotifyPanel(mail) {
+    const m = mail || {};
+    const recs = m.recipients || [];
+    const ev = m.events || {};
+    const smtp = m.smtp || {};
+    const rows = recs.map((e) => `<tr>
+      <td><code>${esc(e)}</code></td>
+      <td><button type="button" class="fp-btn fp-btn-sm fp-btn-danger-ghost" data-swb-act="mail-del"
+        data-email="${esc(e)}">Retirer</button></td>
+    </tr>`).join('');
+    const chk = (key, label) => `<label class="swb-hint" style="display:inline-flex;align-items:center;gap:.35rem;margin-right:1rem">
+      <input type="checkbox" data-mail-ev="${esc(key)}"${ev[key] !== false ? ' checked' : ''}> ${esc(label)}</label>`;
+    return `<div class="swb-panel" style="margin-top:.75rem">
+      <div class="swb-panel-head">
+        <h3 class="swb-panel-title">Notifications e-mail</h3>
+        <span class="swb-hint">${smtp.configured
+          ? `SMTP ${esc(smtp.host || '')}:${esc(String(smtp.port || ''))}`
+          : 'SMTP non configuré (variables SMTP_* dans .env)'}</span>
+      </div>
+      <p class="swb-hint" style="margin:0 0 .6rem">Recevoir un mail si un intake n’envoie plus de logs, si une clé API est créée, ou si un compte utilisateur est créé / invité. Exemple : <code>admin@cyberdefense.ml</code>.</p>
+      <div style="margin-bottom:.55rem">
+        ${chk('intake_silent', 'Intake silencieux')}
+        ${chk('volume_drop', 'Baisse de volume')}
+        ${chk('api_key_created', 'Clé API créée')}
+        ${chk('user_created', 'Compte utilisateur')}
+      </div>
+      <div class="swb-filters" style="margin-bottom:.55rem">
+        <input class="swb-input" id="swb-mail-email" style="max-width:22rem" placeholder="admin@cyberdefense.ml"
+          value="">
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-primary" data-swb-act="mail-add">Ajouter</button>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="mail-save-ev">Enregistrer événements</button>
+        <button type="button" class="fp-btn fp-btn-sm fp-btn-ghost" data-swb-act="mail-test">Envoyer un test</button>
+      </div>
+      <div class="swb-tablewrap" style="max-height:16vh"><table class="swb-table"><thead><tr>
+        <th>Destinataire</th><th></th>
+      </tr></thead><tbody>${rows
+        || '<tr><td colspan="2"><p class="swb-hint" style="padding:.6rem">Aucun destinataire — ajoutez admin@cyberdefense.ml</p></td></tr>'}</tbody></table></div>
+      ${(m.last_sent && m.last_sent.length) ? `<p class="swb-hint" style="margin:.5rem 0 0">Dernier envoi : ${esc(m.last_sent[0].ts || '')} — ${esc(m.last_sent[0].subject || '')}</p>` : ''}
+    </div>`;
   }
 
 
@@ -1935,8 +1977,10 @@
         const r = await Promise.all([
           api('/alerting/rules'),
           api('/alerting/alerts?hours=24&dedupe=1&size=200').catch(() => null),
+          api('/notify/mail').catch(() => null),
         ]);
         st.data.arules = r[0]; st.data.alerts = r[1];
+        st.data.mailNotify = r[2];
         st.data.artypes = await api('/alerting/rule-types').catch(() => null);
         if (r[1] && r[1].total) st.badges.alerting = { text: String(r[1].total), tone: 'danger' };
       } else if (st.view === 'hosts') {
@@ -2366,6 +2410,41 @@
         if (act === 'evaluate') {
           const r = await api('/alerting/evaluate?dry_run=1', { method: 'POST' });
           toast(`${r.alerts_new} alerte(s) → ${r.incidents} incident(s)`, 'ok'); return;
+        }
+        if (act === 'mail-add') {
+          const inp = document.getElementById('swb-mail-email');
+          const email = ((inp && inp.value) || '').trim().toLowerCase();
+          if (!email || email.indexOf('@') < 1) { toast('Adresse e-mail invalide', 'err'); return; }
+          const r = await api('/notify/mail/recipients', { method: 'POST', body: { email } });
+          if (r && r.ok) { toast(`Ajouté : ${email}`, 'ok'); load(); }
+          else toast((r && r.error) || 'Échec ajout', 'err');
+          return;
+        }
+        if (act === 'mail-del') {
+          const email = b.dataset.email;
+          if (!confirm(`Retirer ${email} ?`)) return;
+          const r = await api(`/notify/mail/recipients?email=${encodeURIComponent(email)}`, { method: 'DELETE' });
+          if (r && r.ok) { toast('Destinataire retiré', 'ok'); load(); }
+          else toast((r && r.error) || 'Échec', 'err');
+          return;
+        }
+        if (act === 'mail-save-ev') {
+          const events = {};
+          document.querySelectorAll('[data-mail-ev]').forEach((el) => {
+            events[el.dataset.mailEv] = !!el.checked;
+          });
+          const r = await api('/notify/mail', { method: 'PUT', body: { events } });
+          if (r && r.ok) { toast('Événements enregistrés', 'ok'); st.data.mailNotify = r; paint(); }
+          else toast((r && r.error) || 'Échec', 'err');
+          return;
+        }
+        if (act === 'mail-test') {
+          const inp = document.getElementById('swb-mail-email');
+          const email = ((inp && inp.value) || '').trim();
+          const r = await api('/notify/mail/test', { method: 'POST', body: email ? { email } : {} });
+          if (r && r.ok) toast(`Test envoyé → ${(r.recipients || []).join(', ')}`, 'ok');
+          else toast((r && r.error) || 'Échec envoi (SMTP_HOST ?)', 'err');
+          return;
         }
         if (act === 'toggle-rule') {
           await api(`/alerting/rules/${encodeURIComponent(b.dataset.id)}`, {

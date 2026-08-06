@@ -612,6 +612,22 @@ async def alerter_loop():
                 if count:
                     log.info("alerter: %d alertes → %d incidents (%s)",
                              count, result.get("incidents"), result.get("by_severity"))
+                    # Les e-mails partent déjà depuis le control-plane (_notify).
+                    # Scan périodique des nouvelles clés API (créées hors portail).
+                try:
+                    if (time.time() - STATE.get("_keys_scan_last", 0)) >= 900:
+                        STATE["_keys_scan_last"] = time.time()
+                        rk = await client.post(
+                            f"{CP_URL}/control/sekoia/notify/scan-keys",
+                            headers=_cp_headers(), timeout=120)
+                        if rk.status_code < 300:
+                            kj = rk.json()
+                            if kj.get("sent"):
+                                log.info("notify/scan-keys: %s mail(s) pour %s clé(s)",
+                                         kj.get("sent"), kj.get("detected"))
+                except Exception as exc:
+                    log.warning("notify/scan-keys: %s", _exc_msg(exc))
+                if count:
                     if thehive_enabled():
                         # Un case par INCIDENT (groupe), pas par alerte.
                         seen = set()

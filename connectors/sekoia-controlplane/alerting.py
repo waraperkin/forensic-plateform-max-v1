@@ -401,6 +401,13 @@ async def evaluate(dry_run: bool = False) -> dict:
 
 async def _notify(alerts: list[dict]) -> None:
     """Notification sortante. Un seul envoi par groupe, jamais un par membre."""
+    # E-mail (intakes silencieux / baisses) — destinataires configurables UI.
+    try:
+        import mailnotify  # noqa: WPS433
+        await mailnotify.notify_alerts(alerts)
+    except Exception as exc:  # noqa: BLE001
+        cp.log.warning("notification mail: %s", exc)
+
     if not ALERT_WEBHOOK_URL:
         return
     seen: set[str] = set()

@@ -1163,6 +1163,15 @@ services:
       - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-}
       - SECRETS_PATH=/data/sekoia-secrets.enc
       - CONTROLPLANE_PORT=8901
+      # Notifications e-mail SEP (intakes silencieux, clés API, comptes)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-noreply@cyberdefense.ml}
+      - SMTP_TLS=${SMTP_TLS:-true}
+      - SMTP_SSL=${SMTP_SSL:-false}
+      - MAIL_NOTIFY_PATH=/data/sekoia-mail-notify.json
     volumes:
       - sekoia-cp-data:/data
     networks:

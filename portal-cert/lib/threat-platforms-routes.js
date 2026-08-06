@@ -345,7 +345,7 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
   // dans le control-plane.
   const ALLOWED_SAGF_RE = /^\/sagf\/(laws|mechanisms|query|saved|debt|self-report|config|reconcile|risk|nl|journal|optimise|compliance|feedback|conflicts|dac|economics|efficacy|harness|insurance|adversary|twin)(\/|$)/;
   const ALLOWED_ANALYST_RE = /^\/analyst\/(inventory|monitor|monitoring|analytics|coverage|quality|dashboard|tags|filters|filter|alerting|views|export)(\/|$)/;
-  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift|sep)(\/|$)/;
+  const ALLOWED_PROXY_RE = /^\/sekoia\/(assets|intakes|connectors|modules|playbooks|formats|rules|stats|apikeys|config|fetch|events|search|health|inventory|alerts|coverage|entities|local|anomalies|hosts|slo|forecast|effectiveness|mitre-coverage|watchlists|snapshots|digest|sol|volumetry|alerting|notify|bulk|dashboard|inventory|storage|gateway|telemetry|intake|graph|simulate|valuation|satisfiability|field-inventory|backtest|backtest-coverage|backtest-batch|schema-drift|sep)(\/|$)/;
   router.all('/*', async (req, res) => {
     const mapped = upstreamFor(req.path);
     const allowed = req.path.startsWith('/sagf')

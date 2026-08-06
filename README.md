@@ -183,6 +183,25 @@ Sur `/sekoia`, la barre latérale n'affiche plus le préfixe « SEKOIA — » /
 « Sekoia.IO — » : l'en-tête annonce déjà la plateforme. Les mêmes clés i18n
 gardent le préfixe sur le portail CERT, où Sekoia côtoie SentinelOne.
 
+**Notifications e-mail SEP** (`mailnotify.py`) — Alerting & drops expose un
+panneau pour ajouter des destinataires (ex. `admin@cyberdefense.ml`) et activer
+les événements : intake silencieux, baisse de volume, clé API créée, compte
+utilisateur créé/invité. SMTP via variables `.env` (jamais committer les secrets) :
+
+```bash
+SMTP_HOST=mail.example.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASSWORD=...
+SMTP_FROM=noreply@example.com
+SMTP_TLS=true
+SMTP_SSL=false
+```
+
+Le control-plane (`sekoia-controlplane`) envoie les mails ; le monitor déclenche
+périodiquement le scan des nouvelles clés API. Tester depuis SEP → Alerting &
+drops → « Envoyer un test ».
+
 Détail : [`docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md`](docs/sekoia-psoar-rebuild/18-SEKOIA-EXTENDED-PLATFORM.md),
 audit : [`docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md`](docs/sekoia-psoar-rebuild/19-AUDIT-COMPLET-OUTIL-SEKOIA.md).
 

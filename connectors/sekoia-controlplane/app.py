@@ -1307,6 +1307,21 @@ async def create_apikey(request: Request):
     if err:
         return {"ok": False, "error": err}
     payload, err = await sek_request("POST", f"/api/v1/communities/{cid}/api-keys", json_body=body)
+    if err is None:
+        try:
+            import mailnotify  # noqa: WPS433
+            name = (body.get("name") or (payload or {}).get("name")
+                    or (payload or {}).get("uuid") or "clé API")
+            mailnotify.notify_event(
+                "api_key_created",
+                f"[SEP] Nouvelle clé API Sekoia — {name}",
+                f"Une clé API a été créée dans Sekoia.\n"
+                f"Nom : {name}\n"
+                f"Horodatage : {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}\n",
+                fingerprint=f"apikey:{(payload or {}).get('uuid') or name}",
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("mailnotify apikey: %s", exc)
     return {"ok": err is None, "error": err, "apikey": payload}
 
 
@@ -1832,6 +1847,9 @@ volumetry.register(app)
 #    Règles configurables, seuils dynamiques, pics/baisses/dérives, regroupement.
 import alerting  # noqa: E402
 alerting.register(app)
+
+import mailnotify  # noqa: E402
+mailnotify.register(app)
 
 # ── Sekoia Extended Platform — Bulk Operations Engine.
 #    Opérations en lot par filtre, dry-run, export/import, rollback.

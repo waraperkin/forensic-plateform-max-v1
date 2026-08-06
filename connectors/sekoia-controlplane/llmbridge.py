@@ -119,7 +119,9 @@ async def _chat_openai_compatible(base_url: str, api_key: str, model: str,
         headers["Authorization"] = f"Bearer {api_key}"
     payload = {"model": model, "messages": messages, "temperature": temperature}
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        # IA locale (Ollama…) : cold-start modèle peut dépasser 60s
+        timeout = httpx.Timeout(connect=15, read=300, write=60, pool=15)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             r = await client.post(url, json=payload, headers=headers)
         if r.status_code >= 400:
             return False, f"HTTP {r.status_code}: {r.text[:300]}"
@@ -150,7 +152,7 @@ async def _chat_anthropic(api_key: str, model: str, messages: list[dict],
     if system:
         payload["system"] = system
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             r = await client.post(url, json=payload, headers=headers)
         if r.status_code >= 400:
             return False, f"HTTP {r.status_code}: {r.text[:300]}"

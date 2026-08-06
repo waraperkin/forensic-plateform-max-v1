@@ -9,10 +9,12 @@ Ancien nom UI : Relais (alias conservé côté onglets).
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -101,6 +103,21 @@ EI_PLAYBOOKS: dict[str, dict[str, Any]] = {
         ),
         "max_tokens": 300,
         "tags": ["siem", "deep"],
+        "alert_kinds": ["*"],
+    },
+    "alert-investigate": {
+        "name": "Investigation alerte (style Qevlar)",
+        "mode": "triage",
+        "desc": "Investigation automatisée : artefacts, alertes liées, verdict, actions.",
+        "prompt": (
+            "Investigation SOC (style Qevlar) sur FOCUS. Contexte SEP only. "
+            "Format court:\n"
+            "VERDICT+CONFIANCE% | RÉSUMÉ (3 lignes) | ARTEFACTS clés | "
+            "CORRÉLATION alertes liées | ATT&CK | ACTIONS P0/P1/P2 | QUESTIONS.\n"
+            "Pas d’IOC inventé."
+        ),
+        "max_tokens": 240,
+        "tags": ["siem", "investigate", "qevlar"],
         "alert_kinds": ["*"],
     },
     "fp-coach": {
@@ -418,19 +435,595 @@ EI_PLAYBOOKS: dict[str, dict[str, Any]] = {
 }
 
 
+_RE_IPV4 = re.compile(
+    r"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}"
+    r"(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\b"
+)
+_RE_URL = re.compile(r"https?://[^\s\"'<>\\\]]+", re.I)
+_RE_EMAIL = re.compile(r"\b[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}\b", re.I)
+_RE_SHA256 = re.compile(r"\b[a-f0-9]{64}\b", re.I)
+_RE_SHA1 = re.compile(r"\b[a-f0-9]{40}\b", re.I)
+_RE_MD5 = re.compile(r"\b[a-f0-9]{32}\b", re.I)
+_RE_USER = re.compile(
+    r"(?:user\.name|user\.id|username|account\.name)\s*[:=]\s*['\"]?([^\s'\",|]+)",
+    re.I,
+)
+_RE_HOST = re.compile(
+    r"(?:host\.name|hostname|host\.hostname)\s*[:=]\s*['\"]?([^\s'\",|]+)",
+    re.I,
+)
+_RE_DOMAIN_USER = re.compile(r"\b([A-Za-z0-9_.\-]+)\\([A-Za-z0-9_.\-]+)\b")
+
+_URGENCY_API = {
+    "high": "high", "urgent": "high", "critical": "high", "majeur": "high",
+    "major": "high",
+    "medium": "medium", "moderate": "medium", "moyen": "medium",
+    "low": "low", "faible": "low", "info": "low", "informational": "low",
+}
+
+
+def _status_name(a: dict[str, Any]) -> str:
+    st = a.get("status")
+    if isinstance(st, dict):
+        return str(st.get("name") or "")
+    return str(st or a.get("alert_status") or "")
+
+
+def _urgency_meta(a: dict[str, Any]) -> dict[str, Any]:
+    urg = a.get("urgency") if isinstance(a.get("urgency"), dict) else {}
+    display = str(urg.get("display") or a.get("severity") or "")
+    value = urg.get("current_value")
+    if value is None:
+        value = urg.get("value") or urg.get("severity")
+    try:
+        value = int(value) if value is not None else None
+    except (TypeError, ValueError):
+        value = None
+    return {"display": display, "value": value}
+
+
+def _alert_type_meta(a: dict[str, Any]) -> dict[str, str]:
+    at = a.get("alert_type") if isinstance(a.get("alert_type"), dict) else {}
+    return {
+        "value": str(at.get("value") or a.get("type") or ""),
+        "category": str(at.get("category") or ""),
+    }
+
+
 def _compact_sic_alert(a: dict[str, Any]) -> dict[str, Any]:
     rule = a.get("rule") if isinstance(a.get("rule"), dict) else {}
     entity = a.get("entity") if isinstance(a.get("entity"), dict) else {}
+    urg = _urgency_meta(a)
+    atype = _alert_type_meta(a)
+    assets = a.get("assets") if isinstance(a.get("assets"), list) else []
     return {
         "id": a.get("uuid") or a.get("id") or a.get("short_id"),
+        "short_id": a.get("short_id") or "",
         "title": (a.get("title") or rule.get("name") or a.get("description") or "")[:160],
-        "severity": a.get("severity") or a.get("urgency") or a.get("priority"),
-        "status": a.get("status") or a.get("alert_status"),
-        "created_at": a.get("created_at") or a.get("first_seen_at") or a.get("time"),
+        "severity": urg.get("display") or str(a.get("severity") or ""),
+        "urgency": urg.get("value"),
+        "status": _status_name(a),
+        "type": atype.get("value") or "",
+        "category": atype.get("category") or "",
+        "created_at": a.get("first_seen_at") or a.get("created_at") or a.get("time"),
+        "updated_at": a.get("last_seen_at") or a.get("updated_at"),
         "rule": (rule.get("name") or a.get("rule_name") or "")[:80],
-        "entity": (entity.get("name") or a.get("entity_name")
-                   or a.get("source") or "")[:80],
-        "similar": a.get("similar_alerts_count") or a.get("occurrences"),
+        "rule_type": str(rule.get("type") or ""),
+        "entity": (entity.get("name") or a.get("entity_name") or "")[:80],
+        "entity_uuid": entity.get("uuid") or a.get("entity_uuid") or "",
+        "source": a.get("source") if isinstance(a.get("source"), str) else "",
+        "target": a.get("target") if isinstance(a.get("target"), str) else "",
+        "assets": [str(x) for x in assets if x][:12],
+        "similar": a.get("similar") or a.get("similar_alerts_count") or 0,
+        "similarity_strategy": a.get("similarity_strategy") or [],
+        "ttps": [
+            (t.get("name") if isinstance(t, dict) else str(t))
+            for t in (a.get("ttps") or [])[:6] if t
+        ],
+    }
+
+
+def _extract_artifacts(alert: dict[str, Any],
+                       asset_names: Optional[dict[str, str]] = None) -> dict[str, list[str]]:
+    """Extrait IP / host / user / hash / url / email depuis une alerte Sekoia."""
+    asset_names = asset_names or {}
+    out: dict[str, list[str]] = {
+        "ip": [], "host": [], "user": [], "hash": [],
+        "url": [], "email": [], "asset": [], "entity": [],
+    }
+    seen: dict[str, set[str]] = {k: set() for k in out}
+
+    def add(kind: str, val: str) -> None:
+        v = (val or "").strip().strip("'\"")
+        if not v or len(v) < 2 or len(v) > 260:
+            return
+        low = v.lower()
+        if low in ("null", "none", "unknown", "n/a", "-", "true", "false"):
+            return
+        if low in seen[kind]:
+            return
+        seen[kind].add(low)
+        out[kind].append(v[:200])
+
+    src = alert.get("source")
+    if isinstance(src, str) and src:
+        if _RE_IPV4.fullmatch(src.strip()):
+            add("ip", src)
+        else:
+            add("host", src)
+    tgt = alert.get("target")
+    if isinstance(tgt, str) and tgt:
+        if _RE_IPV4.fullmatch(tgt.strip()):
+            add("ip", tgt)
+        else:
+            add("host", tgt)
+
+    ent = alert.get("entity") if isinstance(alert.get("entity"), dict) else {}
+    if ent.get("name"):
+        add("entity", str(ent["name"]))
+
+    for aid in (alert.get("assets") or [])[:12]:
+        sid = str(aid)
+        add("asset", sid)
+        name = asset_names.get(sid)
+        if name:
+            add("host", name)
+
+    rule = alert.get("rule") if isinstance(alert.get("rule"), dict) else {}
+    blob_parts = [
+        str(alert.get("title") or ""),
+        str(alert.get("description") or "")[:2000],
+        str(alert.get("details") or "")[:4000],
+        str(rule.get("pattern") or "")[:3000],
+        str(rule.get("name") or ""),
+        json.dumps(alert.get("custom_fields") or [], ensure_ascii=False, default=str)[:1500],
+    ]
+    blob = "\n".join(blob_parts)
+
+    for ip in _RE_IPV4.findall(blob):
+        add("ip", ip)
+    for url in _RE_URL.findall(blob):
+        add("url", url.rstrip(").,;"))
+    for em in _RE_EMAIL.findall(blob):
+        add("email", em)
+    for h in _RE_SHA256.findall(blob):
+        add("hash", h.lower())
+    for h in _RE_SHA1.findall(blob):
+        if len(h) == 40:
+            add("hash", h.lower())
+    for h in _RE_MD5.findall(blob):
+        if len(h) == 32:
+            add("hash", h.lower())
+    for m in _RE_USER.finditer(blob):
+        add("user", m.group(1))
+    for m in _RE_HOST.finditer(blob):
+        add("host", m.group(1))
+    for m in _RE_DOMAIN_USER.finditer(blob):
+        add("user", f"{m.group(1)}\\{m.group(2)}")
+
+    # bornes pour prompt LLM
+    for k in out:
+        out[k] = out[k][:12]
+    return out
+
+
+async def _resolve_asset_names(asset_ids: list[str]) -> dict[str, str]:
+    names: dict[str, str] = {}
+    for aid in asset_ids[:8]:
+        try:
+            payload, err = await cp.sek_request(
+                "GET", f"/v2/asset-management/assets/{aid}")
+            if err or not isinstance(payload, dict):
+                continue
+            nm = payload.get("name") or payload.get("uuid")
+            if nm:
+                names[str(aid)] = str(nm)[:80]
+        except Exception:  # noqa: BLE001
+            continue
+    return names
+
+
+def _since_iso(hours: int) -> str:
+    hours = max(1, min(int(hours or 24), 720))
+    return (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
+
+async def list_sic_alerts_filtered(
+    *,
+    hours: int = 168,
+    limit: int = 40,
+    offset: int = 0,
+    status: str = "",
+    urgency: str = "",
+    alert_type: str = "",
+    category: str = "",
+    q: str = "",
+    source: str = "",
+    asset_uuid: str = "",
+) -> dict[str, Any]:
+    """Liste alertes SIEM Sekoia avec filtres API + post-filtre type/texte."""
+    limit = max(1, min(int(limit or 40), 100))
+    offset = max(0, int(offset or 0))
+    params: dict[str, Any] = {
+        "limit": limit if not (alert_type or category or q) else min(100, max(limit, 60)),
+        "offset": offset,
+        "sort": "created_at",
+        "direction": "desc",
+        "date[created_at][gte]": _since_iso(hours),
+    }
+    if status.strip():
+        params["match[status_name]"] = status.strip()
+    urg_key = _URGENCY_API.get(urgency.strip().lower())
+    if urg_key:
+        params["match[urgency_display]"] = urg_key
+    if source.strip():
+        params["match[source]"] = source.strip()
+    if asset_uuid.strip():
+        params["match[asset_uuid]"] = asset_uuid.strip()
+
+    payload, err = await cp.sek_request("GET", "/api/v1/sic/alerts", params=params)
+    if err:
+        return {"ok": False, "error": err, "items": [], "total": 0, "facets": {}}
+
+    raw_items = (payload or {}).get("items") or []
+    if not isinstance(raw_items, list):
+        raw_items = []
+    items = [_compact_sic_alert(a) for a in raw_items if isinstance(a, dict)]
+
+    type_f = alert_type.strip().lower()
+    cat_f = category.strip().lower()
+    q_f = q.strip().lower()
+    if type_f or cat_f or q_f:
+        filtered = []
+        for a in items:
+            if type_f and type_f not in (a.get("type") or "").lower():
+                continue
+            if cat_f and cat_f not in (a.get("category") or "").lower():
+                continue
+            if q_f:
+                blob = " ".join(str(a.get(k) or "") for k in (
+                    "title", "rule", "entity", "source", "type", "status",
+                    "short_id", "id",
+                )).lower()
+                if q_f not in blob:
+                    continue
+            filtered.append(a)
+        items = filtered[:limit]
+
+    facets: dict[str, dict[str, int]] = {
+        "status": {}, "type": {}, "category": {}, "severity": {},
+    }
+    for a in items:
+        for facet, key in (
+            ("status", "status"), ("type", "type"),
+            ("category", "category"), ("severity", "severity"),
+        ):
+            val = str(a.get(key) or "").strip()
+            if not val:
+                continue
+            facets[facet][val] = facets[facet].get(val, 0) + 1
+
+    return {
+        "ok": True,
+        "items": items,
+        "total": (payload or {}).get("total") if isinstance(payload, dict) else len(items),
+        "count": len(items),
+        "hours": hours,
+        "filters": {
+            "status": status, "urgency": urgency, "type": alert_type,
+            "category": category, "q": q, "source": source,
+            "asset_uuid": asset_uuid,
+        },
+        "facets": facets,
+        "error": None,
+    }
+
+
+async def find_related_alerts(
+    alert: dict[str, Any],
+    artifacts: dict[str, list[str]],
+    *,
+    hours: int = 720,
+    limit_per_pivot: int = 10,
+) -> list[dict[str, Any]]:
+    """Corréler des alertes via IP source et assets (pas l’entité seule — trop large)."""
+    self_id = str(alert.get("uuid") or "")
+    since = _since_iso(hours)
+    candidates: dict[str, dict[str, Any]] = {}
+    pivots: list[tuple[dict[str, Any], str, str]] = []
+
+    src = alert.get("source") if isinstance(alert.get("source"), str) else ""
+    if src:
+        pivots.append(({"match[source]": src}, "source", src))
+    for ip in (artifacts.get("ip") or [])[:4]:
+        if ip and ip != src:
+            pivots.append(({"match[source]": ip}, "ip", ip))
+    # assets = meilleur pivot host (Sekoia match[asset_uuid])
+    for aid in (alert.get("assets") or [])[:4]:
+        pivots.append(({"match[asset_uuid]": str(aid)}, "asset", str(aid)[:8]))
+    # host name exact via règle (si unique)
+    rule = alert.get("rule") if isinstance(alert.get("rule"), dict) else {}
+    rname = str(rule.get("name") or "").strip()
+    if rname and len(rname) > 4:
+        pivots.append(({"match[rule_name]": rname}, "rule", rname[:40]) )
+
+    async def ingest(params: dict[str, Any], pivot: str, value: str) -> None:
+        p = {
+            "limit": limit_per_pivot,
+            "offset": 0,
+            "sort": "created_at",
+            "direction": "desc",
+            "date[created_at][gte]": since,
+            **params,
+        }
+        try:
+            payload, err = await cp.sek_request("GET", "/api/v1/sic/alerts", params=p)
+        except Exception:  # noqa: BLE001
+            return
+        if err:
+            return
+        for raw in (payload or {}).get("items") or []:
+            if not isinstance(raw, dict):
+                continue
+            uid = str(raw.get("uuid") or "")
+            if not uid or uid == self_id:
+                continue
+            slot = candidates.setdefault(uid, {
+                "alert": _compact_sic_alert(raw),
+                "shared": [],
+                "score": 0,
+            })
+            label = f"{pivot}:{value}"
+            if label not in slot["shared"]:
+                slot["shared"].append(label)
+                weight = {"asset": 3, "source": 3, "ip": 3, "rule": 1}.get(pivot, 1)
+                slot["score"] += weight
+
+    # parallèle borné (évite d’empiler trop d’appels Sekoia)
+    if pivots:
+        await asyncio.gather(*[ingest(p, k, v) for p, k, v in pivots[:8]])
+
+    ranked = sorted(candidates.values(), key=lambda x: -x["score"])
+    out = []
+    for row in ranked[:16]:
+        # ignorer les seules corrélations « même règle » sans autre pivot
+        shared = row["shared"]
+        if all(s.startswith("rule:") for s in shared) and len(shared) == 1:
+            continue
+        a = dict(row["alert"])
+        a["shared_artifacts"] = shared[:8]
+        a["link_score"] = row["score"]
+        out.append(a)
+    return out
+
+
+async def build_alert_dossier(alert_id: str, *, hours: int = 720) -> dict[str, Any]:
+    """Dossier alerte : détail compact + artefacts + alertes liées."""
+    alert_id = (alert_id or "").strip()
+    if not alert_id:
+        return {"ok": False, "error": "alert_id requis"}
+    payload, err = await cp.sek_request("GET", f"/api/v1/sic/alerts/{alert_id}")
+    if err:
+        return {"ok": False, "error": err}
+    if not isinstance(payload, dict):
+        return {"ok": False, "error": "alerte invalide"}
+
+    asset_ids = [str(x) for x in (payload.get("assets") or []) if x][:8]
+    asset_names = await _resolve_asset_names(asset_ids)
+    artifacts = _extract_artifacts(payload, asset_names)
+    related = await find_related_alerts(payload, artifacts, hours=hours)
+    compact = _compact_sic_alert(payload)
+    compact["asset_names"] = asset_names
+    details = str(payload.get("details") or payload.get("description") or "")[:1800]
+    rule = payload.get("rule") if isinstance(payload.get("rule"), dict) else {}
+    return {
+        "ok": True,
+        "alert": compact,
+        "details": details,
+        "rule_pattern": str(rule.get("pattern") or "")[:1200],
+        "artifacts": artifacts,
+        "related_alerts": related,
+        "related_count": len(related),
+        "similarity_strategy": payload.get("similarity_strategy") or [],
+        "similar_declared": payload.get("similar") or 0,
+        "asset_names": asset_names,
+        "hours": hours,
+    }
+
+
+def format_investigation_context(dossier: dict[str, Any]) -> str:
+    a = dossier.get("alert") or {}
+    arts = dossier.get("artifacts") or {}
+    names = dossier.get("asset_names") or {}
+    lines = [
+        f"FOCUS: [{a.get('severity')}|{a.get('status')}|{a.get('type')}] "
+        f"{a.get('title')} · {a.get('short_id') or a.get('id')}",
+        f"entité={a.get('entity')} règle={a.get('rule')} "
+        f"src={a.get('source') or '—'} similar={dossier.get('similar_declared')}",
+        "ARTEFACTS:",
+    ]
+    for kind in ("ip", "host", "user", "hash", "url", "email"):
+        vals = arts.get(kind) or []
+        if vals:
+            shown = [names.get(v, v) for v in vals[:5]]
+            lines.append(f"- {kind}: " + ", ".join(str(x) for x in shown))
+    hosts = [names.get(v, v) for v in (arts.get("asset") or [])[:4]]
+    if hosts:
+        lines.append("- host/asset: " + ", ".join(str(x) for x in hosts))
+    det = (dossier.get("details") or "").replace("\n", " ").strip()
+    if det:
+        lines.append("DÉTAILS: " + det[:420])
+    lines.append(f"LIÉES ({dossier.get('related_count') or 0}):")
+    for r in (dossier.get("related_alerts") or [])[:5]:
+        shared = ",".join(str(x) for x in (r.get("shared_artifacts") or [])[:3])
+        lines.append(
+            f"- s={r.get('link_score')} [{r.get('type')}|{r.get('severity')}] "
+            f"{(r.get('title') or '')[:60]} ({shared})"
+        )
+    blob = "\n".join(lines)
+    if len(blob) > 1800:
+        blob = blob[:1800] + "…"
+    return "CONTEXTE SEP (investigation):\n" + blob
+
+
+def fallback_investigation_report(dossier: dict[str, Any],
+                                  user_note: str = "") -> str:
+    """Rapport déterministe si Ollama timeout — toujours utile à l’analyste."""
+    a = dossier.get("alert") or {}
+    arts = dossier.get("artifacts") or {}
+    names = dossier.get("asset_names") or {}
+    related = dossier.get("related_alerts") or []
+    sev = str(a.get("severity") or "").lower()
+    nrel = len(related)
+    if nrel >= 5 or sev in ("urgent", "critical", "high", "major"):
+        verdict, conf = "suspect", "55%"
+    elif nrel >= 1:
+        verdict, conf = "à qualifier", "45%"
+    else:
+        verdict, conf = "données limitées", "35%"
+
+    def fmt_kind(kind: str) -> str:
+        vals = arts.get(kind) or []
+        if not vals:
+            return ""
+        shown = [names.get(v, v) for v in vals[:6]]
+        return f"- {kind}: " + ", ".join(str(x) for x in shown)
+
+    art_lines = [fmt_kind(k) for k in ("ip", "host", "user", "hash", "url", "email")]
+    art_lines = [x for x in art_lines if x]
+    hosts = [names.get(v, v) for v in (arts.get("asset") or [])[:6]]
+    if hosts:
+        art_lines.append("- host/asset: " + ", ".join(str(x) for x in hosts))
+
+    rel_lines = []
+    for r in related[:6]:
+        shared = ", ".join(str(x) for x in (r.get("shared_artifacts") or [])[:4])
+        rel_lines.append(
+            f"- [{r.get('severity')}|{r.get('type')}] {(r.get('title') or '')[:70]} "
+            f"(score {r.get('link_score')}, {shared})"
+        )
+
+    lines = [
+        f"VERDICT: {verdict} | CONFIANCE: {conf}",
+        "",
+        "## Résumé",
+        f"Alerte [{a.get('type') or '—'}] « {a.get('title') or '—'} » "
+        f"({a.get('short_id') or a.get('id')}) — statut {a.get('status') or '—'}, "
+        f"criticité {a.get('severity') or '—'}, entité {a.get('entity') or '—'}.",
+        f"Source={a.get('source') or '—'} · règle={a.get('rule') or '—'} · "
+        f"similarité déclarée Sekoia={dossier.get('similar_declared') or 0}.",
+        "",
+        "## Artefacts",
+        *(art_lines or ["- aucun artefact structuré extrait"]),
+        "",
+        f"## Corrélation ({nrel} alertes liées)",
+        *(rel_lines or ["- aucun pivot IP/asset trouvé sur la fenêtre"]),
+        "",
+        "## Actions P0/P1/P2",
+        "- P0: qualifier FP vs VP sur l’hôte/asset focus ; vérifier sessions user.",
+        "- P1: pivoter les alertes liées ci-dessus (même IP/asset) dans Sekoia.",
+        "- P2: containment ciblé si VP confirmé ; documenter dans le ticket.",
+        "",
+        "## Questions",
+        "- L’activité est-elle attendue (admin, backup, scan légitime) ?",
+        "- D’autres hôtes partagent-ils les mêmes artefacts ?",
+    ]
+    if user_note.strip():
+        lines.extend(["", "## Note analyste", user_note.strip()[:400]])
+    lines.extend([
+        "",
+        "_Rapport dossier SEP (corrélation déterministe). "
+        "Relancer Investiguer si le moteur IA local répond._",
+    ])
+    return "\n".join(lines)
+
+
+async def run_ei_investigate(
+    alert_id: str,
+    *,
+    provider_id: str = "",
+    user_note: str = "",
+    hours: int = 720,
+    max_tokens: Optional[int] = None,
+    use_llm: bool = True,
+) -> dict[str, Any]:
+    """Investigation automatisée type Qevlar sur une alerte Sekoia."""
+    dossier = await build_alert_dossier(alert_id, hours=hours)
+    if not dossier.get("ok"):
+        return {"ok": False, "error": dossier.get("error") or "dossier impossible",
+                "dossier": dossier}
+
+    dossier_pub = {
+        "alert": dossier.get("alert"),
+        "artifacts": dossier.get("artifacts"),
+        "related_alerts": dossier.get("related_alerts"),
+        "related_count": dossier.get("related_count"),
+        "similar_declared": dossier.get("similar_declared"),
+        "similarity_strategy": dossier.get("similarity_strategy"),
+        "asset_names": dossier.get("asset_names"),
+        "details": (dossier.get("details") or "")[:600],
+    }
+    pb = EI_PLAYBOOKS["alert-investigate"]
+    base = {
+        "playbook_id": "alert-investigate",
+        "playbook": {"id": "alert-investigate", "name": pb["name"], "mode": pb["mode"]},
+        "dossier": dossier_pub,
+    }
+    dossier_text = fallback_investigation_report(dossier, user_note)
+
+    if not use_llm:
+        return {
+            **base,
+            "ok": True,
+            "ai": False,
+            "text": dossier_text,
+            "note": "corrélation SEP (clic rapide) — bouton Investiguer pour l’IA",
+        }
+
+    pid = provider_id.strip() or (_pick_default_provider_id() or "")
+    if not pid:
+        return {
+            **base,
+            "ok": True,
+            "ai": False,
+            "text": dossier_text,
+            "error": None,
+            "note": "pas de LLM — rapport dossier uniquement",
+        }
+
+    # Prompt ultra-compact pour CPU 3b
+    ctx = format_investigation_context(dossier)
+    user_content = (
+        pb["prompt"] + "\n\n" + ctx
+        + (("\n\nNOTE: " + user_note.strip()[:200]) if user_note.strip() else "")
+    )[:2200]
+    messages = [
+        {"role": "system", "content": (
+            "EI SOC. Français. Très court. "
+            "VERDICT|CONFIANCE%|PREUVES|ACTIONS P0/P1. Contexte only."
+        )},
+        {"role": "user", "content": user_content},
+    ]
+    mt = int(max_tokens or pb.get("max_tokens") or 200)
+    mt = max(80, min(mt, 220))
+    try:
+        result = await asyncio.wait_for(
+            chat_with_provider(pid, messages, temperature=0.1, max_tokens=mt),
+            timeout=95.0,
+        )
+    except asyncio.TimeoutError:
+        result = {"ok": False, "error": "TimeoutError: IA locale trop lente"}
+    if result.get("ok") and result.get("text"):
+        return {**base, **result, "ai": True}
+    return {
+        **base,
+        "ok": True,
+        "ai": False,
+        "text": dossier_text,
+        "llm_error": result.get("error"),
+        "note": "IA timeout/indisponible — rapport corrélation SEP fourni",
     }
 
 
@@ -468,39 +1061,28 @@ async def gather_ei_context(hours: int = 24,
     }
 
     try:
-        payload, err = await cp.sek_request(
-            "GET", "/api/v1/sic/alerts",
-            params={"limit": sic_limit, "offset": 0},
+        listed = await list_sic_alerts_filtered(
+            hours=hours, limit=sic_limit, status="", urgency="",
         )
-        if err:
-            ctx["errors"].append(f"sic_alerts: {err}")
+        if not listed.get("ok"):
+            ctx["errors"].append(f"sic_alerts: {listed.get('error')}")
         else:
-            items = (payload or {}).get("items")
-            if items is None and isinstance(payload, list):
-                items = payload
-            items = items or []
-            ctx["sic_total"] = (payload or {}).get("total") if isinstance(payload, dict) else len(items)
-            ctx["sic_alerts"] = [
-                _compact_sic_alert(a) for a in items[:sic_limit] if isinstance(a, dict)
-            ]
+            ctx["sic_total"] = listed.get("total")
+            ctx["sic_alerts"] = listed.get("items") or []
+            ctx["sic_facets"] = listed.get("facets") or {}
     except Exception as exc:  # noqa: BLE001
         ctx["errors"].append(f"sic_alerts: {type(exc).__name__}: {exc}")
 
     if alert_id:
         try:
-            payload, err = await cp.sek_request(
-                "GET", f"/api/v1/sic/alerts/{alert_id}")
-            if err:
-                ctx["errors"].append(f"target_alert: {err}")
-            elif isinstance(payload, dict):
-                ctx["target_alert"] = _compact_sic_alert(payload)
-                # garder un extrait raw utile (tronqué)
-                raw_keys = ("description", "details", "source", "destination",
-                            "adversary", "kill_chain_phases")
-                extra = {k: payload.get(k) for k in raw_keys if payload.get(k)}
-                if extra:
-                    blob = json.dumps(extra, ensure_ascii=False, default=str)[:2500]
-                    ctx["target_alert_extra"] = blob
+            dossier = await build_alert_dossier(alert_id, hours=max(hours, 168))
+            if not dossier.get("ok"):
+                ctx["errors"].append(f"target_alert: {dossier.get('error')}")
+            else:
+                ctx["target_alert"] = dossier.get("alert")
+                ctx["target_artifacts"] = dossier.get("artifacts")
+                ctx["related_alerts"] = (dossier.get("related_alerts") or [])[:8]
+                ctx["target_alert_extra"] = (dossier.get("details") or "")[:1800]
         except Exception as exc:  # noqa: BLE001
             ctx["errors"].append(f"target_alert: {type(exc).__name__}: {exc}")
 
@@ -564,14 +1146,27 @@ def format_ei_context_for_prompt(ctx: dict[str, Any]) -> str:
     if ctx.get("target_alert"):
         t = ctx["target_alert"]
         lines.append(
-            f"FOCUS: [{t.get('severity')}] {t.get('title')} | "
-            f"entité={t.get('entity')} règle={t.get('rule')} id={t.get('id')}"
+            f"FOCUS: [{t.get('severity')}|{t.get('status')}|{t.get('type')}] "
+            f"{t.get('title')} | entité={t.get('entity')} règle={t.get('rule')} "
+            f"src={t.get('source') or '—'} id={t.get('short_id') or t.get('id')}"
         )
+        arts = ctx.get("target_artifacts") or {}
+        art_bits = []
+        for k in ("ip", "host", "user", "hash", "url"):
+            if arts.get(k):
+                art_bits.append(f"{k}={','.join(arts[k][:4])}")
+        if art_bits:
+            lines.append("ARTEFACTS: " + " · ".join(art_bits))
+        for r in (ctx.get("related_alerts") or [])[:4]:
+            lines.append(
+                f"LIÉE score={r.get('link_score')} [{r.get('type')}] {r.get('title')} "
+                f"({','.join((r.get('shared_artifacts') or [])[:3])})"
+            )
     lines.append("ALERTES SIEM:")
     for a in (ctx.get("sic_alerts") or [])[:5]:
         lines.append(
-            f"- [{a.get('severity')}|{a.get('status')}] {a.get('title')} · "
-            f"{a.get('entity')} · {a.get('rule')}"
+            f"- [{a.get('severity')}|{a.get('status')}|{a.get('type')}] "
+            f"{a.get('title')} · {a.get('entity')} · {a.get('rule')}"
         )
     sev = ctx.get("sep_by_severity") or {}
     if sev:
@@ -751,9 +1346,9 @@ async def _chat_openai_compatible(base_url: str, api_key: str, model: str,
     # Ollama : borner le contexte d’évaluation (sinon CPU 3b dépasse 3–4 min)
     if "ollama" in (base_url or "").lower() or ":11434" in (base_url or "") \
             or "oc-gateway" in (base_url or "") or ":11435" in (base_url or ""):
-        payload["options"] = {"num_ctx": 2048, "num_predict": mt}
+        payload["options"] = {"num_ctx": 1536, "num_predict": mt}
     try:
-        timeout = httpx.Timeout(connect=15, read=220, write=60, pool=15)
+        timeout = httpx.Timeout(connect=15, read=300, write=60, pool=15)
         async with httpx.AsyncClient(timeout=timeout) as client:
             r = await client.post(url, json=payload, headers=headers)
         if r.status_code >= 400:
@@ -1003,6 +1598,7 @@ def register(lb_app) -> None:
                 if m.get("role") == "system":
                     m["content"] = EI_SYSTEM + "\n\n" + m["content"][:4000]
                     break
+        ctx: dict[str, Any] = {}
         if inject:
             ctx = await gather_ei_context(hours=hours, alert_id=alert_id)
             # Ajouter le contexte juste avant le dernier message user
@@ -1027,6 +1623,75 @@ def register(lb_app) -> None:
                 "errors": ctx.get("errors") or [],
             }
         return result
+
+    @lb_app.get("/control/sekoia/llm/ei/alerts", dependencies=dep)
+    async def ei_alerts(
+        hours: int = Query(default=168, ge=1, le=720),
+        limit: int = Query(default=40, ge=1, le=100),
+        offset: int = Query(default=0, ge=0),
+        status: str = Query(default=""),
+        urgency: str = Query(default=""),
+        alert_type: str = Query(default="", alias="type"),
+        category: str = Query(default=""),
+        q: str = Query(default=""),
+        source: str = Query(default=""),
+        asset_uuid: str = Query(default=""),
+    ):
+        """File d’alertes SIEM filtrable (type, criticité, statut…)."""
+        return await list_sic_alerts_filtered(
+            hours=hours, limit=limit, offset=offset,
+            status=status, urgency=urgency, alert_type=alert_type,
+            category=category, q=q, source=source, asset_uuid=asset_uuid,
+        )
+
+    @lb_app.get("/control/sekoia/llm/ei/alerts/statuses", dependencies=dep)
+    async def ei_alert_statuses():
+        payload, err = await cp.sek_request("GET", "/api/v1/sic/alerts/statuses")
+        items = (payload or {}).get("items") if isinstance(payload, dict) else []
+        return {
+            "ok": err is None,
+            "error": err,
+            "items": [
+                {"name": i.get("name"), "uuid": i.get("uuid"),
+                 "description": i.get("description")}
+                for i in (items or []) if isinstance(i, dict)
+            ],
+        }
+
+    @lb_app.get("/control/sekoia/llm/ei/alerts/{alert_id}", dependencies=dep)
+    async def ei_alert_dossier(alert_id: str,
+                               hours: int = Query(default=720, ge=1, le=720)):
+        """Dossier alerte : artefacts + alertes liées (IP/host/asset/user)."""
+        return await build_alert_dossier(alert_id, hours=hours)
+
+    @lb_app.post("/control/sekoia/llm/ei/investigate", dependencies=dep)
+    async def ei_investigate(request: Request):
+        """Investigation automatisée (style Qevlar) sur une alerte Sekoia."""
+        body = await request.json()
+        alert_id = str(body.get("alert_id") or body.get("id") or "").strip()
+        if not alert_id:
+            return JSONResponse({"ok": False, "error": "alert_id requis"},
+                                status_code=400)
+        try:
+            hours = int(body.get("hours") or 720)
+        except (TypeError, ValueError):
+            hours = 720
+        try:
+            max_tokens = body.get("max_tokens")
+            max_tokens = int(max_tokens) if max_tokens is not None else None
+        except (TypeError, ValueError):
+            max_tokens = None
+        use_llm = body.get("use_llm")
+        if use_llm is None:
+            use_llm = True
+        return await run_ei_investigate(
+            alert_id,
+            provider_id=str(body.get("provider_id") or ""),
+            user_note=str(body.get("user_note") or body.get("note") or ""),
+            hours=hours,
+            max_tokens=max_tokens,
+            use_llm=bool(use_llm),
+        )
 
     @lb_app.get("/control/sekoia/llm/providers", dependencies=dep)
     async def list_providers():

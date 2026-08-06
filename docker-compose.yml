@@ -1163,15 +1163,17 @@ services:
       - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-}
       - SECRETS_PATH=/data/sekoia-secrets.enc
       - CONTROLPLANE_PORT=8901
-      # Notifications e-mail SEP (intakes silencieux, clés API, comptes)
-      - SMTP_HOST=${SMTP_HOST:-}
-      - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USER=${SMTP_USER:-}
-      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
-      - SMTP_FROM=${SMTP_FROM:-noreply@cyberdefense.ml}
-      - SMTP_TLS=${SMTP_TLS:-true}
-      - SMTP_SSL=${SMTP_SSL:-false}
+      # SMTP : UNIQUEMENT store Fernet (UI SEP). Vider explicitement pour
+      # écraser d’éventuelles SMTP_* héritées d’une ancienne image commitée.
+      - SMTP_HOST=
+      - SMTP_PORT=
+      - SMTP_USER=
+      - SMTP_PASSWORD=
+      - SMTP_FROM=
+      - SMTP_TLS=
+      - SMTP_SSL=
       - MAIL_NOTIFY_PATH=/data/sekoia-mail-notify.json
+      - EI_LOCAL_ONLY=${EI_LOCAL_ONLY:-true}
     volumes:
       - sekoia-cp-data:/data
     # Localhost only — clients MCP (Cursor) / outils host

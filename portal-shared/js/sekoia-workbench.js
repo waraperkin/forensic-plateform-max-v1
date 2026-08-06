@@ -1324,8 +1324,8 @@
     const chk = (key, label) => `<label class="swb-hint" style="display:inline-flex;align-items:center;gap:.35rem;margin-right:1rem">
       <input type="checkbox" data-mail-ev="${esc(key)}"${ev[key] !== false ? ' checked' : ''}> ${esc(label)}</label>`;
     const srcLabel = smtp.source === 'encrypted'
-      ? 'chiffré (Fernet)'
-      : (smtp.source === 'env' ? 'bootstrap .env' : 'non configuré');
+      ? 'chiffré Fernet (UI SEP)'
+      : 'non configuré — saisir dans l’UI (jamais dans .env)';
     return `<div class="swb-panel" style="margin-top:.75rem">
       <div class="swb-panel-head">
         <h3 class="swb-panel-title">Notifications e-mail</h3>

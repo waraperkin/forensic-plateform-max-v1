@@ -3,7 +3,8 @@
 Destinataires persistés sur disque (/data/sekoia-mail-notify.json).
 SMTP (hôte, port, user, mot de passe, from, TLS/SSL) stocké dans le store
 Fernet partagé avec la clé API Sekoia (`SEKOIA_SECRETS_KEY` → sekoia-secrets.enc).
-Fallback optionnel : variables d'environnement SMTP_* (bootstrap / migration).
+SMTP exclusivement via UI SEP → store Fernet (SEKOIA_SECRETS_KEY).
+Plus de secrets SMTP_* dans .env (retrait du bootstrap).
 """
 from __future__ import annotations
 
@@ -27,14 +28,15 @@ STORE_PATH = Path(os.environ.get(
     "MAIL_NOTIFY_PATH", "/data/sekoia-mail-notify.json"))
 
 # Bootstrap / migration uniquement — la config UI (Fernet) prime.
+# Bootstrap .env volontairement désactivé — configurer SMTP dans l'UI SEP.
 _ENV_SMTP = {
-    "host": os.environ.get("SMTP_HOST", "").strip(),
-    "port": int(os.environ.get("SMTP_PORT", "587") or "587"),
-    "user": os.environ.get("SMTP_USER", "").strip(),
-    "password": os.environ.get("SMTP_PASSWORD", "").strip(),
-    "from": os.environ.get("SMTP_FROM", "noreply@cyberdefense.ml").strip(),
-    "tls": os.environ.get("SMTP_TLS", "true").lower() in ("1", "true", "yes"),
-    "ssl": os.environ.get("SMTP_SSL", "false").lower() in ("1", "true", "yes"),
+    "host": "",
+    "port": 587,
+    "user": "",
+    "password": "",
+    "from": "noreply@cyberdefense.ml",
+    "tls": True,
+    "ssl": False,
 }
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -124,17 +126,17 @@ def _smtp_from_overrides() -> dict[str, Any]:
 
 
 def resolve_smtp() -> dict[str, Any]:
-    """Config SMTP effective : store Fernet (UI) puis fallback .env."""
+    """Config SMTP effective : store Fernet uniquement (UI SEP)."""
     enc = _smtp_from_overrides()
-    source = "encrypted" if enc.get("host") else ("env" if _ENV_SMTP["host"] else "none")
+    source = "encrypted" if enc.get("host") else "none"
     cfg = {
-        "host": enc.get("host") or _ENV_SMTP["host"],
-        "port": int(enc.get("port") if enc.get("port") is not None else _ENV_SMTP["port"]),
-        "user": enc.get("user") if "user" in enc else _ENV_SMTP["user"],
-        "password": enc.get("password") if "password" in enc else _ENV_SMTP["password"],
-        "from": enc.get("from") or _ENV_SMTP["from"] or "noreply@cyberdefense.ml",
-        "tls": enc.get("tls") if "tls" in enc else _ENV_SMTP["tls"],
-        "ssl": enc.get("ssl") if "ssl" in enc else _ENV_SMTP["ssl"],
+        "host": enc.get("host") or "",
+        "port": int(enc.get("port") if enc.get("port") is not None else 587),
+        "user": enc.get("user") if "user" in enc else "",
+        "password": enc.get("password") if "password" in enc else "",
+        "from": enc.get("from") or "noreply@cyberdefense.ml",
+        "tls": enc.get("tls") if "tls" in enc else True,
+        "ssl": enc.get("ssl") if "ssl" in enc else False,
         "source": source,
     }
     return cfg

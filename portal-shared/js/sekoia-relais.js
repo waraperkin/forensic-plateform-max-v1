@@ -247,36 +247,93 @@
     } catch (_) { /* defaults */ }
   }
 
+  function fmtWhen(ts) {
+    if (ts == null || ts === '') return '—';
+    try {
+      let n = ts;
+      if (typeof n === 'number' && n < 1e12) n *= 1000;
+      const d = new Date(n);
+      if (Number.isNaN(d.getTime())) return String(ts).slice(0, 19);
+      return d.toISOString().replace('T', ' ').slice(0, 16) + 'Z';
+    } catch (_) {
+      return String(ts).slice(0, 19);
+    }
+  }
+
+  function sevClass(sev) {
+    return 'is-' + String(sev || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  }
+
   function artifactChips(arts, assetNames) {
     const names = assetNames || {};
-    const parts = [];
-    const order = ['ip', 'host', 'user', 'hash', 'url', 'email', 'entity'];
-    order.forEach((k) => {
-      ((arts && arts[k]) || []).slice(0, 6).forEach((v) => {
-        parts.push(`<span class="ei-art is-${esc(k)}" title="${esc(k)}">${esc(k)}: ${esc(names[v] || v)}</span>`);
+    const rows = [];
+    const order = [
+      ['ip', 'IP'], ['host', 'Host'], ['user', 'User'], ['hash', 'Hash'],
+      ['url', 'URL'], ['email', 'Email'], ['entity', 'Entité'], ['asset', 'Asset'],
+    ];
+    order.forEach(([k, label]) => {
+      ((arts && arts[k]) || []).slice(0, 8).forEach((v) => {
+        const shown = names[v] || v;
+        rows.push(`<tr>
+          <td><span class="ei-art-kind is-${esc(k)}">${esc(label)}</span></td>
+          <td><code class="ei-art-val" title="${esc(shown)}">${esc(shown)}</code></td>
+        </tr>`);
       });
     });
-    ((arts && arts.asset) || []).slice(0, 4).forEach((v) => {
-      parts.push(`<span class="ei-art is-asset" title="asset">${esc(names[v] || v)}</span>`);
-    });
-    return parts.length
-      ? `<div class="ei-arts">${parts.join('')}</div>`
-      : '<p class="fp-muted">Aucun artefact extrait.</p>';
+    if (!rows.length) {
+      return '<p class="ei-empty">Aucun artefact structuré — ouvrez une alerte ou enrichissez via events.</p>';
+    }
+    return `<div class="ei-art-tablewrap"><table class="ei-art-table">
+      <thead><tr><th>Type</th><th>Valeur</th></tr></thead>
+      <tbody>${rows.join('')}</tbody>
+    </table></div>`;
   }
 
   function relatedListHtml(related) {
     const rows = related || [];
-    if (!rows.length) return '<p class="fp-muted">Aucune alerte liée trouvée sur les pivots IP / host / asset.</p>';
-    return `<div class="ei-related">
-      ${rows.map((a) => `
-        <button type="button" class="ei-alert-row ei-related-row" data-rl="focus-alert" data-id="${esc(a.id || '')}" data-investigate="0">
-          <span class="ei-sev">${esc(a.severity || '?')}</span>
-          <span class="ei-alert-main">
+    if (!rows.length) {
+      return '<p class="ei-empty">Aucune alerte liée sur les pivots IP / host / asset.</p>';
+    }
+    return `<div class="ei-related-tablewrap"><table class="ei-related-table">
+      <thead><tr>
+        <th>Crit.</th><th>Type</th><th>Titre</th><th>Score</th><th>Pivot</th>
+      </tr></thead>
+      <tbody>${rows.map((a) => `
+        <tr class="ei-related-tr" data-rl="focus-alert" data-id="${esc(a.id || '')}" data-investigate="0" role="button" tabindex="0">
+          <td><span class="ei-sev ${sevClass(a.severity)}">${esc(a.severity || '?')}</span></td>
+          <td><span class="ei-type-pill">${esc(a.type || '—')}</span></td>
+          <td>
             <strong>${esc(a.title || 'Sans titre')}</strong>
-            <small>${esc(a.type || '')} · score ${esc(a.link_score || 0)} · ${esc((a.shared_artifacts || []).join(', '))}</small>
-          </span>
-        </button>`).join('')}
-    </div>`;
+            <div class="ei-muted">${esc(a.short_id || a.id || '')}${a.entity ? ' · ' + esc(a.entity) : ''}</div>
+          </td>
+          <td class="ei-num">${esc(a.link_score || 0)}</td>
+          <td class="ei-pivot">${esc((a.shared_artifacts || []).slice(0, 3).join(', ') || '—')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  }
+
+  function dossierKv(focus, d) {
+    if (!focus) return '';
+    const pairs = [
+      ['Short ID', focus.short_id || focus.id || '—'],
+      ['Statut', focus.status || '—'],
+      ['Criticité', focus.severity || '—'],
+      ['Type', focus.type || '—'],
+      ['Catégorie', focus.category || '—'],
+      ['Entité', focus.entity || '—'],
+      ['Règle', focus.rule || '—'],
+      ['Source', focus.source || '—'],
+      ['Target', focus.target || '—'],
+      ['First seen', fmtWhen(focus.created_at)],
+      ['Last seen', fmtWhen(focus.updated_at)],
+      ['Similar Sekoia', String((d && d.similar_declared) != null ? d.similar_declared : (focus.similar || 0))],
+    ];
+    return `<dl class="ei-kv">${pairs.map(([k, v]) => `
+      <div class="ei-kv-row">
+        <dt>${esc(k)}</dt>
+        <dd title="${esc(v)}">${esc(v)}</dd>
+      </div>`).join('')}</dl>`;
   }
 
   function playbooks() {
@@ -409,100 +466,180 @@
     const types = t._types || Object.keys((t.facets && t.facets.type) || {}).sort();
     const arts = (d && d.artifacts) || (st.context && st.context.target_artifacts) || null;
     const related = (d && d.related_alerts) || (st.context && st.context.related_alerts) || [];
+    const nMajor = rows.filter((a) => /major|urgent|critical|high/i.test(String(a.severity || ''))).length;
+    const sug = suggestSkillsForAlert(focus || { title: t.q, type: t.type });
+    const hasReport = !!(st.lastRun && st.lastRun.text);
     return `
-      <div class="rl-panel">
-        <div class="rl-panel-head">
-          <h3>Triage Alertes SIEM</h3>
-          <span class="rl-hint">${rows.length} affichées${t.total != null ? ' / ' + esc(t.total) : ''} · ${esc(t.hours)}h
-            ${t.loading ? ' · chargement…' : ''}</span>
+      <div class="ei-wb">
+        <div class="ei-wb-head">
+          <div>
+            <h3>Triage Alertes SIEM</h3>
+            <p class="ei-wb-sub">Poste analyste — sélectionnez une alerte, lisez le dossier, lancez le rapport N3.</p>
+          </div>
+          <div class="ei-wb-kpis">
+            <div class="ei-wb-kpi"><b>${esc(rows.length)}</b><span>affichées</span></div>
+            <div class="ei-wb-kpi"><b>${t.total != null ? esc(t.total) : '—'}</b><span>total filtre</span></div>
+            <div class="ei-wb-kpi ${nMajor ? 'is-hot' : ''}"><b>${esc(nMajor)}</b><span>élevées / majeures</span></div>
+            <div class="ei-wb-kpi"><b>${esc(related.length || 0)}</b><span>liées (focus)</span></div>
+            <div class="ei-wb-kpi ei-wb-kpi--engine">
+              <b>${p ? esc((p.model || p.name || 'IA').split(':')[0]) : 'off'}</b>
+              <span>${p ? 'moteur local' : 'IA offline'}</span>
+            </div>
+          </div>
         </div>
-        <p class="fp-muted ei-lead">Filtres Sekoia (statut, criticité, type). Un clic ouvre le dossier + socle N3
-          (artefacts, alertes liées). <strong>Investiguer (IA)</strong> produit le rapport N3/CERT complet.</p>
-        <div class="rl-toolbar ei-triage-filters">
-          <select class="fp-input" id="ei-f-status" title="Statut">
-            <option value="">Tous statuts</option>
-            ${t.statuses.map((s) =>
-              `<option value="${esc(s)}"${t.status === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}
-          </select>
-          <select class="fp-input" id="ei-f-urgency" title="Criticité">
-            <option value=""${ !t.urgency ? ' selected' : ''}>Toute criticité</option>
-            <option value="high"${t.urgency === 'high' ? ' selected' : ''}>High / Urgent / Major</option>
-            <option value="medium"${t.urgency === 'medium' ? ' selected' : ''}>Medium / Major</option>
-            <option value="low"${t.urgency === 'low' ? ' selected' : ''}>Low / Moderate</option>
-          </select>
-          <select class="fp-input" id="ei-f-type" title="Type d’alerte">
-            <option value="">Tous types</option>
-            ${types.map((ty) =>
-              `<option value="${esc(ty)}"${t.type === ty ? ' selected' : ''}>${esc(ty)}</option>`).join('')}
-          </select>
-          <select class="fp-input" id="ei-f-hours" title="Fenêtre">
-            ${[24, 72, 168, 720].map((h) =>
-              `<option value="${h}"${Number(t.hours) === h ? ' selected' : ''}>${h}h</option>`).join('')}
-          </select>
-          <input class="fp-input" id="ei-triage-q" placeholder="Recherche titre, entité, règle…"
-            value="${esc(t.q || st.triageFilter)}" style="max-width:14rem">
-          <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="triage-apply">Appliquer</button>
-          <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="pb-run" data-id="alert-triage"
-            ${st.busy || !p ? 'disabled' : ''}>Trier la file</button>
+
+        <div class="ei-wb-filters">
+          <label class="ei-flabel">Statut
+            <select class="fp-input" id="ei-f-status">
+              <option value="">Tous</option>
+              ${t.statuses.map((s) =>
+                `<option value="${esc(s)}"${t.status === s ? ' selected' : ''}>${esc(s)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="ei-flabel">Criticité
+            <select class="fp-input" id="ei-f-urgency">
+              <option value=""${!t.urgency ? ' selected' : ''}>Toutes</option>
+              <option value="high"${t.urgency === 'high' ? ' selected' : ''}>High / Major / Urgent</option>
+              <option value="medium"${t.urgency === 'medium' ? ' selected' : ''}>Medium</option>
+              <option value="low"${t.urgency === 'low' ? ' selected' : ''}>Low / Moderate</option>
+            </select>
+          </label>
+          <label class="ei-flabel">Type
+            <select class="fp-input" id="ei-f-type">
+              <option value="">Tous</option>
+              ${types.map((ty) =>
+                `<option value="${esc(ty)}"${t.type === ty ? ' selected' : ''}>${esc(ty)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="ei-flabel">Fenêtre
+            <select class="fp-input" id="ei-f-hours">
+              ${[24, 72, 168, 720].map((h) =>
+                `<option value="${h}"${Number(t.hours) === h ? ' selected' : ''}>${h}h</option>`).join('')}
+            </select>
+          </label>
+          <label class="ei-flabel ei-flabel--grow">Recherche
+            <input class="fp-input" id="ei-triage-q" placeholder="Titre, entité, règle, IP, short ID…"
+              value="${esc(t.q || st.triageFilter)}">
+          </label>
+          <div class="ei-wb-filter-actions">
+            <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="triage-apply"
+              ${t.loading ? 'disabled' : ''}>Appliquer</button>
+            <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="alert-triage"
+              ${st.busy || !p ? 'disabled' : ''}>Trier la file (IA)</button>
+          </div>
         </div>
         ${t.error ? `<div class="ei-banner is-warn">${esc(t.error)}</div>` : ''}
-        <div class="ei-triage-grid ei-triage-grid--3">
-          <div class="ei-alert-list ei-alert-list--tall">
-            ${rows.map((a) => `
-              <button type="button" class="ei-alert-row${(st.cfg.focusAlertId === a.id) ? ' is-focus' : ''}"
-                data-rl="focus-alert" data-id="${esc(a.id || '')}" data-investigate="1">
-                <span class="ei-sev is-${esc(String(a.severity || '').toLowerCase())}">${esc(a.severity || '?')}</span>
-                <span class="ei-alert-main">
-                  <strong>${esc(a.title || 'Sans titre')}</strong>
-                  <small>${esc(a.type || '—')} · ${esc(a.status || '')} · ${esc(a.entity || '—')}</small>
-                  <small class="fp-muted">${esc(a.short_id || a.id || '')}${a.source ? ' · ' + esc(a.source) : ''}</small>
-                </span>
-              </button>`).join('')
-              || `<p class="fp-muted">${t.loading ? 'Chargement des alertes…' : 'Aucune alerte pour ces filtres.'}</p>`}
-          </div>
-          <div class="rl-card ei-dossier">
-            <h4>Dossier ${focus ? `<code>${esc(focus.short_id || focus.id || '')}</code>` : ''}</h4>
-            ${focus ? `
-              <div class="ei-dossier-meta">
-                <span class="ei-sev is-${esc(String(focus.severity || '').toLowerCase())}">${esc(focus.severity || '?')}</span>
-                <strong>${esc(focus.title || '')}</strong>
-                <small>${esc(focus.type || '')} / ${esc(focus.category || '')} · ${esc(focus.status || '')}</small>
-                <small class="fp-muted">${esc(focus.rule || '')} · ${esc(focus.entity || '—')}</small>
-              </div>
-              <h5>Artefacts</h5>
-              ${arts ? artifactChips(arts, (d && d.asset_names) || focus.asset_names)
-                : '<p class="fp-muted">Cliquez une alerte pour extraire les artefacts.</p>'}
-              <h5>Alertes liées (${esc((related && related.length) || 0)})</h5>
-              ${relatedListHtml(related)}
-            ` : '<p class="fp-muted">Sélectionnez une alerte dans la file.</p>'}
-          </div>
-          <div class="rl-card">
-            <h4>Investigation EI ${st.investigating ? '<span class="rl-hint">en cours…</span>' : ''}</h4>
-            <textarea class="rl-chat-input" id="ei-triage-note" placeholder="Note analyste (optionnel)…"></textarea>
-            <div class="rl-toolbar">
-              <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="investigate"
-                ${st.busy || st.investigating || !p || !st.cfg.focusAlertId ? 'disabled' : ''}>Rapport N3 (IA)</button>
-              <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="investigate-fast"
-                ${st.busy || st.investigating || !st.cfg.focusAlertId ? 'disabled' : ''}>Socle factuel</button>
-              <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="alert-deep"
-                ${st.busy || !p ? 'disabled' : ''}>Analyse</button>
-              <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="fp-coach"
-                ${st.busy || !p ? 'disabled' : ''}>Coach FP</button>
-              <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="escalation-pack"
-                ${st.busy || !p ? 'disabled' : ''}>Escalade</button>
+        ${t.loading ? '<div class="ei-banner">Chargement de la file SIEM…</div>' : ''}
+
+        <div class="ei-wb-split">
+          <section class="ei-wb-queue" aria-label="File d’alertes">
+            <div class="ei-wb-colhead">
+              <h4>File</h4>
+              <span class="ei-muted">${esc(t.hours)}h · clic = dossier</span>
             </div>
-            ${(() => {
-              const sug = suggestSkillsForAlert(focus || { title: t.q, type: t.type });
-              if (!sug.length) return '';
-              return `<div class="ei-suggest"><span class="rl-hint">Skills suggérés :</span>
-                <div class="rl-bind">${sug.map((s) =>
-                  `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="${esc(s.id)}"
-                    ${st.busy || !p ? 'disabled' : ''}>${esc(s.name)}</button>`).join('')}</div></div>`;
-            })()}
-            <div class="ei-answer ei-answer--tall" id="ei-triage-out">${st.lastRun && st.lastRun.text
-              ? `${verdictStrip(st.lastRun.text)} ${mdLite(st.lastRun.text)}`
-              : '<span class="fp-muted">L’investigation (verdict, corrélation, actions) apparaîtra ici.</span>'}</div>
-          </div>
+            <div class="ei-queue-list">
+              ${rows.map((a) => `
+                <button type="button" class="ei-qrow${(st.cfg.focusAlertId === a.id) ? ' is-focus' : ''}"
+                  data-rl="focus-alert" data-id="${esc(a.id || '')}" data-investigate="1">
+                  <div class="ei-qrow-top">
+                    <span class="ei-sev ${sevClass(a.severity)}">${esc(a.severity || '?')}</span>
+                    <span class="ei-type-pill">${esc(a.type || '—')}</span>
+                    <span class="ei-status-pill">${esc(a.status || '—')}</span>
+                  </div>
+                  <strong class="ei-qrow-title">${esc(a.title || 'Sans titre')}</strong>
+                  <div class="ei-qrow-meta">
+                    <span>${esc(a.entity || '—')}</span>
+                    <span>${esc(a.short_id || '')}</span>
+                  </div>
+                  <div class="ei-qrow-meta">
+                    <span>${a.source ? 'src ' + esc(a.source) : esc((a.rule || '').slice(0, 42) || '—')}</span>
+                    <span>${esc(fmtWhen(a.created_at).slice(5, 16))}</span>
+                  </div>
+                </button>`).join('')
+                || `<p class="ei-empty">${t.loading ? 'Chargement…' : 'Aucune alerte pour ces filtres.'}</p>`}
+            </div>
+          </section>
+
+          <section class="ei-wb-workspace" aria-label="Dossier et rapport">
+            ${focus ? `
+              <div class="ei-wb-dossier">
+                <div class="ei-dossier-hero">
+                  <div class="ei-dossier-hero-main">
+                    <div class="ei-qrow-top">
+                      <span class="ei-sev ${sevClass(focus.severity)}">${esc(focus.severity || '?')}</span>
+                      <span class="ei-type-pill">${esc(focus.type || '—')}</span>
+                      <span class="ei-status-pill">${esc(focus.status || '—')}</span>
+                      <code class="ei-id">${esc(focus.short_id || focus.id || '')}</code>
+                    </div>
+                    <h4 class="ei-dossier-title">${esc(focus.title || 'Sans titre')}</h4>
+                    <p class="ei-dossier-rule">${esc(focus.rule || '—')} · ${esc(focus.entity || '—')}</p>
+                  </div>
+                  <div class="ei-dossier-actions">
+                    <button type="button" class="fp-btn fp-btn-primary" data-rl="investigate"
+                      ${st.busy || st.investigating || !p ? 'disabled' : ''}>
+                      ${st.investigating ? 'Analyse N3…' : 'Rapport N3 (IA)'}
+                    </button>
+                    <button type="button" class="fp-btn fp-btn-ghost" data-rl="investigate-fast"
+                      ${st.busy || st.investigating ? 'disabled' : ''}>Socle factuel</button>
+                  </div>
+                </div>
+                <div class="ei-dossier-body">
+                  <div class="ei-dossier-col">
+                    <h5>Identité alerte</h5>
+                    ${dossierKv(focus, d)}
+                  </div>
+                  <div class="ei-dossier-col">
+                    <h5>Artefacts</h5>
+                    ${arts ? artifactChips(arts, (d && d.asset_names) || focus.asset_names)
+                      : '<p class="ei-empty">Chargement des artefacts…</p>'}
+                  </div>
+                </div>
+                <div class="ei-dossier-related">
+                  <div class="ei-wb-colhead">
+                    <h5>Alertes liées · ${esc(related.length)}</h5>
+                    <span class="ei-muted">même IP / asset / source — clic pour pivoter</span>
+                  </div>
+                  ${relatedListHtml(related)}
+                </div>
+              </div>
+            ` : `
+              <div class="ei-wb-empty">
+                <h4>Aucune alerte sélectionnée</h4>
+                <p>Choisissez une alerte dans la file pour afficher le dossier complet
+                  (identité, artefacts, corrélations) puis générer le rapport N3.</p>
+              </div>`}
+
+            <div class="ei-wb-report">
+              <div class="ei-wb-colhead">
+                <h4>Rapport d’investigation ${hasReport ? verdictStrip(st.lastRun.text) : ''}</h4>
+                <span class="ei-muted">${st.investigating ? 'génération en cours…'
+                  : (hasReport ? esc(st.lastRun.t || '') : 'en attente')}</span>
+              </div>
+              <div class="ei-wb-tools">
+                <textarea class="ei-note" id="ei-triage-note" rows="2"
+                  placeholder="Note analyste (contexte métier, hypothèse FP, change ticket…) — injectée dans le rapport N3"></textarea>
+                <div class="ei-wb-toolrow">
+                  <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="alert-deep"
+                    ${st.busy || !p || !focus ? 'disabled' : ''}>Analyse approfondie</button>
+                  <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="fp-coach"
+                    ${st.busy || !p ? 'disabled' : ''}>Coach FP</button>
+                  <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="escalation-pack"
+                    ${st.busy || !p ? 'disabled' : ''}>Pack escalade</button>
+                  ${sug.length ? `<span class="ei-muted ei-skills-label">Skills :</span>
+                    ${sug.slice(0, 3).map((s) =>
+                      `<button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="${esc(s.id)}"
+                        ${st.busy || !p ? 'disabled' : ''}>${esc(s.name)}</button>`).join('')}` : ''}
+                </div>
+              </div>
+              <div class="ei-answer ei-answer--report" id="ei-triage-out">${hasReport
+                ? mdLite(st.lastRun.text)
+                : `<div class="ei-report-placeholder">
+                    <p><strong>Le rapport N3 s’affichera ici</strong></p>
+                    <p>Verdict · chronologie · artefacts · corrélation · hypothèses · actions P0/P1/P2 · hunting · escalade CERT.</p>
+                    <p class="ei-muted">Astuce : « Socle factuel » = immédiat · « Rapport N3 (IA) » = enrichissement IR.</p>
+                  </div>`}</div>
+            </div>
+          </section>
         </div>
       </div>`;
   }
@@ -810,7 +947,9 @@
   function paint() {
     const el = root();
     if (!el) return;
-    el.className = 'rl-root ei-root';
+    const workbench = st.view === 'triage' || st.view === 'forensic';
+    const p = activeProvider();
+    el.className = 'rl-root ei-root' + (workbench ? ' is-workbench' : '');
     el.innerHTML = `
       <header class="rl-top">
         <div class="rl-brand">
@@ -818,29 +957,35 @@
           <h2>Extended Intelligence</h2>
           <p>Triage SIEM Sekoia + forensic accélérés par Ollama, ancrés sur le contexte SEP live.</p>
         </div>
-        <div class="rl-chips">${statusChips()}${st.busy ? '<span class="rl-chip is-live">EI en cours…</span>' : ''}</div>
+        <div class="rl-chips">${statusChips()}${st.busy || st.investigating
+          ? '<span class="rl-chip is-live">EI en cours…</span>' : ''}</div>
       </header>
       <nav class="rl-subnav" aria-label="Extended Intelligence">${VIEWS.map((v) =>
         `<button type="button" class="rl-tab${st.view === v.id ? ' is-active' : ''}" data-rl="view" data-view="${v.id}">${esc(v.label)}</button>`
       ).join('')}</nav>
-      <div class="rl-body">
+      <div class="rl-body${workbench ? ' is-workbench' : ''}">
+        ${workbench ? '' : `
         <aside class="rl-rail">
           <p class="rl-section-label">Modules</p>
           ${VIEWS.map((v) => `
             <button type="button" class="rl-session${st.view === v.id ? ' is-active' : ''}" data-rl="view" data-view="${v.id}">
               <div class="rl-session-title"><span>${esc(v.label)}</span></div>
             </button>`).join('')}
-        </aside>
+        </aside>`}
         <section class="rl-main">${mainHtml()}</section>
-        <aside class="rl-side">${sideHtml()}</aside>
+        ${workbench ? '' : `<aside class="rl-side">${sideHtml()}</aside>`}
       </div>
       <footer class="rl-footer-bar">
         <span>Extended Intelligence × SEP · Ollama</span>
-        <span>${esc(st.view)} · ${esc((activeProvider() || {}).name || 'off')}</span>
+        <span>${esc(st.view)} · ${esc((p || {}).name || 'off')}</span>
       </footer>`;
     bind(el);
     const chatLog = document.getElementById('rl-chat-log');
     if (chatLog) chatLog.scrollTop = chatLog.scrollHeight;
+    const report = document.getElementById('ei-triage-out');
+    if (report && st.lastRun && st.lastRun.text && st.view === 'triage') {
+      report.scrollTop = 0;
+    }
   }
 
   async function selectAlert(alertId, opts) {

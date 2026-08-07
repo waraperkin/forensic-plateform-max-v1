@@ -1270,13 +1270,9 @@ async def run_ei_investigate(
             "note": "pas de LLM — socle N3 factuel uniquement",
         }
 
-    # L’IA enrichit le socle (déjà N3 factuel) au lieu de tout régénérer :
-    # meilleure qualité IR + latence CPU maîtrisée.
-    ctx = format_investigation_context(dossier)
-    # Contexte compact pour le raisonnement (faits essentiels)
-    ctx_compact = ctx
-    if len(ctx_compact) > 5500:
-        ctx_compact = ctx_compact[:5500] + "\n…[tronqué]"
+    # L’IA enrichit le socle (déjà N3 factuel). Prompt ultra-compact :
+    # sous charge CPU lab, l’eval d’un long prompt faisait timeout avant
+    # le premier token — le socle reste la livrable opérationnelle.
     a = dossier.get("alert") or {}
     arts = dossier.get("artifacts") or {}
     names = dossier.get("asset_names") or {}
@@ -1286,57 +1282,47 @@ async def run_ei_investigate(
         host = names.get(arts["asset"][0], arts["asset"][0])
     elif arts.get("host"):
         host = arts["host"][0]
+    rel_types = ",".join(sorted({(r.get("type") or "?") for r in related[:6]})) or "—"
     facts = (
-        f"Alerte {a.get('short_id')} | {a.get('type')}/{a.get('category')} | "
-        f"{a.get('severity')} | {a.get('status')} | règle={a.get('rule')} | "
-        f"entité={a.get('entity')} | host={host or '—'} | src={a.get('source') or '—'} | "
-        f"liés={len(related)} "
-        f"({', '.join(sorted({(r.get('type') or '?') for r in related[:8]}))}) | "
-        f"guidance={dossier.get('n3_guidance') or '—'}"
+        f"{a.get('short_id')}|{a.get('type')}|{a.get('severity')}|{a.get('rule')}|"
+        f"host={host or '—'}|src={a.get('source') or '—'}|"
+        f"liés={len(related)}({rel_types})|{dossier.get('n3_guidance') or '—'}"
     )
     enrich_prompt = (
-        "Analyste CERT N3. À partir des FAITS ci-dessous, rédige un enrichissement IR "
-        "(pas un résumé creux). Markdown strict :\n"
-        "## A. Lecture N3\n"
-        "10 lignes : scénario probable, blast radius, pourquoi P0/P1 maintenant.\n"
-        "## B. Hypothèses H1/H2/H3\n"
-        "Pour chacune : preuves POUR, CONTRE, test discriminant concret.\n"
-        "## C. Actions P0/P1/P2\n"
-        "Chaque ligne = action + cible (host/IP/user) + critère DONE.\n"
-        "## D. Hunting (5 pivots)\n"
-        "Uniquement artefacts fournis.\n"
-        "## E. Ticket CERT\n"
-        "8 lignes prêtes à coller.\n"
-        "Aucun IOC inventé.\n\n"
-        f"FAITS:\n{facts}\n"
+        "CERT N3 — enrichis en markdown court (max 20 lignes), sans IOC inventé:\n"
+        "## A. Lecture\nscénario + blast + P0/P1\n"
+        "## B. H1/H2\nPOUR/CONTRE + test\n"
+        "## C. Actions\nP0/P1 avec cible+DONE\n"
+        f"FAITS:{facts}\n"
     )
-    if related[:5]:
-        enrich_prompt += "LIÉES:\n" + "\n".join(
-            f"- {r.get('short_id')} [{r.get('type')}|{r.get('severity')}] "
-            f"{(r.get('title') or '')[:70]}"
-            for r in related[:5]
+    if related[:3]:
+        enrich_prompt += "LIÉS:" + ";".join(
+            f"{r.get('short_id')}[{r.get('type')}]"
+            for r in related[:3]
         ) + "\n"
     if user_note.strip():
-        enrich_prompt += "NOTE: " + user_note.strip()[:300] + "\n"
+        enrich_prompt += "NOTE:" + user_note.strip()[:120] + "\n"
     messages = [
-        {"role": "system", "content": EI_N3_INVESTIGATE_SYSTEM},
-        {"role": "user", "content": enrich_prompt[:3500]},
+        {
+            "role": "system",
+            "content": "Analyste CERT N3. Réponses courtes, factuelles, structurées.",
+        },
+        {"role": "user", "content": enrich_prompt[:900]},
     ]
-    # Enrichissement : modèle rapide local (3b) — le socle N3 porte déjà la structure.
-    # Le 8b reste dispo en War Room / skills pour analyses plus longues.
-    mt = int(max_tokens or 320)
-    mt = max(200, min(mt, 400))
+    # quality=standard → num_ctx bas ; timeout large pour lab CPU saturé.
+    mt = int(max_tokens or 80)
+    mt = max(40, min(mt, 120))
     try:
         result = await asyncio.wait_for(
             chat_with_provider(
                 pid, messages, temperature=0.2, max_tokens=mt,
-                quality="n3",
+                quality="standard",
                 model_override="llama3.2:3b",
             ),
-            timeout=620.0,
+            timeout=380.0,
         )
     except asyncio.TimeoutError:
-        result = {"ok": False, "error": "TimeoutError: IA N3 trop lente"}
+        result = {"ok": False, "error": "TimeoutError: IA N3 trop lente (>380s)"}
     if result.get("ok") and result.get("text"):
         ai_text = str(result.get("text") or "").strip()
         merged = (
@@ -1691,18 +1677,24 @@ async def _chat_openai_compatible(base_url: str, api_key: str, model: str,
         or "oc-gateway" in (base_url or "") or ":11435" in (base_url or "")
     )
     if is_ollama:
-        # N3 : contexte élargi + génération longue ; standard : bornes CPU légères
+        # N3 : contexte compact pour rester sous la latence CPU lab ;
+        # standard : bornes encore plus légères.
         if quality == "n3":
-            # Contexte modéré : qualité IR sans exploser la latence CPU
             payload["options"] = {
-                "num_ctx": 2048,
+                "num_ctx": 1536,
                 "num_predict": mt,
                 "temperature": temperature,
             }
-            read_s = 600
+            # Aligné sur wait_for investigate (180s) + marge — évite client 0-byte
+            read_s = 170
         else:
-            payload["options"] = {"num_ctx": 2048, "num_predict": min(mt, 400)}
-            read_s = 300
+            # Enrichissement investigate / chat court (CPU lab saturé → 3–5 min)
+            payload["options"] = {
+                "num_ctx": 1024,
+                "num_predict": min(mt, 200),
+                "temperature": temperature,
+            }
+            read_s = 360
     else:
         read_s = 180
     try:

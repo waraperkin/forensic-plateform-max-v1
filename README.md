@@ -46,6 +46,20 @@ Outre la stack complète (`-full-start`), vous pouvez démarrer un **sous-ensemb
 
 Chaque mode lance les dépendances nécessaires (TLS, réseaux `helk_net` / `velociraptor_net`, builds) et vérifie les endpoints du périmètre. Nginx démarre même si les outils hors mode sont absents (upstreams DNS dynamiques).
 
+### Extended Intelligence (SEP + Ollama) — 1 ou 2 VM
+
+Sans étapes manuelles (Docker, clone, join réseau, enregistrement provider) :
+
+```bash
+# 1 VM
+curl -fsSL https://raw.githubusercontent.com/waraperkin/forensic-plateform-max-v1/main/scripts/bootstrap-ei.sh \
+  | sudo bash -s -- single
+
+# 2 VM — voir docs/fr/deploy-ei.md
+```
+
+Guide : [`docs/fr/deploy-ei.md`](docs/fr/deploy-ei.md) — dépôt compagnon [`ollama-cybercorp`](https://github.com/waraperkin/ollama-cybercorp).
+
 - **Accès** : `https://<IP-publique>/` (affiché en fin de script)
 - **16/16 services** vérifiés via `/api/health/global` (Timesketch, MISP, Velociraptor, HELK, etc.)
 - **OpenSearch Dashboards** : dashboards SIEM/TI/Observability importés

@@ -71,11 +71,62 @@ def _provider_is_local(kind: str, base_url: str) -> bool:
     return _host_is_local(base)
 
 EI_SYSTEM = (
-    "Tu es Extended Intelligence (EI), copilote SOC/CERT SEP × Sekoia. "
-    "Français, très concis, opérationnel. "
-    "Format: VERDICT | CONFIANCE% | PREUVES (contexte only) | ACTIONS P0/P1/P2 | "
-    "PIVOTS FORENSIC | QUESTIONS. "
-    "N’invente rien hors CONTEXTE SEP. Analyste = décideur."
+    "Tu es Extended Intelligence (EI), analyste SOC/CERT niveau N3 "
+    "(threat hunter / incident responder senior) opérant sur SEP × Sekoia. "
+    "Français technique, précis, actionnable. "
+    "Tu produis des analyses d’investigation exploitables en war-room, "
+    "pas des résumés marketing. "
+    "Règles dures : (1) n’invente aucun IOC, hôte, user, hash ou technique "
+    "absent du CONTEXTE SEP ; (2) distingue faits observés / hypothèses / lacunes ; "
+    "(3) chaque recommandation a un propriétaire implicite (SOC N1/N2, N3, CERT, IT) "
+    "et un délai ; (4) l’analyste humain reste décideur."
+)
+
+EI_N3_INVESTIGATE_SYSTEM = (
+    "Tu es un analyste CERT N3 rédigeant un rapport d’investigation SIEM. "
+    "Public : N2/N3/CERT. Ton : clinique, structuré, sans filler. "
+    "Tu dois raisonner comme un IR senior : kill-chain, hypothèses concurrentes, "
+    "preuves, contre-preuves FP, pivots, containment, hunting. "
+    "Interdit : phrases vagues (« surveiller », « investiguer davantage ») sans "
+    "quoi / où / comment / critère de succès. "
+    "Interdit d’inventer des artefacts hors contexte."
+)
+
+EI_N3_REPORT_SCHEMA = (
+    "Rédige le rapport COMPLET avec ces sections markdown (obligatoires) :\n"
+    "# RAPPORT N3 — {titre court}\n"
+    "## 1. Verdict opérationnel\n"
+    "- Classification : Vrai positif | Faux positif probable | Benign true positive | "
+    "Suspect / insuffisant\n"
+    "- Confiance (0–100%) + justification en 2 phrases\n"
+    "- Sévérité IR proposée (P0/P1/P2/P3) + impact métier plausible\n"
+    "## 2. Synthèse exécutive (8–12 lignes)\n"
+    "Qui / quoi / quand / où / comment — faits seulement, puis enjeu.\n"
+    "## 3. Chronologie & kill-chain\n"
+    "Étapes ordonnées (pré-alerte → alerte → post) ; rattache ATT&CK si présent "
+    "dans le contexte (sinon « non observé »).\n"
+    "## 4. Artefacts & valeur analytique\n"
+    "Pour chaque IP/host/user/hash/url : rôle (source/cible/outil), "
+    "fiabilité, pivot recommandé.\n"
+    "## 5. Corrélation & campagne\n"
+    "Exploite les alertes liées : même intrusion ? bruit récurrent ? "
+    "cluster host/user/IP ? Score de lien et lecture IR.\n"
+    "## 6. Hypothèses concurrentes\n"
+    "H1 (attaque) / H2 (admin légitime) / H3 (outil / FP règle) — "
+    "preuves pour / contre, test de discrimination.\n"
+    "## 7. Faux positif — critères d’exclusion\n"
+    "Ce qui ferait classer FP ; ce qui l’exclut.\n"
+    "## 8. Plan d’action immédiat\n"
+    "- P0 (<15 min) …\n- P1 (<1 h) …\n- P2 (<4 h) …\n"
+    "Chaque action : commande/requête Sekoia ou contrôle concret + critère done.\n"
+    "## 9. Hunting & pivots forensic\n"
+    "3–6 requêtes/pivots (champs Sekoia/SOL ou artefacts) pour élargir "
+    "le blast radius.\n"
+    "## 10. Escalade CERT / communication\n"
+    "Quand escalader, quoi mettre dans le ticket, containment recommandé "
+    "(isol. hôte, reset creds, block IOC) avec conditions.\n"
+    "## 11. Lacunes & questions N3\n"
+    "Données manquantes bloquantes + questions à l’IT/métier.\n"
 )
 
 EI_PLAYBOOKS: dict[str, dict[str, Any]] = {
@@ -98,27 +149,32 @@ EI_PLAYBOOKS: dict[str, dict[str, Any]] = {
         "mode": "triage",
         "desc": "Décortiquer une alerte Sekoia (entité, règle, hypothèses).",
         "prompt": (
-            "Analyse l’alerte FOCUS (ou la plus urgente). Hypothèses d’attaque, "
-            "artefacts à collecter, requêtes Sekoia/SOL, critères FP vs vrai positif."
+            "Analyse N3 de l’alerte FOCUS. Produis : "
+            "(1) faits vs hypothèses, (2) 3 hypothèses concurrentes avec tests, "
+            "(3) critères FP/VP, (4) artefacts à collecter, "
+            "(5) 4 pivots Sekoia/SOL concrets, (6) actions P0/P1/P2 avec critères done. "
+            "Niveau incident responder senior — pas de résumé superficiel."
         ),
-        "max_tokens": 300,
-        "tags": ["siem", "deep"],
+        "max_tokens": 900,
+        "tags": ["siem", "deep", "n3"],
         "alert_kinds": ["*"],
+        "quality": "n3",
     },
     "alert-investigate": {
-        "name": "Investigation alerte (style Qevlar)",
+        "name": "Investigation N3 (Qevlar-grade)",
         "mode": "triage",
-        "desc": "Investigation automatisée : artefacts, alertes liées, verdict, actions.",
+        "desc": "Rapport d’investigation N3 : artefacts, liés, kill-chain, actions.",
         "prompt": (
-            "Investigation SOC (style Qevlar) sur FOCUS. Contexte SEP only. "
-            "Format court:\n"
-            "VERDICT+CONFIANCE% | RÉSUMÉ (3 lignes) | ARTEFACTS clés | "
-            "CORRÉLATION alertes liées | ATT&CK | ACTIONS P0/P1/P2 | QUESTIONS.\n"
-            "Pas d’IOC inventé."
+            "Mène une investigation SIEM de niveau N3/CERT (qualité Qevlar / IR senior) "
+            "sur l’alerte FOCUS et le dossier fourni (artefacts + alertes liées). "
+            + EI_N3_REPORT_SCHEMA
+            + "\nExploite TOUTES les alertes liées et artefacts du contexte. "
+            "Si une info manque, range-la en lacune — ne l’invente pas."
         ),
-        "max_tokens": 240,
-        "tags": ["siem", "investigate", "qevlar"],
+        "max_tokens": 1400,
+        "tags": ["siem", "investigate", "qevlar", "n3"],
         "alert_kinds": ["*"],
+        "quality": "n3",
     },
     "fp-coach": {
         "name": "Coach faux positifs",
@@ -799,6 +855,46 @@ async def find_related_alerts(
     return out
 
 
+_N3_TYPE_GUIDANCE: dict[str, str] = {
+    "privilege-escalation": (
+        "Focus N3 : mécanisme d’élévation (sudo/UAC/token/service), compte source, "
+        "persistance associée, latéralisation post-privesc, rollback droits."
+    ),
+    "malware": (
+        "Focus N3 : hash/fichier, process tree, persistence, C2, quarantine EDR, "
+        "hunt hash/tenant, containment hôte."
+    ),
+    "ransomware": (
+        "Focus N3 : signaux précoces (vssadmin, shadowcopy, notes), blast radius, "
+        "isolation immédiate, backups, comptes admin."
+    ),
+    "phishing": (
+        "Focus N3 : URL/domaine, destinataires, credentials volés, sessions OAuth/MFA, "
+        "mailbox rules, pivots mail→endpoint."
+    ),
+    "tunnel": (
+        "Focus N3 : outil (socat/ssh/ngrok), bind/listen, user, egress, bypass FW, "
+        "autres tunnels sur même host."
+    ),
+    "c&c": (
+        "Focus N3 : beaconing, domaine/IP C2, fréquence, process parent, isolation, "
+        "block IOC, hunt callbacks."
+    ),
+    "system-compromise": (
+        "Focus N3 : compte admin, RDP/WinRM, source IP, timeline logon, "
+        "mouvement latéral, credentials dumping."
+    ),
+    "scanner": (
+        "Focus N3 : légitime (vuln scan/admin) vs recon adversaire ; "
+        "source, scope, cadence, comptes utilisés."
+    ),
+    "application-compromise": (
+        "Focus N3 : app/cible, user context, change config, impact service, "
+        "rollback, logs applicatifs."
+    ),
+}
+
+
 async def build_alert_dossier(alert_id: str, *, hours: int = 720) -> dict[str, Any]:
     """Dossier alerte : détail compact + artefacts + alertes liées."""
     alert_id = (alert_id or "").strip()
@@ -816,13 +912,51 @@ async def build_alert_dossier(alert_id: str, *, hours: int = 720) -> dict[str, A
     related = await find_related_alerts(payload, artifacts, hours=hours)
     compact = _compact_sic_alert(payload)
     compact["asset_names"] = asset_names
-    details = str(payload.get("details") or payload.get("description") or "")[:1800]
+    details = str(payload.get("details") or payload.get("description") or "")[:3500]
     rule = payload.get("rule") if isinstance(payload.get("rule"), dict) else {}
+    ttps = []
+    for t in (payload.get("ttps") or [])[:8]:
+        if isinstance(t, dict):
+            ttps.append({
+                "name": str(t.get("name") or "")[:80],
+                "id": str(t.get("id") or "")[:80],
+                "type": str(t.get("type") or "")[:40],
+            })
+        elif t:
+            ttps.append({"name": str(t)[:80], "id": "", "type": ""})
+    adversaries = []
+    for adv in (payload.get("adversaries") or [])[:6]:
+        if isinstance(adv, dict):
+            adversaries.append(str(adv.get("name") or adv.get("uuid") or "")[:80])
+        elif adv:
+            adversaries.append(str(adv)[:80])
+    hist = payload.get("history") if isinstance(payload.get("history"), list) else []
+    history_tail = []
+    for h in hist[-6:]:
+        if not isinstance(h, dict):
+            continue
+        history_tail.append({
+            "at": h.get("created_at") or h.get("date"),
+            "by": h.get("created_by_type") or h.get("created_by"),
+            "entry": str(h.get("entry") or h.get("message") or h.get("action") or "")[:160],
+        })
+    atype = (compact.get("type") or "").lower()
+    guidance = _N3_TYPE_GUIDANCE.get(atype) or (
+        "Focus N3 : prouver/infirmer intrusion, mesurer blast radius, "
+        "contenenir, documenter pour CERT."
+    )
     return {
         "ok": True,
         "alert": compact,
         "details": details,
-        "rule_pattern": str(rule.get("pattern") or "")[:1200],
+        "rule_pattern": str(rule.get("pattern") or "")[:2000],
+        "rule_severity": rule.get("severity"),
+        "detection_type": payload.get("detection_type"),
+        "kill_chain": payload.get("kill_chain_short_id") or "",
+        "ttps": ttps,
+        "adversaries": adversaries,
+        "history_tail": history_tail,
+        "n3_guidance": guidance,
         "artifacts": artifacts,
         "related_alerts": related,
         "related_count": len(related),
@@ -834,110 +968,251 @@ async def build_alert_dossier(alert_id: str, *, hours: int = 720) -> dict[str, A
 
 
 def format_investigation_context(dossier: dict[str, Any]) -> str:
+    """Contexte riche pour analyse N3 (faits SEP uniquement)."""
     a = dossier.get("alert") or {}
     arts = dossier.get("artifacts") or {}
     names = dossier.get("asset_names") or {}
     lines = [
-        f"FOCUS: [{a.get('severity')}|{a.get('status')}|{a.get('type')}] "
-        f"{a.get('title')} · {a.get('short_id') or a.get('id')}",
-        f"entité={a.get('entity')} règle={a.get('rule')} "
-        f"src={a.get('source') or '—'} similar={dossier.get('similar_declared')}",
-        "ARTEFACTS:",
+        "=== DOSSIER ALERTE SEP (faits) ===",
+        f"ID: {a.get('short_id') or a.get('id')} | UUID: {a.get('id')}",
+        f"Titre: {a.get('title')}",
+        f"Type/catégorie: {a.get('type')} / {a.get('category')}",
+        f"Statut: {a.get('status')} | Criticité: {a.get('severity')} "
+        f"(urgency={a.get('urgency')})",
+        f"Entité: {a.get('entity')} | Règle: {a.get('rule')} "
+        f"(rule_type={a.get('rule_type')})",
+        f"Source: {a.get('source') or '—'} | Target: {a.get('target') or '—'}",
+        f"First/Last: {a.get('created_at')} → {a.get('updated_at')}",
+        f"Similarité Sekoia: {dossier.get('similar_declared')} | "
+        f"stratégie: {', '.join(str(x) for x in (dossier.get('similarity_strategy') or [])) or '—'}",
+        f"Kill-chain: {dossier.get('kill_chain') or '—'}",
+        f"Guidance type: {dossier.get('n3_guidance') or '—'}",
+        "",
+        "=== ARTEFACTS ===",
     ]
-    for kind in ("ip", "host", "user", "hash", "url", "email"):
+    for kind in ("ip", "host", "user", "hash", "url", "email", "entity"):
         vals = arts.get(kind) or []
         if vals:
-            shown = [names.get(v, v) for v in vals[:5]]
+            shown = [names.get(v, v) for v in vals[:8]]
             lines.append(f"- {kind}: " + ", ".join(str(x) for x in shown))
-    hosts = [names.get(v, v) for v in (arts.get("asset") or [])[:4]]
+    hosts = [names.get(v, v) for v in (arts.get("asset") or [])[:8]]
     if hosts:
-        lines.append("- host/asset: " + ", ".join(str(x) for x in hosts))
-    det = (dossier.get("details") or "").replace("\n", " ").strip()
+        lines.append("- host/asset résolus: " + ", ".join(str(x) for x in hosts))
+    ttps = dossier.get("ttps") or []
+    if ttps:
+        lines.append("=== TTP / ATT&CK (depuis alerte) ===")
+        for t in ttps[:8]:
+            lines.append(f"- {t.get('name')} ({t.get('id') or 'id?'})")
+    adv = dossier.get("adversaries") or []
+    if adv:
+        lines.append("Adversaires déclarés: " + ", ".join(adv))
+    det = (dossier.get("details") or "").strip()
     if det:
-        lines.append("DÉTAILS: " + det[:420])
-    lines.append(f"LIÉES ({dossier.get('related_count') or 0}):")
-    for r in (dossier.get("related_alerts") or [])[:5]:
-        shared = ",".join(str(x) for x in (r.get("shared_artifacts") or [])[:3])
+        lines.append("=== DÉTAILS RÈGLE / DESCRIPTION ===")
+        lines.append(det[:2200])
+    pat = (dossier.get("rule_pattern") or "").strip()
+    if pat:
+        lines.append("=== PATTERN DÉTECTION ===")
+        lines.append(pat[:1500])
+    hist = dossier.get("history_tail") or []
+    if hist:
+        lines.append("=== HISTORIQUE RÉCENT ===")
+        for h in hist:
+            lines.append(f"- {h.get('at')} [{h.get('by')}]: {h.get('entry')}")
+    related = dossier.get("related_alerts") or []
+    lines.append(f"=== ALERTES LIÉES ({len(related)}) — pivots IP/asset/source ===")
+    if not related:
+        lines.append("- aucune corrélation pivot trouvée sur la fenêtre")
+    for r in related[:12]:
+        shared = ", ".join(str(x) for x in (r.get("shared_artifacts") or [])[:5])
         lines.append(
-            f"- s={r.get('link_score')} [{r.get('type')}|{r.get('severity')}] "
-            f"{(r.get('title') or '')[:60]} ({shared})"
+            f"- score={r.get('link_score')} [{r.get('severity')}|{r.get('status')}|"
+            f"{r.get('type')}] {r.get('title')} | entité={r.get('entity')} | "
+            f"src={r.get('source') or '—'} | partagé={shared} | "
+            f"id={r.get('short_id') or r.get('id')}"
         )
+    # lecture IR rapide des clusters
+    types = {}
+    for r in related:
+        t = r.get("type") or "?"
+        types[t] = types.get(t, 0) + 1
+    if types:
+        lines.append("Cluster types liés: " + ", ".join(f"{k}×{v}" for k, v in sorted(
+            types.items(), key=lambda x: -x[1])[:8]))
     blob = "\n".join(lines)
-    if len(blob) > 1800:
-        blob = blob[:1800] + "…"
-    return "CONTEXTE SEP (investigation):\n" + blob
+    if len(blob) > 9000:
+        blob = blob[:9000] + "\n…[tronqué]"
+    return blob
 
 
 def fallback_investigation_report(dossier: dict[str, Any],
                                   user_note: str = "") -> str:
-    """Rapport déterministe si Ollama timeout — toujours utile à l’analyste."""
+    """Scaffold N3 déterministe (socle factuel) si LLM indisponible/timeout."""
     a = dossier.get("alert") or {}
     arts = dossier.get("artifacts") or {}
     names = dossier.get("asset_names") or {}
     related = dossier.get("related_alerts") or []
     sev = str(a.get("severity") or "").lower()
     nrel = len(related)
-    if nrel >= 5 or sev in ("urgent", "critical", "high", "major"):
-        verdict, conf = "suspect", "55%"
-    elif nrel >= 1:
-        verdict, conf = "à qualifier", "45%"
-    else:
-        verdict, conf = "données limitées", "35%"
-
-    def fmt_kind(kind: str) -> str:
-        vals = arts.get(kind) or []
-        if not vals:
-            return ""
-        shown = [names.get(v, v) for v in vals[:6]]
-        return f"- {kind}: " + ", ".join(str(x) for x in shown)
-
-    art_lines = [fmt_kind(k) for k in ("ip", "host", "user", "hash", "url", "email")]
-    art_lines = [x for x in art_lines if x]
+    atype = (a.get("type") or "").lower()
     hosts = [names.get(v, v) for v in (arts.get("asset") or [])[:6]]
-    if hosts:
-        art_lines.append("- host/asset: " + ", ".join(str(x) for x in hosts))
+    hosts += list(arts.get("host") or [])[:4]
+    hosts = list(dict.fromkeys(str(h) for h in hosts if h))
+    ips = list(arts.get("ip") or [])[:6]
+    users = list(arts.get("user") or [])[:6]
+
+    if nrel >= 5 and sev in ("urgent", "critical", "high", "major"):
+        verdict, conf, prio = "Suspect — prioriser qualification VP", "60%", "P1"
+    elif nrel >= 3 or sev in ("urgent", "critical", "high", "major"):
+        verdict, conf, prio = "Suspect / à qualifier N2-N3", "50%", "P1"
+    elif nrel >= 1:
+        verdict, conf, prio = "Signal corrélé — qualification requise", "40%", "P2"
+    else:
+        verdict, conf, prio = "Données insuffisantes — enrichir avant verdict", "30%", "P2"
+
+    type_cluster: dict[str, int] = {}
+    for r in related:
+        t = r.get("type") or "?"
+        type_cluster[t] = type_cluster.get(t, 0) + 1
+    cluster_txt = ", ".join(f"{k}×{v}" for k, v in sorted(
+        type_cluster.items(), key=lambda x: -x[1])[:6]) or "aucun"
+
+    def art_block(kind: str) -> list[str]:
+        vals = arts.get(kind) or []
+        out = []
+        for v in vals[:8]:
+            label = names.get(v, v)
+            role = {
+                "ip": "pivot réseau / match[source]",
+                "host": "hôte focus — timeline process/auth",
+                "user": "identité — sessions, MFA, privileges",
+                "hash": "hunt hash tenant + sandbox",
+                "url": "reputation + mail/web proxy",
+                "email": "mailbox rules + destinataires",
+            }.get(kind, "pivot")
+            out.append(f"- `{label}` ({kind}) — {role}")
+        return out
+
+    art_lines: list[str] = []
+    for k in ("ip", "host", "user", "hash", "url", "email"):
+        art_lines.extend(art_block(k))
+    for h in hosts[:6]:
+        if not any(h in x for x in art_lines):
+            art_lines.append(f"- `{h}` (host/asset) — timeline + isolement si VP")
 
     rel_lines = []
-    for r in related[:6]:
+    for r in related[:10]:
         shared = ", ".join(str(x) for x in (r.get("shared_artifacts") or [])[:4])
         rel_lines.append(
-            f"- [{r.get('severity')}|{r.get('type')}] {(r.get('title') or '')[:70]} "
-            f"(score {r.get('link_score')}, {shared})"
+            f"- **{r.get('short_id') or r.get('id')}** "
+            f"[{r.get('severity')}|{r.get('type')}|{r.get('status')}] "
+            f"{r.get('title')} — score {r.get('link_score')} — {shared}"
         )
 
+    ttps = dossier.get("ttps") or []
+    ttp_lines = [
+        f"- {t.get('name')} (`{t.get('id') or 'n/a'}`)" for t in ttps[:8]
+    ] or ["- aucun TTP fourni par Sekoia sur cette alerte"]
+
+    guidance = dossier.get("n3_guidance") or ""
+    det = (dossier.get("details") or "").replace("\n", " ").strip()[:500]
+    pat = (dossier.get("rule_pattern") or "").replace("\n", " ").strip()[:350]
+
+    host_focus = hosts[0] if hosts else (ips[0] if ips else "hôte/IP focus")
     lines = [
-        f"VERDICT: {verdict} | CONFIANCE: {conf}",
+        f"# RAPPORT N3 — {a.get('title') or 'Alerte Sekoia'}",
         "",
-        "## Résumé",
-        f"Alerte [{a.get('type') or '—'}] « {a.get('title') or '—'} » "
-        f"({a.get('short_id') or a.get('id')}) — statut {a.get('status') or '—'}, "
-        f"criticité {a.get('severity') or '—'}, entité {a.get('entity') or '—'}.",
-        f"Source={a.get('source') or '—'} · règle={a.get('rule') or '—'} · "
-        f"similarité déclarée Sekoia={dossier.get('similar_declared') or 0}.",
+        "## 1. Verdict opérationnel",
+        f"- Classification : **{verdict}**",
+        f"- Confiance : **{conf}** (socle factuel SEP ; affiner avec IA N3 / télémétrie)",
+        f"- Sévérité IR proposée : **{prio}** — type `{a.get('type') or '—'}`, "
+        f"criticité SIEM `{a.get('severity') or '—'}`, {nrel} alerte(s) liée(s)",
         "",
-        "## Artefacts",
-        *(art_lines or ["- aucun artefact structuré extrait"]),
+        "## 2. Synthèse exécutive",
+        f"Alerte `{a.get('short_id') or a.get('id')}` « {a.get('title')} » "
+        f"({a.get('type')}/{a.get('category')}) sur entité **{a.get('entity') or '—'}**, "
+        f"statut **{a.get('status') or '—'}**, règle « {a.get('rule') or '—'} ».",
+        f"Source observée : `{a.get('source') or '—'}` · assets/hosts : "
+        f"{', '.join(f'`{h}`' for h in hosts[:5]) or '—'}.",
+        f"Similarité native Sekoia : {dossier.get('similar_declared') or 0} ; "
+        f"corrélation EI (IP/asset) : **{nrel}** alertes "
+        f"(cluster types : {cluster_txt}).",
+        f"Guidance type : {guidance}",
+        (f"Extrait détection : {det}" if det else ""),
         "",
-        f"## Corrélation ({nrel} alertes liées)",
-        *(rel_lines or ["- aucun pivot IP/asset trouvé sur la fenêtre"]),
+        "## 3. Chronologie & kill-chain",
+        f"- First seen : {a.get('created_at') or '—'} · Last : {a.get('updated_at') or '—'}",
+        f"- Kill-chain short id : {dossier.get('kill_chain') or 'non fourni'}",
+        "- Reconstituer la timeline process/auth/network sur le host focus "
+        f"**{host_focus}** ±2 h autour de first_seen.",
         "",
-        "## Actions P0/P1/P2",
-        "- P0: qualifier FP vs VP sur l’hôte/asset focus ; vérifier sessions user.",
-        "- P1: pivoter les alertes liées ci-dessus (même IP/asset) dans Sekoia.",
-        "- P2: containment ciblé si VP confirmé ; documenter dans le ticket.",
+        "## 4. Artefacts & valeur analytique",
+        *(art_lines or ["- aucun artefact structuré extrait — enrichir via events Sekoia"]),
         "",
-        "## Questions",
-        "- L’activité est-elle attendue (admin, backup, scan légitime) ?",
-        "- D’autres hôtes partagent-ils les mêmes artefacts ?",
+        "## 5. Corrélation & campagne",
+        f"Lecture IR : {nrel} signal(aux) partagent IP/asset/source avec le focus. "
+        f"Cluster dominant : {cluster_txt}.",
+        *(rel_lines or ["- aucun pivot IP/asset — élargir fenêtre ou pivoter user/rule"]),
+        "",
+        "## 6. Hypothèses concurrentes",
+        f"- **H1 — Intrusion / activité malveillante ({atype or 'type?'})** : "
+        "cohérent si process/user inhabituels + alertes liées offensives "
+        f"({cluster_txt}).",
+        "- **H2 — Admin / outil légitime** : change management, scan, déploiement, "
+        "compte de service attendu sur le host.",
+        "- **H3 — FP règle / couverture trop large** : pattern bruyant, "
+        "filtre vendor manquant ; vérifier occurrences historiques de la règle.",
+        "- Tests : comparer user vs baseline ; présence change ticket ; "
+        "autres hôtes avec même pattern ; reputation source IP.",
+        "",
+        "## 7. Faux positif — critères d’exclusion",
+        "- FP si : action documentée IT + même signature récurrente sans impact "
+        "+ absence de latéralisation/C2 sur le host.",
+        "- Contre FP si : enchaînement multi-types sur même asset "
+        "(ex. scanner→tunnel→privesc) ou source externe inattendue.",
+        "",
+        "## 8. Plan d’action immédiat",
+        f"- **P0 (<15 min)** : ouvrir le host `{host_focus}` dans Sekoia ; "
+        "lister process/auth 2 h ; noter user interactif.",
+        f"- **P1 (<1 h)** : qualifier les {min(nrel, 5)} alertes liées les plus "
+        "scorées ; pivoter `match[asset_uuid]` / source IP.",
+        "- **P1** : si VP — isolation hôte ou restriction réseau + capture volatile "
+        "selon runbook CERT.",
+        "- **P2 (<4 h)** : hunt tenant sur artefacts "
+        f"({', '.join(ips[:3] + users[:2]) or 'hash/host'}) ; "
+        "documenter timeline dans le ticket.",
+        "",
+        "## 9. Hunting & pivots forensic",
+        f"- Pivot asset/host `{host_focus}` — toutes alertes 7–30 j",
+        (f"- Pivot IP `{ips[0]}` — auth + proxy + firewall" if ips else
+         "- Pivot source IP de l’alerte si disponible"),
+        (f"- Pivot user `{users[0]}` — logons, MFA, mailbox" if users else
+         "- Identifier user via events process/auth puis pivoter"),
+        "- Rejouer le pattern de détection sur ±24 h / autres intakes",
+        (f"- Pattern (extrait) : `{pat[:200]}…`" if pat else
+         "- Extraire pattern règle depuis Sekoia pour backtest"),
+        "",
+        "## 10. Escalade CERT / communication",
+        f"- Escalader CERT si VP confirmé ou cluster multi-techniques sur `{host_focus}`.",
+        "- Ticket : short_id, host/IP/user, linked alerts IDs, verdict provisoire, "
+        "actions déjà prises, demande (isol. / reset / block).",
+        "",
+        "## 11. Lacunes & questions N3",
+        "- Events bruts (process.command_line, parent, user) disponibles ?",
+        "- Host critique métier (prod / DC / ESXi) ?",
+        "- Fenêtre de maintenance / scan planifié ?",
+        "- Couverture EDR complète sur l’asset ?",
     ]
+    if ttps:
+        lines.extend(["", "### TTP déclarés Sekoia", *ttp_lines])
     if user_note.strip():
-        lines.extend(["", "## Note analyste", user_note.strip()[:400]])
+        lines.extend(["", "## Note analyste", user_note.strip()[:600]])
     lines.extend([
         "",
-        "_Rapport dossier SEP (corrélation déterministe). "
-        "Relancer Investiguer si le moteur IA local répond._",
+        "_Socle factuel SEP (corrélation déterministe N3). "
+        "L’analyse IA complète enrichit hypothèses et narration IR._",
     ])
-    return "\n".join(lines)
+    return "\n".join(x for x in lines if x is not None)
 
 
 async def run_ei_investigate(
@@ -949,7 +1224,7 @@ async def run_ei_investigate(
     max_tokens: Optional[int] = None,
     use_llm: bool = True,
 ) -> dict[str, Any]:
-    """Investigation automatisée type Qevlar sur une alerte Sekoia."""
+    """Investigation N3 / Qevlar-grade sur une alerte Sekoia."""
     dossier = await build_alert_dossier(alert_id, hours=hours)
     if not dossier.get("ok"):
         return {"ok": False, "error": dossier.get("error") or "dossier impossible",
@@ -963,23 +1238,26 @@ async def run_ei_investigate(
         "similar_declared": dossier.get("similar_declared"),
         "similarity_strategy": dossier.get("similarity_strategy"),
         "asset_names": dossier.get("asset_names"),
-        "details": (dossier.get("details") or "")[:600],
+        "ttps": dossier.get("ttps"),
+        "n3_guidance": dossier.get("n3_guidance"),
+        "details": (dossier.get("details") or "")[:1200],
     }
     pb = EI_PLAYBOOKS["alert-investigate"]
     base = {
         "playbook_id": "alert-investigate",
         "playbook": {"id": "alert-investigate", "name": pb["name"], "mode": pb["mode"]},
         "dossier": dossier_pub,
+        "quality": "n3",
     }
-    dossier_text = fallback_investigation_report(dossier, user_note)
+    scaffold = fallback_investigation_report(dossier, user_note)
 
     if not use_llm:
         return {
             **base,
             "ok": True,
             "ai": False,
-            "text": dossier_text,
-            "note": "corrélation SEP (clic rapide) — bouton Investiguer pour l’IA",
+            "text": scaffold,
+            "note": "socle N3 factuel — lancez Investiguer (IA) pour l’analyse complète",
         }
 
     pid = provider_id.strip() or (_pick_default_provider_id() or "")
@@ -988,42 +1266,97 @@ async def run_ei_investigate(
             **base,
             "ok": True,
             "ai": False,
-            "text": dossier_text,
-            "error": None,
-            "note": "pas de LLM — rapport dossier uniquement",
+            "text": scaffold,
+            "note": "pas de LLM — socle N3 factuel uniquement",
         }
 
-    # Prompt ultra-compact pour CPU 3b
+    # L’IA enrichit le socle (déjà N3 factuel) au lieu de tout régénérer :
+    # meilleure qualité IR + latence CPU maîtrisée.
     ctx = format_investigation_context(dossier)
-    user_content = (
-        pb["prompt"] + "\n\n" + ctx
-        + (("\n\nNOTE: " + user_note.strip()[:200]) if user_note.strip() else "")
-    )[:2200]
+    # Contexte compact pour le raisonnement (faits essentiels)
+    ctx_compact = ctx
+    if len(ctx_compact) > 5500:
+        ctx_compact = ctx_compact[:5500] + "\n…[tronqué]"
+    a = dossier.get("alert") or {}
+    arts = dossier.get("artifacts") or {}
+    names = dossier.get("asset_names") or {}
+    related = dossier.get("related_alerts") or []
+    host = ""
+    if arts.get("asset"):
+        host = names.get(arts["asset"][0], arts["asset"][0])
+    elif arts.get("host"):
+        host = arts["host"][0]
+    facts = (
+        f"Alerte {a.get('short_id')} | {a.get('type')}/{a.get('category')} | "
+        f"{a.get('severity')} | {a.get('status')} | règle={a.get('rule')} | "
+        f"entité={a.get('entity')} | host={host or '—'} | src={a.get('source') or '—'} | "
+        f"liés={len(related)} "
+        f"({', '.join(sorted({(r.get('type') or '?') for r in related[:8]}))}) | "
+        f"guidance={dossier.get('n3_guidance') or '—'}"
+    )
+    enrich_prompt = (
+        "Analyste CERT N3. À partir des FAITS ci-dessous, rédige un enrichissement IR "
+        "(pas un résumé creux). Markdown strict :\n"
+        "## A. Lecture N3\n"
+        "10 lignes : scénario probable, blast radius, pourquoi P0/P1 maintenant.\n"
+        "## B. Hypothèses H1/H2/H3\n"
+        "Pour chacune : preuves POUR, CONTRE, test discriminant concret.\n"
+        "## C. Actions P0/P1/P2\n"
+        "Chaque ligne = action + cible (host/IP/user) + critère DONE.\n"
+        "## D. Hunting (5 pivots)\n"
+        "Uniquement artefacts fournis.\n"
+        "## E. Ticket CERT\n"
+        "8 lignes prêtes à coller.\n"
+        "Aucun IOC inventé.\n\n"
+        f"FAITS:\n{facts}\n"
+    )
+    if related[:5]:
+        enrich_prompt += "LIÉES:\n" + "\n".join(
+            f"- {r.get('short_id')} [{r.get('type')}|{r.get('severity')}] "
+            f"{(r.get('title') or '')[:70]}"
+            for r in related[:5]
+        ) + "\n"
+    if user_note.strip():
+        enrich_prompt += "NOTE: " + user_note.strip()[:300] + "\n"
     messages = [
-        {"role": "system", "content": (
-            "EI SOC. Français. Très court. "
-            "VERDICT|CONFIANCE%|PREUVES|ACTIONS P0/P1. Contexte only."
-        )},
-        {"role": "user", "content": user_content},
+        {"role": "system", "content": EI_N3_INVESTIGATE_SYSTEM},
+        {"role": "user", "content": enrich_prompt[:3500]},
     ]
-    mt = int(max_tokens or pb.get("max_tokens") or 200)
-    mt = max(80, min(mt, 220))
+    # Enrichissement : modèle rapide local (3b) — le socle N3 porte déjà la structure.
+    # Le 8b reste dispo en War Room / skills pour analyses plus longues.
+    mt = int(max_tokens or 320)
+    mt = max(200, min(mt, 400))
     try:
         result = await asyncio.wait_for(
-            chat_with_provider(pid, messages, temperature=0.1, max_tokens=mt),
-            timeout=95.0,
+            chat_with_provider(
+                pid, messages, temperature=0.2, max_tokens=mt,
+                quality="n3",
+                model_override="llama3.2:3b",
+            ),
+            timeout=620.0,
         )
     except asyncio.TimeoutError:
-        result = {"ok": False, "error": "TimeoutError: IA locale trop lente"}
+        result = {"ok": False, "error": "TimeoutError: IA N3 trop lente"}
     if result.get("ok") and result.get("text"):
-        return {**base, **result, "ai": True}
+        ai_text = str(result.get("text") or "").strip()
+        merged = (
+            "# RAPPORT N3 COMPLET — "
+            f"{(dossier.get('alert') or {}).get('title') or 'Alerte'}\n\n"
+            "## Partie 1 — Socle factuel SEP (corrélation / artefacts)\n\n"
+            + scaffold
+            + "\n\n---\n\n"
+            "## Partie 2 — Analyse N3 IA (enrichissement IR)\n\n"
+            + ai_text
+        )
+        return {**base, **result, "text": merged, "ai": True, "quality": "n3"}
     return {
         **base,
         "ok": True,
         "ai": False,
-        "text": dossier_text,
+        "text": scaffold,
         "llm_error": result.get("error"),
-        "note": "IA timeout/indisponible — rapport corrélation SEP fourni",
+        "note": "IA indisponible/timeout — socle N3 factuel fourni "
+                "(qualité opérationnelle, sans narration IA)",
     }
 
 
@@ -1224,13 +1557,21 @@ async def run_ei_playbook(playbook_id: str, *,
         user_parts.append("NOTE ANALYSTE:\n" + user_note.strip()[:800])
     if inject_context:
         user_parts.append(format_ei_context_for_prompt(ctx))
+    q = str(pb.get("quality") or "standard")
+    sys_prompt = (EI_N3_INVESTIGATE_SYSTEM + "\n\n" + EI_SYSTEM) if q == "n3" else EI_SYSTEM
     messages = [
-        {"role": "system", "content": EI_SYSTEM},
-        {"role": "user", "content": "\n\n".join(user_parts)[:7000]},
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": "\n\n".join(user_parts)[:10000]},
     ]
-    mt = int(max_tokens or pb.get("max_tokens") or 280)
-    mt = min(mt, 280)
-    result = await chat_with_provider(pid, messages, temperature=0.1, max_tokens=mt)
+    mt = int(max_tokens or pb.get("max_tokens") or 400)
+    if q == "n3":
+        mt = max(mt, 800)
+        mt = min(mt, 2048)
+    else:
+        mt = min(mt, 400)
+    result = await chat_with_provider(
+        pid, messages, temperature=0.12, max_tokens=mt, quality=q,
+    )
     return {
         **result,
         "playbook_id": playbook_id,
@@ -1331,6 +1672,8 @@ def _public_mcp() -> list[dict[str, Any]]:
 async def _chat_openai_compatible(base_url: str, api_key: str, model: str,
                                   messages: list[dict], temperature: float = 0.2,
                                   max_tokens: int = 512,
+                                  *,
+                                  quality: str = "standard",
                                   ) -> tuple[bool, Any]:
     url = base_url.rstrip("/") + "/chat/completions"
     headers = {"Content-Type": "application/json"}
@@ -1343,12 +1686,27 @@ async def _chat_openai_compatible(base_url: str, api_key: str, model: str,
         "temperature": temperature,
         "max_tokens": mt,
     }
-    # Ollama : borner le contexte d’évaluation (sinon CPU 3b dépasse 3–4 min)
-    if "ollama" in (base_url or "").lower() or ":11434" in (base_url or "") \
-            or "oc-gateway" in (base_url or "") or ":11435" in (base_url or ""):
-        payload["options"] = {"num_ctx": 1536, "num_predict": mt}
+    is_ollama = (
+        "ollama" in (base_url or "").lower() or ":11434" in (base_url or "")
+        or "oc-gateway" in (base_url or "") or ":11435" in (base_url or "")
+    )
+    if is_ollama:
+        # N3 : contexte élargi + génération longue ; standard : bornes CPU légères
+        if quality == "n3":
+            # Contexte modéré : qualité IR sans exploser la latence CPU
+            payload["options"] = {
+                "num_ctx": 2048,
+                "num_predict": mt,
+                "temperature": temperature,
+            }
+            read_s = 600
+        else:
+            payload["options"] = {"num_ctx": 2048, "num_predict": min(mt, 400)}
+            read_s = 300
+    else:
+        read_s = 180
     try:
-        timeout = httpx.Timeout(connect=15, read=300, write=60, pool=15)
+        timeout = httpx.Timeout(connect=20, read=read_s, write=60, pool=20)
         async with httpx.AsyncClient(timeout=timeout) as client:
             r = await client.post(url, json=payload, headers=headers)
         if r.status_code >= 400:
@@ -1415,7 +1773,9 @@ async def chat_with_provider(provider_id: str, messages: list[dict],
                              temperature: float = 0.2,
                              max_tokens: int = 512,
                              *,
-                             enforce_local: Optional[bool] = None) -> dict[str, Any]:
+                             enforce_local: Optional[bool] = None,
+                             quality: str = "standard",
+                             model_override: str = "") -> dict[str, Any]:
     meta = _load_meta()
     p = next((x for x in (meta.get("providers") or []) if x.get("id") == provider_id), None)
     if not p or not p.get("enabled", True):
@@ -1423,7 +1783,7 @@ async def chat_with_provider(provider_id: str, messages: list[dict],
     sec_all = _secrets().get("providers") or {}
     sec = sec_all.get(provider_id) if isinstance(sec_all.get(provider_id), dict) else {}
     kind = p.get("kind") or "openai_compatible"
-    model = p.get("model") or "gpt-4o-mini"
+    model = (model_override or "").strip() or (p.get("model") or "gpt-4o-mini")
     api_key = str(sec.get("api_key") or "")
     base = str(p.get("base_url") or "")
     if kind == "ollama" and not base:
@@ -1444,19 +1804,26 @@ async def chat_with_provider(provider_id: str, messages: list[dict],
             "local_only": True,
         }
 
+    q = (quality or "standard").lower()
     if kind == "anthropic":
         ok, res = await _chat_anthropic(api_key, model, messages, base)
     else:
         if not base:
             return {"ok": False, "error": "base_url requise"}
-        mt = max_tokens if kind != "ollama" else min(max_tokens, 280)
+        if kind == "ollama" and q != "n3":
+            mt = min(int(max_tokens or 512), 400)
+        else:
+            mt = int(max_tokens or 512)
         ok, res = await _chat_openai_compatible(
-            base, api_key, model, messages, temperature, max_tokens=mt)
+            base, api_key, model, messages, temperature,
+            max_tokens=mt, quality=q,
+        )
     if not ok:
         return {"ok": False, "error": res}
     return {
         "ok": True, "provider_id": provider_id, "kind": kind, "model": model,
         "local_only": must_local, "data_residency": "host-local" if must_local else "provider",
+        "quality": q,
         **res,
     }
 

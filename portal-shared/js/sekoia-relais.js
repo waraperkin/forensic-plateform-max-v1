@@ -32,15 +32,15 @@
       name: 'Ollama Cybercorp',
       kind: 'ollama',
       base_url: 'http://oc-gateway:8080/v1',
-      model: 'llama3.2:3b',
-      hint: '100 % local · réseau Docker SEP (recommandé)',
+      model: 'llama3.1:8b',
+      hint: '100 % local · N3 recommandé (llama3.1:8b)',
     },
     {
       id: 'ollama-loopback',
       name: 'Ollama gateway (localhost)',
       kind: 'ollama',
       base_url: 'http://127.0.0.1:11435/v1',
-      model: 'llama3.2:3b',
+      model: 'llama3.1:8b',
       hint: 'Depuis l’hôte uniquement — bind 127.0.0.1',
     },
     {
@@ -56,7 +56,7 @@
   const FALLBACK_PLAYBOOKS = [
     { id: 'alert-triage', name: 'Triage file d’alertes', mode: 'triage', desc: 'Prioriser les alertes SIEM.', tags: ['siem', 'triage'], alert_kinds: ['*'] },
     { id: 'alert-deep', name: 'Analyse approfondie alerte', mode: 'triage', desc: 'Décortiquer une alerte Sekoia.', tags: ['siem', 'deep'], alert_kinds: ['*'] },
-    { id: 'alert-investigate', name: 'Investigation alerte (style Qevlar)', mode: 'triage', desc: 'Artefacts, alertes liées, verdict.', tags: ['siem', 'investigate', 'qevlar'], alert_kinds: ['*'] },
+    { id: 'alert-investigate', name: 'Investigation N3 (Qevlar-grade)', mode: 'triage', desc: 'Rapport N3 : kill-chain, hypothèses, actions.', tags: ['siem', 'investigate', 'qevlar', 'n3'], alert_kinds: ['*'] },
     { id: 'fp-coach', name: 'Coach faux positifs', mode: 'triage', desc: 'Réduire le bruit SIEM.', tags: ['tuning'], alert_kinds: ['*'] },
     { id: 'malware-alert', name: 'Malware / AV / EDR', mode: 'siem', desc: 'Malware, hash, quarantine.', tags: ['malware', 'edr'], alert_kinds: ['malware', 'edr'] },
     { id: 'ransomware-early', name: 'Ransomware (signaux précoces)', mode: 'siem', desc: 'Chiffrement, VSS, notes.', tags: ['ransomware'], alert_kinds: ['ransomware'] },
@@ -163,8 +163,11 @@
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/^### (.+)$/gm, '<div class="ei-h3">$1</div>')
         .replace(/^## (.+)$/gm, '<div class="ei-h2">$1</div>')
+        .replace(/^# (.+)$/gm, '<div class="ei-h1">$1</div>')
         .replace(/^- (.+)$/gm, '<div class="ei-li">• $1</div>')
+        .replace(/^\d+\.\s+(.+)$/gm, '<div class="ei-li"><strong>$&</strong></div>')
         .replace(/^\d+\) (.+)$/gm, '<div class="ei-li"><strong>$&</strong></div>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/\n/g, '<br>');
     }).join('');
   }
@@ -413,8 +416,8 @@
           <span class="rl-hint">${rows.length} affichées${t.total != null ? ' / ' + esc(t.total) : ''} · ${esc(t.hours)}h
             ${t.loading ? ' · chargement…' : ''}</span>
         </div>
-        <p class="fp-muted ei-lead">Filtres Sekoia (statut, criticité, type). Un clic lance l’investigation EI
-          (artefacts + alertes liées + verdict) — vous validez les actions.</p>
+        <p class="fp-muted ei-lead">Filtres Sekoia (statut, criticité, type). Un clic ouvre le dossier + socle N3
+          (artefacts, alertes liées). <strong>Investiguer (IA)</strong> produit le rapport N3/CERT complet.</p>
         <div class="rl-toolbar ei-triage-filters">
           <select class="fp-input" id="ei-f-status" title="Statut">
             <option value="">Tous statuts</option>
@@ -478,9 +481,9 @@
             <textarea class="rl-chat-input" id="ei-triage-note" placeholder="Note analyste (optionnel)…"></textarea>
             <div class="rl-toolbar">
               <button type="button" class="fp-btn fp-btn-primary fp-btn-sm" data-rl="investigate"
-                ${st.busy || st.investigating || !p || !st.cfg.focusAlertId ? 'disabled' : ''}>Investiguer (IA)</button>
+                ${st.busy || st.investigating || !p || !st.cfg.focusAlertId ? 'disabled' : ''}>Rapport N3 (IA)</button>
               <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="investigate-fast"
-                ${st.busy || st.investigating || !st.cfg.focusAlertId ? 'disabled' : ''}>Corréler</button>
+                ${st.busy || st.investigating || !st.cfg.focusAlertId ? 'disabled' : ''}>Socle factuel</button>
               <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="alert-deep"
                 ${st.busy || !p ? 'disabled' : ''}>Analyse</button>
               <button type="button" class="fp-btn fp-btn-ghost fp-btn-sm" data-rl="pb-run" data-id="fp-coach"
@@ -889,7 +892,7 @@
     }
     st.investigating = true;
     st.busy = true;
-    st.msg = useLlm ? 'Investigation IA…' : 'Corrélation alertes…';
+    st.msg = useLlm ? 'Rapport N3 IA en cours (peut prendre plusieurs minutes)…' : 'Socle N3 factuel…';
     if (!silent) paint();
     try {
       const note = ((document.getElementById('ei-triage-note') || {}).value || '').trim();
@@ -900,35 +903,36 @@
           provider_id: (p && p.id) || '',
           user_note: note,
           hours: st.triage.hours || 720,
-          max_tokens: 200,
+          max_tokens: useLlm ? 550 : 200,
           use_llm: useLlm,
         },
       });
       if (r && r.dossier) st.dossier = Object.assign({}, st.dossier || {}, r.dossier, { ok: true });
       if (r && r.ok && r.text) {
         const prefix = r.ai === false
-          ? '_(Rapport corrélation SEP — IA locale indisponible/timeout)_\n\n'
-          : '';
+          ? '_(Socle N3 factuel SEP — lancez « Rapport N3 (IA) » pour l’analyse complète)_\n\n'
+          : '_(Rapport N3 / CERT — Extended Intelligence)_\n\n';
         st.lastRun = {
           text: prefix + r.text,
           t: nowStamp(),
-          playbook: r.playbook || { name: 'Investigation', mode: 'triage' },
+          playbook: r.playbook || { name: 'Investigation N3', mode: 'triage' },
           mode: 'triage',
           ai: r.ai !== false,
+          quality: 'n3',
         };
         st.chat.push({
           role: 'user',
-          text: `[Investigation] ${alertId}${note ? ' — ' + note : ''}`,
+          text: `[N3 ${useLlm ? 'IA' : 'socle'}] ${alertId}${note ? ' — ' + note : ''}`,
           t: nowStamp(),
         });
         st.chat.push({
           role: 'assistant',
           text: prefix + r.text,
           t: nowStamp(),
-          meta: r.ai === false ? 'dossier' : 'investigation',
+          meta: r.ai === false ? 'n3-scaffold' : 'n3-report',
         });
         persistChat();
-        toast(r.ai === false ? 'Dossier + corrélation prêts' : 'Investigation EI prête', 'ok');
+        toast(r.ai === false ? 'Socle N3 prêt' : 'Rapport N3 prêt', 'ok');
       } else {
         toast((r && r.error) || 'Échec investigation', 'err');
       }
@@ -964,7 +968,7 @@
         alert_id: st.cfg.focusAlertId || '',
         hours: st.cfg.hours || 24,
         inject_context: st.cfg.injectContext !== false,
-        max_tokens: 280,
+        max_tokens: ((playbooks().find((x) => x.id === id) || {}).tags || []).includes('n3') ? 1200 : 500,
       };
       const r = await sepApi('/llm/ei/run', { method: 'POST', body });
       if (r && r.ok && r.text) {

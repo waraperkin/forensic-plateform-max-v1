@@ -396,8 +396,13 @@ function createThreatRoutes({ axios, logger, os, importToTimesketch }) {
     // Depuis la couche données du control-plane (single-flight + cache TTL +
     // budget de jobs), les recalculs complets sont bornés : 900 s de délai ne
     // protégeait rien, il transformait chaque incident en écran gelé.
+    // Extended Intelligence N3 (llm/ei/investigate) : rapports longs sur Ollama 8B
+    // — au-delà de 240 s sinon le portail coupe avant la fin du rapport.
+    const eiHeavy = /^\/sekoia\/llm\/ei\/(investigate|run|chat)(\/|$)/.test(req.path);
     const timeout = chained
       ? Number(process.env.ANALYST_PROXY_TIMEOUT_MS || 600000)
+      : eiHeavy
+        ? Number(process.env.EI_PROXY_TIMEOUT_MS || 600000)
       : heavy
         ? Number(process.env.SEKOIA_PROXY_TIMEOUT_HEAVY_MS || 240000)
         : Number(process.env.SEKOIA_PROXY_TIMEOUT_MS || 60000);

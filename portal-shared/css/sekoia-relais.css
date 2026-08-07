@@ -525,7 +525,9 @@
   max-height: 22rem;
   overflow: auto;
 }
-.ei-answer--tall { max-height: 32rem; }
+.ei-answer--tall { max-height: 48rem; }
+.ei-answer h1, .ei-answer .ei-h1 { font-size: 1rem; font-weight: 700; margin: 0.6rem 0 0.35rem; }
+.ei-answer strong { font-weight: 650; }
 .ei-dossier h5 {
   margin: 0.65rem 0 0.3rem;
   font-size: 0.72rem;
